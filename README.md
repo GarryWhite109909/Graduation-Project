@@ -45,15 +45,20 @@ Graduation-Project/
 ├── .gitignore
 ├── pyproject.toml                         # 项目元数据 + 依赖声明（支持 pip install -e .）
 ├── requirements.txt                       # 锁版本依赖清单
+├── TODO.md                                # 代码审查问题清单（处理进度跟踪）
+├── 规划.md                                 # 项目阶段规划与进度
 ├── docs/                                  # 设计文档与改进建议
 │   ├── glm的建议.md                        # GLM 给出的改进路线建议
 │   ├── kimi的建议.md                       # Kimi 给出的智能体分工建议
 │   └── 必须手动学习的地方.md                # 手工任务详细操作指南（唯一来源）
 ├── src/                                   # 核心代码库（pip install -e . 后可全局 import）
 │   ├── __init__.py
+│   ├── schema.py                          # 统一输出 schema（VERDICT_SCHEMA 唯一来源 + 解析函数）
+│   ├── prompts.py                         # 统一 Prompt 模板（SYSTEM_PROMPT + build_user_prompt）
 │   ├── llm_client.py                      # Ollama LLM 客户端（支持 RAG 增强）
-│   └── chroma_manager.py                  # Chroma 向量数据库管理器
+│   └── chroma_manager.py                  # Chroma 向量数据库管理器（add / upsert / query）
 ├── experiments/                           # 实验目录（按阶段编号）
+│   ├── utils.py                           #   实验公共工具（manifest 加载 / 指标统计 / 结果落盘）
 │   ├── exp_01_basic_scan/                 # 阶段一：Gemma 漏洞检测能力摸底
 │   │   ├── run_experiment.py              #   批量测试脚本（调 Ollama API + 增量落盘 + 自动卸载显存）
 │   │   ├── exp_01_report.md               #   实验报告
@@ -69,14 +74,19 @@ Graduation-Project/
 │   │   │   └── safe_02_subprocess_list.py
 │   │   └── results/
 │   │       └── results.json               #   14 次推理的完整原始输出
-│   ├── exp_02_baseline_tools/             # 阶段二：传统工具对比基线（待实现）
-│   │   ├── README.md                      #   实验说明与任务清单
-│   │   └── samples/                       #   复用 exp_01 样本（首次运行 run_baseline.py 时自动创建）
-│   └── exp_03_rag_knowledge/              # 阶段三：RAG 知识库增强（代码就绪，待运行验证）
+│   ├── exp_02_baseline_tools/             # 阶段二：传统工具对比基线
+│   │   ├── run_baseline.py                #   Bandit + Semgrep 批量调用脚本
+│   │   ├── exp_02_report.md               #   实验报告（含 LLM vs 传统工具横向对比）
+│   │   ├── README.md                      #   实验说明
+│   │   └── results/                       #   复用 exp_01 样本，结果按工具分组
+│   └── exp_03_rag_knowledge/              # 阶段三：RAG 知识库增强
+│       ├── run_rag_experiment.py          #   RAG+LLM 批量对比实验脚本
+│       ├── exp_03_report.md               #   实验报告（纯 LLM vs RAG+LLM 对比）
+│       ├── results/                       #   实验结果
 │       └── knowledge_data/
-│           ├── knowledge.json             #   漏洞知识条目（手工编写，建议扩至 30-50 条）
-│           ├── build_knowledge.py         #   从 JSON 加载 → 入库 Chroma
-│           └── test_rag.py                #   纯 LLM vs RAG+LLM 对比测试
+│           ├── knowledge.json             #   漏洞知识条目（手工编写，34 条）
+│           ├── build_knowledge.py         #   从 JSON 加载 → upsert 入库 Chroma（幂等可重复运行）
+│           └── test_rag.py                #   单样本快速验证脚本（正式实验用 run_rag_experiment.py）
 └── data/                                  # 本地持久化数据（不入库，见 .gitignore；首次运行 build_knowledge.py 后自动生成）
     └── chroma_db/                         #   Chroma 向量数据库
 ```
@@ -96,25 +106,31 @@ Graduation-Project/
 
 > ⚠️ **结果局限性**：样本为"教科书式"典型漏洞，100% 准确率仅证明能力下限，不代表真实工程代码的检测能力。
 
-### 🔄 进行中：阶段二 — 传统工具对比基线（目录骨架已建，待实现）
+### ✅ 已完成：阶段二 — 传统工具对比基线（2026-06-29）
 
-- [x] 建立 `exp_02_baseline_tools/` 目录与任务清单
-- [ ] 安装 Bandit / Semgrep / Gitleaks
-- [ ] 编写 `run_baseline.py`，复用第一阶段 14 段样本
-- [ ] 用同一批样本分别跑 Bandit / Semgrep，记录检出、漏报、误报、耗时
-- [ ] 生成对比表：LLM vs Bandit vs Semgrep
-- [ ] 补充 3-5 段"难样本"（绕过式过滤、跨文件污点、真实 CVE 片段）
-- [ ] 整理实验报告 `exp_02_report.md`
+- Bandit 1.9.4 + Semgrep 1.168.0 调用脚本 `run_baseline.py`，复用 exp_01 的 14 段样本
+- 输出与 exp_01 统一的 JSON 格式，自动适配 conda/venv 环境的 PATH
+- **结果**：LLM 召回率 100% vs Bandit 83.3% vs Semgrep 75.0%；Bandit 对 safe_02 误报 3 条
+- 关键论据：path_traversal_01.py LLM 唯一检出
 
-### ⚠️ 代码就绪待验证：阶段三 — RAG 漏洞知识库增强
+详见 [experiments/exp_02_baseline_tools/exp_02_report.md](experiments/exp_02_baseline_tools/exp_02_report.md)。
 
-- [x] `src/chroma_manager.py`：Chroma 向量库管理器（增删改查 + 本地持久化）
-- [x] `src/llm_client.py`：Ollama 客户端，支持 RAG 上下文注入
-- [x] `experiments/exp_03_rag_knowledge/knowledge_data/build_knowledge.py`：10 条 OWASP/CWE 知识入库
-- [x] `experiments/exp_03_rag_knowledge/knowledge_data/test_rag.py`：纯 LLM vs RAG+LLM 对比脚本
-- [ ] 在台式机运行 `build_knowledge.py` 构建知识库
-- [ ] 运行 `test_rag.py`，对比有/无 RAG 的检测效果
-- [ ] 整理实验报告 `exp_03_report.md`
+### ✅ 已完成：阶段三 — RAG 漏洞知识库增强（2026-06-29）
+
+- 知识库 34 条，覆盖 14 类漏洞（含安全模式识别条目防误报）
+- ChromaDB 持久化 + all-MiniLM-L6-v2 embedding；`build_knowledge.py` 改用 upsert 幂等写入
+- `run_rag_experiment.py` 批量对比纯 LLM vs RAG+LLM
+- **结果**：典型样本上 RAG 不改变判定（14/14 一致），但提升可解释性（Source/Sink 框架 + Top-3 知识可追溯）
+- 关键论据：safe_01/02 检索到危险知识但仍判 False，证明 RAG 不引入误报
+
+详见 [experiments/exp_03_rag_knowledge/exp_03_report.md](experiments/exp_03_rag_knowledge/exp_03_report.md)。
+
+### 🔄 进行中：阶段四 — 难样本与进阶实验（当前下一步）
+
+- 扩充难样本集（绕过式过滤、跨文件污点、真实 CVE 片段、OWASP WebGoat）
+- Prompt 工程对比（零样本 / Few-shot / 思维链）
+- AST 代码切片（tree-sitter，长文件按函数切分）
+- 多模型对比（Gemma 4 / Llama 3 / Qwen2.5）
 
 ---
 
@@ -126,14 +142,14 @@ Graduation-Project/
 
 | 任务 | 对应实验 | 状态 |
 | --- | --- | --- |
-| 传统工具对比基线（Bandit / Semgrep / Gitleaks） | exp_02 | 🔄 目录就绪，待实现 |
-| 真实代码测试（CVE PoC / OWASP WebGoat，10-20 段） | exp_02 补充 | ⏳ 待开始 |
+| 传统工具对比基线（Bandit / Semgrep） | exp_02 | ✅ 完成 |
+| 真实代码测试（CVE PoC / OWASP WebGoat，10-20 段） | exp_04 补充 | ⏳ 待开始 |
 
 ### 💡 创新点（论文核心价值）
 
 | 任务 | 对应实验 | 状态 |
 | --- | --- | --- |
-| RAG 漏洞知识库（OWASP/CWE/CVE → Chroma，检索注入 Prompt） | exp_03 | ⚠️ 代码就绪待验证 |
+| RAG 漏洞知识库（OWASP/CWE/CVE → Chroma，检索注入 Prompt） | exp_03 | ✅ 完成 |
 | AST 代码切片（tree-sitter，长文件按函数/块切分，解决注意力衰减） | exp_04 | ⏳ 待开始 |
 | 多模型对比（Gemma 4 26B / Llama 3 / Qwen2.5） | exp_05 | ⏳ 待开始 |
 
@@ -151,9 +167,9 @@ Graduation-Project/
 | 阶段 | 目标 | 状态 |
 | --- | --- | --- |
 | 一、模型能力摸底 | 验证 Gemma 在典型漏洞上的下限能力 | ✅ 完成 |
-| 二、传统工具对比基线 | 明确 LLM 相对传统工具的改进点 | 🔄 进行中 |
-| 三、RAG 知识增强 | 引入向量库，对比有/无 RAG 的检出率 | ⚠️ 代码就绪待验证 |
-| 四、AST 切片 + 多模型 | 解决长上下文衰减，横向对比模型能力 | ⏳ 待开始 |
+| 二、传统工具对比基线 | 明确 LLM 相对传统工具的改进点 | ✅ 完成 |
+| 三、RAG 知识增强 | 引入向量库，对比有/无 RAG 的检出率 | ✅ 完成 |
+| 四、AST 切片 + 多模型 | 解决长上下文衰减，横向对比模型能力 | 🔄 进行中 |
 | 五、系统设计与开发 | MVP：代码上传 → LLM 分析 → 结果展示；批量扫描、报告导出 | ⏳ 待开始 |
 | 六、论文与答辩 | 整理实验数据、撰写论文、答辩演示 | ⏳ 待开始 |
 
@@ -264,18 +280,37 @@ python3 run_experiment.py --keep-loaded         # 跑完保留模型在显存（
 
 结果写入 `results/results.json`，每跑完一个样本即增量落盘，中途可断点查看。
 
-### 跑 RAG 知识库实验（exp_03，需在台式机运行）
+### 跑第二阶段实验（exp_02，传统工具对比基线）
 
 ```bash
-# 1. 构建漏洞知识库
-cd experiments/exp_03_rag_knowledge/knowledge_data
-python3 build_knowledge.py                      # 从 knowledge.json 加载 10 条知识 → Chroma
+cd experiments/exp_02_baseline_tools
 
-# 2. 对比测试：纯 LLM vs RAG+LLM
-python3 test_rag.py
+# 需先安装工具：pip install bandit semgrep
+python3 run_baseline.py                         # Bandit + Semgrep 都跑
+python3 run_baseline.py --tool bandit           # 只跑 Bandit
+python3 run_baseline.py --tool semgrep          # 只跑 Semgrep
+python3 run_baseline.py --limit 3               # 只跑前 3 个样本（调试）
 ```
 
-> 注：`exp_02_baseline_tools` 的 `run_baseline.py` 尚未实现，复现方式见该目录 README。
+复用 exp_01 的 14 段样本，结果按工具分组写入 `results/results.json`。
+
+### 跑第三阶段实验（exp_03，RAG 知识库增强，需在台式机运行）
+
+```bash
+# 1. 构建漏洞知识库（幂等，可重复运行）
+cd experiments/exp_03_rag_knowledge/knowledge_data
+python3 build_knowledge.py                      # 从 knowledge.json upsert 34 条知识 → Chroma
+
+# 2. 批量对比实验：纯 LLM vs RAG+LLM
+cd ..
+python3 run_rag_experiment.py                   # 跑全部 14 个样本
+python3 run_rag_experiment.py --top-k 5         # 检索 Top-5 知识
+python3 run_rag_experiment.py --limit 3         # 只跑前 3 个（调试）
+
+# 3. 单样本快速验证（可选，正式实验用 run_rag_experiment.py）
+cd knowledge_data
+python3 test_rag.py
+```
 
 ---
 

@@ -18,9 +18,11 @@ class ChromaManager:
             persist_dir: 持久化目录，默认使用项目 data/chroma_db
         """
         if persist_dir is None:
-            # 自动定位到项目根目录下的 data/chroma_db
-            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            persist_dir = os.path.join(base_dir, "data", "chroma_db")
+            # 优先从环境变量读取，便于打包部署；否则回退到项目根目录下的 data/chroma_db
+            persist_dir = os.environ.get("CHROMA_PERSIST_DIR")
+            if not persist_dir:
+                base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                persist_dir = os.path.join(base_dir, "data", "chroma_db")
         
         self.persist_dir = persist_dir
         self.client = chromadb.PersistentClient(path=persist_dir)
@@ -55,7 +57,7 @@ class ChromaManager:
         ids: List[str],
         metadatas: Optional[List[Dict]] = None
     ):
-        """向集合中添加文档"""
+        """向集合中添加文档（id 已存在时会报错，如需覆盖请用 upsert_documents）"""
         collection = self.create_collection(collection_name)
         collection.add(
             documents=documents,
@@ -63,6 +65,25 @@ class ChromaManager:
             metadatas=metadatas
         )
         print(f"[ChromaManager] 添加 {len(documents)} 条文档到 {collection_name}")
+
+    def upsert_documents(
+        self,
+        collection_name: str,
+        documents: List[str],
+        ids: List[str],
+        metadatas: Optional[List[Dict]] = None
+    ):
+        """向集合中写入文档（id 已存在则覆盖，支持幂等重复运行）。
+
+        适合知识库构建脚本反复运行而不报错。
+        """
+        collection = self.create_collection(collection_name)
+        collection.upsert(
+            documents=documents,
+            ids=ids,
+            metadatas=metadatas
+        )
+        print(f"[ChromaManager] 写入/覆盖 {len(documents)} 条文档到 {collection_name}")
     
     def query(
         self,

@@ -1,7 +1,18 @@
 """
 测试 RAG 增强的漏洞检测
-对比：纯 LLM vs RAG + LLM
+对比：纯 LLM vs RAG + LLM（单样本快速验证脚本）
+
+正式批量实验请使用同目录上层的 run_rag_experiment.py，本脚本仅用于
+快速单样本验证知识库与 LLM 调用链路是否畅通。
 """
+
+import sys
+from pathlib import Path
+
+# 把项目根加入 sys.path，保证可从任意目录运行
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
 
 from src.chroma_manager import ChromaManager
 from src.llm_client import OllamaClient
@@ -9,7 +20,7 @@ from src.llm_client import OllamaClient
 
 def test_rag_vs_pure_llm():
     """对比 RAG 增强 vs 纯 LLM 的检测效果"""
-    
+
     # 待测代码（一个稍微复杂的例子，需要上下文理解）
     test_code = '''
 import os
@@ -22,66 +33,66 @@ app = Flask(__name__)
 def load_data():
     # 从请求中获取序列化数据
     serialized = request.form.get('data')
-    
+
     # 直接反序列化用户输入
     obj = pickle.loads(serialized.encode())
-    
+
     # 使用反序列化后的对象
     filename = obj.get('file')
-    
+
     # 直接拼接路径
     full_path = "/app/data/" + filename
-    
+
     # 读取文件
     with open(full_path, 'r') as f:
         content = f.read()
-    
+
     return {"content": content}
 
 if __name__ == '__main__':
     app.run(debug=True)
 '''
-    
+
     print("=" * 60)
     print("待测代码：")
     print(test_code)
     print("=" * 60)
-    
+
     # 初始化
     cm = ChromaManager()
     client = OllamaClient(model="gemma4:26b")
-    
+
     if not client.check_connection():
         print("[错误] Ollama 未启动，请先运行 ollama serve")
         return
-    
+
     # ========== 测试 1：纯 LLM（无 RAG）==========
     print("\n" + "=" * 60)
     print("【测试 1】纯 LLM 分析（无 RAG 增强）")
     print("=" * 60)
-    
+
     result_pure = client.analyze_vulnerability(test_code, "python")
-    if result_pure["text"].startswith("错误:"):
-        print(f"[错误] 纯 LLM 分析失败: {result_pure['text']}")
+    if result_pure["error"]:
+        print(f"[错误] 纯 LLM 分析失败: {result_pure['error']}")
         return
     print(f"耗时: {result_pure['duration']:.2f}s")
     print(f"结果:\n{result_pure['text']}")
-    
+
     # ========== 测试 2：RAG + LLM ==========
     print("\n" + "=" * 60)
     print("【测试 2】RAG 增强分析")
     print("=" * 60)
-    
+
     # 检索相关知识
     query_text = "pickle反序列化用户输入导致的安全漏洞"
     rag_results = cm.query("vulnerability_knowledge", query_text, n_results=3)
-    
+
     # 构建 RAG 上下文
     rag_context = "\n\n".join([
         f"【知识 {i+1}】{doc}"
         for i, doc in enumerate(rag_results["documents"])
     ])
-    
+
     print(f"检索到的相关知识（Top-3）:")
     for i, (doc, dist, meta) in enumerate(zip(
         rag_results["documents"],
@@ -89,7 +100,7 @@ if __name__ == '__main__':
         rag_results["metadatas"]
     )):
         print(f"  {i+1}. [{meta.get('type', '未知')}] 相似度: {dist:.4f}")
-    
+
     # RAG 增强分析
     result_rag = client.analyze_vulnerability(
         code=test_code,
@@ -97,13 +108,13 @@ if __name__ == '__main__':
         rag_context=rag_context
     )
 
-    if result_rag["text"].startswith("错误:"):
-        print(f"\n[错误] RAG 增强分析失败: {result_rag['text']}")
+    if result_rag["error"]:
+        print(f"\n[错误] RAG 增强分析失败: {result_rag['error']}")
         return
 
     print(f"\n耗时: {result_rag['duration']:.2f}s")
     print(f"结果:\n{result_rag['text']}")
-    
+
     # ========== 对比总结 ==========
     print("\n" + "=" * 60)
     print("【对比总结】")
@@ -115,12 +126,10 @@ if __name__ == '__main__':
 
 
 if __name__ == "__main__":
-    # 先确保知识库已构建
-    import sys
-    import os
-    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    # 先确保知识库已构建（同目录 build_knowledge.py）
+    sys.path.insert(0, str(Path(__file__).parent))
     from build_knowledge import build_vulnerability_knowledge
     build_vulnerability_knowledge()
-    
+
     # 运行对比测试
     test_rag_vs_pure_llm()

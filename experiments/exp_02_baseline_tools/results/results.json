@@ -1,0 +1,663 @@
+{
+  "experiment": "exp_02_baseline_tools",
+  "started_at": "2026-06-29 00:48:27",
+  "samples": [
+    {
+      "file": "sql_injection_01.py",
+      "language": "Python",
+      "category": "sql_injection",
+      "expected_present": true,
+      "expected_vulnerability": "SQL 注入：用户输入直接拼接到 SQL 语句",
+      "tools": {
+        "bandit": {
+          "tool_has_vulnerability": true,
+          "findings": [
+            {
+              "rule_id": "B608",
+              "severity": "MEDIUM",
+              "confidence": "LOW",
+              "message": "Possible SQL injection vector through string-based query construction.",
+              "line": 17,
+              "cwe": "https://cwe.mitre.org/data/definitions/89.html"
+            }
+          ],
+          "findings_count": 1,
+          "elapsed_seconds": 0.061,
+          "error": null,
+          "supported": true
+        },
+        "semgrep": {
+          "tool_has_vulnerability": true,
+          "findings": [
+            {
+              "rule_id": "python.django.security.injection.tainted-sql-string.tainted-sql-string",
+              "severity": "ERROR",
+              "message": "Detected user input used to manually construct a SQL string. This is usually bad practice because manual construction could accidentally result in a SQL injection. An attacker could use a SQL injection to steal or modify contents of the database. Instead, use a parameterized query which is available by default in most database engines. Alternatively, consider using the Django object-relational mappers (ORM) instead of raw SQL queries.",
+              "line": 17,
+              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/sql_injection_01.py"
+            },
+            {
+              "rule_id": "python.flask.security.injection.tainted-sql-string.tainted-sql-string",
+              "severity": "ERROR",
+              "message": "Detected user input used to manually construct a SQL string. This is usually bad practice because manual construction could accidentally result in a SQL injection. An attacker could use a SQL injection to steal or modify contents of the database. Instead, use a parameterized query which is available by default in most database engines. Alternatively, consider using an object-relational mapper (ORM) such as SQLAlchemy which will protect your queries.",
+              "line": 17,
+              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/sql_injection_01.py"
+            },
+            {
+              "rule_id": "python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query",
+              "severity": "ERROR",
+              "message": "Avoiding SQL string concatenation: untrusted input concatenated with raw SQL query can result in SQL Injection. In order to execute raw query safely, prepared statement should be used. SQLAlchemy provides TextualSQL to easily used prepared statement with named parameters. For complex SQL composition, use SQL Expression Language or Schema Definition Language. In most cases, SQLAlchemy ORM will be a better option.",
+              "line": 18,
+              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/sql_injection_01.py"
+            }
+          ],
+          "findings_count": 3,
+          "elapsed_seconds": 18.968,
+          "error": null,
+          "supported": true
+        }
+      }
+    },
+    {
+      "file": "sql_injection_02.py",
+      "language": "Python",
+      "category": "sql_injection",
+      "expected_present": true,
+      "expected_vulnerability": "SQL 注入：f-string 嵌入用户输入到 raw 查询",
+      "tools": {
+        "bandit": {
+          "tool_has_vulnerability": true,
+          "findings": [
+            {
+              "rule_id": "B608",
+              "severity": "MEDIUM",
+              "confidence": "MEDIUM",
+              "message": "Possible SQL injection vector through string-based query construction.",
+              "line": 11,
+              "cwe": "https://cwe.mitre.org/data/definitions/89.html"
+            }
+          ],
+          "findings_count": 1,
+          "elapsed_seconds": 0.059,
+          "error": null,
+          "supported": true
+        },
+        "semgrep": {
+          "tool_has_vulnerability": true,
+          "findings": [
+            {
+              "rule_id": "python.django.security.injection.sql.sql-injection-using-db-cursor-execute.sql-injection-db-cursor-execute",
+              "severity": "WARNING",
+              "message": "User-controlled data from a request is passed to 'execute()'. This could lead to a SQL injection and therefore protected information could be leaked. Instead, use django's QuerySets, which are built with query parameterization and therefore not vulnerable to sql injection. For example, you could use `Entry.objects.filter(date=2006)`.",
+              "line": 8,
+              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/sql_injection_02.py"
+            },
+            {
+              "rule_id": "python.lang.security.audit.formatted-sql-query.formatted-sql-query",
+              "severity": "WARNING",
+              "message": "Detected possible formatted SQL query. Use parameterized queries instead.",
+              "line": 11,
+              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/sql_injection_02.py"
+            },
+            {
+              "rule_id": "python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query",
+              "severity": "ERROR",
+              "message": "Avoiding SQL string concatenation: untrusted input concatenated with raw SQL query can result in SQL Injection. In order to execute raw query safely, prepared statement should be used. SQLAlchemy provides TextualSQL to easily used prepared statement with named parameters. For complex SQL composition, use SQL Expression Language or Schema Definition Language. In most cases, SQLAlchemy ORM will be a better option.",
+              "line": 11,
+              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/sql_injection_02.py"
+            },
+            {
+              "rule_id": "python.django.security.injection.tainted-sql-string.tainted-sql-string",
+              "severity": "ERROR",
+              "message": "Detected user input used to manually construct a SQL string. This is usually bad practice because manual construction could accidentally result in a SQL injection. An attacker could use a SQL injection to steal or modify contents of the database. Instead, use a parameterized query which is available by default in most database engines. Alternatively, consider using the Django object-relational mappers (ORM) instead of raw SQL queries.",
+              "line": 11,
+              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/sql_injection_02.py"
+            },
+            {
+              "rule_id": "python.django.security.audit.xss.direct-use-of-httpresponse.direct-use-of-httpresponse",
+              "severity": "WARNING",
+              "message": "Detected data rendered directly to the end user via 'HttpResponse' or a similar object. This bypasses Django's built-in cross-site scripting (XSS) defenses and could result in an XSS vulnerability. Use Django's template engine to safely render HTML.",
+              "line": 13,
+              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/sql_injection_02.py"
+            }
+          ],
+          "findings_count": 5,
+          "elapsed_seconds": 4.646,
+          "error": null,
+          "supported": true
+        }
+      }
+    },
+    {
+      "file": "xss_01.php",
+      "language": "PHP",
+      "category": "xss",
+      "expected_present": true,
+      "expected_vulnerability": "反射型 XSS：用户输入未转义直接 echo",
+      "tools": {
+        "bandit": {
+          "tool_has_vulnerability": null,
+          "findings": [],
+          "findings_count": 0,
+          "elapsed_seconds": 0.0,
+          "error": "Bandit 仅支持 Python，跳过 xss_01.php",
+          "supported": false
+        },
+        "semgrep": {
+          "tool_has_vulnerability": false,
+          "findings": [],
+          "findings_count": 0,
+          "elapsed_seconds": 19.31,
+          "error": null,
+          "supported": true
+        }
+      }
+    },
+    {
+      "file": "xss_02.js",
+      "language": "JavaScript",
+      "category": "xss",
+      "expected_present": true,
+      "expected_vulnerability": "反射型 XSS：用户输入拼接到 HTML 响应",
+      "tools": {
+        "bandit": {
+          "tool_has_vulnerability": null,
+          "findings": [],
+          "findings_count": 0,
+          "elapsed_seconds": 0.0,
+          "error": "Bandit 仅支持 Python，跳过 xss_02.js",
+          "supported": false
+        },
+        "semgrep": {
+          "tool_has_vulnerability": true,
+          "findings": [
+            {
+              "rule_id": "javascript.express.security.audit.express-check-csurf-middleware-usage.express-check-csurf-middleware-usage",
+              "severity": "INFO",
+              "message": "A CSRF middleware was not detected in your express application. Ensure you are either using one such as `csurf` or `csrf` (see rule references) and/or you are properly doing CSRF validation in your routes with a token or cookies.",
+              "line": 4,
+              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/xss_02.js"
+            },
+            {
+              "rule_id": "javascript.express.security.injection.raw-html-format.raw-html-format",
+              "severity": "WARNING",
+              "message": "User data flows into the host portion of this manually-constructed HTML. This can introduce a Cross-Site-Scripting (XSS) vulnerability if this comes from user-provided input. Consider using a sanitization library such as DOMPurify to sanitize the HTML within.",
+              "line": 9,
+              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/xss_02.js"
+            }
+          ],
+          "findings_count": 2,
+          "elapsed_seconds": 9.42,
+          "error": null,
+          "supported": true
+        }
+      }
+    },
+    {
+      "file": "command_injection_01.py",
+      "language": "Python",
+      "category": "command_injection",
+      "expected_present": true,
+      "expected_vulnerability": "命令注入：shell=True 且拼接用户输入",
+      "tools": {
+        "bandit": {
+          "tool_has_vulnerability": true,
+          "findings": [
+            {
+              "rule_id": "B404",
+              "severity": "LOW",
+              "confidence": "HIGH",
+              "message": "Consider possible security implications associated with the subprocess module.",
+              "line": 3,
+              "cwe": "https://cwe.mitre.org/data/definitions/78.html"
+            },
+            {
+              "rule_id": "B602",
+              "severity": "HIGH",
+              "confidence": "HIGH",
+              "message": "subprocess call with shell=True identified, security issue.",
+              "line": 15,
+              "cwe": "https://cwe.mitre.org/data/definitions/78.html"
+            }
+          ],
+          "findings_count": 2,
+          "elapsed_seconds": 0.056,
+          "error": null,
+          "supported": true
+        },
+        "semgrep": {
+          "tool_has_vulnerability": true,
+          "findings": [
+            {
+              "rule_id": "python.flask.security.injection.subprocess-injection.subprocess-injection",
+              "severity": "ERROR",
+              "message": "Detected user input entering a `subprocess` call unsafely. This could result in a command injection vulnerability. An attacker could use this vulnerability to execute arbitrary commands on the host, which allows them to download malware, scan sensitive data, or run any command they wish on the server. Do not let users choose the command to run. In general, prefer to use Python API versions of system commands. If you must use subprocess, use a dictionary to allowlist a set of commands.",
+              "line": 13,
+              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/command_injection_01.py"
+            },
+            {
+              "rule_id": "python.lang.security.dangerous-subprocess-use.dangerous-subprocess-use",
+              "severity": "ERROR",
+              "message": "Detected subprocess function 'Popen' with user controlled data. A malicious actor could leverage this to perform command injection. You may consider using 'shlex.escape()'.",
+              "line": 14,
+              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/command_injection_01.py"
+            },
+            {
+              "rule_id": "python.lang.security.audit.subprocess-shell-true.subprocess-shell-true",
+              "severity": "ERROR",
+              "message": "Found 'subprocess' function 'Popen' with 'shell=True'. This is dangerous because this call will spawn the command using a shell process. Doing so propagates current shell settings and variables, which makes it much easier for a malicious actor to execute commands. Use 'shell=False' instead.",
+              "line": 15,
+              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/command_injection_01.py"
+            }
+          ],
+          "findings_count": 3,
+          "elapsed_seconds": 45.612,
+          "error": null,
+          "supported": true
+        }
+      }
+    },
+    {
+      "file": "command_injection_02.js",
+      "language": "JavaScript",
+      "category": "command_injection",
+      "expected_present": true,
+      "expected_vulnerability": "命令注入：exec 中拼接用户输入",
+      "tools": {
+        "bandit": {
+          "tool_has_vulnerability": null,
+          "findings": [],
+          "findings_count": 0,
+          "elapsed_seconds": 0.0,
+          "error": "Bandit 仅支持 Python，跳过 command_injection_02.js",
+          "supported": false
+        },
+        "semgrep": {
+          "tool_has_vulnerability": true,
+          "findings": [
+            {
+              "rule_id": "javascript.express.security.audit.express-check-csurf-middleware-usage.express-check-csurf-middleware-usage",
+              "severity": "INFO",
+              "message": "A CSRF middleware was not detected in your express application. Ensure you are either using one such as `csurf` or `csrf` (see rule references) and/or you are properly doing CSRF validation in your routes with a token or cookies.",
+              "line": 5,
+              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/command_injection_02.js"
+            },
+            {
+              "rule_id": "javascript.lang.security.detect-child-process.detect-child-process",
+              "severity": "ERROR",
+              "message": "Detected calls to child_process from a function argument `req`. This could lead to a command injection if the input is user controllable. Try to avoid calls to child_process, and if it is needed ensure user input is correctly sanitized or sandboxed. ",
+              "line": 10,
+              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/command_injection_02.js"
+            }
+          ],
+          "findings_count": 2,
+          "elapsed_seconds": 28.925,
+          "error": null,
+          "supported": true
+        }
+      }
+    },
+    {
+      "file": "path_traversal_01.py",
+      "language": "Python",
+      "category": "path_traversal",
+      "expected_present": true,
+      "expected_vulnerability": "路径穿越：用户输入拼接到文件路径，未过滤 ../",
+      "tools": {
+        "bandit": {
+          "tool_has_vulnerability": false,
+          "findings": [],
+          "findings_count": 0,
+          "elapsed_seconds": 0.059,
+          "error": null,
+          "supported": true
+        },
+        "semgrep": {
+          "tool_has_vulnerability": false,
+          "findings": [],
+          "findings_count": 0,
+          "elapsed_seconds": 40.186,
+          "error": null,
+          "supported": true
+        }
+      }
+    },
+    {
+      "file": "path_traversal_02.java",
+      "language": "Java",
+      "category": "path_traversal",
+      "expected_present": true,
+      "expected_vulnerability": "路径穿越：直接使用用户输入构造 File 路径",
+      "tools": {
+        "bandit": {
+          "tool_has_vulnerability": null,
+          "findings": [],
+          "findings_count": 0,
+          "elapsed_seconds": 0.0,
+          "error": "Bandit 仅支持 Python，跳过 path_traversal_02.java",
+          "supported": false
+        },
+        "semgrep": {
+          "tool_has_vulnerability": true,
+          "findings": [
+            {
+              "rule_id": "java.lang.security.httpservlet-path-traversal.httpservlet-path-traversal",
+              "severity": "ERROR",
+              "message": "Detected a potential path traversal. A malicious actor could control the location of this file, to include going backwards in the directory with '../'. To address this, ensure that user-controlled variables in file paths are sanitized. You may also consider using a utility method such as org.apache.commons.io.FilenameUtils.getName(...) to only retrieve the file name from the path.",
+              "line": 18,
+              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/path_traversal_02.java"
+            },
+            {
+              "rule_id": "java.lang.security.httpservlet-path-traversal.httpservlet-path-traversal",
+              "severity": "ERROR",
+              "message": "Detected a potential path traversal. A malicious actor could control the location of this file, to include going backwards in the directory with '../'. To address this, ensure that user-controlled variables in file paths are sanitized. You may also consider using a utility method such as org.apache.commons.io.FilenameUtils.getName(...) to only retrieve the file name from the path.",
+              "line": 23,
+              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/path_traversal_02.java"
+            },
+            {
+              "rule_id": "java.lang.security.audit.xss.no-direct-response-writer.no-direct-response-writer",
+              "severity": "WARNING",
+              "message": "Detected a request with potential user-input going into a OutputStream or Writer object. This bypasses any view or template environments, including HTML escaping, which may expose this application to cross-site scripting (XSS) vulnerabilities. Consider using a view technology such as JavaServer Faces (JSFs) which automatically escapes HTML views.",
+              "line": 25,
+              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/path_traversal_02.java"
+            }
+          ],
+          "findings_count": 3,
+          "elapsed_seconds": 27.601,
+          "error": null,
+          "supported": true
+        }
+      }
+    },
+    {
+      "file": "hardcoded_secret_01.py",
+      "language": "Python",
+      "category": "hardcoded_secret",
+      "expected_present": true,
+      "expected_vulnerability": "硬编码密钥：AWS Access Key 与 Secret 明文写在源码",
+      "tools": {
+        "bandit": {
+          "tool_has_vulnerability": true,
+          "findings": [
+            {
+              "rule_id": "B105",
+              "severity": "LOW",
+              "confidence": "MEDIUM",
+              "message": "Possible hardcoded password: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'",
+              "line": 7,
+              "cwe": "https://cwe.mitre.org/data/definitions/259.html"
+            }
+          ],
+          "findings_count": 1,
+          "elapsed_seconds": 0.058,
+          "error": null,
+          "supported": true
+        },
+        "semgrep": {
+          "tool_has_vulnerability": true,
+          "findings": [
+            {
+              "rule_id": "python.boto3.security.hardcoded-token.hardcoded-token",
+              "severity": "WARNING",
+              "message": "A hard-coded credential was detected. It is not recommended to store credentials in source-code, as this risks secrets being leaked and used by either an internal or external malicious adversary. It is recommended to use environment variables to securely provide credentials or retrieve credentials from a secure vault or HSM (Hardware Security Module).",
+              "line": 12,
+              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/hardcoded_secret_01.py"
+            }
+          ],
+          "findings_count": 1,
+          "elapsed_seconds": 33.296,
+          "error": null,
+          "supported": true
+        }
+      }
+    },
+    {
+      "file": "hardcoded_secret_02.java",
+      "language": "Java",
+      "category": "hardcoded_secret",
+      "expected_present": true,
+      "expected_vulnerability": "硬编码密钥：数据库用户名与密码明文写在源码",
+      "tools": {
+        "bandit": {
+          "tool_has_vulnerability": null,
+          "findings": [],
+          "findings_count": 0,
+          "elapsed_seconds": 0.0,
+          "error": "Bandit 仅支持 Python，跳过 hardcoded_secret_02.java",
+          "supported": false
+        },
+        "semgrep": {
+          "tool_has_vulnerability": false,
+          "findings": [],
+          "findings_count": 0,
+          "elapsed_seconds": 23.999,
+          "error": null,
+          "supported": true
+        }
+      }
+    },
+    {
+      "file": "insecure_deserialization_01.py",
+      "language": "Python",
+      "category": "insecure_deserialization",
+      "expected_present": true,
+      "expected_vulnerability": "不安全反序列化：pickle.loads 用户可控数据",
+      "tools": {
+        "bandit": {
+          "tool_has_vulnerability": true,
+          "findings": [
+            {
+              "rule_id": "B403",
+              "severity": "LOW",
+              "confidence": "HIGH",
+              "message": "Consider possible security implications associated with pickle module.",
+              "line": 3,
+              "cwe": "https://cwe.mitre.org/data/definitions/502.html"
+            },
+            {
+              "rule_id": "B301",
+              "severity": "MEDIUM",
+              "confidence": "HIGH",
+              "message": "Pickle and modules that wrap it can be unsafe when used to deserialize untrusted data, possible security issue.",
+              "line": 15,
+              "cwe": "https://cwe.mitre.org/data/definitions/502.html"
+            }
+          ],
+          "findings_count": 2,
+          "elapsed_seconds": 0.057,
+          "error": null,
+          "supported": true
+        },
+        "semgrep": {
+          "tool_has_vulnerability": true,
+          "findings": [
+            {
+              "rule_id": "python.flask.security.insecure-deserialization.insecure-deserialization",
+              "severity": "ERROR",
+              "message": "Detected the use of an insecure deserialization library in a Flask route. These libraries are prone to code execution vulnerabilities. Ensure user data does not enter this function. To fix this, try to avoid serializing whole objects. Consider instead using a serializer such as JSON.",
+              "line": 15,
+              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/insecure_deserialization_01.py"
+            },
+            {
+              "rule_id": "python.lang.security.deserialization.pickle.avoid-pickle",
+              "severity": "WARNING",
+              "message": "Avoid using `pickle`, which is known to lead to code execution vulnerabilities. When unpickling, the serialized data could be manipulated to run arbitrary code. Instead, consider serializing the relevant data as JSON or a similar text-based serialization format.",
+              "line": 15,
+              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/insecure_deserialization_01.py"
+            }
+          ],
+          "findings_count": 2,
+          "elapsed_seconds": 28.934,
+          "error": null,
+          "supported": true
+        }
+      }
+    },
+    {
+      "file": "insecure_deserialization_02.java",
+      "language": "Java",
+      "category": "insecure_deserialization",
+      "expected_present": true,
+      "expected_vulnerability": "不安全反序列化：ObjectInputStream.readObject 用户可控数据",
+      "tools": {
+        "bandit": {
+          "tool_has_vulnerability": null,
+          "findings": [],
+          "findings_count": 0,
+          "elapsed_seconds": 0.0,
+          "error": "Bandit 仅支持 Python，跳过 insecure_deserialization_02.java",
+          "supported": false
+        },
+        "semgrep": {
+          "tool_has_vulnerability": true,
+          "findings": [
+            {
+              "rule_id": "java.lang.security.audit.object-deserialization.object-deserialization",
+              "severity": "WARNING",
+              "message": "Found object deserialization using ObjectInputStream. Deserializing entire Java objects is dangerous because malicious actors can create Java object streams with unintended consequences. Ensure that the objects being deserialized are not user-controlled. If this must be done, consider using HMACs to sign the data stream to make sure it is not tampered with, or consider only transmitting object fields and populating a new object.",
+              "line": 18,
+              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/insecure_deserialization_02.java"
+            },
+            {
+              "rule_id": "java.lang.security.audit.xss.no-direct-response-writer.no-direct-response-writer",
+              "severity": "WARNING",
+              "message": "Detected a request with potential user-input going into a OutputStream or Writer object. This bypasses any view or template environments, including HTML escaping, which may expose this application to cross-site scripting (XSS) vulnerabilities. Consider using a view technology such as JavaServer Faces (JSFs) which automatically escapes HTML views.",
+              "line": 20,
+              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/insecure_deserialization_02.java"
+            }
+          ],
+          "findings_count": 2,
+          "elapsed_seconds": 14.11,
+          "error": null,
+          "supported": true
+        }
+      }
+    },
+    {
+      "file": "safe_01_parameterized_query.py",
+      "language": "Python",
+      "category": "safe_control",
+      "expected_present": false,
+      "expected_vulnerability": "无（安全对照：参数化查询）",
+      "tools": {
+        "bandit": {
+          "tool_has_vulnerability": false,
+          "findings": [],
+          "findings_count": 0,
+          "elapsed_seconds": 0.057,
+          "error": null,
+          "supported": true
+        },
+        "semgrep": {
+          "tool_has_vulnerability": false,
+          "findings": [],
+          "findings_count": 0,
+          "elapsed_seconds": 23.813,
+          "error": null,
+          "supported": true
+        }
+      }
+    },
+    {
+      "file": "safe_02_subprocess_list.py",
+      "language": "Python",
+      "category": "safe_control",
+      "expected_present": false,
+      "expected_vulnerability": "无（安全对照：参数列表 + 输入校验）",
+      "tools": {
+        "bandit": {
+          "tool_has_vulnerability": true,
+          "findings": [
+            {
+              "rule_id": "B404",
+              "severity": "LOW",
+              "confidence": "HIGH",
+              "message": "Consider possible security implications associated with the subprocess module.",
+              "line": 3,
+              "cwe": "https://cwe.mitre.org/data/definitions/78.html"
+            },
+            {
+              "rule_id": "B607",
+              "severity": "LOW",
+              "confidence": "HIGH",
+              "message": "Starting a process with a partial executable path",
+              "line": 15,
+              "cwe": "https://cwe.mitre.org/data/definitions/78.html"
+            },
+            {
+              "rule_id": "B603",
+              "severity": "LOW",
+              "confidence": "HIGH",
+              "message": "subprocess call - check for execution of untrusted input.",
+              "line": 15,
+              "cwe": "https://cwe.mitre.org/data/definitions/78.html"
+            }
+          ],
+          "findings_count": 3,
+          "elapsed_seconds": 0.058,
+          "error": null,
+          "supported": true
+        },
+        "semgrep": {
+          "tool_has_vulnerability": false,
+          "findings": [],
+          "findings_count": 0,
+          "elapsed_seconds": 19.17,
+          "error": null,
+          "supported": true
+        }
+      }
+    }
+  ],
+  "tools": [
+    "bandit",
+    "semgrep"
+  ],
+  "semgrep_config": "auto",
+  "samples_source": "exp_01_basic_scan/samples",
+  "finished_at": "2026-06-29 00:54:06",
+  "metrics": {
+    "bandit": {
+      "total": 14,
+      "valid": 8,
+      "invalid": 6,
+      "tp": 5,
+      "tn": 1,
+      "fp": 1,
+      "fn": 1,
+      "vuln_total": 6,
+      "safe_total": 2,
+      "recall": 0.8333333333333334,
+      "false_positive_rate": 0.5,
+      "accuracy": 0.75,
+      "elapsed_stats": {
+        "avg": 0.03,
+        "max": 0.06,
+        "min": 0.0,
+        "sum": 0.46,
+        "count": 14
+      }
+    },
+    "semgrep": {
+      "total": 14,
+      "valid": 14,
+      "invalid": 0,
+      "tp": 9,
+      "tn": 2,
+      "fp": 0,
+      "fn": 3,
+      "vuln_total": 12,
+      "safe_total": 2,
+      "recall": 0.75,
+      "false_positive_rate": 0.0,
+      "accuracy": 0.7857142857142857,
+      "elapsed_stats": {
+        "avg": 24.14,
+        "max": 45.61,
+        "min": 4.65,
+        "sum": 337.99,
+        "count": 14
+      }
+    }
+  }
+}
