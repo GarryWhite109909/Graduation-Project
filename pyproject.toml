@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "graduation-project"
+version = "0.1.0"
+description = "基于大语言模型的代码安全分析系统"
+requires-python = ">=3.10"
+dependencies = [
+    "requests>=2.32.5",
+    "chromadb>=1.5.9",
+    "sentence-transformers>=5.6.0",
+]
+
+[tool.setuptools]
+packages = ["src"]

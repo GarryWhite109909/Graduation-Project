@@ -3,14 +3,8 @@
 对比：纯 LLM vs RAG + LLM
 """
 
-import sys
-import os
-import json
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "src"))
-
-from chroma_manager import ChromaManager
-from llm_client import OllamaClient
+from src.chroma_manager import ChromaManager
+from src.llm_client import OllamaClient
 
 
 def test_rag_vs_pure_llm():
@@ -67,6 +61,9 @@ if __name__ == '__main__':
     print("=" * 60)
     
     result_pure = client.analyze_vulnerability(test_code, "python")
+    if result_pure["text"].startswith("错误:"):
+        print(f"[错误] 纯 LLM 分析失败: {result_pure['text']}")
+        return
     print(f"耗时: {result_pure['duration']:.2f}s")
     print(f"结果:\n{result_pure['text']}")
     
@@ -99,7 +96,11 @@ if __name__ == '__main__':
         language="python",
         rag_context=rag_context
     )
-    
+
+    if result_rag["text"].startswith("错误:"):
+        print(f"\n[错误] RAG 增强分析失败: {result_rag['text']}")
+        return
+
     print(f"\n耗时: {result_rag['duration']:.2f}s")
     print(f"结果:\n{result_rag['text']}")
     
@@ -115,6 +116,9 @@ if __name__ == '__main__':
 
 if __name__ == "__main__":
     # 先确保知识库已构建
+    import sys
+    import os
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     from build_knowledge import build_vulnerability_knowledge
     build_vulnerability_knowledge()
     

@@ -33,6 +33,7 @@
 | 主模型      | `gemma4:26b`（Q4_K_M，已验证可流畅运行）    |
 
 > 注：模型文件不入库（见 `.gitignore`），需在本地通过 `ollama pull gemma4:26b` 自行下载。
+> 以上为台式机配置（实验运行环境）；笔记本仅用于代码编辑，跑不动 26B 模型推理。
 
 ---
 
@@ -42,10 +43,14 @@
 Graduation-Project/
 ├── README.md                              # 本文档
 ├── .gitignore
+├── pyproject.toml                         # 项目元数据 + 依赖声明（支持 pip install -e .）
+├── requirements.txt                       # 锁版本依赖清单
 ├── docs/                                  # 设计文档与改进建议
 │   ├── glm的建议.md                        # GLM 给出的改进路线建议
-│   └── kimi的建议.md                       # Kimi 给出的智能体分工建议
-├── src/                                   # 核心代码库
+│   ├── kimi的建议.md                       # Kimi 给出的智能体分工建议
+│   └── 必须手动学习的地方.md                # 手工任务详细操作指南（唯一来源）
+├── src/                                   # 核心代码库（pip install -e . 后可全局 import）
+│   ├── __init__.py
 │   ├── llm_client.py                      # Ollama LLM 客户端（支持 RAG 增强）
 │   └── chroma_manager.py                  # Chroma 向量数据库管理器
 ├── experiments/                           # 实验目录（按阶段编号）
@@ -66,12 +71,13 @@ Graduation-Project/
 │   │       └── results.json               #   14 次推理的完整原始输出
 │   ├── exp_02_baseline_tools/             # 阶段二：传统工具对比基线（待实现）
 │   │   ├── README.md                      #   实验说明与任务清单
-│   │   └── samples/                       #   复用 exp_01 样本
+│   │   └── samples/                       #   复用 exp_01 样本（首次运行 run_baseline.py 时自动创建）
 │   └── exp_03_rag_knowledge/              # 阶段三：RAG 知识库增强（代码就绪，待运行验证）
 │       └── knowledge_data/
-│           ├── build_knowledge.py         #   构建 OWASP/CWE 漏洞知识库 → Chroma
+│           ├── knowledge.json             #   漏洞知识条目（手工编写，建议扩至 30-50 条）
+│           ├── build_knowledge.py         #   从 JSON 加载 → 入库 Chroma
 │           └── test_rag.py                #   纯 LLM vs RAG+LLM 对比测试
-└── data/                                  # 本地持久化数据（不入库，见 .gitignore）
+└── data/                                  # 本地持久化数据（不入库，见 .gitignore；首次运行 build_knowledge.py 后自动生成）
     └── chroma_db/                         #   Chroma 向量数据库
 ```
 
@@ -196,14 +202,24 @@ Graduation-Project/
 
 ## 七、复现方式
 
-### 跑第一阶段实验（exp_01）
+### 环境准备（所有实验的前置步骤，只需执行一次）
 
 ```bash
-cd experiments/exp_01_basic_scan
+cd Graduation-Project
+
+# 安装依赖 + 注册 src 为可导入包
+pip install -r requirements.txt
+pip install -e .
 
 # 确保 Ollama 已运行且 gemma4:26b 已下载
 ollama pull gemma4:26b
 ollama serve   # 若未启动
+```
+
+### 跑第一阶段实验（exp_01）
+
+```bash
+cd experiments/exp_01_basic_scan
 
 python3 run_experiment.py                       # 跑全部 14 个样本
 python3 run_experiment.py --limit 3             # 只跑前 3 个（快速调试）
@@ -216,14 +232,11 @@ python3 run_experiment.py --keep-loaded         # 跑完保留模型在显存（
 ### 跑 RAG 知识库实验（exp_03，需在台式机运行）
 
 ```bash
-# 1. 安装依赖
-pip install chromadb sentence-transformers requests
-
-# 2. 构建漏洞知识库
+# 1. 构建漏洞知识库
 cd experiments/exp_03_rag_knowledge/knowledge_data
-python3 build_knowledge.py                      # 10 条 OWASP/CWE 知识入库
+python3 build_knowledge.py                      # 从 knowledge.json 加载 10 条知识 → Chroma
 
-# 3. 对比测试：纯 LLM vs RAG+LLM
+# 2. 对比测试：纯 LLM vs RAG+LLM
 python3 test_rag.py
 ```
 

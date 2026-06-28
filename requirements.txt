@@ -1,0 +1,9 @@
+# 核心依赖（锁版本，换机器重装时保证一致）
+requests>=2.32.5
+chromadb>=1.5.9
+sentence-transformers>=5.6.0
+
+# 以下是间接依赖中较关键的，显式列出方便排查
+# numpy          (chromadb / sentence-transformers 依赖)
+# torch          (sentence-transformers 依赖)
+# onnxruntime    (chromadb 默认 embedding 依赖)
