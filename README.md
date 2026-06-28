@@ -41,29 +41,45 @@
 ```
 Graduation-Project/
 ├── README.md                              # 本文档
-└── experiments/
-    └── exp_01_basic_scan/                 # 阶段一：Gemma 漏洞检测能力摸底
-        ├── run_experiment.py              # 批量测试脚本（调 Ollama API + 增量落盘 + 自动卸载显存）
-        ├── exp_01_report.md               # 实验报告
-        ├── samples/                       # 14 段漏洞代码样本
-        │   ├── manifest.json              #   样本清单（含期望标签）
-        │   ├── sql_injection_01.py / 02.py
-        │   ├── xss_01.php / 02.js
-        │   ├── command_injection_01.py / 02.js
-        │   ├── path_traversal_01.py / 02.java
-        │   ├── hardcoded_secret_01.py / 02.java
-        │   ├── insecure_deserialization_01.py / 02.java
-        │   ├── safe_01_parameterized_query.py
-        │   └── safe_02_subprocess_list.py
-        └── results/
-            └── results.json               # 14 次推理的完整原始输出（保留作论文素材）
+├── .gitignore
+├── docs/                                  # 设计文档与改进建议
+│   ├── glm的建议.md                        # GLM 给出的改进路线建议
+│   └── kimi的建议.md                       # Kimi 给出的智能体分工建议
+├── src/                                   # 核心代码库
+│   ├── llm_client.py                      # Ollama LLM 客户端（支持 RAG 增强）
+│   └── chroma_manager.py                  # Chroma 向量数据库管理器
+├── experiments/                           # 实验目录（按阶段编号）
+│   ├── exp_01_basic_scan/                 # 阶段一：Gemma 漏洞检测能力摸底
+│   │   ├── run_experiment.py              #   批量测试脚本（调 Ollama API + 增量落盘 + 自动卸载显存）
+│   │   ├── exp_01_report.md               #   实验报告
+│   │   ├── samples/                       #   14 段漏洞代码样本
+│   │   │   ├── manifest.json              #     样本清单（含期望标签）
+│   │   │   ├── sql_injection_01.py / 02.py
+│   │   │   ├── xss_01.php / 02.js
+│   │   │   ├── command_injection_01.py / 02.js
+│   │   │   ├── path_traversal_01.py / 02.java
+│   │   │   ├── hardcoded_secret_01.py / 02.java
+│   │   │   ├── insecure_deserialization_01.py / 02.java
+│   │   │   ├── safe_01_parameterized_query.py
+│   │   │   └── safe_02_subprocess_list.py
+│   │   └── results/
+│   │       └── results.json               #   14 次推理的完整原始输出
+│   ├── exp_02_baseline_tools/             # 阶段二：传统工具对比基线（待实现）
+│   │   ├── README.md                      #   实验说明与任务清单
+│   │   └── samples/                       #   复用 exp_01 样本
+│   └── exp_03_rag_knowledge/              # 阶段三：RAG 知识库增强（代码就绪，待运行验证）
+│       └── knowledge_data/
+│           ├── build_knowledge.py         #   构建 OWASP/CWE 漏洞知识库 → Chroma
+│           └── test_rag.py                #   纯 LLM vs RAG+LLM 对比测试
+└── data/                                  # 本地持久化数据（不入库，见 .gitignore）
+    └── chroma_db/                         #   Chroma 向量数据库
 ```
 
 ---
 
 ## 四、当前进度
 
-### ✅ 已完成：第一阶段 — Gemma 4 26B 漏洞检测能力摸底（2026-06-28）
+### ✅ 已完成：阶段一 — Gemma 4 26B 漏洞检测能力摸底（2026-06-28）
 
 - 14 段样本：6 类典型漏洞 × 2 + 2 安全对照，覆盖 Python / PHP / JavaScript / Java 4 种语言
 - 统一结构化 Prompt（角色设定 → 分析范围 → JSON 结论协议）
@@ -74,25 +90,66 @@ Graduation-Project/
 
 > ⚠️ **结果局限性**：样本为"教科书式"典型漏洞，100% 准确率仅证明能力下限，不代表真实工程代码的检测能力。
 
-### 🔄 进行中：第二阶段 — 传统工具对比基线
+### 🔄 进行中：阶段二 — 传统工具对比基线（目录骨架已建，待实现）
 
-- [ ] 安装 Bandit / Semgrep
-- [ ] 在 `experiments/exp_02_baseline_tools/` 下编写统一对比脚本，复用第一阶段 14 段样本
+- [x] 建立 `exp_02_baseline_tools/` 目录与任务清单
+- [ ] 安装 Bandit / Semgrep / Gitleaks
+- [ ] 编写 `run_baseline.py`，复用第一阶段 14 段样本
 - [ ] 用同一批样本分别跑 Bandit / Semgrep，记录检出、漏报、误报、耗时
-- [ ] 生成对比表：LLM vs Bandit vs Semgrep，明确 LLM 的改进点
+- [ ] 生成对比表：LLM vs Bandit vs Semgrep
 - [ ] 补充 3-5 段"难样本"（绕过式过滤、跨文件污点、真实 CVE 片段）
-- [ ] 整理第二份实验报告 `exp_02_report.md`
+- [ ] 整理实验报告 `exp_02_report.md`
+
+### ⚠️ 代码就绪待验证：阶段三 — RAG 漏洞知识库增强
+
+- [x] `src/chroma_manager.py`：Chroma 向量库管理器（增删改查 + 本地持久化）
+- [x] `src/llm_client.py`：Ollama 客户端，支持 RAG 上下文注入
+- [x] `experiments/exp_03_rag_knowledge/knowledge_data/build_knowledge.py`：10 条 OWASP/CWE 知识入库
+- [x] `experiments/exp_03_rag_knowledge/knowledge_data/test_rag.py`：纯 LLM vs RAG+LLM 对比脚本
+- [ ] 在台式机运行 `build_knowledge.py` 构建知识库
+- [ ] 运行 `test_rag.py`，对比有/无 RAG 的检测效果
+- [ ] 整理实验报告 `exp_03_report.md`
 
 ---
 
 ## 五、路线图
 
+> 整合自 [docs/glm的建议.md](docs/glm的建议.md)，按"必做 / 创新点 / 加分项"三级划分。
+
+### 🔥 必做（毕设立足点）
+
+| 任务 | 对应实验 | 状态 |
+| --- | --- | --- |
+| 传统工具对比基线（Bandit / Semgrep / Gitleaks） | exp_02 | 🔄 目录就绪，待实现 |
+| 真实代码测试（CVE PoC / OWASP WebGoat，10-20 段） | exp_02 补充 | ⏳ 待开始 |
+
+### 💡 创新点（论文核心价值）
+
+| 任务 | 对应实验 | 状态 |
+| --- | --- | --- |
+| RAG 漏洞知识库（OWASP/CWE/CVE → Chroma，检索注入 Prompt） | exp_03 | ⚠️ 代码就绪待验证 |
+| AST 代码切片（tree-sitter，长文件按函数/块切分，解决注意力衰减） | exp_04 | ⏳ 待开始 |
+| 多模型对比（Gemma 4 26B / Llama 3 / Qwen2.5） | exp_05 | ⏳ 待开始 |
+
+### ⭐ 加分项（提升完成度）
+
+| 任务 | 对应实验 | 状态 |
+| --- | --- | --- |
+| 污点流分析（Source→Sink 跨函数追踪） | exp_06 | ⏳ 待开始 |
+| 修复建议质量评分（生成代码能否编译/通过测试） | - | ⏳ 待开始 |
+| Prompt 工程对比（零样本 / Few-shot / 思维链） | - | ⏳ 待开始 |
+| 工程化系统（Web 界面 + 报告导出 PDF/Markdown + 批量扫描） | - | ⏳ 待开始 |
+
+### 阶段总览
+
 | 阶段 | 目标 | 状态 |
 | --- | --- | --- |
 | 一、模型能力摸底 | 验证 Gemma 在典型漏洞上的下限能力 | ✅ 完成 |
 | 二、传统工具对比基线 | 明确 LLM 相对传统工具的改进点 | 🔄 进行中 |
-| 三、系统设计与开发 | MVP：代码上传 → LLM 分析 → 结果展示；引入 RAG / 向量库；多语言、批量扫描、报告导出 | ⏳ 待开始 |
-| 四、论文与答辩 | 整理实验数据、撰写论文、答辩演示 | ⏳ 待开始 |
+| 三、RAG 知识增强 | 引入向量库，对比有/无 RAG 的检出率 | ⚠️ 代码就绪待验证 |
+| 四、AST 切片 + 多模型 | 解决长上下文衰减，横向对比模型能力 | ⏳ 待开始 |
+| 五、系统设计与开发 | MVP：代码上传 → LLM 分析 → 结果展示；批量扫描、报告导出 | ⏳ 待开始 |
+| 六、论文与答辩 | 整理实验数据、撰写论文、答辩演示 | ⏳ 待开始 |
 
 ---
 
@@ -102,7 +159,7 @@ Graduation-Project/
 - **本地 LLM 推理**：Ollama（已用）/ vLLM（后期高性能部署）/ llama.cpp
 - **主模型**：Gemma 4 26B（已验证）
 - **RAG 检索增强**：LangChain / LlamaIndex
-- **向量数据库**：Chroma / Milvus / Qdrant
+- **向量数据库**：Chroma（已用）/ Milvus / Qdrant
 - **代码解析**：tree-sitter / Python `ast` 模块
 
 ### 系统服务层
@@ -139,7 +196,7 @@ Graduation-Project/
 
 ## 七、复现方式
 
-### 跑第一阶段实验
+### 跑第一阶段实验（exp_01）
 
 ```bash
 cd experiments/exp_01_basic_scan
@@ -155,6 +212,22 @@ python3 run_experiment.py --keep-loaded         # 跑完保留模型在显存（
 ```
 
 结果写入 `results/results.json`，每跑完一个样本即增量落盘，中途可断点查看。
+
+### 跑 RAG 知识库实验（exp_03，需在台式机运行）
+
+```bash
+# 1. 安装依赖
+pip install chromadb sentence-transformers requests
+
+# 2. 构建漏洞知识库
+cd experiments/exp_03_rag_knowledge/knowledge_data
+python3 build_knowledge.py                      # 10 条 OWASP/CWE 知识入库
+
+# 3. 对比测试：纯 LLM vs RAG+LLM
+python3 test_rag.py
+```
+
+> 注：`exp_02_baseline_tools` 的 `run_baseline.py` 尚未实现，复现方式见该目录 README。
 
 ---
 
@@ -174,3 +247,4 @@ python3 run_experiment.py --keep-loaded         # 跑完保留模型在显存（
 - 模型名称需与 Ollama 中实际可用的模型名一致。
 - **显存管理约定**：每次实验脚本跑完必须主动从显存卸载模型（Ollama `keep_alive=0`），多模型场景下避免爆显存。`run_experiment.py` 默认在末尾卸载，如需保留加 `--keep-loaded`。
 - 大模型文件（`.gguf` / `.bin` / `.safetensors` 等）绝不入库，见 `.gitignore`。
+- **RAG 向量库**：`data/chroma_db/` 为本地持久化数据，不入库（见 `.gitignore`），需在本地通过 `build_knowledge.py` 自行构建。

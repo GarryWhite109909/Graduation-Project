@@ -36,6 +36,9 @@ ENV/
 # Ollama 本地模型缓存
 ~/.ollama/
 
+# ===== RAG 向量数据库（本地持久化，体积大且无需入库） =====
+data/
+
 # ===== 实验产物：保留 results.json，但排除临时调试文件 =====
 experiments/**/debug_*.json
 experiments/**/*.tmp
