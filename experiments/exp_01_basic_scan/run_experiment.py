@@ -13,12 +13,26 @@ exp_01_basic_scan - 批量漏洞检测摸底测试脚本
 """
 
 import argparse
-import json
 import sys
 import time
 from pathlib import Path
 
-from src.llm_client import OllamaClient, parse_verdict
+# 把项目根加入 sys.path，保证可从任意目录运行
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from src.llm_client import OllamaClient
+from src.prompts import build_full_prompt
+from src.schema import parse_verdict, normalize_has_vulnerability
+from experiments.utils import (
+    load_manifest,
+    read_sample_code,
+    save_results_json,
+    new_results_envelope,
+    compute_detection_metrics,
+    print_summary,
+)
 
 # ---------------------------------------------------------------------------
 # 路径常量
@@ -27,41 +41,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 SAMPLES_DIR = SCRIPT_DIR / "samples"
 RESULTS_DIR = SCRIPT_DIR / "results"
 MANIFEST_PATH = SAMPLES_DIR / "manifest.json"
-
-# ---------------------------------------------------------------------------
-# 统一 Prompt 模板
-# ---------------------------------------------------------------------------
-PROMPT_TEMPLATE = """你是一名资深的代码安全审计专家。请对下面给出的代码片段进行安全分析，
-判断其中是否存在安全漏洞。分析范围包括但不限于：SQL 注入、跨站脚本（XSS）、
-命令注入、路径穿越、硬编码敏感信息（密钥/密码/Token）、不安全的反序列化等。
-
-要求：
-1. 仔细阅读代码语义，结合上下文判断用户可控输入是否被安全处理。
-2. 不要夸大风险，也不要遗漏明显的漏洞。
-3. 在回答的最后，必须严格输出一个 JSON 对象作为最终结论，JSON 块用 ```json 包裹，
-   字段如下（统一 schema，全项目一致）：
-   - has_vulnerability: 布尔值，true 表示存在漏洞，false 表示未发现漏洞
-   - vulnerability_type: 字符串，漏洞类型（优先用 CWE 编号 + 中文名）；若未发现漏洞，填 "none"
-   - risk_level: 字符串，风险等级 Critical/High/Medium/Low；若未发现漏洞，填 "None"
-   - source: 字符串，污染来源（用户可控输入点）；若未发现漏洞，填 "N/A"
-   - sink: 字符串，危险函数或触发点；若未发现漏洞，填 "N/A"
-   - explanation: 字符串，对漏洞或安全现状的简短说明
-   - fix_suggestion: 字符串，修复建议；若未发现漏洞，填 "no fix needed"
-
-代码片段（文件名: {filename}，语言: {language}）：
-```{language}
-{code}
-```
-
-请先给出分析过程，然后在最后给出 JSON 结论。
-"""
-
-
-def build_prompt(code: str, filename: str, language: str) -> str:
-    """构造单次推理的 prompt。"""
-    return PROMPT_TEMPLATE.format(
-        code=code, filename=filename, language=language or "text"
-    )
+RESULTS_PATH = RESULTS_DIR / "results.json"
 
 
 def main() -> int:
@@ -80,23 +60,20 @@ def main() -> int:
                         help="跑完后保持模型在显存中（默认卸载，多模型场景避免爆显存）")
     args = parser.parse_args()
 
-    if not MANIFEST_PATH.exists():
-        print(f"[错误] 找不到 manifest: {MANIFEST_PATH}", file=sys.stderr)
+    try:
+        manifest, samples = load_manifest(MANIFEST_PATH)
+    except (FileNotFoundError, KeyError) as e:
+        print(f"[错误] {e}", file=sys.stderr)
         return 1
-    manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
-    samples = manifest["samples"]
     if args.limit > 0:
         samples = samples[: args.limit]
 
-    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    results = {
-        "experiment": manifest.get("experiment", "exp_01_basic_scan"),
-        "model": args.model,
-        "host": args.host,
-        "temperature": args.temperature,
-        "started_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "samples": [],
-    }
+    results = new_results_envelope(
+        experiment=manifest.get("experiment", "exp_01_basic_scan"),
+        model=args.model,
+        host=args.host,
+        temperature=args.temperature,
+    )
 
     total = len(samples)
     print(f"[信息] 共 {total} 个样本，模型 {args.model}，host {args.host}")
@@ -105,14 +82,12 @@ def main() -> int:
 
     for idx, sample_meta in enumerate(samples, 1):
         filename = sample_meta["file"]
-        sample_path = SAMPLES_DIR / filename
-        if not sample_path.exists():
-            print(f"[跳过] 样本文件不存在: {sample_path}", file=sys.stderr)
+        code = read_sample_code(SAMPLES_DIR, filename)
+        if code is None:
             continue
-        code = sample_path.read_text(encoding="utf-8")
         language = sample_meta.get("language", "text")
 
-        prompt = build_prompt(code, filename, language)
+        prompt = build_full_prompt(code=code, language=language, filename=filename)
         print(f"[{idx}/{total}] 分析 {filename} ({language}, expected_present={sample_meta['expected_present']}) ...", flush=True)
 
         record = {
@@ -150,23 +125,23 @@ def main() -> int:
             verdict = parse_verdict(text)
             record["parsed_verdict"] = verdict
             if verdict:
-                found = verdict.get("has_vulnerability")
-                if isinstance(found, str):
-                    found = found.strip().lower() in ("true", "yes", "1")
-                record["model_has_vulnerability"] = bool(found) if found is not None else None
+                record["model_has_vulnerability"] = normalize_has_vulnerability(
+                    verdict.get("has_vulnerability")
+                )
             print(f"        -> 用时 {elapsed}s, 判定={record['model_has_vulnerability']}")
 
         results["samples"].append(record)
         # 每跑完一个样本立即落盘，避免中途崩溃丢失结果
-        (RESULTS_DIR / "results.json").write_text(
-            json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+        save_results_json(RESULTS_PATH, results)
 
     results["finished_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
-    (RESULTS_DIR / "results.json").write_text(
-        json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
-    print(f"[完成] 结果已写入 {RESULTS_DIR / 'results.json'}")
+    # 汇总指标并写入结果文件
+    metrics = compute_detection_metrics(results["samples"])
+    results["metrics"] = metrics
+    save_results_json(RESULTS_PATH, results)
+    print(f"[完成] 结果已写入 {RESULTS_PATH}")
+    print("\n=== 汇总指标 ===")
+    print_summary(metrics)
 
     # 默认跑完立即从显存卸载模型，多模型场景下避免爆显存
     if args.keep_loaded:

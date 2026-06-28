@@ -3,54 +3,22 @@ Ollama LLM 客户端
 封装本地模型调用，支持 RAG 增强的漏洞检测
 """
 
-import re
 import sys
 import requests
-import json
 import time
 from typing import Dict, List, Optional
 
+# schema 与 prompt 统一从 src.schema / src.prompts 导入（全项目唯一来源）。
+# 此处 re-export 仅为向后兼容历史代码 `from src.llm_client import parse_verdict`。
+from src.schema import VERDICT_SCHEMA, parse_verdict, normalize_has_vulnerability
+from src.prompts import SYSTEM_PROMPT, build_user_prompt
 
-# ---------------------------------------------------------------------------
-# 统一输出 schema —— 全项目所有实验脚本必须使用此 schema 解析模型结论
-# ---------------------------------------------------------------------------
-VERDICT_SCHEMA = {
-    "has_vulnerability": "bool, true 表示存在漏洞",
-    "vulnerability_type": "str, CWE 编号 + 中文名；无漏洞填 'none'",
-    "risk_level": "str, Critical/High/Medium/Low；无漏洞填 'None'",
-    "source": "str, 污染来源（用户可控输入点）；无漏洞填 'N/A'",
-    "sink": "str, 危险函数或触发点；无漏洞填 'N/A'",
-    "explanation": "str, 漏洞或安全现状说明",
-    "fix_suggestion": "str, 修复建议；无漏洞填 'no fix needed'",
-}
-
-
-def parse_verdict(raw_output: str) -> dict:
-    """从模型输出中抽取最后的 JSON 结论（统一 schema）。
-
-    优先匹配 ```json ... ``` 代码块；兜底匹配含 has_vulnerability 字段的 JSON 片段。
-    解析失败返回空 dict。
-    """
-    blocks = re.findall(r"```json\s*(\{.*?\})\s*```", raw_output, re.DOTALL)
-    candidates = blocks if blocks else re.findall(
-        r"\{[^{}]*\"has_vulnerability\"[^{}]*\}", raw_output, re.DOTALL
-    )
-    for cand in candidates[-1:] if candidates else []:
-        try:
-            parsed = json.loads(cand)
-            if "has_vulnerability" in parsed:
-                return parsed
-        except json.JSONDecodeError:
-            continue
-    # 兜底：尝试找最后一个完整的 { ... } 片段
-    for match in re.finditer(r"\{[^{}]*\}", raw_output, re.DOTALL):
-        try:
-            parsed = json.loads(match.group(0))
-            if "has_vulnerability" in parsed:
-                return parsed
-        except json.JSONDecodeError:
-            continue
-    return {}
+__all__ = [
+    "OllamaClient",
+    "VERDICT_SCHEMA",
+    "parse_verdict",
+    "normalize_has_vulnerability",
+]
 
 
 class OllamaClient:
@@ -170,7 +138,8 @@ class OllamaClient:
         self,
         code: str,
         language: str = "python",
-        rag_context: Optional[str] = None
+        rag_context: Optional[str] = None,
+        filename: Optional[str] = None,
     ) -> Dict:
         """
         分析代码漏洞（RAG 增强版）
@@ -179,42 +148,19 @@ class OllamaClient:
             code: 待分析代码
             language: 代码语言
             rag_context: RAG 检索到的相关知识（可选）
+            filename: 代码文件名（可选，提供给模型作为上下文）
 
         Returns:
             generate() 的返回值，text 字段为模型输出（含 JSON 结论块）。
-            统一输出 schema 见 VERDICT_SCHEMA。
+            统一输出 schema 见 VERDICT_SCHEMA（定义在 src.schema）。
         """
-        system_prompt = (
-            "你是代码安全审计专家。请先给出分析过程，然后在回答末尾严格输出一个 "
-            "```json``` 包裹的 JSON 对象作为最终结论，字段如下：\n"
-            "- has_vulnerability: 布尔值，true 表示存在漏洞，false 表示未发现漏洞\n"
-            "- vulnerability_type: 字符串，漏洞类型（优先用 CWE 编号 + 中文名）；"
-            "若未发现漏洞，填 \"none\"\n"
-            "- risk_level: 字符串，风险等级 Critical/High/Medium/Low；"
-            "若未发现漏洞，填 \"None\"\n"
-            "- source: 字符串，污染来源（用户可控输入点）；若未发现漏洞，填 \"N/A\"\n"
-            "- sink: 字符串，危险函数或触发点；若未发现漏洞，填 \"N/A\"\n"
-            "- explanation: 字符串，对漏洞或安全现状的简短说明\n"
-            "- fix_suggestion: 字符串，修复建议；若未发现漏洞，填 \"no fix needed\"\n"
+        prompt = build_user_prompt(
+            code=code,
+            language=language,
+            filename=filename,
+            rag_context=rag_context,
         )
-
-        # 构建 Prompt
-        prompt_parts = [
-            f"请分析以下 {language} 代码的安全漏洞：\n",
-            "```" + language + "\n" + code + "\n```\n"
-        ]
-
-        if rag_context:
-            prompt_parts.append(
-                f"\n【相关知识参考】\n{rag_context}\n"
-                f"请结合以上知识，更准确地分析代码漏洞。\n"
-            )
-
-        prompt_parts.append("请先给出分析过程，然后在最后给出 JSON 结论。")
-
-        prompt = "\n".join(prompt_parts)
-
-        return self.generate(prompt, system_prompt=system_prompt)
+        return self.generate(prompt, system_prompt=SYSTEM_PROMPT)
 
 
 if __name__ == "__main__":
