@@ -1,0 +1,52 @@
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ===== 虚拟环境 =====
+.venv/
+venv/
+env/
+ENV/
+
+# ===== IDE / 编辑器 =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ===== Jupyter =====
+.ipynb_checkpoints/
+
+# ===== 大模型文件（绝不入库，体积大且涉及版权） =====
+*.gguf
+*.bin
+*.safetensors
+*.pt
+*.pth
+*.onnx
+# Ollama 本地模型缓存
+~/.ollama/
+
+# ===== 实验产物：保留 results.json，但排除临时调试文件 =====
+experiments/**/debug_*.json
+experiments/**/*.tmp
+experiments/**/_draft*
+
+# ===== 敏感信息 =====
+.env
+.env.*
+*.secret
+secrets.json
+
+# ===== 系统 / 日志 =====
+*.log
+logs/

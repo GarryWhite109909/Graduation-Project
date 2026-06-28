@@ -1,0 +1,104 @@
+{
+  "experiment": "exp_01_basic_scan",
+  "description": "Gemma 4 26B 漏洞检测能力摸底测试",
+  "samples": [
+    {
+      "file": "sql_injection_01.py",
+      "language": "Python",
+      "category": "sql_injection",
+      "expected_present": true,
+      "expected_vulnerability": "SQL 注入：用户输入直接拼接到 SQL 语句"
+    },
+    {
+      "file": "sql_injection_02.py",
+      "language": "Python",
+      "category": "sql_injection",
+      "expected_present": true,
+      "expected_vulnerability": "SQL 注入：f-string 嵌入用户输入到 raw 查询"
+    },
+    {
+      "file": "xss_01.php",
+      "language": "PHP",
+      "category": "xss",
+      "expected_present": true,
+      "expected_vulnerability": "反射型 XSS：用户输入未转义直接 echo"
+    },
+    {
+      "file": "xss_02.js",
+      "language": "JavaScript",
+      "category": "xss",
+      "expected_present": true,
+      "expected_vulnerability": "反射型 XSS：用户输入拼接到 HTML 响应"
+    },
+    {
+      "file": "command_injection_01.py",
+      "language": "Python",
+      "category": "command_injection",
+      "expected_present": true,
+      "expected_vulnerability": "命令注入：shell=True 且拼接用户输入"
+    },
+    {
+      "file": "command_injection_02.js",
+      "language": "JavaScript",
+      "category": "command_injection",
+      "expected_present": true,
+      "expected_vulnerability": "命令注入：exec 中拼接用户输入"
+    },
+    {
+      "file": "path_traversal_01.py",
+      "language": "Python",
+      "category": "path_traversal",
+      "expected_present": true,
+      "expected_vulnerability": "路径穿越：用户输入拼接到文件路径，未过滤 ../"
+    },
+    {
+      "file": "path_traversal_02.java",
+      "language": "Java",
+      "category": "path_traversal",
+      "expected_present": true,
+      "expected_vulnerability": "路径穿越：直接使用用户输入构造 File 路径"
+    },
+    {
+      "file": "hardcoded_secret_01.py",
+      "language": "Python",
+      "category": "hardcoded_secret",
+      "expected_present": true,
+      "expected_vulnerability": "硬编码密钥：AWS Access Key 与 Secret 明文写在源码"
+    },
+    {
+      "file": "hardcoded_secret_02.java",
+      "language": "Java",
+      "category": "hardcoded_secret",
+      "expected_present": true,
+      "expected_vulnerability": "硬编码密钥：数据库用户名与密码明文写在源码"
+    },
+    {
+      "file": "insecure_deserialization_01.py",
+      "language": "Python",
+      "category": "insecure_deserialization",
+      "expected_present": true,
+      "expected_vulnerability": "不安全反序列化：pickle.loads 用户可控数据"
+    },
+    {
+      "file": "insecure_deserialization_02.java",
+      "language": "Java",
+      "category": "insecure_deserialization",
+      "expected_present": true,
+      "expected_vulnerability": "不安全反序列化：ObjectInputStream.readObject 用户可控数据"
+    },
+    {
+      "file": "safe_01_parameterized_query.py",
+      "language": "Python",
+      "category": "safe_control",
+      "expected_present": false,
+      "expected_vulnerability": "无（安全对照：参数化查询）"
+    },
+    {
+      "file": "safe_02_subprocess_list.py",
+      "language": "Python",
+      "category": "safe_control",
+      "expected_present": false,
+      "expected_vulnerability": "无（安全对照：参数列表 + 输入校验）"
+    }
+  ]
+}
