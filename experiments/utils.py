@@ -13,8 +13,10 @@
 """
 
 import json
+import statistics
 import sys
 import time
+from collections import defaultdict
 from pathlib import Path
 from typing import Any, Optional
 
@@ -168,8 +170,203 @@ def print_summary(metrics: dict) -> None:
     print(format_metrics_text(metrics))
 
 
+# ---------------------------------------------------------------------------
+# P1-4 新增：重复实验与置信区间统计
+# ---------------------------------------------------------------------------
+
+def wilson_score_interval(successes: int, total: int, z: float = 1.96) -> Optional[tuple[float, float]]:
+    """Wilson score 95% 置信区间（默认 z=1.96）。
+
+    相比"正态近似"在比例接近 0 或 1 时更稳定，适合小样本比例的 CI 估计。
+
+    Args:
+        successes: 成功次数（如正确判定数）
+        total: 总试验数
+        z: z 值，1.96 对应 95% CI
+
+    Returns:
+        (lower, upper) 区间，均为 [0, 1]；total=0 时返回 None
+    """
+    if total <= 0:
+        return None
+    p = successes / total
+    denom = 1 + z * z / total
+    center = (p + z * z / (2 * total)) / denom
+    margin = z * ((p * (1 - p) / total + z * z / (4 * total * total)) ** 0.5) / denom
+    return (round(max(0.0, center - margin), 4), round(min(1.0, center + margin), 4))
+
+
+def majority_vote(verdicts: list) -> Optional[bool]:
+    """对多次判定的二值结果做多数表决。
+
+    None 值（解析失败）会被排除。平票时倾向 True（保守判定为漏洞）。
+    """
+    valid = [v for v in verdicts if v is not None]
+    if not valid:
+        return None
+    true_count = sum(1 for v in valid if v)
+    return true_count >= len(valid) / 2
+
+
+def compute_elapsed_stats(elapsed_list: list) -> dict:
+    """计算耗时分布：均值 / 标准差 / 中位数 / p95 / min / max。
+
+    P1-7 中位数已支持，P1-4 在此基础上增加 std 与 p95。
+    """
+    if not elapsed_list:
+        return {"count": 0, "mean": None, "std": None, "median": None,
+                "min": None, "max": None, "p95": None, "sum": None}
+    sorted_list = sorted(elapsed_list)
+    n = len(sorted_list)
+    # p95：取 95 分位数（线性插值）
+    if n == 1:
+        p95 = sorted_list[0]
+    else:
+        idx = 0.95 * (n - 1)
+        lo = int(idx)
+        hi = min(lo + 1, n - 1)
+        frac = idx - lo
+        p95 = sorted_list[lo] * (1 - frac) + sorted_list[hi] * frac
+    return {
+        "count": n,
+        "mean": round(statistics.mean(elapsed_list), 2),
+        "std": round(statistics.stdev(elapsed_list), 2) if n > 1 else 0.0,
+        "median": round(statistics.median(elapsed_list), 2),
+        "min": round(min(elapsed_list), 2),
+        "max": round(max(elapsed_list), 2),
+        "p95": round(p95, 2),
+        "sum": round(sum(elapsed_list), 2),
+    }
+
+
+def compute_repeat_metrics(records: list[dict]) -> dict:
+    """聚合多次重复实验的指标。
+
+    输入 records 是单次实验的记录列表（每条 record 对应一次 sample × run），
+    要求每条 record 至少含 file / expected_present / model_has_vulnerability /
+    elapsed_seconds 字段。
+
+    返回:
+        - per_sample: 每个样本的多次判定聚合（多数表决、一致率、耗时分布）
+        - 总体指标（基于多数表决结果计算 TP/FP/FN/TN）
+        - accuracy / recall / FPR 的 Wilson 95% 置信区间
+        - 总体耗时分布
+    """
+    by_file = defaultdict(list)
+    for r in records:
+        by_file[r.get("file", "unknown")].append(r)
+
+    per_sample = []
+    for filename, runs in sorted(by_file.items()):
+        verdicts = [r.get("model_has_vulnerability") for r in runs]
+        elapsed = [r.get("elapsed_seconds") for r in runs
+                   if isinstance(r.get("elapsed_seconds"), (int, float))]
+        expected = runs[0].get("expected_present")
+        majority = majority_vote(verdicts)
+        valid = [v for v in verdicts if v is not None]
+        if valid:
+            true_count = sum(1 for v in valid if v)
+            agreement = max(true_count, len(valid) - true_count) / len(valid)
+        else:
+            agreement = 0.0
+        per_sample.append({
+            "file": filename,
+            "runs": len(runs),
+            "expected_present": expected,
+            "majority_verdict": majority,
+            "agreement_rate": round(agreement, 4),
+            "true_count_in_runs": sum(1 for v in verdicts if v is True),
+            "none_count_in_runs": sum(1 for v in verdicts if v is None),
+            "elapsed_stats": compute_elapsed_stats(elapsed),
+        })
+
+    # 基于多数表决的总体指标
+    tp = tn = fp = fn = 0
+    for s in per_sample:
+        exp = s["expected_present"]
+        pred = s["majority_verdict"]
+        if exp is None or pred is None:
+            continue
+        if exp and pred:
+            tp += 1
+        elif (not exp) and (not pred):
+            tn += 1
+        elif exp and (not pred):
+            fn += 1
+        else:
+            fp += 1
+
+    valid = tp + tn + fp + fn
+    vuln_total = tp + fn
+    safe_total = tn + fp
+    recall = tp / vuln_total if vuln_total else None
+    fpr = fp / safe_total if safe_total else None
+    accuracy = (tp + tn) / valid if valid else None
+
+    all_elapsed = []
+    for s in per_sample:
+        es = s["elapsed_stats"]
+        # 用 mean 重新展开（无法精确还原，但总量级足够）
+        if es["count"] and es["mean"]:
+            all_elapsed.extend([es["mean"]] * es["count"])
+
+    return {
+        "total_samples": len(per_sample),
+        "total_runs": sum(s["runs"] for s in per_sample),
+        "valid_samples": valid,
+        "tp": tp, "tn": tn, "fp": fp, "fn": fn,
+        "vuln_total": vuln_total, "safe_total": safe_total,
+        "recall": recall,
+        "false_positive_rate": fpr,
+        "accuracy": accuracy,
+        "accuracy_ci_95": wilson_score_interval(tp + tn, valid),
+        "recall_ci_95": wilson_score_interval(tp, vuln_total),
+        "fpr_ci_95": wilson_score_interval(fp, safe_total),
+        "elapsed_overall": compute_elapsed_stats(all_elapsed),
+        "per_sample": per_sample,
+    }
+
+
+def format_repeat_metrics_text(metrics: dict) -> str:
+    """把重复实验指标格式化为可读文本。"""
+    def pct(x):
+        return "N/A" if x is None else f"{x*100:.1f}%"
+    def ci_text(ci):
+        if ci is None:
+            return "N/A"
+        return f"[{ci[0]*100:.1f}%, {ci[1]*100:.1f}%]"
+
+    m = metrics
+    lines = [
+        f"样本总数: {m['total_samples']}（共 {m['total_runs']} 次运行，有效 {m['valid_samples']}）",
+        f"基于多数表决：TP={m['tp']}  TN={m['tn']}  FP={m['fp']}  FN={m['fn']}",
+        f"召回率 = {m['tp']}/{m['vuln_total']} = {pct(m['recall'])}  95% CI {ci_text(m['recall_ci_95'])}",
+        f"误报率 = {m['fp']}/{m['safe_total']} = {pct(m['false_positive_rate'])}  95% CI {ci_text(m['fpr_ci_95'])}",
+        f"准确率 = {m['tp']+m['tn']}/{m['valid_samples']} = {pct(m['accuracy'])}  95% CI {ci_text(m['accuracy_ci_95'])}",
+    ]
+    es = m["elapsed_overall"]
+    if es["count"]:
+        lines.append(
+            f"耗时: 均值 {es['mean']}s  中位数 {es['median']}s  标准差 {es['std']}s  "
+            f"p95 {es['p95']}s  最长 {es['max']}s  最短 {es['min']}s"
+        )
+    # 一致率统计
+    agreements = [s["agreement_rate"] for s in m["per_sample"]]
+    if agreements:
+        lines.append(
+            f"单样本多数表决一致率: 均值 {statistics.mean(agreements):.3f}  "
+            f"最低 {min(agreements):.3f}"
+        )
+    return "\n".join(lines)
+
+
+def print_repeat_summary(metrics: dict) -> None:
+    """打印重复实验汇总指标到 stdout。"""
+    print(format_repeat_metrics_text(metrics))
+
+
 if __name__ == "__main__":
-    # 自检：用构造数据测试指标计算
+    # 自检：单次实验指标
     demo = [
         {"expected_present": True, "model_has_vulnerability": True, "elapsed_seconds": 50.0},
         {"expected_present": True, "model_has_vulnerability": False, "elapsed_seconds": 55.0},
@@ -177,5 +374,28 @@ if __name__ == "__main__":
         {"expected_present": False, "model_has_vulnerability": True, "elapsed_seconds": 60.0},
         {"expected_present": True, "model_has_vulnerability": None, "elapsed_seconds": None},
     ]
+    print("=== 单次实验指标 ===")
     m = compute_detection_metrics(demo)
     print_summary(m)
+
+    # 自检：重复实验 + 置信区间
+    print("\n=== 重复实验 + 置信区间 ===")
+    demo_repeat = [
+        # sample A：3 次都判 True，期望 True
+        {"file": "a.py", "expected_present": True, "model_has_vulnerability": True, "elapsed_seconds": 40.0},
+        {"file": "a.py", "expected_present": True, "model_has_vulnerability": True, "elapsed_seconds": 42.0},
+        {"file": "a.py", "expected_present": True, "model_has_vulnerability": True, "elapsed_seconds": 38.0},
+        # sample B：2 True 1 False，期望 True
+        {"file": "b.py", "expected_present": True, "model_has_vulnerability": True, "elapsed_seconds": 50.0},
+        {"file": "b.py", "expected_present": True, "model_has_vulnerability": False, "elapsed_seconds": 48.0},
+        {"file": "b.py", "expected_present": True, "model_has_vulnerability": True, "elapsed_seconds": 52.0},
+        # sample C：3 次都判 False，期望 False
+        {"file": "c.py", "expected_present": False, "model_has_vulnerability": False, "elapsed_seconds": 30.0},
+        {"file": "c.py", "expected_present": False, "model_has_vulnerability": False, "elapsed_seconds": 32.0},
+        {"file": "c.py", "expected_present": False, "model_has_vulnerability": False, "elapsed_seconds": 28.0},
+    ]
+    rm = compute_repeat_metrics(demo_repeat)
+    print_repeat_summary(rm)
+    print(f"\nWilson CI 自检 (8/10): {wilson_score_interval(8, 10)}")
+    print(f"Wilson CI 自检 (0/3): {wilson_score_interval(0, 3)}")
+    print(f"Wilson CI 自检 (3/3): {wilson_score_interval(3, 3)}")

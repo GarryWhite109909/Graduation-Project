@@ -1,8 +1,12 @@
 # 实验 02 报告：传统静态分析工具对比基线
 
+> **2026-06-29 更新**：主模型从 `gemma4:26b` / `gemma4:12b` 切换为 `qwen2.5-coder:14b`，
+> 本报告中的 LLM 对比数据已同步更新为 qwen 在 exp_01 / exp_03 的最新实测结果。
+> 旧版 gemma4:12b 数据已备份至 `../exp_01_basic_scan/results/results.gemma4-12b.final.json`。
+
 ## 一、实验目的
 
-在 exp_01 验证了 Gemma 4 12B 在典型漏洞上的检测能力后，本阶段用同一批样本跑
+在 exp_01 验证了 `qwen2.5-coder:14b` 在典型漏洞上的检测能力后，本阶段用同一批样本跑
 传统规则型工具（Bandit / Semgrep），与 LLM 做横向对比，回答四个问题：
 
 1. 传统工具在典型漏洞上的检出率、误报率如何？
@@ -16,6 +20,7 @@
 | --- | --- |
 | Bandit | 1.9.4（pip 安装，conda graproj 环境） |
 | Semgrep | 1.168.0（pip 安装，conda graproj 环境，规则集 `auto`） |
+| LLM | `qwen2.5-coder:14b`（Ollama 本地推理） |
 | 测试时间 | 2026-06-29（无答案泄露版本，Semgrep 已修复） |
 | 脚本 | [run_baseline.py](run_baseline.py) |
 | Python | 3.11（miniconda graproj 环境） |
@@ -39,6 +44,8 @@
 | --- | --- | --- | --- |
 | Bandit | 仅 Python | `bandit -f json -q <file>` | `results` 数组非空 → 有漏洞 |
 | Semgrep | 多语言 | `semgrep --json --quiet --config auto <file>` | `results` 数组非空 → 有漏洞 |
+| LLM（纯） | 多语言 | Ollama `/api/generate` | `has_vulnerability=true` → 有漏洞 |
+| LLM（RAG） | 多语言 | Ollama + ChromaDB 知识库 | `has_vulnerability=true` → 有漏洞 |
 
 > Bandit 不支持的文件后缀（.php/.js/.java）直接标记为 N/A，不计入有效样本。
 > Semgrep 首次运行需从 registry 下载规则集，耗时较长；后续样本走本地缓存。
@@ -47,39 +54,42 @@
 
 ### 5.1 逐样本判定
 
-| 文件 | 语言 | 期望 | LLM | Bandit | Semgrep |
-| --- | --- | --- | --- | --- | --- |
-| sql_injection_01.py | Python | True | True ✅ | True ✅ | True ✅ |
-| sql_injection_02.py | Python | True | True ✅ | True ✅ | True ✅ |
-| xss_01.php | PHP | True | True ✅ | N/A | False ❌(FN) |
-| xss_02.js | JS | True | True ✅ | N/A | True ✅ |
-| command_injection_01.py | Python | True | True ✅ | True ✅ | True ✅ |
-| command_injection_02.js | JS | True | True ✅ | N/A | True ✅ |
-| path_traversal_01.py | Python | True | True ✅ | False ❌(FN) | False ❌(FN) |
-| path_traversal_02.java | Java | True | True ✅ | N/A | True ✅ |
-| hardcoded_secret_01.py | Python | True | True ✅ | True ✅ | True ✅ |
-| hardcoded_secret_02.java | Java | True | True ✅ | N/A | False ❌(FN) |
-| insecure_deserialization_01.py | Python | True | True ✅ | True ✅ | True ✅ |
-| insecure_deserialization_02.java | Java | True | True ✅ | N/A | True ✅ |
-| safe_01_parameterized_query.py | Python | False | False ✅ | False ✅ | False ✅ |
-| safe_02_subprocess_list.py | Python | False | False ✅ | True ❌(FP) | False ✅ |
+| 文件 | 语言 | 期望 | 纯 LLM (qwen) | RAG+LLM (qwen) | Bandit | Semgrep |
+| --- | --- | --- | --- | --- | --- | --- |
+| sql_injection_01.py | Python | True | True ✅ | True ✅ | True ✅ | True ✅ |
+| sql_injection_02.py | Python | True | True ✅ | True ✅ | True ✅ | True ✅ |
+| xss_01.php | PHP | True | True ✅ | True ✅ | N/A | False ❌(FN) |
+| xss_02.js | JS | True | True ✅ | True ✅ | N/A | True ✅ |
+| command_injection_01.py | Python | True | True ✅ | True ✅ | True ✅ | True ✅ |
+| command_injection_02.js | JS | True | True ✅ | True ✅ | N/A | True ✅ |
+| path_traversal_01.py | Python | True | True ✅ | True ✅ | False ❌(FN) | False ❌(FN) |
+| path_traversal_02.java | Java | True | True ✅ | True ✅ | N/A | True ✅ |
+| hardcoded_secret_01.py | Python | True | True ✅ | True ✅ | True ✅ | True ✅ |
+| hardcoded_secret_02.java | Java | True | True ✅ | True ✅ | N/A | False ❌(FN) |
+| insecure_deserialization_01.py | Python | True | True ✅ | True ✅ | True ✅ | True ✅ |
+| insecure_deserialization_02.java | Java | True | True ✅ | True ✅ | N/A | True ✅ |
+| safe_01_parameterized_query.py | Python | False | False ✅ | False ✅ | False ✅ | False ✅ |
+| safe_02_subprocess_list.py | Python | False | **True ❌(FP)** | **False ✅** | True ❌(FP) | False ✅ |
+
+> **关键差异**：纯 LLM（qwen）对 `safe_02_subprocess_list.py` 产生误报；RAG+LLM 通过知识库中的
+> `cmdi_safe_pattern` 条目纠正了该误报。这说明 RAG 不仅能提升可解释性，还能直接降低误报率。
 
 ### 5.2 汇总指标
 
-| 指标 | LLM (Gemma4 26B) | Bandit | Semgrep |
-| --- | --- | --- | --- |
-| 有效样本数 | 14 | 8（仅 Python） | 14 |
-| 不支持样本数 | 0 | 6 | 0 |
-| 真阳性 TP | 12 | 5 | 9 |
-| 真阴性 TN | 2 | 1 | 2 |
-| 假阳性 FP（误报） | 0 | 1 | 0 |
-| 假阴性 FN（漏报） | 0 | 1 | 3 |
-| **召回率** | **100.0%** (12/12) | 83.3% (5/6) | 75.0% (9/12) |
-| **误报率** | **0.0%** (0/2) | 50.0% (1/2) | 0.0% (0/2) |
-| **总体准确率** | **100.0%** (14/14) | 75.0% (6/8) | 78.6% (11/14) |
-| 平均单样本耗时 | 45.24s | 0.04s | 8.9s |
-| 总耗时 | 633.39s | 0.54s | 124.61s |
-| 修复建议 | 自然语言 + 代码 | 规则编号 + 文本 | 规则编号 + 文本 |
+| 指标 | 纯 LLM (qwen) | RAG+LLM (qwen) | Bandit | Semgrep |
+| --- | --- | --- | --- | --- |
+| 有效样本数 | 14 | 14 | 8（仅 Python） | 14 |
+| 不支持样本数 | 0 | 0 | 6 | 0 |
+| 真阳性 TP | 12 | 12 | 5 | 9 |
+| 真阴性 TN | 1 | 2 | 1 | 2 |
+| 假阳性 FP（误报） | 1 | 0 | 1 | 0 |
+| 假阴性 FN（漏报） | 0 | 0 | 1 | 3 |
+| **召回率** | **100.0%** (12/12) | **100.0%** (12/12) | 83.3% (5/6) | 75.0% (9/12) |
+| **误报率** | 50.0% (1/2) | **0.0%** (0/2) | 50.0% (1/2) | 0.0% (0/2) |
+| **总体准确率** | 92.9% (13/14) | **100.0%** (14/14) | 75.0% (6/8) | 78.6% (11/14) |
+| 平均单样本耗时 | 17.11s | 16.96s | 0.04s | 8.9s |
+| 总耗时 | 239.5s | 237.45s | 0.54s | 124.61s |
+| 修复建议 | 自然语言 + 代码 | 自然语言 + 代码 | 规则编号 + 文本 | 规则编号 + 文本 |
 
 ## 六、关键发现
 
@@ -101,7 +111,7 @@ with open(full_path, 'r') as f:
 
 **论文论据**：这是"语义理解 vs 模式匹配"最直接的案例——两个传统工具都漏，只有 LLM 检出。
 
-### 6.2 Bandit 误报：safe_02_subprocess_list.py（模式匹配的代价）
+### 6.2 安全样本对比：safe_02_subprocess_list.py（RAG 的价值）
 
 ```python
 # 样本核心：subprocess 用列表形式传参（安全），且对输入做了校验
@@ -109,14 +119,17 @@ cmd = validate_input(user_input)
 subprocess.run(['ls', '-l', cmd], check=True)  # 列表形式，无 shell=True
 ```
 
-- **Bandit 误报 3 条**：B602（subprocess_popen_with_shell_equals_true）、B603
-  （subprocess_without_shell_equals_true）、B404（import_subprocess）。
-  Bandit 看到 `subprocess` 导入就报警，不理解"列表形式 + 无 shell=True"是安全的。
-- **Semgrep 正确**：判为无漏洞。
-- **LLM 正确**：判为无漏洞，且在解释中明确说明"使用列表形式传参，未启用 shell，安全"。
+| 工具 | 判定 | 说明 |
+| --- | --- | --- |
+| Bandit | True ❌(FP) | B602/B603/B404 看到 subprocess 就报警，不理解列表形式安全 |
+| Semgrep | False ✅ | 正确 |
+| 纯 LLM (qwen) | True ❌(FP) | 认为 `host` 可构造 `127.0.0.1; rm -rf /` 绕过 |
+| RAG+LLM (qwen) | False ✅ | 检索到 `cmdi_safe_pattern`，识别列表参数 + shell=False 是安全的 |
 
-**论文论据**：传统工具基于规则触发，容易对"看起来危险但实际安全"的代码误报，
-  增加人工审计成本；LLM 基于语义判断能区分真正危险与形式危险。
+**论文论据**：
+- 传统工具基于规则触发，容易对"看起来危险但实际安全"的代码误报；
+- 纯 LLM 虽能基于语义判断，但对某些语言安全机制（如 subprocess 列表参数）理解不足；
+- RAG 通过安全模式识别条目，可纠正纯 LLM 的误报，实现 0 误报。
 
 ### 6.3 Semgrep 漏报 3 个（规则覆盖盲区）
 
@@ -142,36 +155,41 @@ LLM 与 Semgrep 都支持全语言，但 LLM 召回率更高。
 
 ### 6.5 速度 vs 质量的权衡
 
-| 维度 | Bandit | Semgrep | LLM |
-| --- | --- | --- | --- |
-| 单样本耗时 | 0.04s | 8.9s | 45.24s |
-| 相对 LLM 倍数 | 1131× 快 | 5.1× 快 | 基准 |
-| 召回率 | 83.3% | 75.0% | **100%** |
-| 修复建议 | ❌ | ❌ | ✅（自然语言 + 代码） |
-| 多语言统一 | ❌ | ✅ | ✅ |
+| 维度 | Bandit | Semgrep | 纯 LLM (qwen) | RAG+LLM (qwen) |
+| --- | --- | --- | --- | --- |
+| 单样本耗时 | 0.04s | 8.9s | 17.11s | 16.96s |
+| 相对 Bandit 倍数 | 基准 | 223× 慢 | 428× 慢 | 424× 慢 |
+| 召回率 | 83.3% | 75.0% | **100%** | **100%** |
+| 误报率 | 50.0% | 0.0% | 50.0% | **0.0%** |
+| 修复建议 | ❌ | ❌ | ✅ | ✅ |
+| 多语言统一 | ❌ | ✅ | ✅ | ✅ |
 
-**核心论点**：LLM 慢 100–1900 倍，但：
+**核心论点**：RAG+LLM 比 Bandit 慢约 424 倍，但：
 1. 召回率从 75%–83% 提升到 100%，漏报率降为 0；
-2. 把人工审计时间从"逐条核对告警"降到"阅读一段自然语言解释"；
-3. 直接输出可执行的修复代码，传统工具只给规则编号。
+2. 误报率从 50%（Bandit）/ 50%（纯 LLM）降到 0%；
+3. 把人工审计时间从"逐条核对告警"降到"阅读一段自然语言解释"；
+4. 直接输出可执行的修复代码，传统工具只给规则编号。
 
 ## 七、结论与论文论据
 
 ### 结论
 
-1. **LLM 在召回率上显著优于传统工具**：100% vs 83.3%（Bandit）/ 75.0%（Semgrep），
-   在 path_traversal_01.py 上 LLM 是唯一检出者。
-2. **传统工具的误报/漏报源于"模式匹配"本质**：Bandit 误报 subprocess 列表形式、
+1. **RAG+LLM 在召回率、误报率、准确率上均优于传统工具**：召回率 100% vs 83.3%（Bandit）/ 75.0%（Semgrep），
+   误报率 0% vs 50%（Bandit）/ 0%（Semgrep），准确率 100% vs 75.0% / 78.6%。
+2. **纯 LLM 已优于传统工具，但 RAG 进一步消除误报**：纯 LLM（qwen）在 `safe_02_subprocess_list.py` 上误报，
+   RAG+LLM 通过安全模式知识纠正，达到 0 误报。
+3. **传统工具的误报/漏报源于"模式匹配"本质**：Bandit 误报 subprocess 列表形式、
    Semgrep 漏报 PHP echo XSS，都是规则无法理解语义的体现。
-3. **多语言场景下 Bandit 失效**：6/14 样本不支持，统计基数缩水近半。
-4. **速度差距可接受**：LLM 56.7s/样本，慢于传统工具，但考虑"检出 + 解释 + 修复"
-   的端到端价值，整体效率反而更高。
+4. **多语言场景下 Bandit 失效**：6/14 样本不支持，统计基数缩水近半。
+5. **速度差距大幅缩小**：qwen 平均 17s/样本，相比 gemma4:12b 的 45s 提升约 2.64 倍；
+   考虑"检出 + 解释 + 修复"的端到端价值，整体效率更可接受。
 
 ### 论文论据映射
 
 | 论文论点 | 实验证据 |
 | --- | --- |
 | LLM 语义理解优于模式匹配 | path_traversal_01.py 唯一检出 |
+| RAG 能降低 LLM 误报 | RAG 纠正 qwen 对 safe_02 的误报 |
 | 传统工具误报增加人工成本 | safe_02_subprocess_list.py Bandit 误报 3 条 |
 | 传统工具规则覆盖有盲区 | Semgrep 漏报 3 个（XSS/路径/硬编码） |
 | LLM 多语言统一 | Bandit 6 样本不支持，LLM/Semgrep 全支持 |
@@ -186,6 +204,12 @@ cd experiments/exp_02_baseline_tools
 ~/miniconda3/envs/graproj/bin/python run_baseline.py --tool bandit      # 只跑 Bandit
 ~/miniconda3/envs/graproj/bin/python run_baseline.py --tool semgrep     # 只跑 Semgrep
 ~/miniconda3/envs/graproj/bin/python run_baseline.py --limit 3          # 只跑前 3 个（调试）
+```
+
+LLM 对比数据来自：
+```bash
+cd ../exp_01_basic_scan && python3 run_experiment.py                      # 纯 LLM
+cd ../exp_03_rag_knowledge && python3 run_rag_experiment.py               # RAG+LLM
 ```
 
 结果写入 [results/results.json](results/results.json)，每跑完一个样本即增量落盘。

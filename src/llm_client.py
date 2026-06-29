@@ -22,7 +22,7 @@ __all__ = [
 
 
 class OllamaClient:
-    def __init__(self, base_url: str = "http://localhost:11434", model: str = "gemma4:12b"):
+    def __init__(self, base_url: str = "http://localhost:11434", model: str = "qwen2.5-coder:14b"):
         self.base_url = base_url
         self.model = model
         self.api_generate = f"{base_url}/api/generate"
@@ -71,6 +71,7 @@ class OllamaClient:
         max_tokens: Optional[int] = 2048,
         keep_alive=0,
         timeout: int = 300,
+        num_ctx: int = 16384,
     ) -> Dict:
         """
         生成文本
@@ -83,12 +84,16 @@ class OllamaClient:
             keep_alive: 模型保留时间；0 表示用完卸载，-1 表示常驻，
                         也可传带单位的字符串如 "5m"（兼容旧版字符串 "-1"/"0"）
             timeout: 请求超时秒数
+            num_ctx: 上下文窗口 token 数（默认 16384）。
+                     Ollama 默认仅 4096，对长文件/RAG 场景不足，
+                     exp_04 中 4 个难样本因 4096 截断导致输出为空。
+                     gemma4:12b 原生支持 256K，16384 足够覆盖长文件+RAG。
 
         Returns:
             {"text": str, "duration": float, "tokens": dict, "meta": dict, "error": str|None}
             error 为 None 表示成功；非 None 时 text 为空字符串。
         """
-        options = {"temperature": temperature}
+        options = {"temperature": temperature, "num_ctx": num_ctx}
         if max_tokens is not None:
             options["num_predict"] = max_tokens
 
@@ -182,7 +187,7 @@ class OllamaClient:
 
 
 if __name__ == "__main__":
-    client = OllamaClient(model="gemma4:12b")
+    client = OllamaClient(model="qwen2.5-coder:14b")
     
     # 检查连接
     if not client.check_connection():

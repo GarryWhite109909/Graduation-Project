@@ -60,7 +60,7 @@ if __name__ == '__main__':
 
     # 初始化
     cm = ChromaManager()
-    client = OllamaClient(model="gemma4:12b")
+    client = OllamaClient(model="qwen2.5-coder:14b")
 
     if not client.check_connection():
         print("[错误] Ollama 未启动，请先运行 ollama serve")

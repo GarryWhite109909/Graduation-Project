@@ -92,8 +92,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="RAG 增强漏洞检测批量对比实验")
     parser.add_argument("--host", default="http://localhost:11434",
                         help="Ollama 服务地址")
-    parser.add_argument("--model", default="gemma4:12b",
-                        help="Ollama 模型名")
+    parser.add_argument("--model", default="qwen2.5-coder:14b",
+                        help="Ollama 模型名（默认 qwen2.5-coder:14b）")
     parser.add_argument("--temperature", type=float, default=0.1,
                         help="采样温度（默认 0.1）")
     parser.add_argument("--limit", type=int, default=0,
