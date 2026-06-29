@@ -43,6 +43,8 @@ data/
 experiments/**/debug_*.json
 experiments/**/*.tmp
 experiments/**/_draft*
+# 旧版本实验结果备份（含答案泄露/旧模型版本）
+experiments/**/results.*-with-*.json
 
 # ===== 敏感信息 =====
 .env

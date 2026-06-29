@@ -1,6 +1,6 @@
 {
   "experiment": "exp_01_basic_scan",
-  "description": "Gemma 4 26B 漏洞检测能力摸底测试",
+  "description": "Gemma 4 12B 漏洞检测能力摸底测试（无答案泄露版本）",
   "samples": [
     {
       "file": "sql_injection_01.py",

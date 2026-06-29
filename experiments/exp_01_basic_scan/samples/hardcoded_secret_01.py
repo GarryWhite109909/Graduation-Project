@@ -1,8 +1,5 @@
-# 样本: 硬编码密钥 - Python AWS 凭证
-# 期望: 检测到硬编码的访问密钥
 import boto3
 
-# 漏洞：硬编码 AWS 访问密钥
 AWS_ACCESS_KEY_ID = "AKIAIOSFODNN7EXAMPLE"
 AWS_SECRET_ACCESS_KEY = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
 AWS_REGION = "us-east-1"

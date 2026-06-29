@@ -48,8 +48,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="批量漏洞检测摸底测试")
     parser.add_argument("--host", default="http://localhost:11434",
                         help="Ollama 服务地址（默认 http://localhost:11434）")
-    parser.add_argument("--model", default="gemma4:26b",
-                        help="Ollama 中模型名（默认 gemma4:26b）")
+    parser.add_argument("--model", default="gemma4:12b",
+                        help="Ollama 中模型名（默认 gemma4:12b）")
     parser.add_argument("--temperature", type=float, default=0.1,
                         help="采样温度（默认 0.1，更稳定）")
     parser.add_argument("--limit", type=int, default=0,
@@ -104,12 +104,12 @@ def main() -> int:
             "error": None,
         }
 
-        # keep_alive="-1" 让模型在批量跑期间常驻显存，跑完统一卸载
+        # keep_alive=-1 让模型在批量跑期间常驻显存，跑完统一卸载
         result = client.generate(
             prompt=prompt,
             temperature=args.temperature,
             max_tokens=None,
-            keep_alive="-1",
+            keep_alive=-1,
             timeout=args.timeout,
         )
         elapsed = round(result["duration"], 2)

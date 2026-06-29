@@ -22,7 +22,7 @@ __all__ = [
 
 
 class OllamaClient:
-    def __init__(self, base_url: str = "http://localhost:11434", model: str = "gemma4:26b"):
+    def __init__(self, base_url: str = "http://localhost:11434", model: str = "gemma4:12b"):
         self.base_url = base_url
         self.model = model
         self.api_generate = f"{base_url}/api/generate"
@@ -46,13 +46,30 @@ class OllamaClient:
             print(f"[OllamaClient] 获取模型列表失败: {e}")
             return []
     
+    @staticmethod
+    def _normalize_keep_alive(keep_alive) -> object:
+        """规范化 keep_alive 参数。
+
+        Ollama 0.x 旧版本接受字符串 "-1" / "0"；新版本（2024+）要求
+        字符串必须带单位（如 "30m"），但整数 -1 / 0 仍可用。
+
+        为兼容历史调用方（脚本中传字符串），此处把无单位的字符串 "-1" / "0"
+        自动转为整数。带单位的字符串（如 "5m"）原样透传。
+        """
+        if isinstance(keep_alive, str):
+            if keep_alive == "-1":
+                return -1
+            if keep_alive == "0":
+                return 0
+        return keep_alive
+
     def generate(
         self,
         prompt: str,
         system_prompt: Optional[str] = None,
         temperature: float = 0.1,
         max_tokens: Optional[int] = 2048,
-        keep_alive: str = "0",
+        keep_alive=0,
         timeout: int = 300,
     ) -> Dict:
         """
@@ -63,7 +80,8 @@ class OllamaClient:
             system_prompt: 系统提示词
             temperature: 温度（越低越确定）
             max_tokens: 最大生成长度；None 表示不设上限（用 Ollama 默认）
-            keep_alive: 模型保留时间，"0" 表示用完卸载，"-1" 表示常驻
+            keep_alive: 模型保留时间；0 表示用完卸载，-1 表示常驻，
+                        也可传带单位的字符串如 "5m"（兼容旧版字符串 "-1"/"0"）
             timeout: 请求超时秒数
 
         Returns:
@@ -79,7 +97,7 @@ class OllamaClient:
             "prompt": prompt,
             "stream": False,
             "options": options,
-            "keep_alive": keep_alive,
+            "keep_alive": self._normalize_keep_alive(keep_alive),
         }
 
         if system_prompt:
@@ -164,7 +182,7 @@ class OllamaClient:
 
 
 if __name__ == "__main__":
-    client = OllamaClient(model="gemma4:26b")
+    client = OllamaClient(model="gemma4:12b")
     
     # 检查连接
     if not client.check_connection():
