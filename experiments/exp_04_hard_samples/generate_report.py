@@ -12,7 +12,6 @@ exp_04 报告生成器：扫描 results/ 下所有结果文件，生成 exp_04_r
 import json
 import sys
 from pathlib import Path
-from collections import defaultdict
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 RESULTS_DIR = SCRIPT_DIR / "results"
@@ -129,28 +128,67 @@ def collect_topk_retrieval(results_data: dict) -> dict:
     }
 
 
+def _find_latest_result(patterns: list[str]) -> Path | None:
+    """按修改时间匹配最新的结果文件（排除 .bak）。"""
+    candidates: list[Path] = []
+    for pat in patterns:
+        candidates.extend(RESULTS_DIR.glob(pat))
+    candidates = [p for p in candidates if not p.name.endswith(".bak.json")]
+    if not candidates:
+        return None
+    return sorted(candidates, key=lambda p: p.stat().st_mtime, reverse=True)[0]
+
+
+def _find_p1_4_path() -> Path | None:
+    """自动匹配 P1-4 重复实验结果文件（支持新旧两种命名规范）。"""
+    return _find_latest_result([
+        "results.p1-4.repeat3.*.json",
+        "exp_04_hard_samples.*.repeat3.*.json",
+    ])
+
+
+def _find_ablation_path(mode: str, top_k: int = 3) -> Path | None:
+    """自动匹配 P1-5 消融实验结果文件（支持新旧两种命名规范）。"""
+    return _find_latest_result([
+        f"results.ablation.{mode}.topk{top_k}.json",
+        f"exp_04_hard_samples.*.{mode}.topk{top_k}.*.json",
+    ])
+
+
+def _find_topk_path(top_k: int) -> Path | None:
+    """自动匹配 P2-8 Top-K 实验结果文件（支持新旧两种命名规范）。"""
+    return _find_latest_result([
+        f"results.ablation.rag.topk{top_k}.json",
+        f"exp_04_hard_samples.*.rag.topk{top_k}.*.json",
+    ])
+
+
 def main() -> int:
     # 收集所有结果文件
-    p1_4_path = RESULTS_DIR / "results.p1-4.repeat3.qwen2.5-coder-14b.json"
+    p1_4_path = _find_p1_4_path()
     ablation_paths = {
-        "rag (A组)": RESULTS_DIR / "results.ablation.rag.topk3.json",
-        "pure (B组)": RESULTS_DIR / "results.ablation.pure.topk3.json",
-        "random (C组)": RESULTS_DIR / "results.ablation.random.topk3.json",
-        "irrelevant (D组)": RESULTS_DIR / "results.ablation.irrelevant.topk3.json",
+        "rag (A组)": _find_ablation_path("rag"),
+        "pure (B组)": _find_ablation_path("pure"),
+        "random (C组)": _find_ablation_path("random"),
+        "irrelevant (D组)": _find_ablation_path("irrelevant"),
     }
     topk_paths = {
-        "K=1": RESULTS_DIR / "results.ablation.rag.topk1.json",
-        "K=3": RESULTS_DIR / "results.ablation.rag.topk3.json",
-        "K=5": RESULTS_DIR / "results.ablation.rag.topk5.json",
-        "K=10": RESULTS_DIR / "results.ablation.rag.topk10.json",
+        "K=1": _find_topk_path(1),
+        "K=3": _find_topk_path(3),
+        "K=5": _find_topk_path(5),
+        "K=10": _find_topk_path(10),
     }
 
-    p1_4 = load_json(p1_4_path)
-    ablation_data = {k: load_json(v) for k, v in ablation_paths.items()}
-    topk_data = {k: load_json(v) for k, v in topk_paths.items()}
+    p1_4 = load_json(p1_4_path) if p1_4_path else {}
+    ablation_data = {k: load_json(v) if v else {} for k, v in ablation_paths.items()}
+    topk_data = {k: load_json(v) if v else {} for k, v in topk_paths.items()}
+
+    # 实验设置表中的模型从 P1-4 结果文件读取，未找到则使用默认值
+    p1_4_env = p1_4.get("environment", p1_4)
+    setup_model = p1_4_env.get("model", "qwen2.5-coder:7b") if p1_4 else "qwen2.5-coder:7b"
 
     found = []
-    if p1_4:
+    if p1_4 and p1_4_path:
         found.append(("P1-4", p1_4_path.name))
     for k, v in ablation_data.items():
         if v:
@@ -187,7 +225,7 @@ def main() -> int:
     lines.append("| 样本集 | exp_04_hard_samples（42 段） |")
     lines.append("| 样本分布 | 典型漏洞 12 + 安全对照 8 + 难样本 16 + 混淆噪音 6 |")
     lines.append("| 难样本类型 | 绕过过滤 4 / 跨文件污点 4 / 真实 CVE 4 / 长文件隐藏 2 / OWASP 风格 2 |")
-    lines.append("| 模型 | `qwen2.5-coder:14b` |")
+    lines.append(f"| 模型 | `{setup_model}` |")
     lines.append("| 采样温度 | 0.1 |")
     lines.append("| 评估口径 | 单次口径 + 多数表决口径（含 Wilson 95% CI） |")
     lines.append("| 跨文件样本 | sink 文件分析时注入对应 input 文件作为上下文 |")
@@ -203,7 +241,7 @@ def main() -> int:
     if p1_4:
         env = p1_4.get("environment", p1_4)
         lines.append(f"**实验**：{p1_4.get('experiment', 'exp_04')}  ")
-        lines.append(f"**模型**：{env.get('model', 'qwen2.5-coder:14b')}  ")
+        lines.append(f"**模型**：{env.get('model', 'qwen2.5-coder:7b')}  ")
         lines.append(f"**重复次数**：{env.get('repeat', 3)}  ")
         lines.append(f"**总运行数**：{env.get('total_runs', 'N/A')}  ")
         lines.append("")

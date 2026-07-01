@@ -1,0 +1,748 @@
+{
+  "experiment": "exp_03_rag_knowledge",
+  "started_at": "2026-06-30 11:34:32",
+  "samples": [
+    {
+      "file": "sql_injection_01.py",
+      "language": "Python",
+      "category": "sql_injection",
+      "expected_present": true,
+      "expected_vulnerability": "SQL 注入：用户输入直接拼接到 SQL 语句",
+      "rag_retrieval": [
+        {
+          "rank": 1,
+          "id": "sqli_knowledge",
+          "type": "SQL注入",
+          "cwe": "CWE-89",
+          "distance": 0.4062
+        },
+        {
+          "rank": 2,
+          "id": "sqli_dangerous_api",
+          "type": "SQL注入",
+          "cwe": "CWE-89",
+          "distance": 0.4302
+        },
+        {
+          "rank": 3,
+          "id": "sqli_bypass_filter",
+          "type": "SQL注入",
+          "cwe": "CWE-89",
+          "distance": 0.5488
+        }
+      ],
+      "rag_context_chars": 911,
+      "elapsed_seconds": 18.15,
+      "raw_output": " ### 分析过程\n\n1. **代码片段**：\n    ```Python\n    from flask import Flask, request\n    import sqlite3\n\n    app = Flask(__name__)\n\n    @app.route(\"/login\")\n    def login():\n        username = request.args.get(\"username\", \"\")\n        password = request.args.get(\"password\", \"\")\n\n        conn = sqlite3.connect(\"users.db\")\n        cursor = conn.cursor()\n        query = \"SELECT * FROM users WHERE username='\" + username + \"' AND password='\" + password + \"'\"\n        cursor.execute(query)\n        user = cursor.fetchone()\n        if user:\n            return \"login success\"\n        return \"login failed\", 401\n    ```\n\n2. **漏洞分析**：\n    - **用户可控输入点**：`username` 和 `password` 是通过 `request.args.get(\"username\", \"\")` 和 `request.args.get(\"password\", \"\")` 获取的，这两个参数是从 URL 查询字符串中获取的。\n    - **危险函数或触发点**：`cursor.execute(query)`，这里的 `query` 是通过字符串拼接生成的，直接将用户输入拼接到 SQL 查询语句中。\n    - **漏洞类型**：SQL 注入（CWE-89）。\n\n3. **漏洞解释**：\n    - 由于 `username` 和 `password` 是从 URL 查询字符串中获取的，且直接拼接到了 SQL 查询语句中，攻击者可以构造恶意的 SQL 语句。例如，如果用户输入 `'; DROP TABLE users; --` 作为 `username`，那么最终生成的 SQL 查询语句将是：\n      ```SQL\n      SELECT * FROM users WHERE username=''; DROP TABLE users; --' AND password=''\n      ```\n    - 这种攻击会导致数据库中的 `users` 表被删除。\n\n4. **修复建议**：\n    - 使用参数化查询（Prepared Statements）来防止 SQL 注入。可以使用 Python 的 sqlite3 模块提供的参数化查询功能，如下所示：\n      ```Python\n      query = \"SELECT * FROM users WHERE username=? AND password=?\"\n      cursor.execute(query, (username, password))\n      ```\n    - 这种方式可以有效防止 SQL 注入攻击。\n\n### JSON 结论\n```json\n{\n  \"has_vulnerability\": true,\n  \"vulnerability_type\": \"CWE-89 SQL注入\",\n  \"risk_level\": \"High\",\n  \"source\": \"username, password\",\n  \"sink\": \"cursor.execute(query)\",\n  \"explanation\": \"代码中直接将用户输入拼接到SQL查询语句中，未进行任何过滤和转义处理，存在SQL注入漏洞。攻击者可以构造恶意的SQL语句，导致数据库被操纵。\",\n  \"fix_suggestion\": \"使用参数化查询来防止SQL注入。\"\n}\n```",
+      "parsed_verdict": {
+        "has_vulnerability": true,
+        "vulnerability_type": "CWE-89 SQL注入",
+        "risk_level": "High",
+        "source": "username, password",
+        "sink": "cursor.execute(query)",
+        "explanation": "代码中直接将用户输入拼接到SQL查询语句中，未进行任何过滤和转义处理，存在SQL注入漏洞。攻击者可以构造恶意的SQL语句，导致数据库被操纵。",
+        "fix_suggestion": "使用参数化查询来防止SQL注入。"
+      },
+      "model_has_vulnerability": true,
+      "error": null,
+      "meta": {
+        "eval_count": 674,
+        "eval_duration_ns": 16433585000,
+        "load_duration_ns": 1235981663,
+        "total_duration_ns": 18145025883,
+        "prompt_eval_count": 996
+      }
+    },
+    {
+      "file": "sql_injection_02.py",
+      "language": "Python",
+      "category": "sql_injection",
+      "expected_present": true,
+      "expected_vulnerability": "SQL 注入：f-string 嵌入用户输入到 raw 查询",
+      "rag_retrieval": [
+        {
+          "rank": 1,
+          "id": "sqli_dangerous_api",
+          "type": "SQL注入",
+          "cwe": "CWE-89",
+          "distance": 0.3625
+        },
+        {
+          "rank": 2,
+          "id": "sqli_orm_misuse",
+          "type": "SQL注入",
+          "cwe": "CWE-89",
+          "distance": 0.4457
+        },
+        {
+          "rank": 3,
+          "id": "sqli_knowledge",
+          "type": "SQL注入",
+          "cwe": "CWE-89",
+          "distance": 0.4847
+        }
+      ],
+      "rag_context_chars": 981,
+      "elapsed_seconds": 13.05,
+      "raw_output": " ### 分析过程\n\n1. **代码片段**：\n   ```Python\n   from django.db import connection\n   from django.http import HttpRequest, HttpResponse\n\n   def search_user(request: HttpRequest) -> HttpResponse:\n       keyword = request.GET.get(\"q\", \"\")\n       with connection.cursor() as cursor:\n           cursor.execute(f\"SELECT id, name FROM accounts WHERE name LIKE '%{keyword}%'\")\n           rows = cursor.fetchall()\n       return HttpResponse(str(rows))\n   ```\n\n2. **问题识别**：\n   - 代码中使用了 `request.GET` 获取用户输入的 `keyword`，并将其直接拼接到 SQL 查询语句中。\n   - 这种做法容易导致 SQL 注入攻击，因为用户可以控制 `keyword` 的内容，从而构造恶意的 SQL 语句。\n\n3. **漏洞分析**：\n   - **污染来源 (source)**: `request.GET.get(\"q\", \"\")`\n   - **危险函数或触发点 (sink)**: `cursor.execute(f\"SELECT id, name FROM accounts WHERE name LIKE '%{keyword}%'\")`\n   - **漏洞类型**: SQL 注入 (CWE-89)\n   - **风险等级**: Critical\n   - **解释说明**: 用户输入未经过任何过滤或转义，直接拼接到 SQL 查询语句中，攻击者可以通过构造特殊的 `keyword` 值来执行任意 SQL 命令。\n\n4. **修复建议**：\n   - 使用参数化查询（Parameterized Query）来避免 SQL 注入。可以使用 Django ORM 的 `filter` 方法或直接使用原始 SQL 但确保使用参数化方式。\n\n### JSON 结论\n```json\n{\n  \"has_vulnerability\": true,\n  \"vulnerability_type\": \"CWE-89 SQL注入\",\n  \"risk_level\": \"Critical\",\n  \"source\": \"request.GET.get(\\\"q\\\", \\\"\\\")\",\n  \"sink\": \"cursor.execute(f\\\"SELECT id, name FROM accounts WHERE name LIKE '%{keyword}%'\\\")\",\n  \"explanation\": \"用户输入未经过任何过滤或转义，直接拼接到SQL查询语句中，容易导致SQL注入攻击。\",\n  \"fix_suggestion\": \"使用参数化查询来避免SQL注入问题。可以使用Django ORM的filter方法或原始SQL但确保使用参数化方式。\"\n}\n```",
+      "parsed_verdict": {
+        "has_vulnerability": true,
+        "vulnerability_type": "CWE-89 SQL注入",
+        "risk_level": "Critical",
+        "source": "request.GET.get(\"q\", \"\")",
+        "sink": "cursor.execute(f\"SELECT id, name FROM accounts WHERE name LIKE '%{keyword}%'\")",
+        "explanation": "用户输入未经过任何过滤或转义，直接拼接到SQL查询语句中，容易导致SQL注入攻击。",
+        "fix_suggestion": "使用参数化查询来避免SQL注入问题。可以使用Django ORM的filter方法或原始SQL但确保使用参数化方式。"
+      },
+      "model_has_vulnerability": true,
+      "error": null,
+      "meta": {
+        "eval_count": 550,
+        "eval_duration_ns": 12578858000,
+        "load_duration_ns": 66979597,
+        "total_duration_ns": 13045425654,
+        "prompt_eval_count": 972
+      }
+    },
+    {
+      "file": "xss_01.php",
+      "language": "PHP",
+      "category": "xss",
+      "expected_present": true,
+      "expected_vulnerability": "反射型 XSS：用户输入未转义直接 echo",
+      "rag_retrieval": [
+        {
+          "rank": 1,
+          "id": "xss_reflected",
+          "type": "XSS",
+          "cwe": "CWE-79",
+          "distance": 0.6463
+        },
+        {
+          "rank": 2,
+          "id": "xss_context",
+          "type": "XSS",
+          "cwe": "CWE-79",
+          "distance": 0.7587
+        },
+        {
+          "rank": 3,
+          "id": "sqli_second_order",
+          "type": "SQL注入",
+          "cwe": "CWE-89",
+          "distance": 0.7909
+        }
+      ],
+      "rag_context_chars": 902,
+      "elapsed_seconds": 11.94,
+      "raw_output": " ### 分析过程\n\n1. **代码片段**：\n   ```PHP\n   <?php\n   $name = $_GET['name'] ?? '';\n   $comment = $_POST['comment'] ?? '';\n   ?>\n   <!DOCTYPE html>\n   <html>\n   <head><title>Profile</title></head>\n   <body>\n       <h1>Hello, <?php echo $name; ?></h1>\n       <div class=\"comment\"><?php echo $comment; ?></div>\n   </body>\n   </html>\n   ```\n\n2. **漏洞分析**：\n   - **跨站脚本（XSS）**：用户输入未经过任何转义直接输出到 HTML 中。\n     - `$_GET['name']` 和 `$_POST['comment']` 是用户可控的输入，直接通过 `echo` 语句输出到 HTML 中。\n   - **SQL注入**：代码片段中没有明显的 SQL 注入风险，因为没有将用户输入直接拼接进 SQL 查询中。\n\n3. **具体漏洞描述**：\n   - **跨站脚本（XSS）**：\n     - **污染来源**：`$_GET['name']` 和 `$_POST['comment']`。\n     - **危险函数或触发点**：`echo $name;` 和 `echo $comment;`。\n     - **漏洞描述**：用户输入未经过任何转义直接输出到 HTML 中，如果输入包含恶意脚本，可能会导致反射型 XSS 攻击。\n\n### JSON 结论\n```json\n{\n  \"has_vulnerability\": true,\n  \"vulnerability_type\": \"XSS\",\n  \"risk_level\": \"High\",\n  \"source\": \"$_GET['name'] and $_POST['comment']\",\n  \"sink\": \"echo $name; and echo $comment;\",\n  \"explanation\": \"用户输入未经过任何转义直接输出到 HTML 中，存在反射型 XSS 风险。攻击者可以注入恶意脚本，当其他用户访问页面时执行这些脚本。\",\n  \"fix_suggestion\": \"对用户输入进行适当的转义处理，例如使用 htmlspecialchars() 函数来转义特殊字符。\"\n}\n```",
+      "parsed_verdict": {
+        "has_vulnerability": true,
+        "vulnerability_type": "XSS",
+        "risk_level": "High",
+        "source": "$_GET['name'] and $_POST['comment']",
+        "sink": "echo $name; and echo $comment;",
+        "explanation": "用户输入未经过任何转义直接输出到 HTML 中，存在反射型 XSS 风险。攻击者可以注入恶意脚本，当其他用户访问页面时执行这些脚本。",
+        "fix_suggestion": "对用户输入进行适当的转义处理，例如使用 htmlspecialchars() 函数来转义特殊字符。"
+      },
+      "model_has_vulnerability": true,
+      "error": null,
+      "meta": {
+        "eval_count": 510,
+        "eval_duration_ns": 11486025000,
+        "load_duration_ns": 69116109,
+        "total_duration_ns": 11940030977,
+        "prompt_eval_count": 951
+      }
+    },
+    {
+      "file": "xss_02.js",
+      "language": "JavaScript",
+      "category": "xss",
+      "expected_present": true,
+      "expected_vulnerability": "反射型 XSS：用户输入拼接到 HTML 响应",
+      "rag_retrieval": [
+        {
+          "rank": 1,
+          "id": "xss_dom",
+          "type": "XSS",
+          "cwe": "CWE-79",
+          "distance": 0.6124
+        },
+        {
+          "rank": 2,
+          "id": "xss_reflected",
+          "type": "XSS",
+          "cwe": "CWE-79",
+          "distance": 0.6526
+        },
+        {
+          "rank": 3,
+          "id": "xss_context",
+          "type": "XSS",
+          "cwe": "CWE-79",
+          "distance": 0.7037
+        }
+      ],
+      "rag_context_chars": 1067,
+      "elapsed_seconds": 13.3,
+      "raw_output": " ### 分析过程\n\n1. **代码片段**：\n   ```JavaScript\n   const express = require('express');\n   const app = express();\n\n   app.get('/greet', (req, res) => {\n       const username = req.query.name;\n       const html = `<html><body><h1>Welcome ` + username + `</h1></body></html>`;\n       res.set('Content-Type', 'text/html');\n       res.send(html);\n   });\n\n   app.listen(3000);\n   ```\n\n2. **漏洞分析**：\n   - 该代码片段通过 `req.query.name` 获取用户输入，并将其直接拼接到 HTML 响应中。\n   - 这种方式容易受到反射型 XSS 攻击（CWE-79），因为用户可控的输入没有经过任何转义就直接插入到 HTML 中。\n\n3. **漏洞类型**：\n   - **XSS - 反射型**：用户输入直接反射到响应 HTML 中未转义。\n\n4. **风险评估**：\n   - 攻击者可以通过构造特定的 URL 参数（例如 `?name=';alert(1);//`），将恶意脚本注入到页面中，当其他用户访问该页面时，这些恶意脚本会被执行，导致 XSS 攻击。\n\n5. **修复建议**：\n   - 对用户输入进行转义处理，避免直接插入 HTML 中。可以使用模板引擎的自动转义功能，或者手动使用合适的转义函数（例如 `htmlspecialchars`）来防止 XSS 攻击。\n\n### JSON 结论\n```json\n{\n  \"has_vulnerability\": true,\n  \"vulnerability_type\": \"CWE-79 XSS\",\n  \"risk_level\": \"High\",\n  \"source\": \"req.query.name\",\n  \"sink\": \"res.send(html)\",\n  \"explanation\": \"该代码片段通过 req.query.name 获取用户输入，并直接拼接到 HTML 响应中，容易受到反射型 XSS 攻击。用户可控的输入没有经过任何转义就直接插入到 HTML 中，存在严重的安全风险。\",\n  \"fix_suggestion\": \"对用户输入进行转义处理，可以使用模板引擎的自动转义功能，或者手动使用合适的转义函数（例如 htmlspecialchars）来防止 XSS 攻击。\"\n}\n```",
+      "parsed_verdict": {
+        "has_vulnerability": true,
+        "vulnerability_type": "CWE-79 XSS",
+        "risk_level": "High",
+        "source": "req.query.name",
+        "sink": "res.send(html)",
+        "explanation": "该代码片段通过 req.query.name 获取用户输入，并直接拼接到 HTML 响应中，容易受到反射型 XSS 攻击。用户可控的输入没有经过任何转义就直接插入到 HTML 中，存在严重的安全风险。",
+        "fix_suggestion": "对用户输入进行转义处理，可以使用模板引擎的自动转义功能，或者手动使用合适的转义函数（例如 htmlspecialchars）来防止 XSS 攻击。"
+      },
+      "model_has_vulnerability": true,
+      "error": null,
+      "meta": {
+        "eval_count": 552,
+        "eval_duration_ns": 12842434000,
+        "load_duration_ns": 66892848,
+        "total_duration_ns": 13297457986,
+        "prompt_eval_count": 995
+      }
+    },
+    {
+      "file": "command_injection_01.py",
+      "language": "Python",
+      "category": "command_injection",
+      "expected_present": true,
+      "expected_vulnerability": "命令注入：shell=True 且拼接用户输入",
+      "rag_retrieval": [
+        {
+          "rank": 1,
+          "id": "cmdi_shell_true",
+          "type": "命令注入",
+          "cwe": "CWE-78",
+          "distance": 0.5484
+        },
+        {
+          "rank": 2,
+          "id": "cmdi_knowledge",
+          "type": "命令注入",
+          "cwe": "CWE-78",
+          "distance": 0.5806
+        },
+        {
+          "rank": 3,
+          "id": "cmdi_safe_pattern",
+          "type": "命令注入",
+          "cwe": "CWE-78",
+          "distance": 0.6086
+        }
+      ],
+      "rag_context_chars": 851,
+      "elapsed_seconds": 11.74,
+      "raw_output": " ### 分析过程\n\n1. **代码分析**：\n   - 这段代码是一个简单的 Flask Web 应用，接收一个名为 `host` 的查询参数，并使用 `subprocess.Popen` 执行系统命令 `ping -c 1 <host>`。\n   - `request.args.get(\"host\", \"\")` 获取用户输入的 `host` 参数。\n   - `shell=True` 允许 shell 解释命令字符串，这可能导致命令注入漏洞。\n\n2. **安全风险分析**：\n   - **用户可控输入点**：`request.args.get(\"host\", \"\")` 获取的 `host` 参数来自用户的输入。\n   - **危险函数或触发点**：`subprocess.Popen(command, shell=True)`，其中 `command` 包含用户输入。\n   - **漏洞类型**：命令注入（CWE-78）。\n\n3. **漏洞风险等级**：\n   - **风险等级**：高。因为直接拼接用户输入到系统命令中，且使用了 `shell=True`，这会导致潜在的命令注入攻击。\n\n4. **修复建议**：\n   - 使用列表形式传递参数，避免使用 `shell=True`，例如：`subprocess.Popen(['ping', '-c', '1', host], stdout=subprocess.PIPE, stderr=subprocess.PIPE)`。\n\n### JSON 结论\n\n```json\n{\n  \"has_vulnerability\": true,\n  \"vulnerability_type\": \"CWE-78 命令注入\",\n  \"risk_level\": \"High\",\n  \"source\": \"request.args.get(\\\"host\\\", \\\"\\\")\",\n  \"sink\": \"subprocess.Popen(command, shell=True)\",\n  \"explanation\": \"这段代码直接拼接用户输入到系统命令中，且使用了shell=True，这会导致潜在的命令注入攻击。任何恶意用户都可以通过构造特定的输入来执行任意系统命令。\",\n  \"fix_suggestion\": \"使用列表形式传递参数，避免使用shell=True，例如：subprocess.Popen(['ping', '-c', '1', host], stdout=subprocess.PIPE, stderr=subprocess.PIPE).\"\n}\n```",
+      "parsed_verdict": {
+        "has_vulnerability": true,
+        "vulnerability_type": "CWE-78 命令注入",
+        "risk_level": "High",
+        "source": "request.args.get(\"host\", \"\")",
+        "sink": "subprocess.Popen(command, shell=True)",
+        "explanation": "这段代码直接拼接用户输入到系统命令中，且使用了shell=True，这会导致潜在的命令注入攻击。任何恶意用户都可以通过构造特定的输入来执行任意系统命令。",
+        "fix_suggestion": "使用列表形式传递参数，避免使用shell=True，例如：subprocess.Popen(['ping', '-c', '1', host], stdout=subprocess.PIPE, stderr=subprocess.PIPE)."
+      },
+      "model_has_vulnerability": true,
+      "error": null,
+      "meta": {
+        "eval_count": 505,
+        "eval_duration_ns": 11293262000,
+        "load_duration_ns": 65551775,
+        "total_duration_ns": 11739449032,
+        "prompt_eval_count": 941
+      }
+    },
+    {
+      "file": "command_injection_02.js",
+      "language": "JavaScript",
+      "category": "command_injection",
+      "expected_present": true,
+      "expected_vulnerability": "命令注入：exec 中拼接用户输入",
+      "rag_retrieval": [
+        {
+          "rank": 1,
+          "id": "cmdi_shell_true",
+          "type": "命令注入",
+          "cwe": "CWE-78",
+          "distance": 0.747
+        },
+        {
+          "rank": 2,
+          "id": "pathtraversal_safe_pattern",
+          "type": "路径遍历",
+          "cwe": "CWE-22",
+          "distance": 0.7558
+        },
+        {
+          "rank": 3,
+          "id": "xss_dom",
+          "type": "XSS",
+          "cwe": "CWE-79",
+          "distance": 0.7705
+        }
+      ],
+      "rag_context_chars": 1137,
+      "elapsed_seconds": 13.73,
+      "raw_output": " ### 分析过程\n\n1. **代码分析**：\n   - 该代码片段是一个简单的 Node.js 应用，使用 Express 框架处理 HTTP 请求。\n   - `app.get('/dns-lookup', (req, res) => { ... })` 定义了一个路由，接受 GET 请求并从查询参数中获取 `domain`。\n   - 然后使用 `exec` 函数执行系统命令 `nslookup <domain>`，其中 `<domain>` 是从用户输入的查询参数中获取的。\n\n2. **漏洞分析**：\n   - **命令注入（CWE-78）**：\n     - 代码中使用了 `exec` 函数，且没有设置 `shell=False`，这意味着用户输入的字符串会被直接传递给 shell，可能导致命令注入攻击。\n     - 具体来说，`exec(`nslookup ${domain}`, ...)` 中的 `${domain}` 是从用户查询参数中获取的，如果用户输入恶意字符（如 `; rm -rf /`），可能会执行系统命令。\n   - **路径遍历（CWE-22）**：\n     - 该漏洞与命令注入类似，但不是通过命令注入执行系统命令，而是通过路径遍历攻击文件系统。虽然代码中没有直接操作文件系统的部分，但如果用户输入包含路径遍历字符（如 `..`），可能会导致访问不允许的路径。\n   - **XSS（CWE-79）**：\n     - 虽然没有直接在 HTML 中插入用户输入，但通过 JavaScript 操作 DOM 时，如果用户输入中含有恶意脚本，可能会触发 XSS 攻击。\n\n### JSON 结论\n\n```json\n{\n  \"has_vulnerability\": true,\n  \"vulnerability_type\": \"CWE-78 命令注入\",\n  \"risk_level\": \"High\",\n  \"source\": \"req.query.domain\",\n  \"sink\": \"exec('nslookup ' + domain)\",\n  \"explanation\": \"该代码存在命令注入漏洞，攻击者可以通过构造恶意的域名参数，执行任意系统命令。虽然直接的路径遍历和文件操作没有出现，但通过命令注入可以间接地访问或破坏系统资源。\",\n  \"fix_suggestion\": \"使用安全的 API 调用方式，避免直接将用户输入传递给 shell。可以使用 `child_process.execFile` 代替 `exec`，或者使用参数化查询来安全地执行外部命令。\"\n}\n```",
+      "parsed_verdict": {
+        "has_vulnerability": true,
+        "vulnerability_type": "CWE-78 命令注入",
+        "risk_level": "High",
+        "source": "req.query.domain",
+        "sink": "exec('nslookup ' + domain)",
+        "explanation": "该代码存在命令注入漏洞，攻击者可以通过构造恶意的域名参数，执行任意系统命令。虽然直接的路径遍历和文件操作没有出现，但通过命令注入可以间接地访问或破坏系统资源。",
+        "fix_suggestion": "使用安全的 API 调用方式，避免直接将用户输入传递给 shell。可以使用 `child_process.execFile` 代替 `exec`，或者使用参数化查询来安全地执行外部命令。"
+      },
+      "model_has_vulnerability": true,
+      "error": null,
+      "meta": {
+        "eval_count": 552,
+        "eval_duration_ns": 13224691000,
+        "load_duration_ns": 68900783,
+        "total_duration_ns": 13725349793,
+        "prompt_eval_count": 1040
+      }
+    },
+    {
+      "file": "path_traversal_01.py",
+      "language": "Python",
+      "category": "path_traversal",
+      "expected_present": true,
+      "expected_vulnerability": "路径穿越：用户输入拼接到文件路径，未过滤 ../",
+      "rag_retrieval": [
+        {
+          "rank": 1,
+          "id": "pathtraversal_safe_pattern",
+          "type": "路径遍历",
+          "cwe": "CWE-22",
+          "distance": 0.4147
+        },
+        {
+          "rank": 2,
+          "id": "pathtraversal_encoding",
+          "type": "路径遍历",
+          "cwe": "CWE-22",
+          "distance": 0.5138
+        },
+        {
+          "rank": 3,
+          "id": "cmdi_knowledge",
+          "type": "命令注入",
+          "cwe": "CWE-78",
+          "distance": 0.6638
+        }
+      ],
+      "rag_context_chars": 923,
+      "elapsed_seconds": 13.64,
+      "raw_output": " ### 分析过程\n\n1. **代码分析**：\n   - `request.args.get(\"file\", \"\")` 获取用户输入的文件名。\n   - `os.path.join(BASE_DIR, filename)` 将用户输入的文件名拼接成完整路径。\n   - `if not os.path.isfile(filepath): abort(404)` 检查文件是否存在，如果不存在则返回404错误。\n   - `with open(filepath, \"rb\") as f: return f.read()` 读取文件内容并返回。\n\n2. **漏洞分析**：\n   - **路径遍历（CWE-22）**：用户输入的文件名直接拼接成完整路径，没有进行任何安全检查和规范化处理。这可能导致路径穿越攻击，攻击者可以通过构造特定的文件名来读取系统上的任意文件。\n   - **编码绕过**：虽然代码中没有显式的黑名单过滤，但通过URL编码可以绕过简单的过滤机制。例如，`filename = request.args.get('file'); if '..' in filename: abort(403)` 这种黑名单过滤在面对编码绕过的攻击时是无效的。\n   - **命令注入（CWE-78）**：虽然代码中没有直接使用 `os.system()`、`subprocess.call()` 等执行系统命令的方法，但通过文件名拼接可能导致类似命令注入的风险。例如，如果用户输入包含特殊字符或命令注入载荷的文件名，可能会导致执行恶意命令。\n\n### JSON 结论\n```json\n{\n  \"has_vulnerability\": true,\n  \"vulnerability_type\": \"CWE-22 路径遍历\",\n  \"risk_level\": \"High\",\n  \"source\": \"request.args.get('file')\",\n  \"sink\": \"os.path.join(BASE_DIR, filename) 和 os.path.isfile(filepath)\",\n  \"explanation\": \"代码中直接拼接用户输入的文件名到路径，未进行任何安全检查和规范化处理，存在路径遍历漏洞。攻击者可以通过构造特定的文件名来读取系统上的任意文件，甚至执行命令注入攻击。\",\n  \"fix_suggestion\": \"对用户输入的文件名进行严格的规范化处理，使用 os.path.abspath 和 os.path.join 生成完整路径，并检查生成的路径是否在允许的目录内。避免直接拼接用户输入到路径中。\"\n}\n```",
+      "parsed_verdict": {
+        "has_vulnerability": true,
+        "vulnerability_type": "CWE-22 路径遍历",
+        "risk_level": "High",
+        "source": "request.args.get('file')",
+        "sink": "os.path.join(BASE_DIR, filename) 和 os.path.isfile(filepath)",
+        "explanation": "代码中直接拼接用户输入的文件名到路径，未进行任何安全检查和规范化处理，存在路径遍历漏洞。攻击者可以通过构造特定的文件名来读取系统上的任意文件，甚至执行命令注入攻击。",
+        "fix_suggestion": "对用户输入的文件名进行严格的规范化处理，使用 os.path.abspath 和 os.path.join 生成完整路径，并检查生成的路径是否在允许的目录内。避免直接拼接用户输入到路径中。"
+      },
+      "model_has_vulnerability": true,
+      "error": null,
+      "meta": {
+        "eval_count": 559,
+        "eval_duration_ns": 13162804000,
+        "load_duration_ns": 69564623,
+        "total_duration_ns": 13633194430,
+        "prompt_eval_count": 1007
+      }
+    },
+    {
+      "file": "path_traversal_02.java",
+      "language": "Java",
+      "category": "path_traversal",
+      "expected_present": true,
+      "expected_vulnerability": "路径穿越：直接使用用户输入构造 File 路径",
+      "rag_retrieval": [
+        {
+          "rank": 1,
+          "id": "pathtraversal_safe_pattern",
+          "type": "路径遍历",
+          "cwe": "CWE-22",
+          "distance": 0.5336
+        },
+        {
+          "rank": 2,
+          "id": "pathtraversal_encoding",
+          "type": "路径遍历",
+          "cwe": "CWE-22",
+          "distance": 0.5853
+        },
+        {
+          "rank": 3,
+          "id": "xxe_knowledge",
+          "type": "XXE",
+          "cwe": "CWE-611",
+          "distance": 0.6538
+        }
+      ],
+      "rag_context_chars": 1136,
+      "elapsed_seconds": 21.82,
+      "raw_output": " ### 分析过程\n\n1. **代码分析**：\n   - `FileDownloadServlet` 类中，用户输入的文件名通过 `req.getParameter(\"file\")` 获取。\n   - 该文件名被直接拼接到 `/var/www/files` 路径下，形成一个完整的文件路径 `BASE_DIR + \"/\" + filename`。\n\n2. **潜在风险**：\n   - **路径遍历漏洞（CWE-22）**：用户输入的文件名未经过任何过滤和校验，直接拼接到路径中，可能导致路径穿越攻击。例如，如果用户输入 `../../etc/passwd`，可能会读取到系统关键文件。\n   - **硬编码敏感信息**：虽然代码中没有明显的硬编码敏感信息，但这种做法本身存在安全隐患，因为用户输入未被正确处理。\n\n3. **漏洞验证**：\n   - 假设用户输入为 `../../etc/passwd`，则最终形成的文件路径是 `/var/www/files/../../etc/passwd`。由于 Unix 和 Windows 系统对路径的处理方式不同，这种穿越会导致读取到非预期的文件或目录。\n\n### 修复建议\n\n1. **规范化路径**：使用 `java.nio.file.Paths` 类来规范化路径，并检查是否在允许的目录内。\n2. **白名单过滤**：只允许用户输入特定的文件名或后缀，拒绝任何可能的路径穿越尝试。\n3. **上下文校验**：确保用户输入的文件名符合预期用途，避免非预期的文件访问。\n\n### 代码修复示例\n\n```Java\nimport java.io.File;\nimport java.io.FileInputStream;\nimport java.io.IOException;\nimport javax.servlet.http.HttpServlet;\nimport javax.servlet.http.HttpServletRequest;\nimport javax.servlet.http.HttpServletResponse;\nimport java.nio.file.Paths;\n\npublic class FileDownloadServlet extends HttpServlet {\n\n    private static final String BASE_DIR = \"/var/www/files\";\n\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {\n        String filename = req.getParameter(\"file\");\n        if (filename == null || filename.isEmpty()) {\n            resp.sendError(HttpServletResponse.SC_BAD_REQUEST);\n            return;\n        }\n\n        // 规范化路径并检查是否在允许的目录内\n        File file = Paths.get(BASE_DIR, filename).toFile();\n        if (!file.exists()) {\n            resp.sendError(HttpServletResponse.SC_NOT_FOUND);\n            return;\n        }\n\n        try (FileInputStream fis = new FileInputStream(file)) {\n            byte[] buf = fis.readAllBytes();\n            resp.getOutputStream().write(buf);\n        }\n    }\n}\n```\n\n### JSON 结论\n\n```json\n{\n  \"has_vulnerability\": true,\n  \"vulnerability_type\": \"CWE-22 路径遍历\",\n  \"risk_level\": \"High\",\n  \"source\": \"req.getParameter(\\\"file\\\")\",\n  \"sink\": \"new File(BASE_DIR + \\\"/\\\" + filename)\",\n  \"explanation\": \"该代码存在路径遍历漏洞，用户可控的输入未经过滤和校验直接拼接到文件路径中，可能导致路径穿越攻击。攻击者可以通过构造特定的文件名来读取系统敏感文件。\",\n  \"fix_suggestion\": \"规范化路径并检查是否在允许的目录内，使用白名单过滤用户输入。\"\n}\n```",
+      "parsed_verdict": {
+        "has_vulnerability": true,
+        "vulnerability_type": "CWE-22 路径遍历",
+        "risk_level": "High",
+        "source": "req.getParameter(\"file\")",
+        "sink": "new File(BASE_DIR + \"/\" + filename)",
+        "explanation": "该代码存在路径遍历漏洞，用户可控的输入未经过滤和校验直接拼接到文件路径中，可能导致路径穿越攻击。攻击者可以通过构造特定的文件名来读取系统敏感文件。",
+        "fix_suggestion": "规范化路径并检查是否在允许的目录内，使用白名单过滤用户输入。"
+      },
+      "model_has_vulnerability": true,
+      "error": null,
+      "meta": {
+        "eval_count": 811,
+        "eval_duration_ns": 21257044000,
+        "load_duration_ns": 66583171,
+        "total_duration_ns": 21811204593,
+        "prompt_eval_count": 1166
+      }
+    },
+    {
+      "file": "hardcoded_secret_01.py",
+      "language": "Python",
+      "category": "hardcoded_secret",
+      "expected_present": true,
+      "expected_vulnerability": "硬编码密钥：AWS Access Key 与 Secret 明文写在源码",
+      "rag_retrieval": [
+        {
+          "rank": 1,
+          "id": "hardcoded_patterns",
+          "type": "硬编码凭证",
+          "cwe": "CWE-798",
+          "distance": 0.4805
+        },
+        {
+          "rank": 2,
+          "id": "pathtraversal_safe_pattern",
+          "type": "路径遍历",
+          "cwe": "CWE-22",
+          "distance": 0.6105
+        },
+        {
+          "rank": 3,
+          "id": "pathtraversal_encoding",
+          "type": "路径遍历",
+          "cwe": "CWE-22",
+          "distance": 0.6659
+        }
+      ],
+      "rag_context_chars": 1168,
+      "elapsed_seconds": 14.62,
+      "raw_output": " ### 分析过程\n\n1. **硬编码凭证**：\n   - 代码中使用了硬编码的 AWS 访问密钥和秘密密钥（`AWS_ACCESS_KEY_ID` 和 `AWS_SECRET_ACCESS_KEY`）。这些密钥是敏感信息，应该从安全的环境变量或配置文件中读取，而不是直接硬编码在代码中。\n   - **风险等级**：High\n   - **漏洞类型**：CWE-798（硬编码凭证）\n   - **污染来源**：`AWS_ACCESS_KEY_ID` 和 `AWS_SECRET_ACCESS_KEY` 变量\n   - **危险函数或触发点**：`boto3.client` 创建 S3 客户端时使用这些密钥\n   - **解释**：硬编码的凭证容易在代码库中被泄露，导致安全风险。攻击者可以利用这些凭证访问 AWS 服务和资源。\n   - **修复建议**：从环境变量或安全的配置文件中读取敏感信息，避免直接使用硬编码值。\n\n2. **路径遍历**：\n   - 代码片段中没有明显的用户输入到达危险函数或触发点的过程，因此不存在路径遍历漏洞。\n   - **风险等级**：Low\n   - **漏洞类型**：CWE-22（路径遍历）\n   - **污染来源**：无\n   - **危险函数或触发点**：无\n   - **解释**：代码中没有使用用户输入来构建文件路径，因此不存在路径遍历的风险。\n   - **修复建议**：无需修复\n\n### JSON 结论\n```json\n{\n  \"has_vulnerability\": true,\n  \"vulnerability_type\": \"CWE-798 SQL注入\",\n  \"risk_level\": \"High\",\n  \"source\": \"AWS_ACCESS_KEY_ID 和 AWS_SECRET_ACCESS_KEY 变量\",\n  \"sink\": \"boto3.client 创建 S3 客户端时使用这些密钥\",\n  \"explanation\": \"代码中使用了硬编码的 AWS 访问密钥和秘密密钥，这容易在代码库中被泄露，导致安全风险。攻击者可以利用这些凭证访问 AWS 服务和资源。\",\n  \"fix_suggestion\": \"从环境变量或安全的配置文件中读取敏感信息，避免直接使用硬编码值。\"\n}\n```",
+      "parsed_verdict": {
+        "has_vulnerability": true,
+        "vulnerability_type": "CWE-798 SQL注入",
+        "risk_level": "High",
+        "source": "AWS_ACCESS_KEY_ID 和 AWS_SECRET_ACCESS_KEY 变量",
+        "sink": "boto3.client 创建 S3 客户端时使用这些密钥",
+        "explanation": "代码中使用了硬编码的 AWS 访问密钥和秘密密钥，这容易在代码库中被泄露，导致安全风险。攻击者可以利用这些凭证访问 AWS 服务和资源。",
+        "fix_suggestion": "从环境变量或安全的配置文件中读取敏感信息，避免直接使用硬编码值。"
+      },
+      "model_has_vulnerability": true,
+      "error": null,
+      "meta": {
+        "eval_count": 548,
+        "eval_duration_ns": 14026451000,
+        "load_duration_ns": 67621969,
+        "total_duration_ns": 14611932689,
+        "prompt_eval_count": 1188
+      }
+    },
+    {
+      "file": "hardcoded_secret_02.java",
+      "language": "Java",
+      "category": "hardcoded_secret",
+      "expected_present": true,
+      "expected_vulnerability": "硬编码密钥：数据库用户名与密码明文写在源码",
+      "rag_retrieval": [
+        {
+          "rank": 1,
+          "id": "hardcoded_patterns",
+          "type": "硬编码凭证",
+          "cwe": "CWE-798",
+          "distance": 0.5329
+        },
+        {
+          "rank": 2,
+          "id": "sqli_knowledge",
+          "type": "SQL注入",
+          "cwe": "CWE-89",
+          "distance": 0.645
+        },
+        {
+          "rank": 3,
+          "id": "sqli_dangerous_api",
+          "type": "SQL注入",
+          "cwe": "CWE-89",
+          "distance": 0.6641
+        }
+      ],
+      "rag_context_chars": 1028,
+      "elapsed_seconds": 13.93,
+      "raw_output": " ### 分析过程\n\n1. **硬编码凭证**：\n   - 代码中存在硬编码的数据库密码 `DB_PASSWORD = \"P@ssw0rd_2024!Admin\"`，这违反了最佳实践，因为密码应该从安全的地方获取，如环境变量或配置文件。\n\n2. **SQL注入**：\n   - 代码中使用了硬编码的用户名和密码来连接数据库，这种方式容易导致SQL注入攻击。虽然这里没有直接拼接用户输入到SQL语句中，但硬编码的凭证仍然是一个潜在的安全风险。\n\n### 具体漏洞分析\n\n1. **硬编码凭证**：\n   - **污染来源 (source)**: `DB_PASSWORD` 变量。\n   - **危险函数或触发点 (sink)**: `DriverManager.getConnection()` 方法。\n   - **漏洞解释 (explanation)**: 密码被硬编码在代码中，一旦泄露，攻击者可以利用这个密码直接访问数据库。\n   - **修复建议 (fix_suggestion)**: 应该从环境变量或配置文件中读取密码，避免将敏感信息硬编码到代码中。\n\n2. **SQL注入**：\n   - **污染来源 (source)**: `DB_USER` 和 `DB_PASSWORD` 变量。\n   - **危险函数或触发点 (sink)**: `DriverManager.getConnection()` 方法。\n   - **漏洞解释 (explanation)**: 硬编码的用户名和密码容易导致SQL注入攻击，因为这些信息可能会被用于构建恶意的SQL查询。\n   - **修复建议 (fix_suggestion)**: 应该使用参数化查询来防止SQL注入，或者从环境变量或配置文件中读取用户名和密码。\n\n### JSON 结论\n```json\n{\n  \"has_vulnerability\": true,\n  \"vulnerability_type\": \"CWE-798 SQL注入\",\n  \"risk_level\": \"High\",\n  \"source\": \"DB_USER, DB_PASSWORD\",\n  \"sink\": \"DriverManager.getConnection()\",\n  \"explanation\": \"代码中存在硬编码的数据库用户名和密码，容易导致SQL注入攻击。此外，硬编码的凭证违反了最佳实践，应该从安全的地方获取这些信息。\",\n  \"fix_suggestion\": \"应从环境变量或配置文件中读取数据库用户名和密码，避免将敏感信息硬编码到代码中。\"\n}\n```",
+      "parsed_verdict": {
+        "has_vulnerability": true,
+        "vulnerability_type": "CWE-798 SQL注入",
+        "risk_level": "High",
+        "source": "DB_USER, DB_PASSWORD",
+        "sink": "DriverManager.getConnection()",
+        "explanation": "代码中存在硬编码的数据库用户名和密码，容易导致SQL注入攻击。此外，硬编码的凭证违反了最佳实践，应该从安全的地方获取这些信息。",
+        "fix_suggestion": "应从环境变量或配置文件中读取数据库用户名和密码，避免将敏感信息硬编码到代码中。"
+      },
+      "model_has_vulnerability": true,
+      "error": null,
+      "meta": {
+        "eval_count": 556,
+        "eval_duration_ns": 13399927000,
+        "load_duration_ns": 69375276,
+        "total_duration_ns": 13925159299,
+        "prompt_eval_count": 1049
+      }
+    },
+    {
+      "file": "insecure_deserialization_01.py",
+      "language": "Python",
+      "category": "insecure_deserialization",
+      "expected_present": true,
+      "expected_vulnerability": "不安全反序列化：pickle.loads 用户可控数据",
+      "rag_retrieval": [
+        {
+          "rank": 1,
+          "id": "deser_pickle",
+          "type": "不安全的反序列化",
+          "cwe": "CWE-502",
+          "distance": 0.4119
+        },
+        {
+          "rank": 2,
+          "id": "deserialization_knowledge",
+          "type": "不安全的反序列化",
+          "cwe": "CWE-502",
+          "distance": 0.6004
+        },
+        {
+          "rank": 3,
+          "id": "auth_failure",
+          "type": "认证失效",
+          "cwe": "CWE-287",
+          "distance": 0.6213
+        }
+      ],
+      "rag_context_chars": 944,
+      "elapsed_seconds": 15.95,
+      "raw_output": " ### 分析过程\n\n1. **用户输入**：\n   - `request.args.get(\"token\", \"\")`：从 URL 参数中获取 `token` 值。\n\n2. **反序列化操作**：\n   - `raw = base64.b64decode(token)`：将 `token` 进行 Base64 解码。\n   - `session_data = pickle.loads(raw)`：对解码后的数据进行反序列化操作。\n\n3. **潜在风险**：\n   - **不安全的反序列化（CWE-502）**：代码中使用了 `pickle.loads` 来反序列化用户输入，这可能导致远程代码执行漏洞。攻击者可以构造恶意的 pickle 数据包，通过 Base64 编码后传递给服务器，从而在目标机器上执行任意代码。\n   - **认证失效（CWE-287）**：虽然在这个具体的代码片段中没有直接涉及到用户认证和会话管理，但反序列化操作本身是一个潜在的安全风险点。如果攻击者能够控制输入数据，就可能利用反序列化漏洞进行攻击。\n\n### 具体漏洞分析\n\n1. **用户可控输入**：\n   - `token` 参数是从 URL 查询字符串中获取的，用户可以完全控制这个值。\n\n2. **反序列化风险**：\n   - `pickle.loads(raw)` 直接处理用户输入，没有进行任何的安全检查和验证。攻击者可以通过构造恶意的 pickle 数据包来执行任意代码。\n\n### 修复建议\n\n1. **避免使用不安全的反序列化**：\n   - 如果不需要反序列化功能，可以直接丢弃 `token` 参数或进行其他安全处理。\n   - 如果必须使用反序列化，应该对数据进行完整性检查和签名验证，确保数据来源可信。\n\n2. **使用安全的序列化库**：\n   - 考虑使用 JSON 格式来替代 pickle，因为 JSON 有更好的安全性和兼容性。\n   - 或者在反序列化之前进行 HMAC 签名验证，确保数据的完整性。\n\n### JSON 结论\n\n```json\n{\n  \"has_vulnerability\": true,\n  \"vulnerability_type\": \"CWE-502 不安全的反序列化\",\n  \"risk_level\": \"High\",\n  \"source\": \"request.args.get(\\\"token\\\", \\\"\\\")\",\n  \"sink\": \"pickle.loads(raw)\",\n  \"explanation\": \"代码中使用了 pickle.loads() 直接处理用户可控输入，存在不安全的反序列化风险。攻击者可以通过构造恶意的 pickle 数据包来执行任意代码，导致严重的安全问题。\",\n  \"fix_suggestion\": \"建议使用 JSON 格式替代 pickle 进行序列化和反序列化操作，或者在反序列化之前进行 HMAC 签名验证。\"\n}\n```",
+      "parsed_verdict": {
+        "has_vulnerability": true,
+        "vulnerability_type": "CWE-502 不安全的反序列化",
+        "risk_level": "High",
+        "source": "request.args.get(\"token\", \"\")",
+        "sink": "pickle.loads(raw)",
+        "explanation": "代码中使用了 pickle.loads() 直接处理用户可控输入，存在不安全的反序列化风险。攻击者可以通过构造恶意的 pickle 数据包来执行任意代码，导致严重的安全问题。",
+        "fix_suggestion": "建议使用 JSON 格式替代 pickle 进行序列化和反序列化操作，或者在反序列化之前进行 HMAC 签名验证。"
+      },
+      "model_has_vulnerability": true,
+      "error": null,
+      "meta": {
+        "eval_count": 660,
+        "eval_duration_ns": 15489753000,
+        "load_duration_ns": 66176088,
+        "total_duration_ns": 15946226367,
+        "prompt_eval_count": 958
+      }
+    },
+    {
+      "file": "insecure_deserialization_02.java",
+      "language": "Java",
+      "category": "insecure_deserialization",
+      "expected_present": true,
+      "expected_vulnerability": "不安全反序列化：ObjectInputStream.readObject 用户可控数据",
+      "rag_retrieval": [
+        {
+          "rank": 1,
+          "id": "deser_java",
+          "type": "不安全的反序列化",
+          "cwe": "CWE-502",
+          "distance": 0.6132
+        },
+        {
+          "rank": 2,
+          "id": "auth_failure",
+          "type": "认证失效",
+          "cwe": "CWE-287",
+          "distance": 0.6852
+        },
+        {
+          "rank": 3,
+          "id": "deserialization_knowledge",
+          "type": "不安全的反序列化",
+          "cwe": "CWE-502",
+          "distance": 0.6974
+        }
+      ],
+      "rag_context_chars": 972,
+      "elapsed_seconds": 14.43,
+      "raw_output": " ### 分析过程\n\n1. **代码分析**\n   - `SessionServlet` 类继承自 `HttpServlet`，并重写了 `doPost` 方法。\n   - 在 `doPost` 方法中，从请求参数中获取 `session` 字符串，然后对其进行 Base64 解码。\n   - 接着使用 `ObjectInputStream` 对解码后的数据进行反序列化操作。\n   - 最后将反序列化后的对象转换为字符串并写入响应中。\n\n2. **潜在漏洞分析**\n   - **不安全的反序列化**：代码中使用了 `ObjectInputStream` 来反序列化用户输入的数据，这可能导致反序列化攻击（如 Java Gadget Chain 攻击）。如果攻击者构造了恶意的序列化对象，可能会在服务器上执行任意代码。\n   - **硬编码敏感信息**：代码中没有对用户输入进行充分的验证和过滤，直接将其用于关键的操作（如反序列化），这可能导致安全问题。\n\n3. **具体漏洞描述**\n   - **风险等级**：高风险。不安全的反序列化操作可能会导致远程代码执行（RCE）等严重后果。\n   - **漏洞类型**：CWE-502（不安全的反序列化）。\n   - **污染来源**：用户可控输入点为 `req.getParameter(\"session\")`。\n   - **危险函数或触发点**：`ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(data))` 和 `ois.readObject()`。\n   - **漏洞说明**：由于直接反序列化用户输入的数据，攻击者可以构造恶意的序列化对象来执行任意代码。\n\n### JSON 结论\n```json\n{\n  \"has_vulnerability\": true,\n  \"vulnerability_type\": \"CWE-502 不安全的反序列化\",\n  \"risk_level\": \"Critical\",\n  \"source\": \"req.getParameter(\\\"session\\\")\",\n  \"sink\": \"ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(data)) 和 ois.readObject()\",\n  \"explanation\": \"代码中直接反序列化用户输入的数据，存在不安全的反序列化风险。攻击者可以构造恶意的序列化对象来执行任意代码，导致严重的安全问题。\",\n  \"fix_suggestion\": \"避免反序列化不可信数据，使用 JSON 替代 Java 序列化；若必须用，实现 ObjectInputFilter（JEP 290）白名单类。\"\n}\n```",
+      "parsed_verdict": {
+        "has_vulnerability": true,
+        "vulnerability_type": "CWE-502 不安全的反序列化",
+        "risk_level": "Critical",
+        "source": "req.getParameter(\"session\")",
+        "sink": "ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(data)) 和 ois.readObject()",
+        "explanation": "代码中直接反序列化用户输入的数据，存在不安全的反序列化风险。攻击者可以构造恶意的序列化对象来执行任意代码，导致严重的安全问题。",
+        "fix_suggestion": "避免反序列化不可信数据，使用 JSON 替代 Java 序列化；若必须用，实现 ObjectInputFilter（JEP 290）白名单类。"
+      },
+      "model_has_vulnerability": true,
+      "error": null,
+      "meta": {
+        "eval_count": 575,
+        "eval_duration_ns": 13904673000,
+        "load_duration_ns": 66902518,
+        "total_duration_ns": 14422734067,
+        "prompt_eval_count": 1042
+      }
+    },
+    {
+      "file": "safe_01_parameterized_query.py",
+      "language": "Python",
+      "category": "safe_control",
+      "expected_present": false,
+      "expected_vulnerability": "无（安全对照：参数化查询）",
+      "rag_retrieval": [
+        {
+          "rank": 1,
+          "id": "sqli_knowledge",
+          "type": "SQL注入",
+          "cwe": "CWE-89",
+          "distance": 0.3957
+        },
+        {
+          "rank": 2,
+          "id": "sqli_dangerous_api",
+          "type": "SQL注入",
+          "cwe": "CWE-89",
+          "distance": 0.443
+        },
+        {
+          "rank": 3,
+          "id": "sqli_bypass_filter",
+          "type": "SQL注入",
+          "cwe": "CWE-89",
+          "distance": 0.5582
+        }
+      ],
+      "rag_context_chars": 911,
+      "elapsed_seconds": 15.16,
+      "raw_output": " ### 分析过程\n\n1. **代码片段**：\n    ```Python\n    import sqlite3\n    from flask import Flask, request\n\n    app = Flask(__name__)\n\n    @app.route(\"/login\")\n    def login():\n        username = request.args.get(\"username\", \"\")\n        password = request.args.get(\"password\", \"\")\n\n        conn = sqlite3.connect(\"users.db\")\n        cursor = conn.cursor()\n        query = \"SELECT * FROM users WHERE username = ? AND password = ?\"\n        cursor.execute(query, (username, password))\n        user = cursor.fetchone()\n        if user:\n            return \"login success\"\n        return \"login failed\", 401\n    ```\n\n2. **SQL注入风险分析**：\n    - **用户可控输入点**：`request.args.get(\"username\", \"\")` 和 `request.args.get(\"password\", \"\")`，这两个参数直接来自用户的请求。\n    - **危险函数或触发点**：`cursor.execute(query, (username, password))`，这里的查询语句使用了拼接的方式来构造完整的SQL语句。\n    - **漏洞解释**：由于用户输入的 `username` 和 `password` 直接拼接到 SQL 查询语句中，没有进行任何过滤或转义处理，这使得攻击者可以通过构造特殊的输入来注入恶意的 SQL 语句，从而导致 SQL 注入攻击。\n\n3. **漏洞类型**：\n    - **类型**：SQL注入（CWE-89）\n    - **风险等级**：High\n\n4. **修复建议**：\n    - 使用参数化查询来防止SQL注入。可以使用 Python 的 `sqlite3` 模块提供的参数化查询功能，将用户输入作为参数传递给 SQL 语句。\n\n### JSON 结论\n```json\n{\n  \"has_vulnerability\": true,\n  \"vulnerability_type\": \"CWE-89 SQL注入\",\n  \"risk_level\": \"High\",\n  \"source\": \"request.args.get(\\\"username\\\", \\\"\\\")和request.args.get(\\\"password\\\", \\\"\\\")\",\n  \"sink\": \"cursor.execute(query, (username, password))\",\n  \"explanation\": \"代码中直接将用户输入拼接到SQL查询语句中，未进行任何过滤或转义处理，存在SQL注入风险。攻击者可以通过构造特殊的输入来注入恶意的SQL语句，导致数据库被操纵。\",\n  \"fix_suggestion\": \"使用参数化查询来防止SQL注入。可以使用sqlite3.execute('SELECT * FROM users WHERE username = ? AND password = ?', (username, password))进行安全处理。\"\n}\n```",
+      "parsed_verdict": {
+        "has_vulnerability": true,
+        "vulnerability_type": "CWE-89 SQL注入",
+        "risk_level": "High",
+        "source": "request.args.get(\"username\", \"\")和request.args.get(\"password\", \"\")",
+        "sink": "cursor.execute(query, (username, password))",
+        "explanation": "代码中直接将用户输入拼接到SQL查询语句中，未进行任何过滤或转义处理，存在SQL注入风险。攻击者可以通过构造特殊的输入来注入恶意的SQL语句，导致数据库被操纵。",
+        "fix_suggestion": "使用参数化查询来防止SQL注入。可以使用sqlite3.execute('SELECT * FROM users WHERE username = ? AND password = ?', (username, password))进行安全处理。"
+      },
+      "model_has_vulnerability": true,
+      "error": null,
+      "meta": {
+        "eval_count": 616,
+        "eval_duration_ns": 14683116000,
+        "load_duration_ns": 67933015,
+        "total_duration_ns": 15156243945,
+        "prompt_eval_count": 997
+      }
+    },
+    {
+      "file": "safe_02_subprocess_list.py",
+      "language": "Python",
+      "category": "safe_control",
+      "expected_present": false,
+      "expected_vulnerability": "无（安全对照：参数列表 + 输入校验）",
+      "rag_retrieval": [
+        {
+          "rank": 1,
+          "id": "cmdi_shell_true",
+          "type": "命令注入",
+          "cwe": "CWE-78",
+          "distance": 0.566
+        },
+        {
+          "rank": 2,
+          "id": "cmdi_knowledge",
+          "type": "命令注入",
+          "cwe": "CWE-78",
+          "distance": 0.6334
+        },
+        {
+          "rank": 3,
+          "id": "cmdi_safe_pattern",
+          "type": "命令注入",
+          "cwe": "CWE-78",
+          "distance": 0.6377
+        }
+      ],
+      "rag_context_chars": 851,
+      "elapsed_seconds": 15.07,
+      "raw_output": " ### 分析过程\n\n1. **代码片段分析**\n   - 该代码片段是一个简单的 Flask Web 应用，接收一个名为 `host` 的查询参数，并使用 `subprocess.run` 执行系统命令 `ping`。\n   - `request.args.get(\"host\", \"\")` 获取用户输入的 `host` 参数。\n   - `if not host.replace(\".\", \"\").replace(\"-\", \"\").isalnum():` 检查 `host` 是否只包含字母和数字、点号或连字符，如果不符合条件则返回错误响应。\n   - `subprocess.run([\"ping\", \"-c\", \"1\", host], capture_output=True, timeout=5)` 执行系统命令 `ping`，其中 `host` 是用户可控输入。\n\n2. **安全分析**\n   - **用户输入的处理**：`host` 参数是从 URL 查询参数中获取的，且在返回错误响应之前进行了简单的字符检查（只包含字母和数字、点号或连字符）。\n   - **命令注入风险**：虽然代码对 `host` 进行了简单的过滤，但并没有完全避免命令注入的风险。因为用户输入仍然可能包含特殊字符，这些字符在 shell 中可能会被解释执行。\n   - **具体漏洞分析**：\n     - **CWE-78**: 使用 `subprocess.run(cmd, shell=True)` 直接拼接了用户输入作为命令的一部分，存在命令注入风险。\n     - **误报可能性**：虽然代码中使用了 `shell=False` 和列表形式来避免直接的命令注入，但由于 `host` 参数是从 URL 查询参数获取的，且没有进一步的安全过滤，可能会导致误报。但实际上，这种情况下仍然存在命令注入的风险。\n\n### JSON 结论\n```json\n{\n  \"has_vulnerability\": true,\n  \"vulnerability_type\": \"CWE-78 命令注入\",\n  \"risk_level\": \"High\",\n  \"source\": \"request.args.get(\\\"host\\\", \\\"\\\")\",\n  \"sink\": \"subprocess.run([\\\"ping\\\", \\\"-c\\\", \\\"1\\\", host])\",\n  \"explanation\": \"代码中使用了 `subprocess.run` 执行系统命令，且直接拼接了用户可控输入作为命令的一部分，存在命令注入风险。尽管使用了 `shell=False` 和列表形式来避免直接的命令注入，但由于用户输入是从 URL 查询参数获取的，且没有进一步的安全过滤，仍然存在命令注入的风险。\",\n  \"fix_suggestion\": \"建议使用安全的 subprocess 调用方式，如使用列表形式并设置 `shell=False`，或者对用户输入进行更严格的验证和清理，避免直接拼接用户输入作为命令的一部分。\"\n}\n```",
+      "parsed_verdict": {
+        "has_vulnerability": true,
+        "vulnerability_type": "CWE-78 命令注入",
+        "risk_level": "High",
+        "source": "request.args.get(\"host\", \"\")",
+        "sink": "subprocess.run([\"ping\", \"-c\", \"1\", host])",
+        "explanation": "代码中使用了 `subprocess.run` 执行系统命令，且直接拼接了用户可控输入作为命令的一部分，存在命令注入风险。尽管使用了 `shell=False` 和列表形式来避免直接的命令注入，但由于用户输入是从 URL 查询参数获取的，且没有进一步的安全过滤，仍然存在命令注入的风险。",
+        "fix_suggestion": "建议使用安全的 subprocess 调用方式，如使用列表形式并设置 `shell=False`，或者对用户输入进行更严格的验证和清理，避免直接拼接用户输入作为命令的一部分。"
+      },
+      "model_has_vulnerability": true,
+      "error": null,
+      "meta": {
+        "eval_count": 626,
+        "eval_duration_ns": 14599987000,
+        "load_duration_ns": 68387239,
+        "total_duration_ns": 15063491221,
+        "prompt_eval_count": 955
+      }
+    }
+  ],
+  "model": "deepseek-coder-v2:16b",
+  "host": "http://localhost:11434",
+  "temperature": 0.1,
+  "top_k": 3,
+  "knowledge_count": 34,
+  "baseline": "exp_01_basic_scan (纯 LLM)",
+  "finished_at": "2026-06-30 11:37:59",
+  "metrics": {
+    "total": 14,
+    "valid": 14,
+    "invalid": 0,
+    "tp": 12,
+    "tn": 0,
+    "fp": 2,
+    "fn": 0,
+    "vuln_total": 12,
+    "safe_total": 2,
+    "recall": 1.0,
+    "false_positive_rate": 1.0,
+    "accuracy": 0.8571428571428571,
+    "elapsed_stats": {
+      "avg": 14.75,
+      "max": 21.82,
+      "min": 11.74,
+      "sum": 206.53,
+      "count": 14
+    }
+  }
+}

@@ -12,19 +12,20 @@
 - [x] `test_rag.py` 中 `result["error"]` KeyError → 已改为判断 `result["text"].startswith("错误:")`
 - [x] `pyproject.toml` 与 `requirements.txt` 依赖版本不一致 → 已统一为较高版本
 - [x] README 项目结构图中 `exp_02/samples/` 和 `data/` 说明不准确 → 已补充注释
-- [x] `docs/glm的建议.md` 缺少手工工作清单 → 已新增章节
+- [x] `docs/_archive/glm的建议_20260628.md` 缺少手工工作清单 → 已新增章节（后归档至 `_archive`）
 - [x] `exp_02_baseline_tools/` 目录骨架 → 已新建 README 与 samples 目录
-- [x] **抽取统一 schema 模块** → 已新建 `src/schema.py`，`llm_client.py` re-export 兼容
-- [x] **抽取统一 Prompt 模板** → 已新建 `src/prompts.py`，统一 SYSTEM_PROMPT + build_user_prompt
+- [x] **抽取统一 schema 模块** → 已新建 `graduation_project/schema.py`，`llm_client.py` re-export 兼容
+- [x] **抽取统一 Prompt 模板** → 已新建 `graduation_project/prompts.py`，统一 SYSTEM_PROMPT + build_user_prompt
 - [x] **提取实验公共工具函数** → 已新建 `experiments/utils.py`，供 exp_01/02/03 共享
-- [x] **Chroma 持久化路径优化** → `src/chroma_manager.py` 优先读取环境变量 `CHROMA_PERSIST_DIR`，未设置时回退到项目根目录 `data/chroma_db`
+- [x] **Chroma 持久化路径优化** → `graduation_project/chroma_manager.py` 优先读取环境变量 `CHROMA_PERSIST_DIR`，未设置时回退到项目根目录 `data/chroma_db`
 - [x] **脚本运行方式统一** → 所有实验脚本（run_experiment / run_baseline / run_rag_experiment / build_knowledge / test_rag）均已在开头加入项目根 `sys.path` 兜底，可从任意目录运行
 - [x] **清理已入库的编译产物** → 经 `git ls-files` 核实无 `__pycache__` / `egg-info` 入库残留，`.gitignore` 已覆盖
 - [x] **build_knowledge.py 幂等化** → `chroma_manager` 新增 `upsert_documents`，build_knowledge 改用 upsert，重复运行不再因 id 冲突报错
 - [x] **test_rag.py 错误判断 bug 修复** → `text.startswith("错误:")` 永远不触发（错误时 text 为空），改为判断 `result["error"]`
-- [x] **run_rag_experiment.py 局部 import 上提** → 循环内的 `from src.prompts import ...` 移到文件顶部
+- [x] **run_rag_experiment.py 局部 import 上提** → 循环内的 `from graduation_project.prompts import ...` 移到文件顶部
 - [x] **run_baseline.py 错误注释清理** → 删除提到不存在的 `-r` 参数的注释
 - [x] **README.md 同步实际进度** → 结构图补全缺失文件、进度更新到阶段三完成、路线图状态刷新、复现方式补充 exp_02/03
+- [x] **包名反模式修正** → 源码目录由 `src/` 重命名为 `graduation_project/`，`pyproject.toml` 中 `packages` 同步改为 `["graduation_project"]`，所有 `from src.xxx import ...` 已全局替换为 `from graduation_project.xxx import ...`
 
 ---
 
@@ -36,9 +37,7 @@
 
 ### 二、包名与工程化
 
-- [ ] **包名反模式修正**  
-  当前 `pyproject.toml` 中 `packages = ["src"]`，导致 Python 包名是 `src`，与目录名冲突且语义不清。建议将源码目录重命名为 `graduation_project/`，或至少通过 `setuptools` 正确映射包名。
-  > ⚠️ 此项改动会影响所有 `from src.xxx import ...` 的导入，需一次性全局替换。当前所有脚本已有 `sys.path` 兜底，不阻塞运行，越晚改影响面越大。
+（暂无，`graduation_project` 包名已修正）
 
 ### 三、数据与产物清理
 
@@ -72,6 +71,6 @@
 
 | 优先级 | 项目 | 原因 |
 | --- | --- | --- |
-| 高 | 扩充难样本集（CVE/WebGoat/绕过过滤） | 当前 14 样本统计意义有限，毕设核心论据 |
-| 中 | 包名反模式修正 | 工程化基础，改动大但越晚越难改（当前不阻塞运行） |
-| 中 | 结果文件按时间戳命名 | 便于追溯，避免历史数据被覆盖 |
+| 高 | 完成 exp_04 难样本实验验证（P1-4 / P1-5 / P2-8） | ✅ 已完成（2026-07-01）：qwen7b 在 42 段难样本上完成全部实验，RAG K=5 达到 recall=100%、accuracy=92.9%，显著优于纯 LLM（recall=88.5%、accuracy=83.3%）。消融实验验证了 RAG 召回提升来自知识相关性，FPR 下降部分来自 prompt 变长效应。 |
+| 高 | DeepSeek 安全样本优化专项 | ❌ 已失败（2026-06-30）：Prompt 工程、RAG 安全知识增强、后处理白名单三轮尝试均无法从根本上解决 deepseek 16B 的知识盲区问题；最终指标靠 safe_override 外部规则覆盖，非模型能力提升。放弃 deepseek 作为安全专用模型基座，改用 qwen2.5-coder:7b。 |
+| 中 | 结果文件按时间戳命名 | ✅ 已完成（2026-07-01）：exp_01/03/04 均已接入 default_results_path，文件名包含模型名 + 参数标签 + 时间戳 |

@@ -1,16 +1,18 @@
-"""
-实验公共工具函数 —— 供 exp_01 / exp_02 / exp_03 共享。
+"""实验公共工具函数 —— 供 exp_01 / exp_02 / exp_03 / exp_04 共享。
 
 抽取 manifest 加载、样本读取、结果落盘、检出指标统计等通用逻辑，
 避免每个实验脚本重复实现。所有实验脚本统一使用本模块的函数，
 确保结果格式与统计口径一致。
 
-典型用法（exp_01 / exp_02）:
+典型用法:
     from experiments.utils import (
         load_manifest, read_sample_code, save_results_json,
+        build_rag_context, upsert_sample,
         compute_detection_metrics, print_summary,
     )
 """
+
+from __future__ import annotations
 
 import json
 import statistics
@@ -18,7 +20,10 @@ import sys
 import time
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
+
+if TYPE_CHECKING:
+    from graduation_project.chroma_manager import ChromaManager
 
 
 def load_manifest(manifest_path: Path) -> tuple[dict, list[dict]]:
@@ -57,6 +62,89 @@ def save_results_json(results_path: Path, results: dict) -> None:
     results_path.write_text(
         json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8"
     )
+
+
+def build_rag_context(
+    query_code: str,
+    cm: ChromaManager,
+    collection_name: str,
+    top_k: int = 3,
+) -> tuple[str, list[dict]]:
+    """用代码内容查询 Chroma 知识库，构建 RAG 上下文。
+
+    Args:
+        query_code: 待分析的代码全文（作为查询文本）
+        cm: ChromaManager 实例
+        collection_name: 知识库集合名
+        top_k: 检索 Top-K 条相关知识
+
+    Returns:
+        (rag_context_str, retrieval_records)
+        - rag_context_str: 拼接好的知识上下文，注入 prompt
+        - retrieval_records: 每条检索结果的元信息（id/type/distance），用于结果记录
+    """
+    results = cm.query(collection_name, query_code, n_results=top_k)
+
+    retrieval_records = []
+    context_parts = []
+    for i, (doc, dist, meta) in enumerate(zip(
+        results["documents"],
+        results["distances"],
+        results["metadatas"],
+    )):
+        retrieval_records.append({
+            "rank": i + 1,
+            "id": results["ids"][i] if i < len(results.get("ids", [])) else None,
+            "type": meta.get("type"),
+            "cwe": meta.get("cwe"),
+            "distance": round(dist, 4),
+        })
+        context_parts.append(
+            f"【知识 {i+1}】({meta.get('type', '未知')} / {meta.get('cwe', '')})\n{doc}"
+        )
+
+    rag_context = "\n\n".join(context_parts) if context_parts else ""
+    return rag_context, retrieval_records
+
+
+def upsert_sample(samples_list: list[dict], sample_record: dict) -> None:
+    """按 file 字段 upsert 样本记录到列表中（用于增量落盘）。"""
+    for i, s in enumerate(samples_list):
+        if s.get("file") == sample_record.get("file"):
+            samples_list[i] = sample_record
+            return
+    samples_list.append(sample_record)
+
+
+def default_results_path(
+    results_dir: Path,
+    experiment: str,
+    model: str | None = None,
+    extra_tag: str | None = None,
+    suffix: str = "json",
+) -> Path:
+    """生成带模型名、时间戳的结果文件路径，避免 results.json 被反复覆盖。
+
+    Args:
+        results_dir: 结果目录
+        experiment: 实验标识（如 exp_01_basic_scan）
+        model: 模型名（会安全化，如 qwen2.5-coder:7b → qwen2.5-coder-7b）
+        extra_tag: 额外标签（如 ablation 模式、topk 等）
+        suffix: 文件后缀
+
+    Returns:
+        路径形如 results/<experiment>.<model>.<tag>.<timestamp>.json
+    """
+    results_dir = Path(results_dir)
+    results_dir.mkdir(parents=True, exist_ok=True)
+    ts = time.strftime("%Y%m%d_%H%M%S")
+    safe_model = model.replace(":", "-").replace("/", "-") if model else "nomodel"
+    parts = [experiment, safe_model]
+    if extra_tag:
+        parts.append(extra_tag)
+    parts.append(ts)
+    filename = ".".join(parts) + f".{suffix}"
+    return results_dir / filename
 
 
 def new_results_envelope(experiment: str, **extra) -> dict:

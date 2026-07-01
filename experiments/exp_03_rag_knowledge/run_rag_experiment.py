@@ -4,7 +4,7 @@ exp_03_rag_knowledge - RAG 增强漏洞检测批量对比实验
 复用 exp_01 的 14 段样本，对每个样本：
 1. 用样本代码查询 Chroma 知识库，检索 Top-K 相关漏洞知识
 2. 把检索到的知识作为 rag_context 注入 prompt
-3. 调用 Gemma 4 26B 分析（RAG+LLM 版本）
+3. 调用本地 LLM 分析（默认 qwen2.5-coder:7b，可切换对照模型）
 4. 记录结果，与 exp_01 纯 LLM 结果对比
 
 输出格式与 exp_01 对齐，便于横向对比检出率、耗时、输出质量。
@@ -13,12 +13,11 @@ exp_03_rag_knowledge - RAG 增强漏洞检测批量对比实验
     python run_rag_experiment.py                          # 跑全部 14 样本
     python run_rag_experiment.py --limit 3                # 只跑前 3 个（调试）
     python run_rag_experiment.py --top-k 5                # 检索 Top-5 知识
-    python run_rag_experiment.py --model gemma4:26b       # 指定模型
+    python run_rag_experiment.py --model deepseek-coder-v2:16b  # 切换对照模型
     python run_rag_experiment.py --keep-loaded            # 跑完不卸载模型
 """
 
 import argparse
-import json
 import sys
 import time
 from pathlib import Path
@@ -28,15 +27,21 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from src.chroma_manager import ChromaManager
-from src.llm_client import OllamaClient
-from src.prompts import SYSTEM_PROMPT, build_user_prompt
-from src.schema import parse_verdict, normalize_has_vulnerability
+from graduation_project.chroma_manager import ChromaManager
+from graduation_project.llm_client import OllamaClient
+from graduation_project.prompts import SYSTEM_PROMPT, build_user_prompt
+from graduation_project.schema import (
+    parse_verdict,
+    normalize_has_vulnerability,
+    apply_safe_pattern_override,
+)
 from experiments.utils import (
     load_manifest,
     read_sample_code,
     save_results_json,
     new_results_envelope,
+    build_rag_context,
+    default_results_path,
     compute_detection_metrics,
     print_summary,
 )
@@ -52,48 +57,12 @@ RESULTS_DIR = SCRIPT_DIR / "results"
 KNOWLEDGE_COLLECTION = "vulnerability_knowledge"
 
 
-def build_rag_context(query_code: str, cm: ChromaManager, top_k: int = 3) -> tuple[str, list[dict]]:
-    """用代码内容查询知识库，构建 RAG 上下文。
-
-    Args:
-        query_code: 待分析的代码全文（作为查询文本）
-        cm: ChromaManager 实例
-        top_k: 检索 Top-K 条相关知识
-
-    Returns:
-        (rag_context_str, retrieval_records)
-        - rag_context_str: 拼接好的知识上下文，注入 prompt
-        - retrieval_records: 每条检索结果的元信息（id/type/distance），用于结果记录
-    """
-    # 用代码全文查询。embedding 模型会截断到 256 token，但前半段通常含关键特征
-    results = cm.query(KNOWLEDGE_COLLECTION, query_code, n_results=top_k)
-
-    retrieval_records = []
-    context_parts = []
-    for i, (doc, dist, meta) in enumerate(zip(
-        results["documents"],
-        results["distances"],
-        results["metadatas"],
-    )):
-        retrieval_records.append({
-            "rank": i + 1,
-            "id": results["ids"][i] if i < len(results.get("ids", [])) else None,
-            "type": meta.get("type"),
-            "cwe": meta.get("cwe"),
-            "distance": round(dist, 4),
-        })
-        context_parts.append(f"【知识 {i+1}】({meta.get('type', '未知')} / {meta.get('cwe', '')})\n{doc}")
-
-    rag_context = "\n\n".join(context_parts) if context_parts else ""
-    return rag_context, retrieval_records
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="RAG 增强漏洞检测批量对比实验")
     parser.add_argument("--host", default="http://localhost:11434",
                         help="Ollama 服务地址")
-    parser.add_argument("--model", default="qwen2.5-coder:14b",
-                        help="Ollama 模型名（默认 qwen2.5-coder:14b）")
+    parser.add_argument("--model", default="qwen2.5-coder:7b",
+                        help="Ollama 模型名（默认 qwen2.5-coder:7b）")
     parser.add_argument("--temperature", type=float, default=0.1,
                         help="采样温度（默认 0.1）")
     parser.add_argument("--limit", type=int, default=0,
@@ -102,9 +71,20 @@ def main() -> int:
                         help="RAG 检索 Top-K 条知识（默认 3）")
     parser.add_argument("--timeout", type=int, default=600,
                         help="单次请求超时秒数")
+    parser.add_argument("--output",
+                        help="结果输出路径（默认 results/exp_03_rag_knowledge.<model>.topk<K>.<timestamp>.json）")
     parser.add_argument("--keep-loaded", action="store_true",
                         help="跑完后保持模型在显存中（默认卸载）")
+    parser.add_argument("--safe-override", action="store_true",
+                        help="启用后处理安全模式白名单兜底（仅消融对照用，不作为论文主结论）")
     args = parser.parse_args()
+
+    results_path = Path(args.output) if args.output else default_results_path(
+        RESULTS_DIR,
+        experiment="exp_03_rag_knowledge",
+        model=args.model,
+        extra_tag=f"topk{args.top_k}",
+    )
 
     try:
         manifest, samples = load_manifest(MANIFEST_PATH)
@@ -142,11 +122,17 @@ def main() -> int:
         top_k=args.top_k,
         knowledge_count=kb_count,
         baseline="exp_01_basic_scan (纯 LLM)",
+        safe_override=args.safe_override,
     )
 
     total = len(samples)
     print(f"[信息] 共 {total} 个样本，模型 {args.model}，RAG Top-{args.top_k}")
+    if args.safe_override:
+        print(f"[信息] 启用后处理安全模式白名单兜底（safe_override=True）")
 
+    client = OllamaClient(base_url=args.host, model=args.model)
+
+    override_count = 0
     for idx, sample_meta in enumerate(samples, 1):
         filename = sample_meta["file"]
         code = read_sample_code(SAMPLES_DIR, filename)
@@ -157,7 +143,9 @@ def main() -> int:
         print(f"[{idx}/{total}] {filename} ({language}, expected_present={sample_meta['expected_present']})", flush=True)
 
         # 1. RAG 检索
-        rag_context, retrieval_records = build_rag_context(code, cm, top_k=args.top_k)
+        rag_context, retrieval_records = build_rag_context(
+            code, cm, collection_name=KNOWLEDGE_COLLECTION, top_k=args.top_k
+        )
         if retrieval_records:
             top_types = [r["type"] for r in retrieval_records]
             top_dists = [r["distance"] for r in retrieval_records]
@@ -178,6 +166,8 @@ def main() -> int:
             "raw_output": None,
             "parsed_verdict": {},
             "model_has_vulnerability": None,
+            "safe_override_applied": False,
+            "safe_override_info": None,
             "error": None,
         }
 
@@ -207,19 +197,35 @@ def main() -> int:
             verdict = parse_verdict(text)
             record["parsed_verdict"] = verdict
             if verdict:
-                record["model_has_vulnerability"] = normalize_has_vulnerability(
+                model_verdict = normalize_has_vulnerability(
                     verdict.get("has_vulnerability")
                 )
+
+                # 后处理安全模式白名单兜底（可选）
+                if args.safe_override and model_verdict is True:
+                    new_verdict, override_info = apply_safe_pattern_override(code, verdict)
+                    if override_info["override_applied"]:
+                        record["parsed_verdict"] = new_verdict
+                        record["safe_override_applied"] = True
+                        record["safe_override_info"] = override_info
+                        model_verdict = False
+                        override_count += 1
+                        print(f"        [override] {override_info['reason']}")
+
+                record["model_has_vulnerability"] = model_verdict
             print(f"        -> 用时 {elapsed}s, 判定={record['model_has_vulnerability']}")
 
         results["samples"].append(record)
-        save_results_json(RESULTS_DIR / "results.json", results)
+        save_results_json(results_path, results)
 
     results["finished_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+    results["safe_override_total"] = override_count
     metrics = compute_detection_metrics(results["samples"])
     results["metrics"] = metrics
-    save_results_json(RESULTS_DIR / "results.json", results)
-    print(f"\n[完成] 结果已写入 {RESULTS_DIR / 'results.json'}")
+    save_results_json(results_path, results)
+    print(f"\n[完成] 结果已写入 {results_path}")
+    if args.safe_override:
+        print(f"[信息] 后处理白名单兜底共 override {override_count} 个样本")
     print("\n=== RAG+LLM 汇总指标 ===")
     print_summary(metrics)
 

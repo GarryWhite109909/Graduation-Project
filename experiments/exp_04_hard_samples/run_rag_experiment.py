@@ -20,7 +20,6 @@ exp_04_hard_samples - RAG 消融对照实验（P1-5）
 """
 
 import argparse
-import json
 import random as random_lib
 import sys
 import time
@@ -30,14 +29,17 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from src.chroma_manager import ChromaManager
-from src.llm_client import OllamaClient
-from src.prompts import SYSTEM_PROMPT, build_user_prompt
-from src.schema import parse_verdict, normalize_has_vulnerability
+from graduation_project.chroma_manager import ChromaManager
+from graduation_project.llm_client import OllamaClient
+from graduation_project.prompts import SYSTEM_PROMPT, build_user_prompt
+from graduation_project.schema import parse_verdict, normalize_has_vulnerability
 from experiments.utils import (
     load_manifest,
     save_results_json,
     new_results_envelope,
+    build_rag_context,
+    upsert_sample,
+    default_results_path,
     compute_detection_metrics,
     compute_repeat_metrics,
     print_summary,
@@ -77,28 +79,6 @@ IRRELEVANT_TEXT_BLOCK = """【参考资料 1】（数据结构 / 链表）
 # ---------------------------------------------------------------------------
 # 上下文构建器：根据 mode 返回不同的 RAG 上下文
 # ---------------------------------------------------------------------------
-def build_rag_context(query_code: str, cm: ChromaManager, top_k: int = 3) -> tuple[str, list[dict]]:
-    """A 组：用代码内容查询知识库，构建真正的 RAG 上下文。"""
-    results = cm.query(KNOWLEDGE_COLLECTION, query_code, n_results=top_k)
-    retrieval_records = []
-    context_parts = []
-    for i, (doc, dist, meta) in enumerate(zip(
-        results["documents"], results["distances"], results["metadatas"],
-    )):
-        retrieval_records.append({
-            "rank": i + 1,
-            "id": results["ids"][i] if i < len(results.get("ids", [])) else None,
-            "type": meta.get("type"),
-            "cwe": meta.get("cwe"),
-            "distance": round(dist, 4),
-        })
-        context_parts.append(
-            f"【知识 {i+1}】({meta.get('type', '未知')} / {meta.get('cwe', '')})\n{doc}"
-        )
-    rag_context = "\n\n".join(context_parts) if context_parts else ""
-    return rag_context, retrieval_records
-
-
 def build_random_context(cm: ChromaManager, top_k: int, rng: random_lib.Random) -> tuple[str, list[dict]]:
     """C 组：从知识库随机抽取 K 条（与查询无关）。
 
@@ -165,7 +145,9 @@ def build_context_for_mode(
 ) -> tuple[str, list[dict]]:
     """根据 mode 返回对应的 RAG 上下文。"""
     if mode == "rag":
-        return build_rag_context(query_code, cm, top_k=top_k)
+        return build_rag_context(
+            query_code, cm, collection_name=KNOWLEDGE_COLLECTION, top_k=top_k
+        )
     if mode == "pure":
         return "", []
     if mode == "random":
@@ -183,7 +165,7 @@ def main() -> int:
     parser.add_argument("--mode", choices=VALID_MODES, default="rag",
                         help="消融组：rag(A) / pure(B) / random(C) / irrelevant(D)")
     parser.add_argument("--host", default="http://localhost:11434")
-    parser.add_argument("--model", default="qwen2.5-coder:14b")
+    parser.add_argument("--model", default="qwen2.5-coder:7b")
     parser.add_argument("--temperature", type=float, default=0.1)
     parser.add_argument("--limit", type=int, default=0,
                         help="只跑前 N 个样本，0 表示全部")
@@ -196,8 +178,16 @@ def main() -> int:
     parser.add_argument("--timeout", type=int, default=900)
     parser.add_argument("--keep-loaded", action="store_true")
     parser.add_argument("--output", default=None,
-                        help="结果输出路径（默认 results/results.<mode>.topk<k>.json）")
+                        help="结果输出路径（默认 results/exp_04_hard_samples.<model>.<mode>.topk<K>.repeat<N>.<timestamp>.json）")
     args = parser.parse_args()
+
+    repeat = max(1, args.repeat)
+    results_path = Path(args.output) if args.output else default_results_path(
+        RESULTS_DIR,
+        experiment="exp_04_hard_samples",
+        model=args.model,
+        extra_tag=f"{args.mode}.topk{args.top_k}.repeat{repeat}",
+    )
 
     try:
         manifest, samples = load_manifest(MANIFEST_PATH)
@@ -207,12 +197,7 @@ def main() -> int:
     if args.limit > 0:
         samples = samples[: args.limit]
 
-    repeat = max(1, args.repeat)
     rng = random_lib.Random(args.seed)
-
-    output_path = Path(args.output) if args.output else (
-        RESULTS_DIR / f"results.ablation.{args.mode}.topk{args.top_k}.repeat{repeat}.json"
-    )
 
     # A/C 组需要知识库；B/D 组不需要
     cm = None
@@ -331,8 +316,8 @@ def main() -> int:
                 print(f"        -> 用时 {elapsed}s, 判定={run_record['model_has_vulnerability']}")
 
             sample_record["runs"].append(run_record)
-            _upsert_sample(results["samples"], sample_record)
-            save_results_json(output_path, results)
+            upsert_sample(results["samples"], sample_record)
+            save_results_json(results_path, results)
 
         # 多数表决
         verdicts = [r.get("model_has_vulnerability") for r in sample_record["runs"]]
@@ -343,7 +328,7 @@ def main() -> int:
             sample_record["agreement_rate"] = round(
                 max(true_count, len(valid) - true_count) / len(valid), 4
             )
-            save_results_json(output_path, results)
+            save_results_json(results_path, results)
 
     results["finished_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
 
@@ -358,9 +343,9 @@ def main() -> int:
             })
     results["metrics_single_run"] = compute_detection_metrics(flat_records)
     results["metrics_majority_vote"] = compute_repeat_metrics(flat_records)
-    save_results_json(output_path, results)
+    save_results_json(results_path, results)
 
-    print(f"\n[完成] 结果已写入 {output_path}")
+    print(f"\n[完成] 结果已写入 {results_path}")
     print(f"\n=== 消融组 {args.mode.upper()}：单次口径 ===")
     print_summary(results["metrics_single_run"])
     if repeat > 1:
@@ -373,14 +358,6 @@ def main() -> int:
         if client.unload_model():
             print(f"[信息] 模型 {args.model} 已从显存卸载")
     return 0
-
-
-def _upsert_sample(samples_list: list, sample_record: dict) -> None:
-    for i, s in enumerate(samples_list):
-        if s["file"] == sample_record["file"]:
-            samples_list[i] = sample_record
-            return
-    samples_list.append(sample_record)
 
 
 if __name__ == "__main__":

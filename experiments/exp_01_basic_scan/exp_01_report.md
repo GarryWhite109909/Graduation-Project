@@ -1,13 +1,15 @@
-# 实验 01 报告：Qwen2.5-Coder 14B 漏洞检测能力摸底
+# 实验 01 报告：qwen2.5-coder:7b 漏洞检测能力摸底
 
-> **2026-06-29 重跑更新**：删除了样本中的答案泄露注释（原 `# 期望/漏洞/安全` 注释会被模型作弊读取）。
-> 先使用 `gemma4:12b` 重跑，准确率仍为 100%，证明模型具备真实语义理解能力而非注释作弊。
-> 后因主模型切换为 `qwen2.5-coder:14b`（纯文本代码专用模型，速度更快），再次重跑 exp_01。
-> 旧版 gemma4:12b 数据已备份至 `results/results.gemma4-12b.final.json`。
+> **2026-06-30 最终更新**：默认主模型已最终切换为 `qwen2.5-coder:7b`。
+> - qwen7b 在 14 段典型样本上达到 **recall=100%、FPR=0%、accuracy=100%**，且 **无需 safe_override 后处理**。
+> - 相比 qwen2.5-coder:14b（准确率 92.9%，safe_02 误报），qwen7b 在安全模式识别上更可靠。
+> - 平均耗时 7.65s/样本，约为 qwen14b（17.11s）的 **45%**。
+>
+> 历史数据备份：`results/results.qwen2.5-coder-7b.json`（当前）、`results/results.gemma4-12b.final.json`。
 
 ## 一、实验目的
 
-在搭建完整系统前，先用一批典型漏洞代码样本，对本地 `qwen2.5-coder:14b` 的漏洞检测能力进行摸底，
+在搭建完整系统前，先用一批典型漏洞代码样本，对本地 `qwen2.5-coder:7b` 的漏洞检测能力进行摸底，
 回答三个问题：
 
 1. 模型能否正确识别常见的代码安全漏洞？
@@ -18,10 +20,10 @@
 
 | 项目 | 配置 |
 | --- | --- |
-| 模型 | `qwen2.5-coder:14b`（Ollama，主要实验模型） |
+| 模型 | `qwen2.5-coder:7b`（Ollama，当前默认主模型） |
 | 推理后端 | Ollama `/api/generate`（stream=false） |
 | 采样温度 | 0.1（追求稳定可复现） |
-| 测试时间 | 2026-06-29（无答案泄露版本） |
+| 测试时间 | 2026-06-30（无答案泄露版本，qwen7b 最终验证） |
 | 脚本 | [run_experiment.py](run_experiment.py) |
 
 ## 三、样本集
@@ -45,7 +47,7 @@
 
 ## 四、Prompt 设计
 
-统一使用单一 Prompt 模板（见 [src/prompts.py](../../src/prompts.py)），要点：
+统一使用单一 Prompt 模板（见 [graduation_project/prompts.py](../../graduation_project/prompts.py)），要点：
 
 1. 角色设定为"资深代码安全审计专家"。
 2. 明确分析范围（SQL 注入 / XSS / 命令注入 / 路径穿越 / 硬编码密钥 / 不安全反序列化）。
@@ -59,43 +61,46 @@
 
 | 文件 | 期望 | 模型判定 | 漏洞类型（模型给出） | 耗时 | 是否匹配 |
 | --- | --- | --- | --- | --- | --- |
-| sql_injection_01.py | True | True | CWE-89 SQL 注入 | 18.32s | OK |
-| sql_injection_02.py | True | True | CWE-89 SQL 注入 | 23.96s | OK |
-| xss_01.php | True | True | CWE-79 XSS | 15.94s | OK |
-| xss_02.js | True | True | CWE-79 XSS | 15.50s | OK |
-| command_injection_01.py | True | True | CWE-78 命令注入 | 20.97s | OK |
-| command_injection_02.js | True | True | CWE-78 命令注入 | 17.05s | OK |
-| path_traversal_01.py | True | True | CWE-78 路径遍历 | 15.08s | OK |
-| path_traversal_02.java | True | True | CWE-73 路径遍历 | 19.81s | OK |
-| hardcoded_secret_01.py | True | True | CWE-798 硬编码凭证 | 10.74s | OK |
-| hardcoded_secret_02.java | True | True | CWE-798 硬编码密码 | 12.62s | OK |
-| insecure_deserialization_01.py | True | True | CWE-502 不安全反序列化 | 20.06s | OK |
-| insecure_deserialization_02.java | True | True | CWE-502 不安全反序列化 | 17.60s | OK |
-| safe_01_parameterized_query.py | False | False | none | 13.47s | OK |
-| safe_02_subprocess_list.py | False | **True** | CWE-78 命令注入 | 18.38s | **FP** |
+| sql_injection_01.py | True | True | CWE-89 SQL 注入 | 9.59s | OK |
+| sql_injection_02.py | True | True | CWE-89 SQL 注入 | 7.60s | OK |
+| xss_01.php | True | True | CWE-79 XSS | 7.27s | OK |
+| xss_02.js | True | True | CWE-79 XSS | 8.32s | OK |
+| command_injection_01.py | True | True | CWE-78 命令注入 | 6.95s | OK |
+| command_injection_02.js | True | True | CWE-78 命令注入 | 8.37s | OK |
+| path_traversal_01.py | True | True | CWE-22 路径穿越 | 9.38s | OK |
+| path_traversal_02.java | True | True | CWE-22 路径穿越 | 8.70s | OK |
+| hardcoded_secret_01.py | True | True | CWE-798 硬编码凭证 | 7.35s | OK |
+| hardcoded_secret_02.java | True | True | CWE-798 硬编码凭证 | 6.60s | OK |
+| insecure_deserialization_01.py | True | True | CWE-502 不安全反序列化 | 8.14s | OK |
+| insecure_deserialization_02.java | True | True | CWE-502 不安全反序列化 | 6.47s | OK |
+| safe_01_parameterized_query.py | False | False | none | 6.42s | OK |
+| safe_02_subprocess_list.py | False | False | none | 5.98s | OK |
 
 ### 5.2 汇总指标
 
 | 指标 | 数值 |
 | --- | --- |
 | 真阳性 TP | 12 |
-| 真阴性 TN | 1 |
-| 假阳性 FP（误报） | 1 |
+| 真阴性 TN | 2 |
+| 假阳性 FP（误报） | 0 |
 | 假阴性 FN（漏报） | 0 |
 | **漏洞样本召回率** | **12 / 12 = 100.0%** |
-| **安全样本误报率** | **1 / 2 = 50.0%** |
-| **总体准确率** | **13 / 14 = 92.9%** |
+| **安全样本误报率** | **0 / 2 = 0.0%** |
+| **总体准确率** | **14 / 14 = 100.0%** |
 | 漏洞类型分类正确 | 12 / 12（6 类全对） |
-| 平均单样本耗时 | 17.11s（最长 23.96s，最短 10.74s） |
-| 最长 / 最短耗时 | 23.96s / 10.74s |
-| 总耗时 | 239.5s（约 4.0 分钟） |
+| 平均单样本耗时 | 7.65s（最长 9.59s，最短 5.98s） |
+| 最长 / 最短耗时 | 9.59s / 5.98s |
+| 总耗时 | 107.14s（约 1.8 分钟） |
 
 ## 六、关键观察
 
-1. **基础能力达标**：6 类典型漏洞全部识别正确，类型分类 100% 准确，说明 `qwen2.5-coder:14b` 在
-   "教科书式"漏洞上的语义理解能力足够，可以作为后续系统的核心引擎候选。
-2. **速度显著提升**：平均 17.11s/样本，相比 `gemma4:12b` 的 45.24s 提升约 **2.64 倍**，总耗时从 10.5 分钟降到 4.0 分钟。这主要得益于 qwen 是代码专用模型，没有多模态 overhead。
-3. **出现一处误报**：`safe_02_subprocess_list.py` 被判为命令注入（FP）。该样本使用 `subprocess.run(["ping", "-c", "1", host], ...)` 的参数化列表调用，理论上无命令注入风险。但 qwen 认为用户输入 `host` 仍可构造 `127.0.0.1; rm -rf /` 绕过过滤，说明模型对 Python `subprocess` 列表参数的安全机制理解不够深入。
+1. **基础能力全面达标**：6 类典型漏洞全部识别正确，类型分类 100% 准确，安全样本零误报。
+   `qwen2.5-coder:7b` 在"教科书式"漏洞上的语义理解能力足够，且**无需安全模式后处理**即可达到 100% 准确率。
+2. **速度极快**：平均 7.65s/样本，相比 `qwen2.5-coder:14b` 的 17.11s 提升约 **2.24 倍**，
+   相比 `gemma4:12b` 的 45.24s 提升约 **5.9 倍**。总耗时仅 1.8 分钟。
+3. **安全样本零误报**：`safe_02_subprocess_list.py` 被正确判定为安全。该样本使用列表参数 + 输入校验的
+   `subprocess.run()` 调用，qwen7b 能够识别这是安全写法（qwen14b 在此样本上会误报）。
+   这说明 qwen7b 对 Python `subprocess` 安全机制的理解比 qwen14b 更深入。
 4. **JSON 输出协议稳定**：14 次推理的 JSON 结论全部被脚本成功解析，说明"先分析后 JSON"的 Prompt 结构对 qwen 有效，后续系统可以依赖该协议做自动化结果聚合。
 5. **本结果的局限性（重要）**：
    - 样本量仅 14 个，统计意义有限；
@@ -108,12 +113,15 @@
 
 ### 结论
 
-`qwen2.5-coder:14b` + Ollama + 单一结构化 Prompt 的组合，在典型漏洞检测任务上**达到了可作为 MVP 核心引擎的最低门槛**，且速度显著优于 `gemma4:12b`。但 `safe_02_subprocess_list.py` 的误报说明模型对某些安全写法（如 `subprocess` 参数化列表）的理解仍有偏差，需要后续通过 RAG 知识库或 Prompt 工程修正。
+`qwen2.5-coder:7b` + Ollama + 单一结构化 Prompt 的组合，在典型漏洞检测任务上**达到了可作为系统核心引擎的合格标准**：
+召回率 100%、误报率 0%、准确率 100%，且平均耗时仅 7.65s/样本。
+相比 qwen14b（准确率 92.9%，safe_02 误报），qwen7b 在安全模式识别上更可靠；
+相比 deepseek-coder-v2:16b（准确率 85.7%，安全样本误报率 100%），qwen7b 无需后处理即可达标。
 
 ### 下一步行动
 
-1. **RAG 知识库增强**：针对 qwen 在 `safe_02` 上的误报，验证 RAG 知识库中的 `cmdi_safe_pattern` 是否能纠正该误报（exp_03 已验证）。
-2. **扩大样本集**：补充更复杂的样本——绕过式过滤、跨文件污点流、真实 CVE PoC 片段，测试模型在"非典型"漏洞上的表现。
+1. **扩大样本集**：补充更复杂的样本——绕过式过滤、跨文件污点流、真实 CVE PoC 片段，测试模型在"非典型"漏洞上的表现（exp_04 已完成）。
+2. **RAG 知识库增强**：虽然 qwen7b 在典型样本上已无需 RAG 纠正误报，但验证 RAG 在难样本上的召回提升（exp_03/exp_04 已完成）。
 3. **传统工具对比基线**：用同一批样本跑 Bandit / Semgrep，对比检出率、误报率、耗时，明确 LLM 相对传统工具的改进点（语义理解 vs 模式匹配）。
 4. **Prompt 迭代**：设计 2-3 套不同风格的 Prompt（零样本 / 思维链 / Few-shot），对比哪一种在"难样本"上表现更好。
 5. **长文件测试**：测试 500+ 行的真实文件，观察上下文窗口与注意力衰减对检出率的影响。
@@ -123,10 +131,10 @@
 
 ```bash
 cd experiments/exp_01_basic_scan
-# 确保 Ollama 已运行且 qwen2.5-coder:14b 已下载
-python3 run_experiment.py                       # 跑全部 14 个样本（默认 qwen2.5-coder:14b）
+# 确保 Ollama 已运行且 qwen2.5-coder:7b 已下载
+python3 run_experiment.py                       # 跑全部 14 个样本（默认 qwen2.5-coder:7b）
 python3 run_experiment.py --limit 3             # 只跑前 3 个（快速调试）
-python3 run_experiment.py --model gemma4:12b    # 切换对照模型
+python3 run_experiment.py --model deepseek-coder-v2:16b  # 切换对照模型
 ```
 
 结果将写入 `results/results.json`，每跑完一个样本即增量落盘，中途可断点查看。

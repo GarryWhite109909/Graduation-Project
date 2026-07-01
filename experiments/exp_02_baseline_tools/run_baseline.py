@@ -9,12 +9,17 @@ exp_02_baseline_tools - 传统静态分析工具对比基线
 - 工具输出 results 数组为空 → tool_has_vulnerability = False
 - 工具不支持该语言（Bandit 跑非 Python） → tool_has_vulnerability = None（invalid）
 
+Bandit 额外支持 severity / confidence 过滤（避免 B404 等信息级 finding 被计为漏洞）：
+- --bandit-min-severity 默认 LOW
+- --bandit-min-confidence 默认 MEDIUM
+
 用法:
     python run_baseline.py                          # 跑全部工具 + 全部样本
     python run_baseline.py --tool bandit            # 只跑 Bandit
     python run_baseline.py --tool semgrep           # 只跑 Semgrep
     python run_baseline.py --limit 3                # 只跑前 3 个样本（调试）
     python run_baseline.py --semgrep-config p/default   # 指定 Semgrep 规则集
+    python run_baseline.py --bandit-min-severity MEDIUM --bandit-min-confidence MEDIUM  # 严格口径
 """
 
 import argparse
@@ -55,28 +60,68 @@ RESULTS_DIR = SCRIPT_DIR / "results"
 
 
 # ---------------------------------------------------------------------------
+# Bandit severity / confidence 过滤辅助
+# ---------------------------------------------------------------------------
+_SEVERITY_ORDER = {"LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4}
+_CONFIDENCE_ORDER = {"LOW": 1, "MEDIUM": 2, "HIGH": 3}
+
+
+def _bandit_level(level_str: str, order: dict) -> int:
+    """把 Bandit 的 severity/confidence 字符串转成可比较整数。"""
+    return order.get((level_str or "").upper(), 0)
+
+
+def _bandit_finding_passes_filter(
+    issue: dict,
+    min_severity: str,
+    min_confidence: str,
+) -> bool:
+    """判断单条 Bandit finding 是否满足 severity / confidence 阈值。"""
+    sev = _bandit_level(issue.get("severity"), _SEVERITY_ORDER)
+    conf = _bandit_level(issue.get("confidence"), _CONFIDENCE_ORDER)
+    return (
+        sev >= _bandit_level(min_severity, _SEVERITY_ORDER)
+        and conf >= _bandit_level(min_confidence, _CONFIDENCE_ORDER)
+    )
+
+
+# ---------------------------------------------------------------------------
 # 工具调用封装
 # ---------------------------------------------------------------------------
-def run_bandit(sample_path: Path) -> dict:
+def run_bandit(
+    sample_path: Path,
+    min_severity: str = "LOW",
+    min_confidence: str = "MEDIUM",
+) -> dict:
     """调用 Bandit 分析单个 Python 文件，返回统一结构。
+
+    Args:
+        min_severity: 最小 severity 阈值（LOW/MEDIUM/HIGH/CRITICAL）
+        min_confidence: 最小 confidence 阈值（LOW/MEDIUM/HIGH）
 
     Returns:
         {
             "tool": "bandit",
             "supported": bool,          # 该语言是否被工具支持
-            "findings": list[dict],     # 解析后的告警列表（每条含 rule_id/severity/message/line）
+            "findings": list[dict],     # 原始解析后的全部告警
+            "filtered_findings": list[dict],  # 经 severity/confidence 过滤后的告警
             "raw_output": dict|str,     # 工具原始 JSON 输出（解析失败时为字符串）
             "error": str|None,
             "elapsed_seconds": float,
+            "min_severity": str,        # 本次使用的阈值
+            "min_confidence": str,
         }
     """
     result = {
         "tool": "bandit",
         "supported": True,
         "findings": [],
+        "filtered_findings": [],
         "raw_output": None,
         "error": None,
         "elapsed_seconds": 0.0,
+        "min_severity": min_severity,
+        "min_confidence": min_confidence,
     }
 
     if sample_path.suffix != ".py":
@@ -104,16 +149,19 @@ def run_bandit(sample_path: Path) -> dict:
             result["error"] = f"Bandit 输出不是合法 JSON。stderr={proc.stderr[:300]}"
             return result
 
-        # 解析告警
+        # 解析告警（保留原始全部 findings，同时生成过滤后的 filtered_findings）
         for issue in parsed.get("results", []):
-            result["findings"].append({
+            finding = {
                 "rule_id": issue.get("test_id"),
                 "severity": issue.get("issue_severity"),
                 "confidence": issue.get("issue_confidence"),
                 "message": issue.get("issue_text"),
                 "line": issue.get("line_number"),
                 "cwe": (issue.get("issue_cwe") or {}).get("link"),
-            })
+            }
+            result["findings"].append(finding)
+            if _bandit_finding_passes_filter(finding, min_severity, min_confidence):
+                result["filtered_findings"].append(finding)
     except FileNotFoundError:
         result["error"] = "Bandit 未安装（pip install bandit）"
     except subprocess.TimeoutExpired:
@@ -191,6 +239,12 @@ def main() -> int:
                         help="只跑前 N 个样本，0 表示全部")
     parser.add_argument("--semgrep-config", default="auto",
                         help="Semgrep 规则集（默认 auto，可选 p/default、p/owasp 等）")
+    parser.add_argument("--bandit-min-severity", default="LOW",
+                        choices=["LOW", "MEDIUM", "HIGH", "CRITICAL"],
+                        help="Bandit 最小 severity 阈值（默认 LOW）")
+    parser.add_argument("--bandit-min-confidence", default="MEDIUM",
+                        choices=["LOW", "MEDIUM", "HIGH"],
+                        help="Bandit 最小 confidence 阈值（默认 MEDIUM）")
     args = parser.parse_args()
 
     try:
@@ -207,6 +261,8 @@ def main() -> int:
         experiment="exp_02_baseline_tools",
         tools=tools_to_run,
         semgrep_config=args.semgrep_config,
+        bandit_min_severity=args.bandit_min_severity,
+        bandit_min_confidence=args.bandit_min_confidence,
         samples_source=str(SAMPLES_DIR.relative_to(SCRIPT_DIR.parent)),
     )
 
@@ -235,19 +291,26 @@ def main() -> int:
 
         for tool in tools_to_run:
             if tool == "bandit":
-                t_result = run_bandit(sample_path)
+                t_result = run_bandit(
+                    sample_path,
+                    min_severity=args.bandit_min_severity,
+                    min_confidence=args.bandit_min_confidence,
+                )
+                # Bandit 按 severity/confidence 过滤后判定
+                findings_for_verdict = t_result.get("filtered_findings", t_result["findings"])
             else:
                 t_result = run_semgrep(sample_path, config=args.semgrep_config)
+                findings_for_verdict = t_result["findings"]
 
-            # 判定：有 finding → True；无 finding 且 supported → False；不支持 → None
+            # 判定：有 finding → True；无 finding 且 supported → False；不支持/出错 → None
             if not t_result["supported"]:
                 verdict = None
             elif t_result["error"]:
                 verdict = None
             else:
-                verdict = len(t_result["findings"]) > 0
+                verdict = len(findings_for_verdict) > 0
 
-            record["tools"][tool] = {
+            tool_record = {
                 "tool_has_vulnerability": verdict,
                 "findings": t_result["findings"],
                 "findings_count": len(t_result["findings"]),
@@ -255,8 +318,19 @@ def main() -> int:
                 "error": t_result["error"],
                 "supported": t_result["supported"],
             }
+            # Bandit 额外记录过滤后结果，便于严格/宽松口径对比
+            if tool == "bandit":
+                tool_record["filtered_findings"] = t_result["filtered_findings"]
+                tool_record["filtered_findings_count"] = len(t_result["filtered_findings"])
+                tool_record["min_severity"] = t_result["min_severity"]
+                tool_record["min_confidence"] = t_result["min_confidence"]
+
+            record["tools"][tool] = tool_record
             status = "有漏洞" if verdict else ("无漏洞" if verdict is False else "N/A")
-            print(f"        {tool}: {status}, {len(t_result['findings'])} 条告警, {t_result['elapsed_seconds']}s")
+            count_msg = f"{len(findings_for_verdict)} 条有效告警"
+            if tool == "bandit" and len(t_result["findings"]) != len(findings_for_verdict):
+                count_msg += f"（原始 {len(t_result['findings'])} 条）"
+            print(f"        {tool}: {status}, {count_msg}, {t_result['elapsed_seconds']}s")
 
         results["samples"].append(record)
         # 每跑完一个样本立即落盘

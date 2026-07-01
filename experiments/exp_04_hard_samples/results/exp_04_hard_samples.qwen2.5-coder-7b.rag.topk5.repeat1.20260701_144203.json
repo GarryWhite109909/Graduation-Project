@@ -1,0 +1,3982 @@
+{
+  "experiment": "exp_04_ablation_rag",
+  "started_at": "2026-07-01 14:42:05",
+  "samples": [
+    {
+      "file": "typical_01_sql.py",
+      "language": "Python",
+      "category": "sql_injection",
+      "difficulty": "easy",
+      "expected_present": true,
+      "expected_vulnerability": "SQL 注入：用户输入直接拼接到 LIKE 查询",
+      "expected_cwe": "CWE-89",
+      "runs": [
+        {
+          "run_index": 1,
+          "rag_retrieval": [
+            {
+              "rank": 1,
+              "id": "sqli_dangerous_api",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.4174
+            },
+            {
+              "rank": 2,
+              "id": "sqli_knowledge",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.477
+            },
+            {
+              "rank": 3,
+              "id": "sqli_safe_pattern",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.4872
+            },
+            {
+              "rank": 4,
+              "id": "sqli_orm_misuse",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.4888
+            },
+            {
+              "rank": 5,
+              "id": "sqli_bypass_filter",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.641
+            }
+          ],
+          "rag_context_chars": 2090,
+          "elapsed_seconds": 10.94,
+          "raw_output": "### 分析过程\n\n1. **识别用户可控输入**：\n   - 用户可控输入是 `keyword` 参数，通过 `request.args.get(\"q\", \"\")` 获取。\n\n2. **检查 SQL 查询语句**：\n   - SQL 查询语句是 `query = \"SELECT id, name FROM products WHERE name LIKE '%\" + keyword + \"%'\"`。\n   - 这里直接将用户输入的 `keyword` 拼接到 SQL 语句中，没有使用参数化查询。\n\n3. **判断是否存在 SQL 注入漏洞**：\n   - 根据知识 1 和知识 2，SQL注入漏洞的典型场景包括字符串拼接SQL。\n   - 当前代码直接将用户输入拼接到 SQL 语句中，存在 SQL 注入风险。\n\n4. **检查是否命中安全模式白名单**：\n   - 安全模式白名单中的参数化查询（? / %s / :name）未在当前代码中使用。\n   - 因此，代码未命中安全模式白名单。\n\n5. **总结漏洞信息**：\n   - 漏洞类型：CWE-89 SQL注入\n   - 污染来源：`keyword` 参数（用户可控）\n   - 危险函数或触发点：`cursor.execute(query)`\n   - 修复建议：使用参数化查询，如 `query = \"SELECT id, name FROM products WHERE name LIKE ?\"; cursor.execute(query, ('%' + keyword + '%',))`\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-89 SQL注入\",\n    \"risk_level\": \"High\",\n    \"source\": \"keyword 参数（用户可控）\",\n    \"sink\": \"cursor.execute(query)\",\n    \"explanation\": \"SQL 查询语句中直接拼接了用户输入的 keyword，存在 SQL 注入风险。\",\n    \"fix_suggestion\": \"使用参数化查询，如 query = \\\"SELECT id, name FROM products WHERE name LIKE ?\\\"; cursor.execute(query, ('%' + keyword + '%',))\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-89 SQL注入",
+            "risk_level": "High",
+            "source": "keyword 参数（用户可控）",
+            "sink": "cursor.execute(query)",
+            "explanation": "SQL 查询语句中直接拼接了用户输入的 keyword，存在 SQL 注入风险。",
+            "fix_suggestion": "使用参数化查询，如 query = \"SELECT id, name FROM products WHERE name LIKE ?\"; cursor.execute(query, ('%' + keyword + '%',))"
+          },
+          "model_has_vulnerability": true,
+          "error": null,
+          "meta": {
+            "eval_count": 444,
+            "eval_duration_ns": 8105193000,
+            "load_duration_ns": 1036460473,
+            "total_duration_ns": 10931833411,
+            "prompt_eval_count": 3321
+          }
+        }
+      ],
+      "majority_verdict": true,
+      "agreement_rate": 1.0
+    },
+    {
+      "file": "typical_02_xss.py",
+      "language": "Python",
+      "category": "xss",
+      "difficulty": "easy",
+      "expected_present": true,
+      "expected_vulnerability": "反射型 XSS：用户输入未转义插入 HTML",
+      "expected_cwe": "CWE-79",
+      "runs": [
+        {
+          "run_index": 1,
+          "rag_retrieval": [
+            {
+              "rank": 1,
+              "id": "xss_reflected",
+              "type": "XSS",
+              "cwe": "CWE-79",
+              "distance": 0.3935
+            },
+            {
+              "rank": 2,
+              "id": "xss_safe_pattern",
+              "type": "XSS",
+              "cwe": "CWE-79",
+              "distance": 0.561
+            },
+            {
+              "rank": 3,
+              "id": "csrf_token_impl",
+              "type": "CSRF",
+              "cwe": "CWE-352",
+              "distance": 0.6224
+            },
+            {
+              "rank": 4,
+              "id": "xss_dom",
+              "type": "XSS",
+              "cwe": "CWE-79",
+              "distance": 0.6293
+            },
+            {
+              "rank": 5,
+              "id": "xss_context",
+              "type": "XSS",
+              "cwe": "CWE-79",
+              "distance": 0.6902
+            }
+          ],
+          "rag_context_chars": 1954,
+          "elapsed_seconds": 7.87,
+          "raw_output": "### 分析过程\n\n1. **识别用户可控输入**：\n   - 代码中存在一个用户可控的输入点：`name = request.args.get(\"name\", \"\")`。\n\n2. **检查输出上下文**：\n   - 输出上下文是 HTML 响应体，具体来说是在 `<h1>` 标签内。\n   - 用户输入直接拼接到 HTML 字符串中，并返回给客户端。\n\n3. **判断是否存在 XSS 漏洞**：\n   - 用户输入 `name` 直接拼接到 HTML 字符串中，未经过任何转义处理。\n   - 这种情况属于反射型 XSS（CWE-79），因为用户输入会直接反射到响应的 HTML 中。\n\n4. **检查是否命中安全模式白名单**：\n   - 代码没有使用模板引擎（如 Jinja2）或显式调用 `html.escape()`、`htmlspecialchars()` 等转义函数。\n   - 因此，代码未命中安全模式白名单中的任何一项。\n\n5. **总结漏洞情况**：\n   - 用户可控输入直接拼接到 HTML 字符串中，存在反射型 XSS 漏洞。\n\n### JSON 结论\n\n```json\n{\n  \"has_vulnerability\": true,\n  \"vulnerability_type\": \"CWE-79 跨站脚本（XSS）\",\n  \"risk_level\": \"Medium\",\n  \"source\": \"name 参数（用户可控）\",\n  \"sink\": \"return html\",\n  \"explanation\": \"用户输入直接拼接到 HTML 字符串中，未经过任何转义处理，存在反射型 XSS 漏洞。\",\n  \"fix_suggestion\": \"使用 Jinja2 模板引擎的自动转义功能（{{ name }}），或显式调用 html.escape() 进行转义。\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-79 跨站脚本（XSS）",
+            "risk_level": "Medium",
+            "source": "name 参数（用户可控）",
+            "sink": "return html",
+            "explanation": "用户输入直接拼接到 HTML 字符串中，未经过任何转义处理，存在反射型 XSS 漏洞。",
+            "fix_suggestion": "使用 Jinja2 模板引擎的自动转义功能（{{ name }}），或显式调用 html.escape() 进行转义。"
+          },
+          "model_has_vulnerability": true,
+          "error": null,
+          "meta": {
+            "eval_count": 394,
+            "eval_duration_ns": 7159387000,
+            "load_duration_ns": 99946457,
+            "total_duration_ns": 7861694095,
+            "prompt_eval_count": 3240
+          }
+        }
+      ],
+      "majority_verdict": true,
+      "agreement_rate": 1.0
+    },
+    {
+      "file": "typical_03_cmd.py",
+      "language": "Python",
+      "category": "command_injection",
+      "difficulty": "easy",
+      "expected_present": true,
+      "expected_vulnerability": "命令注入：shell=True 且拼接用户输入",
+      "expected_cwe": "CWE-78",
+      "runs": [
+        {
+          "run_index": 1,
+          "rag_retrieval": [
+            {
+              "rank": 1,
+              "id": "cmdi_safe_pattern",
+              "type": "命令注入",
+              "cwe": "CWE-78",
+              "distance": 0.6311
+            },
+            {
+              "rank": 2,
+              "id": "cmdi_shell_true",
+              "type": "命令注入",
+              "cwe": "CWE-78",
+              "distance": 0.6379
+            },
+            {
+              "rank": 3,
+              "id": "cmdi_knowledge",
+              "type": "命令注入",
+              "cwe": "CWE-78",
+              "distance": 0.6496
+            },
+            {
+              "rank": 4,
+              "id": "pathtraversal_safe_pattern",
+              "type": "路径遍历",
+              "cwe": "CWE-22",
+              "distance": 0.6948
+            },
+            {
+              "rank": 5,
+              "id": "xss_reflected",
+              "type": "XSS",
+              "cwe": "CWE-79",
+              "distance": 0.7205
+            }
+          ],
+          "rag_context_chars": 1938,
+          "elapsed_seconds": 7.5,
+          "raw_output": "### 分析过程\n\n1. **识别用户可控输入**：\n   - 用户可控输入：`domain = request.args.get(\"domain\", \"\")`\n\n2. **检查命令注入风险**：\n   - 代码使用 `subprocess.run(f\"nslookup {domain}\", shell=True, capture_output=True, text=True)`\n   - 这里存在命令注入的风险，因为 `shell=True` 启用了 shell 解释器，并且用户输入的 `domain` 直接拼接到命令字符串中。\n\n3. **检查路径穿越风险**：\n   - 代码没有涉及文件操作或路径拼接，因此不存在路径穿越的风险。\n\n4. **检查 SQL 注入风险**：\n   - 代码没有涉及数据库查询，因此不存在 SQL 注入的风险。\n\n5. **检查 XSS 风险**：\n   - 代码没有涉及用户输入直接反射到 HTML 输出，因此不存在 XSS 的风险。\n\n6. **检查反序列化风险**：\n   - 代码没有涉及反序列化操作，因此不存在反序列化的风险。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-78 命令注入\",\n    \"risk_level\": \"High\",\n    \"source\": \"domain 参数（用户可控）\",\n    \"sink\": \"subprocess.run(f'nslookup {domain}', shell=True, capture_output=True, text=True)\",\n    \"explanation\": \"shell=True 启用 shell 解释器，用户输入的 domain 直接拼接到命令字符串中，存在命令注入风险。\",\n    \"fix_suggestion\": \"使用列表参数 + shell=False，并对输入进行校验。例如：subprocess.run(['nslookup', domain], capture_output=True, text=True)\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-78 命令注入",
+            "risk_level": "High",
+            "source": "domain 参数（用户可控）",
+            "sink": "subprocess.run(f'nslookup {domain}', shell=True, capture_output=True, text=True)",
+            "explanation": "shell=True 启用 shell 解释器，用户输入的 domain 直接拼接到命令字符串中，存在命令注入风险。",
+            "fix_suggestion": "使用列表参数 + shell=False，并对输入进行校验。例如：subprocess.run(['nslookup', domain], capture_output=True, text=True)"
+          },
+          "model_has_vulnerability": true,
+          "error": null,
+          "meta": {
+            "eval_count": 375,
+            "eval_duration_ns": 6812319000,
+            "load_duration_ns": 97865105,
+            "total_duration_ns": 7490546894,
+            "prompt_eval_count": 3212
+          }
+        }
+      ],
+      "majority_verdict": true,
+      "agreement_rate": 1.0
+    },
+    {
+      "file": "typical_04_path.py",
+      "language": "Python",
+      "category": "path_traversal",
+      "difficulty": "easy",
+      "expected_present": true,
+      "expected_vulnerability": "路径穿越：用户输入拼接到文件路径，未过滤 ../",
+      "expected_cwe": "CWE-22",
+      "runs": [
+        {
+          "run_index": 1,
+          "rag_retrieval": [
+            {
+              "rank": 1,
+              "id": "path_safe_pattern_strict",
+              "type": "路径穿越",
+              "cwe": "CWE-22",
+              "distance": 0.4318
+            },
+            {
+              "rank": 2,
+              "id": "pathtraversal_safe_pattern",
+              "type": "路径遍历",
+              "cwe": "CWE-22",
+              "distance": 0.4438
+            },
+            {
+              "rank": 3,
+              "id": "cmdi_knowledge",
+              "type": "命令注入",
+              "cwe": "CWE-78",
+              "distance": 0.608
+            },
+            {
+              "rank": 4,
+              "id": "pathtraversal_encoding",
+              "type": "路径遍历",
+              "cwe": "CWE-22",
+              "distance": 0.6166
+            },
+            {
+              "rank": 5,
+              "id": "xss_reflected",
+              "type": "XSS",
+              "cwe": "CWE-79",
+              "distance": 0.636
+            }
+          ],
+          "rag_context_chars": 1964,
+          "elapsed_seconds": 8.4,
+          "raw_output": "### 分析过程\n\n1. **用户可控输入**：\n   - `filename` 是从 `request.args.get(\"file\", \"\")` 获取的，是用户可控的。\n\n2. **路径拼接**：\n   - `full_path = os.path.join(BASE_DIR, filename)` 将用户输入的 `filename` 拼接到 `BASE_DIR` 上。\n\n3. **文件操作**：\n   - `with open(full_path, \"r\") as f: return f.read()` 使用拼接后的路径打开并读取文件内容。\n\n4. **安全模式白名单检查**：\n   - 代码没有使用参数化查询、列表参数 subprocess、abspath+startswith 路径校验等安全写法。\n   - 也没有使用 HTML 模板自动转义或显式调用 `html.escape()` 等措施防止 XSS。\n\n5. **路径穿越风险**：\n   - 用户输入的 `filename` 可能包含 `..` 序列，导致路径穿越攻击。\n   - 代码没有对拼接后的路径进行规范化和校验，直接使用 `open(full_path, \"r\")`。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-22 路径穿越\",\n    \"risk_level\": \"High\",\n    \"source\": \"filename 参数（用户可控）\",\n    \"sink\": \"open(full_path, 'r') 拼接路径\",\n    \"explanation\": \"用户输入的 filename 可能包含 .. 序列，导致路径穿越攻击。代码没有对拼接后的路径进行规范化和校验。\",\n    \"fix_suggestion\": \"使用 os.path.abspath 和 startswith 校验来防止路径穿越：base = os.path.abspath('/var/www/uploads'); full = os.path.abspath(os.path.join(base, filename)); if not full.startswith(base + os.sep): abort(403); return open(full).read()\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-22 路径穿越",
+            "risk_level": "High",
+            "source": "filename 参数（用户可控）",
+            "sink": "open(full_path, 'r') 拼接路径",
+            "explanation": "用户输入的 filename 可能包含 .. 序列，导致路径穿越攻击。代码没有对拼接后的路径进行规范化和校验。",
+            "fix_suggestion": "使用 os.path.abspath 和 startswith 校验来防止路径穿越：base = os.path.abspath('/var/www/uploads'); full = os.path.abspath(os.path.join(base, filename)); if not full.startswith(base + os.sep): abort(403); return open(full).read()"
+          },
+          "model_has_vulnerability": true,
+          "error": null,
+          "meta": {
+            "eval_count": 421,
+            "eval_duration_ns": 7672698000,
+            "load_duration_ns": 99249503,
+            "total_duration_ns": 8395399160,
+            "prompt_eval_count": 3254
+          }
+        }
+      ],
+      "majority_verdict": true,
+      "agreement_rate": 1.0
+    },
+    {
+      "file": "typical_05_pickle.py",
+      "language": "Python",
+      "category": "insecure_deserialization",
+      "difficulty": "easy",
+      "expected_present": true,
+      "expected_vulnerability": "不安全反序列化：pickle.loads 用户可控数据",
+      "expected_cwe": "CWE-502",
+      "runs": [
+        {
+          "run_index": 1,
+          "rag_retrieval": [
+            {
+              "rank": 1,
+              "id": "deser_pickle",
+              "type": "不安全的反序列化",
+              "cwe": "CWE-502",
+              "distance": 0.4375
+            },
+            {
+              "rank": 2,
+              "id": "deserialization_knowledge",
+              "type": "不安全的反序列化",
+              "cwe": "CWE-502",
+              "distance": 0.6481
+            },
+            {
+              "rank": 3,
+              "id": "deser_safe_pattern",
+              "type": "不安全的反序列化",
+              "cwe": "CWE-502",
+              "distance": 0.6577
+            },
+            {
+              "rank": 4,
+              "id": "xss_reflected",
+              "type": "XSS",
+              "cwe": "CWE-79",
+              "distance": 0.698
+            },
+            {
+              "rank": 5,
+              "id": "path_safe_pattern_strict",
+              "type": "路径穿越",
+              "cwe": "CWE-22",
+              "distance": 0.6997
+            }
+          ],
+          "rag_context_chars": 2075,
+          "elapsed_seconds": 7.4,
+          "raw_output": "### 分析过程\n\n1. **识别用户可控输入**：\n   - 用户可控输入：`request.get_data()` 获取的二进制数据。\n\n2. **检查安全模式白名单**：\n   - 代码使用了 `pickle.loads(raw)`，这是不安全的反序列化操作。\n   - 根据知识 1 和知识 3，`pickle.loads()` 可以通过 `__reduce__` 方法执行任意代码，存在严重的安全风险。\n\n3. **检查是否存在其他安全措施**：\n   - 代码没有对输入数据进行任何处理或验证，直接使用了 `pickle.loads(raw)`。\n   - 没有使用 JSON 或 YAML 的安全反序列化方法（如 `json.loads` 或 `yaml.safe_load`）。\n   - 没有使用 HMAC 签名验证数据完整性。\n\n4. **判断是否存在漏洞**：\n   - 由于代码直接使用了 `pickle.loads()`，并且没有采取任何安全措施来防止反序列化攻击，存在严重的安全风险。\n   - 根据知识 1 和知识 3，这种写法是不安全的反序列化操作，属于 CWE-502。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-502 不安全的反序列化\",\n    \"risk_level\": \"High\",\n    \"source\": \"request.get_data()\",\n    \"sink\": \"pickle.loads(raw)\",\n    \"explanation\": \"代码直接使用 pickle.loads() 反序列化用户输入的数据，存在任意代码执行的风险。\",\n    \"fix_suggestion\": \"使用 json.loads 替代 pickle.loads，并对数据进行签名验证。\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-502 不安全的反序列化",
+            "risk_level": "High",
+            "source": "request.get_data()",
+            "sink": "pickle.loads(raw)",
+            "explanation": "代码直接使用 pickle.loads() 反序列化用户输入的数据，存在任意代码执行的风险。",
+            "fix_suggestion": "使用 json.loads 替代 pickle.loads，并对数据进行签名验证。"
+          },
+          "model_has_vulnerability": true,
+          "error": null,
+          "meta": {
+            "eval_count": 367,
+            "eval_duration_ns": 6685238000,
+            "load_duration_ns": 96860675,
+            "total_duration_ns": 7394774760,
+            "prompt_eval_count": 3261
+          }
+        }
+      ],
+      "majority_verdict": true,
+      "agreement_rate": 1.0
+    },
+    {
+      "file": "typical_06_secret.py",
+      "language": "Python",
+      "category": "hardcoded_secret",
+      "difficulty": "easy",
+      "expected_present": true,
+      "expected_vulnerability": "硬编码密钥：AWS Access Key 与 Secret 明文写在源码",
+      "expected_cwe": "CWE-798",
+      "runs": [
+        {
+          "run_index": 1,
+          "rag_retrieval": [
+            {
+              "rank": 1,
+              "id": "hardcoded_safe_pattern",
+              "type": "硬编码凭证",
+              "cwe": "CWE-798",
+              "distance": 0.2857
+            },
+            {
+              "rank": 2,
+              "id": "hardcoded_patterns",
+              "type": "硬编码凭证",
+              "cwe": "CWE-798",
+              "distance": 0.4548
+            },
+            {
+              "rank": 3,
+              "id": "idor_safe_pattern",
+              "type": "不安全的直接对象引用",
+              "cwe": "CWE-639",
+              "distance": 0.6624
+            },
+            {
+              "rank": 4,
+              "id": "idor_knowledge",
+              "type": "不安全的直接对象引用",
+              "cwe": "CWE-639",
+              "distance": 0.669
+            },
+            {
+              "rank": 5,
+              "id": "auth_failure",
+              "type": "认证失效",
+              "cwe": "CWE-287",
+              "distance": 0.6734
+            }
+          ],
+          "rag_context_chars": 1811,
+          "elapsed_seconds": 6.95,
+          "raw_output": "### 分析过程\n\n1. **硬编码凭证判定**：\n   - 代码中出现了硬编码的 AWS 访问密钥和秘密访问密钥。\n     ```python\n     AWS_ACCESS_KEY_ID = \"AKIAIOSFODNN7EXAMPLE\"\n     AWS_SECRET_ACCESS_KEY = \"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\"\n     ```\n   - 这些变量名包含 `key` 和 `secret`，且赋值为字符串字面量。\n   - 根据硬编码凭证判定标准（CWE-798），这些是敏感信息，应判为漏洞。\n\n2. **其他安全模式白名单检查**：\n   - 代码中没有使用参数化查询、列表参数 subprocess、abspath+startswith 路径校验等安全写法。\n   - 因此，代码未命中任何安全模式白名单。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-798 硬编码凭证\",\n    \"risk_level\": \"High\",\n    \"source\": \"AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY\",\n    \"sink\": \"boto3.client()\",\n    \"explanation\": \"代码中硬编码了 AWS 访问密钥和秘密访问密钥，这是敏感信息，应从环境变量或配置文件读取。\",\n    \"fix_suggestion\": \"将凭证从环境变量或配置文件读取，例如：AWS_ACCESS_KEY_ID = os.environ['AWS_ACCESS_KEY_ID']\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-798 硬编码凭证",
+            "risk_level": "High",
+            "source": "AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY",
+            "sink": "boto3.client()",
+            "explanation": "代码中硬编码了 AWS 访问密钥和秘密访问密钥，这是敏感信息，应从环境变量或配置文件读取。",
+            "fix_suggestion": "将凭证从环境变量或配置文件读取，例如：AWS_ACCESS_KEY_ID = os.environ['AWS_ACCESS_KEY_ID']"
+          },
+          "model_has_vulnerability": true,
+          "error": null,
+          "meta": {
+            "eval_count": 341,
+            "eval_duration_ns": 6217034000,
+            "load_duration_ns": 98415591,
+            "total_duration_ns": 6940488453,
+            "prompt_eval_count": 3277
+          }
+        }
+      ],
+      "majority_verdict": true,
+      "agreement_rate": 1.0
+    },
+    {
+      "file": "typical_07_ssrf.py",
+      "language": "Python",
+      "category": "ssrf",
+      "difficulty": "easy",
+      "expected_present": true,
+      "expected_vulnerability": "SSRF：用户输入 URL 直接被服务端发起请求",
+      "expected_cwe": "CWE-918",
+      "runs": [
+        {
+          "run_index": 1,
+          "rag_retrieval": [
+            {
+              "rank": 1,
+              "id": "ssrf_knowledge",
+              "type": "SSRF",
+              "cwe": "CWE-918",
+              "distance": 0.6435
+            },
+            {
+              "rank": 2,
+              "id": "pathtraversal_safe_pattern",
+              "type": "路径遍历",
+              "cwe": "CWE-22",
+              "distance": 0.6463
+            },
+            {
+              "rank": 3,
+              "id": "path_safe_pattern_strict",
+              "type": "路径穿越",
+              "cwe": "CWE-22",
+              "distance": 0.6592
+            },
+            {
+              "rank": 4,
+              "id": "deser_pickle",
+              "type": "不安全的反序列化",
+              "cwe": "CWE-502",
+              "distance": 0.6603
+            },
+            {
+              "rank": 5,
+              "id": "csrf_token_impl",
+              "type": "CSRF",
+              "cwe": "CWE-352",
+              "distance": 0.6671
+            }
+          ],
+          "rag_context_chars": 2236,
+          "elapsed_seconds": 7.0,
+          "raw_output": "### 分析过程\n\n1. **识别用户可控输入**：\n   - 用户可以通过 `request.args.get(\"url\", \"\")` 控制 `url` 参数。\n\n2. **检查是否进行 URL 校验或白名单限制**：\n   - 代码中没有对 `url` 进行任何校验或白名单限制，直接使用 `urllib.request.urlopen(url)` 发起请求。\n\n3. **判断是否存在 SSRF 漏洞**：\n   - 用户可控的 `url` 参数直接进入 `urllib.request.urlopen()`，且未进行任何限制（如内网地址、协议限制等）。\n   - 这种情况下，攻击者可以构造一个指向内部服务或任意外部服务的 URL，从而发起 SSRF 攻击。\n\n4. **检查是否存在其他安全漏洞**：\n   - 代码中没有涉及 SQL 注入、命令注入、路径穿越、XSS 或反序列化等其他常见漏洞。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-918 SSRF\",\n    \"risk_level\": \"High\",\n    \"source\": \"request.args.get('url', '')\",\n    \"sink\": \"urllib.request.urlopen(url)\",\n    \"explanation\": \"用户可控的 URL 参数直接进入 urllib.request.urlopen()，未进行任何限制，存在 SSRF 漏洞。\",\n    \"fix_suggestion\": \"对传入的 URL 进行白名单校验或内网地址过滤。例如：if not url.startswith('http://example.com'): abort(403)\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-918 SSRF",
+            "risk_level": "High",
+            "source": "request.args.get('url', '')",
+            "sink": "urllib.request.urlopen(url)",
+            "explanation": "用户可控的 URL 参数直接进入 urllib.request.urlopen()，未进行任何限制，存在 SSRF 漏洞。",
+            "fix_suggestion": "对传入的 URL 进行白名单校验或内网地址过滤。例如：if not url.startswith('http://example.com'): abort(403)"
+          },
+          "model_has_vulnerability": true,
+          "error": null,
+          "meta": {
+            "eval_count": 343,
+            "eval_duration_ns": 6265235000,
+            "load_duration_ns": 98292982,
+            "total_duration_ns": 6991622452,
+            "prompt_eval_count": 3343
+          }
+        }
+      ],
+      "majority_verdict": true,
+      "agreement_rate": 1.0
+    },
+    {
+      "file": "typical_08_eval.py",
+      "language": "Python",
+      "category": "code_injection",
+      "difficulty": "easy",
+      "expected_present": true,
+      "expected_vulnerability": "代码注入：eval 直接执行用户输入",
+      "expected_cwe": "CWE-94",
+      "runs": [
+        {
+          "run_index": 1,
+          "rag_retrieval": [
+            {
+              "rank": 1,
+              "id": "cmdi_eval_exec",
+              "type": "命令注入",
+              "cwe": "CWE-78",
+              "distance": 0.5831
+            },
+            {
+              "rank": 2,
+              "id": "xss_reflected",
+              "type": "XSS",
+              "cwe": "CWE-79",
+              "distance": 0.6313
+            },
+            {
+              "rank": 3,
+              "id": "path_safe_pattern_strict",
+              "type": "路径穿越",
+              "cwe": "CWE-22",
+              "distance": 0.7
+            },
+            {
+              "rank": 4,
+              "id": "sensitivedata_error",
+              "type": "敏感数据泄露",
+              "cwe": "CWE-209",
+              "distance": 0.7011
+            },
+            {
+              "rank": 5,
+              "id": "sqli_orm_misuse",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.7099
+            }
+          ],
+          "rag_context_chars": 1975,
+          "elapsed_seconds": 6.61,
+          "raw_output": "### 分析过程\n\n1. **用户可控输入**：\n   - 用户可以通过 `request.args.get(\"expr\", \"\")` 控制 `expr` 参数。\n\n2. **危险函数**：\n   - 使用了 `eval(expr)`，这是一个动态执行字符串的函数。\n\n3. **漏洞判定**：\n   - 根据知识 1 中的命令注入定义，`eval()` 函数会将字符串作为代码执行。如果用户输入包含恶意代码（如 `__import__('os').system('rm -rf /')`），则会导致远程代码执行（RCE）。\n   - 用户可控数据直接进入 `eval()` 函数，没有经过任何转义或安全处理。\n\n4. **修复建议**：\n   - 避免使用 `eval()` 和 `exec()`，因为它们会动态执行用户输入的字符串。\n   - 使用更安全的表达式解析库，如 `ast.literal_eval()`，它可以只解析字面量而不会执行代码。\n\n### JSON 结论\n\n```json\n{\n  \"has_vulnerability\": true,\n  \"vulnerability_type\": \"CWE-95 命令注入\",\n  \"risk_level\": \"High\",\n  \"source\": \"expr 参数（用户可控）\",\n  \"sink\": \"eval(expr)\",\n  \"explanation\": \"用户输入的 expr 直接进入 eval() 函数，可能导致远程代码执行。\",\n  \"fix_suggestion\": \"使用 ast.literal_eval() 替代 eval()，以安全地解析字面量。\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-95 命令注入",
+            "risk_level": "High",
+            "source": "expr 参数（用户可控）",
+            "sink": "eval(expr)",
+            "explanation": "用户输入的 expr 直接进入 eval() 函数，可能导致远程代码执行。",
+            "fix_suggestion": "使用 ast.literal_eval() 替代 eval()，以安全地解析字面量。"
+          },
+          "model_has_vulnerability": true,
+          "error": null,
+          "meta": {
+            "eval_count": 324,
+            "eval_duration_ns": 5896711000,
+            "load_duration_ns": 99128014,
+            "total_duration_ns": 6603706769,
+            "prompt_eval_count": 3222
+          }
+        }
+      ],
+      "majority_verdict": true,
+      "agreement_rate": 1.0
+    },
+    {
+      "file": "typical_09_xss_php.php",
+      "language": "PHP",
+      "category": "xss",
+      "difficulty": "easy",
+      "expected_present": true,
+      "expected_vulnerability": "反射型 XSS：用户输入直接 echo 到响应",
+      "expected_cwe": "CWE-79",
+      "runs": [
+        {
+          "run_index": 1,
+          "rag_retrieval": [
+            {
+              "rank": 1,
+              "id": "xss_reflected",
+              "type": "XSS",
+              "cwe": "CWE-79",
+              "distance": 0.3841
+            },
+            {
+              "rank": 2,
+              "id": "xss_context",
+              "type": "XSS",
+              "cwe": "CWE-79",
+              "distance": 0.4568
+            },
+            {
+              "rank": 3,
+              "id": "xss_safe_pattern",
+              "type": "XSS",
+              "cwe": "CWE-79",
+              "distance": 0.4983
+            },
+            {
+              "rank": 4,
+              "id": "xss_knowledge",
+              "type": "XSS",
+              "cwe": "CWE-79",
+              "distance": 0.5541
+            },
+            {
+              "rank": 5,
+              "id": "xss_dom",
+              "type": "XSS",
+              "cwe": "CWE-79",
+              "distance": 0.6049
+            }
+          ],
+          "rag_context_chars": 1770,
+          "elapsed_seconds": 8.38,
+          "raw_output": "### 分析过程\n\n1. **识别用户可控输入**：\n   - 代码中存在一个用户可控的输入点：`$name = $_GET['name'] ?? '';`\n\n2. **检查输出上下文**：\n   - 输出上下文是 HTML 正文，即 `<h1>Welcome, \" . $name . \"!</h1>`。\n\n3. **判断是否需要转义**：\n   - 根据知识 1 和知识 2，用户输入直接反射到 HTML 中未进行转义。具体来说，`echo \"<html><body><h1>Welcome, \" . $name . \"!</h1></body></html>\";` 这段代码中，`$name` 直接拼接到 HTML 字符串中，没有经过任何转义处理。\n\n4. **确定漏洞类型**：\n   - 由于用户输入未进行 HTML 实体编码就直接进入 HTML 输出，这属于反射型 XSS（CWE-79）。\n\n5. **生成修复建议**：\n   - 修复建议是使用 `htmlspecialchars` 函数对 `$name` 进行转义。例如：`echo \"<html><body><h1>Welcome, \" . htmlspecialchars($name, ENT_QUOTES, 'UTF-8') . \"!</h1></body></html>\";`\n\n### JSON 结论\n\n```json\n{\n  \"has_vulnerability\": true,\n  \"vulnerability_type\": \"CWE-79 跨站脚本攻击\",\n  \"risk_level\": \"High\",\n  \"source\": \"$name = $_GET['name'] ?? ''\",\n  \"sink\": \"echo \\\"<html><body><h1>Welcome, \\\" . $name . \\\"!</h1></body></html>\\\"\",\n  \"explanation\": \"用户输入直接反射到 HTML 中未转义，存在反射型 XSS 漏洞。\",\n  \"fix_suggestion\": \"使用 htmlspecialchars($name, ENT_QUOTES, 'UTF-8') 进行转义。\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-79 跨站脚本攻击",
+            "risk_level": "High",
+            "source": "$name = $_GET['name'] ?? ''",
+            "sink": "echo \"<html><body><h1>Welcome, \" . $name . \"!</h1></body></html>\"",
+            "explanation": "用户输入直接反射到 HTML 中未转义，存在反射型 XSS 漏洞。",
+            "fix_suggestion": "使用 htmlspecialchars($name, ENT_QUOTES, 'UTF-8') 进行转义。"
+          },
+          "model_has_vulnerability": true,
+          "error": null,
+          "meta": {
+            "eval_count": 423,
+            "eval_duration_ns": 7705644000,
+            "load_duration_ns": 96856145,
+            "total_duration_ns": 8369483989,
+            "prompt_eval_count": 3175
+          }
+        }
+      ],
+      "majority_verdict": true,
+      "agreement_rate": 1.0
+    },
+    {
+      "file": "typical_10_cmd_js.js",
+      "language": "JavaScript",
+      "category": "command_injection",
+      "difficulty": "easy",
+      "expected_present": true,
+      "expected_vulnerability": "命令注入：exec 拼接用户输入",
+      "expected_cwe": "CWE-78",
+      "runs": [
+        {
+          "run_index": 1,
+          "rag_retrieval": [
+            {
+              "rank": 1,
+              "id": "pathtraversal_safe_pattern",
+              "type": "路径遍历",
+              "cwe": "CWE-22",
+              "distance": 0.6539
+            },
+            {
+              "rank": 2,
+              "id": "cmdi_shell_true",
+              "type": "命令注入",
+              "cwe": "CWE-78",
+              "distance": 0.6801
+            },
+            {
+              "rank": 3,
+              "id": "cmdi_knowledge",
+              "type": "命令注入",
+              "cwe": "CWE-78",
+              "distance": 0.7447
+            },
+            {
+              "rank": 4,
+              "id": "path_safe_pattern_strict",
+              "type": "路径穿越",
+              "cwe": "CWE-22",
+              "distance": 0.7493
+            },
+            {
+              "rank": 5,
+              "id": "pathtraversal_encoding",
+              "type": "路径遍历",
+              "cwe": "CWE-22",
+              "distance": 0.7553
+            }
+          ],
+          "rag_context_chars": 1951,
+          "elapsed_seconds": 8.31,
+          "raw_output": "### 分析过程\n\n1. **识别用户可控输入**：\n   - 用户可控输入：`req.query.file`\n\n2. **识别危险函数或触发点**：\n   - 危险函数：`exec`\n   - 触发点：`exec(`gzip ${file}`, (err, stdout, stderr) => { ... })`\n\n3. **判断是否存在路径穿越漏洞**：\n   - 代码中没有直接拼接用户输入到文件路径的操作，因此不存在路径穿越漏洞。\n\n4. **判断是否存在命令注入漏洞**：\n   - `exec` 函数会启动 shell 解释命令字符串。\n   - 命令字符串：`gzip ${file}`\n   - 用户输入：`${file}`\n\n5. **判断是否存在硬编码凭证**：\n   - 代码中没有硬编码的凭证。\n\n6. **判断是否命中安全模式白名单**：\n   - `exec` 函数不支持参数化查询，因此不符合 SQL 注入防护的安全模式白名单。\n   - `exec` 函数不支持列表参数 + shell=False，因此不符合命令注入防护的安全模式白名单。\n   - 代码中没有使用 `os.path.abspath` 和 `startswith` 校验路径，因此不符合路径穿越防护的安全模式白名单。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-78 命令注入\",\n    \"risk_level\": \"High\",\n    \"source\": \"req.query.file\",\n    \"sink\": \"exec(`gzip ${file}`, (err, stdout, stderr) => { ... })\",\n    \"explanation\": \"用户输入的文件名直接拼接到命令字符串中，通过 shell=True 启动 shell 解释，存在命令注入漏洞。\",\n    \"fix_suggestion\": \"使用列表参数 + shell=False 来执行命令，避免直接拼接用户输入。例如：subprocess.run(['gzip', file], shell=False)\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-78 命令注入",
+            "risk_level": "High",
+            "source": "req.query.file",
+            "sink": "exec(`gzip ${file}`, (err, stdout, stderr) => { ... })",
+            "explanation": "用户输入的文件名直接拼接到命令字符串中，通过 shell=True 启动 shell 解释，存在命令注入漏洞。",
+            "fix_suggestion": "使用列表参数 + shell=False 来执行命令，避免直接拼接用户输入。例如：subprocess.run(['gzip', file], shell=False)"
+          },
+          "model_has_vulnerability": true,
+          "error": null,
+          "meta": {
+            "eval_count": 415,
+            "eval_duration_ns": 7581745000,
+            "load_duration_ns": 97779016,
+            "total_duration_ns": 8302933747,
+            "prompt_eval_count": 3281
+          }
+        }
+      ],
+      "majority_verdict": true,
+      "agreement_rate": 1.0
+    },
+    {
+      "file": "typical_11_yaml.py",
+      "language": "Python",
+      "category": "insecure_deserialization",
+      "difficulty": "easy",
+      "expected_present": true,
+      "expected_vulnerability": "YAML 反序列化：yaml.load 使用不安全 Loader 可执行任意对象",
+      "expected_cwe": "CWE-502",
+      "runs": [
+        {
+          "run_index": 1,
+          "rag_retrieval": [
+            {
+              "rank": 1,
+              "id": "deser_safe_pattern",
+              "type": "不安全的反序列化",
+              "cwe": "CWE-502",
+              "distance": 0.5717
+            },
+            {
+              "rank": 2,
+              "id": "deser_pickle",
+              "type": "不安全的反序列化",
+              "cwe": "CWE-502",
+              "distance": 0.6077
+            },
+            {
+              "rank": 3,
+              "id": "xss_reflected",
+              "type": "XSS",
+              "cwe": "CWE-79",
+              "distance": 0.614
+            },
+            {
+              "rank": 4,
+              "id": "csrf_token_impl",
+              "type": "CSRF",
+              "cwe": "CWE-352",
+              "distance": 0.6567
+            },
+            {
+              "rank": 5,
+              "id": "path_safe_pattern_strict",
+              "type": "路径穿越",
+              "cwe": "CWE-22",
+              "distance": 0.666
+            }
+          ],
+          "rag_context_chars": 2240,
+          "elapsed_seconds": 8.03,
+          "raw_output": "### 分析过程\n\n1. **识别用户可控输入**：\n   - 用户可控输入：`request.get_data(as_text=True)` 获取的请求体数据。\n\n2. **识别危险函数或触发点**：\n   - 危险函数：`yaml.load(body, Loader=yaml.Loader)`\n\n3. **判断是否存在漏洞**：\n   - `yaml.load()` 是不安全的反序列化函数，因为它会执行任意代码。如果用户输入包含恶意数据，可能会导致远程代码执行（RCE）。\n   - 该代码片段没有对输入进行任何过滤或验证，直接使用了 `yaml.load()`。\n\n4. **判断是否命中安全模式白名单**：\n   - 安全模式白名单中提到：`yaml.safe_load(yaml_text)` 是安全的。然而，`yaml.load()` 和 `yaml.safe_load()` 在处理某些复杂数据结构时可能会有差异。\n   - 由于代码使用了 `yaml.load()` 而不是 `yaml.safe_load()`，因此不命中安全模式白名单。\n\n5. **总结漏洞类型和风险级别**：\n   - 漏洞类型：CWE-502 不安全的反序列化\n   - 风险级别：High\n\n### JSON 结论\n\n```json\n{\n  \"has_vulnerability\": true,\n  \"vulnerability_type\": \"CWE-502 不安全的反序列化\",\n  \"risk_level\": \"High\",\n  \"source\": \"request.get_data(as_text=True)\",\n  \"sink\": \"yaml.load(body, Loader=yaml.Loader)\",\n  \"explanation\": \"代码使用了不安全的 yaml.load() 函数，该函数会执行任意代码。用户输入可能包含恶意数据，导致远程代码执行（RCE）。\",\n  \"fix_suggestion\": \"使用 yaml.safe_load(yaml_text) 替代 yaml.load()\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-502 不安全的反序列化",
+            "risk_level": "High",
+            "source": "request.get_data(as_text=True)",
+            "sink": "yaml.load(body, Loader=yaml.Loader)",
+            "explanation": "代码使用了不安全的 yaml.load() 函数，该函数会执行任意代码。用户输入可能包含恶意数据，导致远程代码执行（RCE）。",
+            "fix_suggestion": "使用 yaml.safe_load(yaml_text) 替代 yaml.load()"
+          },
+          "model_has_vulnerability": true,
+          "error": null,
+          "meta": {
+            "eval_count": 399,
+            "eval_duration_ns": 7302224000,
+            "load_duration_ns": 98526840,
+            "total_duration_ns": 8024631986,
+            "prompt_eval_count": 3327
+          }
+        }
+      ],
+      "majority_verdict": true,
+      "agreement_rate": 1.0
+    },
+    {
+      "file": "typical_12_open_redirect.py",
+      "language": "Python",
+      "category": "open_redirect",
+      "difficulty": "easy",
+      "expected_present": true,
+      "expected_vulnerability": "开放重定向：用户输入 URL 直接作为重定向目标",
+      "expected_cwe": "CWE-601",
+      "runs": [
+        {
+          "run_index": 1,
+          "rag_retrieval": [
+            {
+              "rank": 1,
+              "id": "path_safe_pattern_strict",
+              "type": "路径穿越",
+              "cwe": "CWE-22",
+              "distance": 0.6357
+            },
+            {
+              "rank": 2,
+              "id": "csrf_token_impl",
+              "type": "CSRF",
+              "cwe": "CWE-352",
+              "distance": 0.6468
+            },
+            {
+              "rank": 3,
+              "id": "xss_reflected",
+              "type": "XSS",
+              "cwe": "CWE-79",
+              "distance": 0.6505
+            },
+            {
+              "rank": 4,
+              "id": "pathtraversal_safe_pattern",
+              "type": "路径遍历",
+              "cwe": "CWE-22",
+              "distance": 0.6623
+            },
+            {
+              "rank": 5,
+              "id": "pathtraversal_encoding",
+              "type": "路径遍历",
+              "cwe": "CWE-22",
+              "distance": 0.7091
+            }
+          ],
+          "rag_context_chars": 2121,
+          "elapsed_seconds": 7.47,
+          "raw_output": "### 分析过程\n\n1. **用户可控输入**：\n   - `target = request.args.get(\"url\", \"/\")`：用户可以通过 URL 参数 `url` 控制目标重定向的地址。\n\n2. **安全处理**：\n   - 代码直接使用了用户的输入 `target` 进行重定向，没有进行任何过滤或校验。\n   - 没有使用白名单文件名集合、路径规范化或 `startswith` 校验等措施来防止路径穿越攻击。\n\n3. **漏洞类型**：\n   - **CWE-601：开放重定向（Open Redirect）**：用户可以构造恶意的 URL 参数，导致应用程序将用户重定向到任意外部网站。这可能会被用于钓鱼攻击或其他恶意用途。\n\n4. **风险级别**：\n   - 高风险，因为这种漏洞可能导致用户被重定向到恶意网站，从而泄露敏感信息或执行其他恶意操作。\n\n5. **修复建议**：\n   - 使用白名单机制来限制允许的重定向 URL。\n   - 对重定向 URL 进行验证，确保其属于预期的域名范围。\n\n### JSON 结论\n\n```json\n{\n  \"has_vulnerability\": true,\n  \"vulnerability_type\": \"CWE-601 开放重定向\",\n  \"risk_level\": \"High\",\n  \"source\": \"request.args.get('url', '/')\",\n  \"sink\": \"redirect(target)\",\n  \"explanation\": \"用户可以通过 URL 参数 'url' 控制目标重定向的地址，没有进行任何过滤或校验，存在开放重定向漏洞。\",\n  \"fix_suggestion\": \"使用白名单机制来限制允许的重定向 URL，并对重定向 URL 进行验证。\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-601 开放重定向",
+            "risk_level": "High",
+            "source": "request.args.get('url', '/')",
+            "sink": "redirect(target)",
+            "explanation": "用户可以通过 URL 参数 'url' 控制目标重定向的地址，没有进行任何过滤或校验，存在开放重定向漏洞。",
+            "fix_suggestion": "使用白名单机制来限制允许的重定向 URL，并对重定向 URL 进行验证。"
+          },
+          "model_has_vulnerability": true,
+          "error": null,
+          "meta": {
+            "eval_count": 369,
+            "eval_duration_ns": 6742043000,
+            "load_duration_ns": 100027867,
+            "total_duration_ns": 7460209932,
+            "prompt_eval_count": 3280
+          }
+        }
+      ],
+      "majority_verdict": true,
+      "agreement_rate": 1.0
+    },
+    {
+      "file": "safe_01_param.py",
+      "language": "Python",
+      "category": "safe_control",
+      "difficulty": "easy",
+      "expected_present": false,
+      "expected_vulnerability": "无（安全对照：参数化查询）",
+      "expected_cwe": "N/A",
+      "runs": [
+        {
+          "run_index": 1,
+          "rag_retrieval": [
+            {
+              "rank": 1,
+              "id": "sqli_safe_pattern",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.3928
+            },
+            {
+              "rank": 2,
+              "id": "sqli_knowledge",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.3957
+            },
+            {
+              "rank": 3,
+              "id": "sqli_dangerous_api",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.443
+            },
+            {
+              "rank": 4,
+              "id": "sqli_bypass_filter",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.5582
+            },
+            {
+              "rank": 5,
+              "id": "idor_safe_pattern",
+              "type": "不安全的直接对象引用",
+              "cwe": "CWE-639",
+              "distance": 0.5879
+            }
+          ],
+          "rag_context_chars": 2089,
+          "elapsed_seconds": 7.19,
+          "raw_output": "### 分析过程\n\n1. **识别用户可控输入**：\n   - `username` 和 `password` 是通过 `request.args.get(\"username\", \"\")` 和 `request.args.get(\"password\", \"\")` 获取的，属于用户可控输入。\n\n2. **检查 SQL 查询**：\n   - SQL 查询语句是 `\"SELECT * FROM users WHERE username = ? AND password = ?\"`。\n   - 参数化查询使用了占位符 `?`，并且参数 `(username, password)` 以元组形式传递给 `cursor.execute()`。\n\n3. **判断是否为安全写法**：\n   - 根据【知识 1】和【知识 2】，参数化查询是防止 SQL 注入的有效方法。\n   - 占位符 `?` 和参数元组 `(username, password)` 的组合符合安全模式白名单中的 SQL 注入防护标准。\n\n4. **检查其他潜在漏洞**：\n   - 没有发现命令注入、路径穿越、XSS 或反序列化等其他常见漏洞。\n   - 数据库连接字符串 `\"users.db\"` 是硬编码的，但根据【知识 5】，这本身不是漏洞，因为没有直接从用户输入获取数据库连接信息。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"代码使用了参数化查询，符合 SQL 注入防护标准。没有发现其他常见漏洞。\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": false,
+            "vulnerability_type": "none",
+            "risk_level": "None",
+            "source": "N/A",
+            "sink": "N/A",
+            "explanation": "代码使用了参数化查询，符合 SQL 注入防护标准。没有发现其他常见漏洞。",
+            "fix_suggestion": "no fix needed"
+          },
+          "model_has_vulnerability": false,
+          "error": null,
+          "meta": {
+            "eval_count": 350,
+            "eval_duration_ns": 6403879000,
+            "load_duration_ns": 99345113,
+            "total_duration_ns": 7186100674,
+            "prompt_eval_count": 3348
+          }
+        }
+      ],
+      "majority_verdict": false,
+      "agreement_rate": 1.0
+    },
+    {
+      "file": "safe_02_escape.py",
+      "language": "Python",
+      "category": "safe_control",
+      "difficulty": "easy",
+      "expected_present": false,
+      "expected_vulnerability": "无（安全对照：html.escape 转义）",
+      "expected_cwe": "N/A",
+      "runs": [
+        {
+          "run_index": 1,
+          "rag_retrieval": [
+            {
+              "rank": 1,
+              "id": "xss_reflected",
+              "type": "XSS",
+              "cwe": "CWE-79",
+              "distance": 0.4055
+            },
+            {
+              "rank": 2,
+              "id": "xss_safe_pattern",
+              "type": "XSS",
+              "cwe": "CWE-79",
+              "distance": 0.5185
+            },
+            {
+              "rank": 3,
+              "id": "xss_dom",
+              "type": "XSS",
+              "cwe": "CWE-79",
+              "distance": 0.6015
+            },
+            {
+              "rank": 4,
+              "id": "xss_context",
+              "type": "XSS",
+              "cwe": "CWE-79",
+              "distance": 0.6148
+            },
+            {
+              "rank": 5,
+              "id": "csrf_token_impl",
+              "type": "CSRF",
+              "cwe": "CWE-352",
+              "distance": 0.6214
+            }
+          ],
+          "rag_context_chars": 1954,
+          "elapsed_seconds": 6.86,
+          "raw_output": "### 分析过程\n\n1. **用户可控输入**：\n   - 用户通过 `request.args.get(\"text\", \"\")` 获取的 `text` 参数是用户可控的。\n\n2. **安全处理措施**：\n   - 使用 `html.escape(text)` 对用户输入进行 HTML 实体编码，确保 `< > & \" '` 等字符被转义。\n   - 转义后的文本被插入到 HTML 响应中：`return f\"<html><body><p>{safe_text}</p></body></html>\"`\n\n3. **安全模式识别**：\n   - `html.escape(text)` 是一种显式转义用户输入的常见做法，符合 XSS 的安全模式白名单。\n\n4. **漏洞判定**：\n   - 由于用户可控输入经过了 HTML 实体编码，并且没有直接插入到 HTML 输出中（而是通过模板引擎自动转义），因此不存在反射型 XSS 漏洞。\n   - 代码命中了 XSS 的安全模式白名单，且无其他漏洞。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"request.args.get('text', '')\",\n    \"sink\": \"return f\\\"<html><body><p>{safe_text}</p></body></html>\\\"\",\n    \"explanation\": \"用户输入经过 html.escape() 显式转义，确保不会直接插入到 HTML 输出中，符合 XSS 的安全模式白名单。\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": false,
+            "vulnerability_type": "none",
+            "risk_level": "None",
+            "source": "request.args.get('text', '')",
+            "sink": "return f\"<html><body><p>{safe_text}</p></body></html>\"",
+            "explanation": "用户输入经过 html.escape() 显式转义，确保不会直接插入到 HTML 输出中，符合 XSS 的安全模式白名单。",
+            "fix_suggestion": "no fix needed"
+          },
+          "model_has_vulnerability": false,
+          "error": null,
+          "meta": {
+            "eval_count": 337,
+            "eval_duration_ns": 6144613000,
+            "load_duration_ns": 96978063,
+            "total_duration_ns": 6850693676,
+            "prompt_eval_count": 3241
+          }
+        }
+      ],
+      "majority_verdict": false,
+      "agreement_rate": 1.0
+    },
+    {
+      "file": "safe_03_subprocess_list.py",
+      "language": "Python",
+      "category": "safe_control",
+      "difficulty": "easy",
+      "expected_present": false,
+      "expected_vulnerability": "无（安全对照：subprocess 参数列表，未用 shell=True）",
+      "expected_cwe": "N/A",
+      "runs": [
+        {
+          "run_index": 1,
+          "rag_retrieval": [
+            {
+              "rank": 1,
+              "id": "cmdi_safe_pattern",
+              "type": "命令注入",
+              "cwe": "CWE-78",
+              "distance": 0.4372
+            },
+            {
+              "rank": 2,
+              "id": "cmdi_shell_true",
+              "type": "命令注入",
+              "cwe": "CWE-78",
+              "distance": 0.5641
+            },
+            {
+              "rank": 3,
+              "id": "cmdi_knowledge",
+              "type": "命令注入",
+              "cwe": "CWE-78",
+              "distance": 0.6244
+            },
+            {
+              "rank": 4,
+              "id": "pathtraversal_safe_pattern",
+              "type": "路径遍历",
+              "cwe": "CWE-22",
+              "distance": 0.6805
+            },
+            {
+              "rank": 5,
+              "id": "xss_reflected",
+              "type": "XSS",
+              "cwe": "CWE-79",
+              "distance": 0.7181
+            }
+          ],
+          "rag_context_chars": 1938,
+          "elapsed_seconds": 8.21,
+          "raw_output": "### 分析过程\n\n1. **识别用户可控输入**：\n   - 用户可控输入：`host = request.args.get(\"host\", \"\")`\n\n2. **检查命令注入防护措施**：\n   - 使用 `subprocess.run([\"ping\", \"-c\", \"1\", host], capture_output=True, timeout=5)`\n   - 列表参数形式 + shell 默认 False\n   - 未启用 `shell=True`\n   - 用户输入 `host` 被作为参数传递给 `ping` 命令，不会被解释为 shell 命令\n\n3. **检查路径穿越防护措施**：\n   - 代码中没有涉及文件操作或路径拼接，因此不需要进行路径穿越防护。\n\n4. **检查 SQL 注入防护措施**：\n   - 代码中没有涉及数据库操作，因此不需要进行 SQL 注入防护。\n\n5. **检查 XSS 防护措施**：\n   - 代码中没有涉及用户输入直接反射到 HTML 中的情况，因此不需要进行 XSS 防护。\n\n6. **检查反序列化防护措施**：\n   - 代码中没有涉及反序列化操作，因此不需要进行反序列化防护。\n\n### 结论\n\n根据以上分析，代码片段中的 `subprocess.run` 调用符合命令注入的安全模式白名单标准，用户可控输入被安全处理。因此，不存在命令注入漏洞。\n\n```json\n{\n  \"has_vulnerability\": false,\n  \"vulnerability_type\": \"none\",\n  \"risk_level\": \"None\",\n  \"source\": \"host 参数（用户可控）\",\n  \"sink\": \"subprocess.run(['ping', '-c', '1', host], capture_output=True, timeout=5)\",\n  \"explanation\": \"使用列表参数形式 + shell 默认 False，用户输入被作为参数传递给 ping 命令，不会被解释为 shell 命令。\",\n  \"fix_suggestion\": \"no fix needed\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": false,
+            "vulnerability_type": "none",
+            "risk_level": "None",
+            "source": "host 参数（用户可控）",
+            "sink": "subprocess.run(['ping', '-c', '1', host], capture_output=True, timeout=5)",
+            "explanation": "使用列表参数形式 + shell 默认 False，用户输入被作为参数传递给 ping 命令，不会被解释为 shell 命令。",
+            "fix_suggestion": "no fix needed"
+          },
+          "model_has_vulnerability": false,
+          "error": null,
+          "meta": {
+            "eval_count": 413,
+            "eval_duration_ns": 7538043000,
+            "load_duration_ns": 97638778,
+            "total_duration_ns": 8208545131,
+            "prompt_eval_count": 3215
+          }
+        }
+      ],
+      "majority_verdict": false,
+      "agreement_rate": 1.0
+    },
+    {
+      "file": "safe_04_path_whitelist.py",
+      "language": "Python",
+      "category": "safe_control",
+      "difficulty": "easy",
+      "expected_present": false,
+      "expected_vulnerability": "无（安全对照：路径白名单 + 绝对路径前缀校验）",
+      "expected_cwe": "N/A",
+      "runs": [
+        {
+          "run_index": 1,
+          "rag_retrieval": [
+            {
+              "rank": 1,
+              "id": "path_safe_pattern_strict",
+              "type": "路径穿越",
+              "cwe": "CWE-22",
+              "distance": 0.3376
+            },
+            {
+              "rank": 2,
+              "id": "pathtraversal_safe_pattern",
+              "type": "路径遍历",
+              "cwe": "CWE-22",
+              "distance": 0.4136
+            },
+            {
+              "rank": 3,
+              "id": "pathtraversal_encoding",
+              "type": "路径遍历",
+              "cwe": "CWE-22",
+              "distance": 0.5106
+            },
+            {
+              "rank": 4,
+              "id": "idor_safe_pattern",
+              "type": "不安全的直接对象引用",
+              "cwe": "CWE-639",
+              "distance": 0.6533
+            },
+            {
+              "rank": 5,
+              "id": "cmdi_shell_true",
+              "type": "命令注入",
+              "cwe": "CWE-78",
+              "distance": 0.6547
+            }
+          ],
+          "rag_context_chars": 2148,
+          "elapsed_seconds": 9.93,
+          "raw_output": "### 分析过程\n\n1. **路径穿越防护**：\n   - 代码中使用了 `os.path.abspath` 和 `startswith` 来校验文件路径是否在允许目录内。\n   - `BASE_DIR = \"/var/www/files\"` 是一个固定的目录。\n   - `ALLOWED_FILES` 是一个白名单集合，只允许特定的文件名。\n   - 用户可控输入是通过 `request.args.get(\"file\", \"\")` 获取的文件名。\n\n2. **路径穿越校验**：\n   - 代码中首先获取用户输入的文件名，并检查该文件名是否在 `ALLOWED_FILES` 白名单中。如果不在白名单中，直接返回 403 状态码。\n   - 如果文件名在白名单中，代码会构建完整路径 `full_path = os.path.join(BASE_DIR, filename)`。\n   - 接着，代码使用 `os.path.abspath` 获取规范化后的绝对路径，并检查该路径是否以 `BASE_DIR` 的绝对路径开头。如果不符合条件，返回 403 状态码。\n\n3. **文件读取**：\n   - 如果路径校验通过，代码会打开并读取文件内容。\n   - 文件路径是通过 `os.path.abspath(full_path)` 获取的规范化路径，并且已经通过了 `startswith` 校验，确保该路径在允许目录内。\n\n### 安全模式白名单检查\n\n- 代码中使用了 `os.path.abspath` 和 `startswith` 来校验文件路径是否在允许目录内，这是安全的写法。\n- 用户可控输入（文件名）经过了白名单校验和路径校验，确保不会发生路径穿越。\n\n### 结论\n\n根据以上分析，代码没有发现明显的安全漏洞。用户可控输入（文件名）已经通过了白名单校验和路径校验，确保不会发生路径穿越。\n\n```json\n{\n  \"has_vulnerability\": false,\n  \"vulnerability_type\": \"none\",\n  \"risk_level\": \"None\",\n  \"source\": \"request.args.get('file', '')\",\n  \"sink\": \"open(abs_target, 'r')\",\n  \"explanation\": \"代码使用了 os.path.abspath 和 startswith 校验文件路径是否在允许目录内，确保不会发生路径穿越。\",\n  \"fix_suggestion\": \"no fix needed\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": false,
+            "vulnerability_type": "none",
+            "risk_level": "None",
+            "source": "request.args.get('file', '')",
+            "sink": "open(abs_target, 'r')",
+            "explanation": "代码使用了 os.path.abspath 和 startswith 校验文件路径是否在允许目录内，确保不会发生路径穿越。",
+            "fix_suggestion": "no fix needed"
+          },
+          "model_has_vulnerability": false,
+          "error": null,
+          "meta": {
+            "eval_count": 498,
+            "eval_duration_ns": 9141024000,
+            "load_duration_ns": 97139612,
+            "total_duration_ns": 9925129045,
+            "prompt_eval_count": 3400
+          }
+        }
+      ],
+      "majority_verdict": false,
+      "agreement_rate": 1.0
+    },
+    {
+      "file": "safe_05_parametrized_like.py",
+      "language": "Python",
+      "category": "safe_control",
+      "difficulty": "easy",
+      "expected_present": false,
+      "expected_vulnerability": "无（安全对照：LIKE 查询使用参数化）",
+      "expected_cwe": "N/A",
+      "runs": [
+        {
+          "run_index": 1,
+          "rag_retrieval": [
+            {
+              "rank": 1,
+              "id": "sqli_dangerous_api",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.4165
+            },
+            {
+              "rank": 2,
+              "id": "sqli_knowledge",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.4605
+            },
+            {
+              "rank": 3,
+              "id": "sqli_safe_pattern",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.4875
+            },
+            {
+              "rank": 4,
+              "id": "sqli_orm_misuse",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.5001
+            },
+            {
+              "rank": 5,
+              "id": "sqli_bypass_filter",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.6595
+            }
+          ],
+          "rag_context_chars": 2090,
+          "elapsed_seconds": 7.14,
+          "raw_output": "### 分析过程\n\n1. **识别用户可控输入**：\n   - 用户可控输入是 `keyword` 参数，通过 `request.args.get(\"q\", \"\")` 获取。\n\n2. **检查 SQL 查询语句**：\n   - SQL 查询语句是 `SELECT id, name FROM products WHERE name LIKE ?`\n   - 使用了参数化查询，占位符为 `?`，并且用户输入 `(f\"%{keyword}%\",)` 作为参数元组传入。\n\n3. **判断是否安全**：\n   - 根据安全模式白名单中的定义，使用参数化查询（占位符 + 参数元组）是安全的。\n   - 占位符 `?` 和参数元组 `(f\"%{keyword}%\",)` 的组合确保了用户输入不会进入 SQL 语法层，被数据库驱动自动转义。\n\n4. **检查其他潜在风险**：\n   - 没有发现硬编码凭证、命令注入、路径穿越等其他安全漏洞。\n   - 输入 `keyword` 被正确地作为参数传递给 SQL 查询，没有直接拼接在 SQL 语句中。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"keyword 参数（用户可控）\",\n    \"sink\": \"cursor.execute() 拼接字符串\",\n    \"explanation\": \"使用参数化查询，占位符 + 参数元组确保了用户输入不会进入 SQL 语法层，被数据库驱动自动转义。\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": false,
+            "vulnerability_type": "none",
+            "risk_level": "None",
+            "source": "keyword 参数（用户可控）",
+            "sink": "cursor.execute() 拼接字符串",
+            "explanation": "使用参数化查询，占位符 + 参数元组确保了用户输入不会进入 SQL 语法层，被数据库驱动自动转义。",
+            "fix_suggestion": "no fix needed"
+          },
+          "model_has_vulnerability": false,
+          "error": null,
+          "meta": {
+            "eval_count": 350,
+            "eval_duration_ns": 6410343000,
+            "load_duration_ns": 99497071,
+            "total_duration_ns": 7136957298,
+            "prompt_eval_count": 3328
+          }
+        }
+      ],
+      "majority_verdict": false,
+      "agreement_rate": 1.0
+    },
+    {
+      "file": "safe_06_csp_header.py",
+      "language": "Python",
+      "category": "safe_control",
+      "difficulty": "easy",
+      "expected_present": false,
+      "expected_vulnerability": "无（安全对照：HTML 转义 + CSP 头）",
+      "expected_cwe": "N/A",
+      "runs": [
+        {
+          "run_index": 1,
+          "rag_retrieval": [
+            {
+              "rank": 1,
+              "id": "xss_reflected",
+              "type": "XSS",
+              "cwe": "CWE-79",
+              "distance": 0.3596
+            },
+            {
+              "rank": 2,
+              "id": "xss_safe_pattern",
+              "type": "XSS",
+              "cwe": "CWE-79",
+              "distance": 0.4589
+            },
+            {
+              "rank": 3,
+              "id": "csrf_token_impl",
+              "type": "CSRF",
+              "cwe": "CWE-352",
+              "distance": 0.5489
+            },
+            {
+              "rank": 4,
+              "id": "xss_dom",
+              "type": "XSS",
+              "cwe": "CWE-79",
+              "distance": 0.5597
+            },
+            {
+              "rank": 5,
+              "id": "misconfig_headers",
+              "type": "安全配置错误",
+              "cwe": "CWE-693",
+              "distance": 0.6095
+            }
+          ],
+          "rag_context_chars": 1969,
+          "elapsed_seconds": 8.31,
+          "raw_output": "### 分析过程\n\n1. **用户可控输入**：\n   - `user_input` 是从请求参数中获取的，用户可以控制。\n\n2. **安全处理**：\n   - `safe_content = html.escape(user_input)`：使用 `html.escape()` 对用户输入进行 HTML 实体编码。\n   - `body = f\"<html><body><div>{safe_content}</div></body></html>\"`：将编码后的内容插入到 HTML 中。\n\n3. **响应头设置**：\n   - `resp.headers[\"Content-Security-Policy\"] = \"default-src 'self'; script-src 'none'\"`：设置了 Content-Security-Policy 头，限制了资源加载源和脚本执行。\n\n### 安全模式白名单检查\n\n- **XSS 防护**：\n  - `html.escape(user_input)` 是安全的，用户输入经过 HTML 实体编码后进入 HTML 输出。\n  - 没有使用模板引擎（如 Jinja2），所以不需要额外的转义。\n\n### 安全配置检查\n\n- **Content-Security-Policy**：\n  - 设置了 `default-src 'self'; script-src 'none'`，限制了资源加载源和脚本执行，这是一个安全的 CSP 配置。\n\n### 结论\n\n代码通过使用 `html.escape()` 对用户输入进行 HTML 实体编码，并设置了安全的 Content-Security-Policy 头，有效防止了 XSS 攻击。因此，代码没有发现漏洞。\n\n```json\n{\n  \"has_vulnerability\": false,\n  \"vulnerability_type\": \"none\",\n  \"risk_level\": \"None\",\n  \"source\": \"user_input\",\n  \"sink\": \"html.escape() + HTML 输出\",\n  \"explanation\": \"用户输入经过 HTML 实体编码后进入 HTML 输出，设置了安全的 Content-Security-Policy 头，有效防止了 XSS 攻击。\",\n  \"fix_suggestion\": \"no fix needed\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": false,
+            "vulnerability_type": "none",
+            "risk_level": "None",
+            "source": "user_input",
+            "sink": "html.escape() + HTML 输出",
+            "explanation": "用户输入经过 HTML 实体编码后进入 HTML 输出，设置了安全的 Content-Security-Policy 头，有效防止了 XSS 攻击。",
+            "fix_suggestion": "no fix needed"
+          },
+          "model_has_vulnerability": false,
+          "error": null,
+          "meta": {
+            "eval_count": 414,
+            "eval_duration_ns": 7573512000,
+            "load_duration_ns": 100818579,
+            "total_duration_ns": 8305079198,
+            "prompt_eval_count": 3274
+          }
+        }
+      ],
+      "majority_verdict": false,
+      "agreement_rate": 1.0
+    },
+    {
+      "file": "safe_07_input_validation.py",
+      "language": "Python",
+      "category": "safe_control",
+      "difficulty": "easy",
+      "expected_present": false,
+      "expected_vulnerability": "无（安全对照：正则白名单输入校验 + 参数化查询）",
+      "expected_cwe": "N/A",
+      "runs": [
+        {
+          "run_index": 1,
+          "rag_retrieval": [
+            {
+              "rank": 1,
+              "id": "sqli_safe_pattern",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.4097
+            },
+            {
+              "rank": 2,
+              "id": "sqli_knowledge",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.4099
+            },
+            {
+              "rank": 3,
+              "id": "sqli_dangerous_api",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.4316
+            },
+            {
+              "rank": 4,
+              "id": "sqli_bypass_filter",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.5217
+            },
+            {
+              "rank": 5,
+              "id": "idor_safe_pattern",
+              "type": "不安全的直接对象引用",
+              "cwe": "CWE-639",
+              "distance": 0.5732
+            }
+          ],
+          "rag_context_chars": 2089,
+          "elapsed_seconds": 7.81,
+          "raw_output": "### 分析过程\n\n1. **输入验证**：\n   - 代码中使用了正则表达式 `USERNAME_RE` 来验证用户输入的用户名是否符合要求（长度为3到32个字符，只包含字母、数字和下划线）。\n   - 这种验证方式可以防止一些常见的恶意输入，但并不能完全排除所有可能的SQL注入攻击。\n\n2. **数据库查询**：\n   - 代码使用了参数化查询 `cursor.execute(\"SELECT id, name FROM users WHERE name = ?\", (username,))` 来执行SQL查询。\n   - 参数化查询是防止SQL注入的有效方法，因为用户输入被当作参数处理，而不是直接拼接到SQL语句中。\n\n3. **返回结果**：\n   - 查询结果通过 `cursor.fetchone()` 获取，并以JSON格式返回给客户端。\n   - 这种做法不会导致XSS等其他安全问题。\n\n### 安全模式白名单检查\n\n- 代码使用了参数化查询，符合SQL注入防护的白名单标准（CWE-89）。\n- 输入验证通过正则表达式进行，虽然不是最严格的验证方式，但可以防止一些常见的恶意输入。\n\n### 结论\n\n根据以上分析，代码在数据库查询部分使用了参数化查询，有效防止了SQL注入攻击。尽管输入验证不够严格，但不会导致其他安全问题。\n\n```json\n{\n  \"has_vulnerability\": false,\n  \"vulnerability_type\": \"none\",\n  \"risk_level\": \"None\",\n  \"source\": \"N/A\",\n  \"sink\": \"N/A\",\n  \"explanation\": \"代码使用了参数化查询，有效防止SQL注入攻击。输入验证不够严格，但不会导致其他安全问题。\",\n  \"fix_suggestion\": \"no fix needed\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": false,
+            "vulnerability_type": "none",
+            "risk_level": "None",
+            "source": "N/A",
+            "sink": "N/A",
+            "explanation": "代码使用了参数化查询，有效防止SQL注入攻击。输入验证不够严格，但不会导致其他安全问题。",
+            "fix_suggestion": "no fix needed"
+          },
+          "model_has_vulnerability": false,
+          "error": null,
+          "meta": {
+            "eval_count": 383,
+            "eval_duration_ns": 7017996000,
+            "load_duration_ns": 99324952,
+            "total_duration_ns": 7801803344,
+            "prompt_eval_count": 3359
+          }
+        }
+      ],
+      "majority_verdict": false,
+      "agreement_rate": 1.0
+    },
+    {
+      "file": "safe_08_shlex.py",
+      "language": "Python",
+      "category": "safe_control",
+      "difficulty": "easy",
+      "expected_present": false,
+      "expected_vulnerability": "无（安全对照：shlex.quote 转义后拼接 shell 命令）",
+      "expected_cwe": "N/A",
+      "runs": [
+        {
+          "run_index": 1,
+          "rag_retrieval": [
+            {
+              "rank": 1,
+              "id": "cmdi_safe_pattern",
+              "type": "命令注入",
+              "cwe": "CWE-78",
+              "distance": 0.4532
+            },
+            {
+              "rank": 2,
+              "id": "cmdi_shell_true",
+              "type": "命令注入",
+              "cwe": "CWE-78",
+              "distance": 0.5404
+            },
+            {
+              "rank": 3,
+              "id": "cmdi_knowledge",
+              "type": "命令注入",
+              "cwe": "CWE-78",
+              "distance": 0.5833
+            },
+            {
+              "rank": 4,
+              "id": "pathtraversal_safe_pattern",
+              "type": "路径遍历",
+              "cwe": "CWE-22",
+              "distance": 0.5982
+            },
+            {
+              "rank": 5,
+              "id": "path_safe_pattern_strict",
+              "type": "路径穿越",
+              "cwe": "CWE-22",
+              "distance": 0.6125
+            }
+          ],
+          "rag_context_chars": 2271,
+          "elapsed_seconds": 8.0,
+          "raw_output": "### 分析过程\n\n1. **用户可控输入**：\n   - `host` 参数是通过 `request.args.get(\"host\", \"\")` 获取的，属于用户可控输入。\n\n2. **安全处理措施**：\n   - 使用了 `shlex.quote(host)` 对用户输入进行转义。\n   - 使用了 `subprocess.run(f\"whois {safe_host}\", shell=True, capture_output=True, timeout=10)` 执行命令，并且启用了 `shell=True`。\n\n3. **漏洞识别**：\n   - 根据知识 2，`subprocess.run(cmd, shell=True)` 会启动 shell 解释 `cmd` 字符串，用户输入中的元字符会被解释。\n   - 虽然使用了 `shlex.quote(host)` 对用户输入进行转义，但启用了 `shell=True`，这使得用户输入仍然可能被解释为命令的一部分。\n\n4. **安全模式白名单**：\n   - 代码中没有命中安全模式白名单中的任何一项（如列表参数 + shell=False）。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-78 命令注入\",\n    \"risk_level\": \"High\",\n    \"source\": \"host 参数（用户可控）\",\n    \"sink\": \"subprocess.run(f'whois {safe_host}', shell=True, capture_output=True, timeout=10)\",\n    \"explanation\": \"虽然使用了 shlex.quote(host) 对用户输入进行转义，但启用了 shell=True，这使得用户输入仍然可能被解释为命令的一部分。\",\n    \"fix_suggestion\": \"避免使用 shell=True，并确保所有用户输入都通过参数列表传递给 subprocess.run。例如：subprocess.run(['whois', safe_host], capture_output=True, timeout=10)\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-78 命令注入",
+            "risk_level": "High",
+            "source": "host 参数（用户可控）",
+            "sink": "subprocess.run(f'whois {safe_host}', shell=True, capture_output=True, timeout=10)",
+            "explanation": "虽然使用了 shlex.quote(host) 对用户输入进行转义，但启用了 shell=True，这使得用户输入仍然可能被解释为命令的一部分。",
+            "fix_suggestion": "避免使用 shell=True，并确保所有用户输入都通过参数列表传递给 subprocess.run。例如：subprocess.run(['whois', safe_host], capture_output=True, timeout=10)"
+          },
+          "model_has_vulnerability": true,
+          "error": null,
+          "meta": {
+            "eval_count": 395,
+            "eval_duration_ns": 7234300000,
+            "load_duration_ns": 97924244,
+            "total_duration_ns": 7998008770,
+            "prompt_eval_count": 3346
+          }
+        }
+      ],
+      "majority_verdict": true,
+      "agreement_rate": 1.0
+    },
+    {
+      "file": "hard_bypass_01_sql_replace.py",
+      "language": "Python",
+      "category": "sql_injection",
+      "difficulty": "hard",
+      "expected_present": true,
+      "expected_vulnerability": "SQL 注入：replace(\"'\",\"\") 过滤可被双写 '' 绕过",
+      "expected_cwe": "CWE-89",
+      "runs": [
+        {
+          "run_index": 1,
+          "rag_retrieval": [
+            {
+              "rank": 1,
+              "id": "sqli_dangerous_api",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.4302
+            },
+            {
+              "rank": 2,
+              "id": "sqli_knowledge",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.4806
+            },
+            {
+              "rank": 3,
+              "id": "sqli_safe_pattern",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.4962
+            },
+            {
+              "rank": 4,
+              "id": "sqli_orm_misuse",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.4992
+            },
+            {
+              "rank": 5,
+              "id": "sqli_bypass_filter",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.605
+            }
+          ],
+          "rag_context_chars": 2090,
+          "elapsed_seconds": 7.93,
+          "raw_output": "### 分析过程\n\n1. **识别用户可控输入**：\n   - 用户可以通过 `request.args.get(\"q\", \"\")` 获取查询参数 `q`。\n\n2. **检查 SQL 查询构造**：\n   - 代码中使用了字符串拼接的方式构建 SQL 查询：`cursor.execute(\"SELECT * FROM products WHERE name LIKE '%\" + keyword + \"%'\")`。\n   - 这种方式直接将用户输入的 `keyword` 拼接到 SQL 语句中，存在 SQL 注入的风险。\n\n3. **检查安全模式白名单**：\n   - 代码没有使用参数化查询（如 `cursor.execute(\"SELECT * FROM products WHERE name LIKE ?\", (keyword,))`）。\n   - 也没有使用 ORM 查询构造器（如 `Model.objects.filter(name=q)`）。\n   - 因此，代码未命中安全模式白名单。\n\n4. **检查硬编码凭证**：\n   - 代码中没有硬编码敏感信息（如密码、API Key 等）。\n\n5. **总结漏洞类型和修复建议**：\n   - 漏洞类型：SQL 注入（CWE-89）\n   - 修复建议：使用参数化查询，避免直接拼接用户输入到 SQL 语句中。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-89 SQL注入\",\n    \"risk_level\": \"High\",\n    \"source\": \"request.args.get('q', '')\",\n    \"sink\": \"cursor.execute() 拼接字符串\",\n    \"explanation\": \"用户输入的 keyword 直接拼接到 SQL 语句中，存在 SQL 注入风险。\",\n    \"fix_suggestion\": \"使用参数化查询，如 cursor.execute('SELECT * FROM products WHERE name LIKE ?', (keyword,))\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-89 SQL注入",
+            "risk_level": "High",
+            "source": "request.args.get('q', '')",
+            "sink": "cursor.execute() 拼接字符串",
+            "explanation": "用户输入的 keyword 直接拼接到 SQL 语句中，存在 SQL 注入风险。",
+            "fix_suggestion": "使用参数化查询，如 cursor.execute('SELECT * FROM products WHERE name LIKE ?', (keyword,))"
+          },
+          "model_has_vulnerability": true,
+          "error": null,
+          "meta": {
+            "eval_count": 393,
+            "eval_duration_ns": 7197324000,
+            "load_duration_ns": 98028515,
+            "total_duration_ns": 7924022765,
+            "prompt_eval_count": 3317
+          }
+        }
+      ],
+      "majority_verdict": true,
+      "agreement_rate": 1.0
+    },
+    {
+      "file": "hard_bypass_02_cmd_strip.py",
+      "language": "Python",
+      "category": "command_injection",
+      "difficulty": "hard",
+      "expected_present": true,
+      "expected_vulnerability": "命令注入：strip() 只去首尾空格，中间分号仍可注入",
+      "expected_cwe": "CWE-78",
+      "runs": [
+        {
+          "run_index": 1,
+          "rag_retrieval": [
+            {
+              "rank": 1,
+              "id": "cmdi_safe_pattern",
+              "type": "命令注入",
+              "cwe": "CWE-78",
+              "distance": 0.4652
+            },
+            {
+              "rank": 2,
+              "id": "cmdi_shell_true",
+              "type": "命令注入",
+              "cwe": "CWE-78",
+              "distance": 0.5747
+            },
+            {
+              "rank": 3,
+              "id": "cmdi_knowledge",
+              "type": "命令注入",
+              "cwe": "CWE-78",
+              "distance": 0.6301
+            },
+            {
+              "rank": 4,
+              "id": "pathtraversal_safe_pattern",
+              "type": "路径遍历",
+              "cwe": "CWE-22",
+              "distance": 0.686
+            },
+            {
+              "rank": 5,
+              "id": "xss_reflected",
+              "type": "XSS",
+              "cwe": "CWE-79",
+              "distance": 0.7265
+            }
+          ],
+          "rag_context_chars": 1938,
+          "elapsed_seconds": 7.87,
+          "raw_output": "### 分析过程\n\n1. **命令注入防护**：\n   - 代码中使用了 `subprocess.run(f\"ping -c 1 {host}\", shell=True, capture_output=True)`。\n   - 这里存在明显的命令注入风险，因为 `shell=True` 启用了 shell 解释器，用户输入的 `host` 参数会被解释为命令的一部分。\n   - 即使使用了 `strip()` 方法去除前后的空格，也不能防止用户输入包含元字符（如 `; | & $ `）的情况。\n\n2. **路径穿越防护**：\n   - 代码中没有涉及文件操作或路径拼接，因此不存在路径穿越风险。\n\n3. **SQL 注入防护**：\n   - 代码中没有涉及 SQL 查询，因此不存在 SQL 注入风险。\n\n4. **XSS 防护**：\n   - 代码中没有涉及用户输入直接反射到 HTML 中的情况，因此不存在 XSS 风险。\n\n5. **反序列化防护**：\n   - 代码中没有涉及反序列化操作，因此不存在反序列化风险。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-78 命令注入\",\n    \"risk_level\": \"High\",\n    \"source\": \"host 参数（用户可控）\",\n    \"sink\": \"subprocess.run(f'ping -c 1 {host}', shell=True, capture_output=True)\",\n    \"explanation\": \"使用 shell=True 启用了 shell 解释器，用户输入的 host 参数会被解释为命令的一部分，存在命令注入风险。\",\n    \"fix_suggestion\": \"避免使用 shell=True，并确保用户输入不包含元字符。可以使用列表参数传递命令：subprocess.run(['ping', '-c', '1', host], capture_output=True)\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-78 命令注入",
+            "risk_level": "High",
+            "source": "host 参数（用户可控）",
+            "sink": "subprocess.run(f'ping -c 1 {host}', shell=True, capture_output=True)",
+            "explanation": "使用 shell=True 启用了 shell 解释器，用户输入的 host 参数会被解释为命令的一部分，存在命令注入风险。",
+            "fix_suggestion": "避免使用 shell=True，并确保用户输入不包含元字符。可以使用列表参数传递命令：subprocess.run(['ping', '-c', '1', host], capture_output=True)"
+          },
+          "model_has_vulnerability": true,
+          "error": null,
+          "meta": {
+            "eval_count": 394,
+            "eval_duration_ns": 7190194000,
+            "load_duration_ns": 96825865,
+            "total_duration_ns": 7860101219,
+            "prompt_eval_count": 3216
+          }
+        }
+      ],
+      "majority_verdict": true,
+      "agreement_rate": 1.0
+    },
+    {
+      "file": "hard_bypass_03_xss_replace.py",
+      "language": "Python",
+      "category": "xss",
+      "difficulty": "hard",
+      "expected_present": true,
+      "expected_vulnerability": "XSS：replace 只过滤 <script>，<img onerror> 等向量仍可注入",
+      "expected_cwe": "CWE-79",
+      "runs": [
+        {
+          "run_index": 1,
+          "rag_retrieval": [
+            {
+              "rank": 1,
+              "id": "xss_reflected",
+              "type": "XSS",
+              "cwe": "CWE-79",
+              "distance": 0.4163
+            },
+            {
+              "rank": 2,
+              "id": "xss_safe_pattern",
+              "type": "XSS",
+              "cwe": "CWE-79",
+              "distance": 0.583
+            },
+            {
+              "rank": 3,
+              "id": "xss_dom",
+              "type": "XSS",
+              "cwe": "CWE-79",
+              "distance": 0.6043
+            },
+            {
+              "rank": 4,
+              "id": "xss_context",
+              "type": "XSS",
+              "cwe": "CWE-79",
+              "distance": 0.6194
+            },
+            {
+              "rank": 5,
+              "id": "csrf_token_impl",
+              "type": "CSRF",
+              "cwe": "CWE-352",
+              "distance": 0.6486
+            }
+          ],
+          "rag_context_chars": 1954,
+          "elapsed_seconds": 10.35,
+          "raw_output": "### 分析过程\n\n1. **用户可控输入**：`text = request.args.get(\"text\", \"\")`\n   - 用户可以通过 URL 参数 `text` 控制输入。\n\n2. **处理用户输入**：\n   ```python\n   text = text.replace(\"<script>\", \"\").replace(\"</script>\", \"\")\n   ```\n   - 代码通过替换 `<script>` 和 `</script>` 标签来防止 XSS 攻击。\n\n3. **输出用户输入**：\n   ```python\n   return f\"<html><body><p>{text}</p></body></html>\"\n   ```\n   - 用户输入的文本直接嵌入到 HTML 响应中，未经过任何转义处理。\n\n### 安全模式白名单检查\n\n- 代码使用了 `replace` 方法来移除 `<script>` 标签，这是一种简单的 XSS 防护措施。\n- 但是，这种方法并不全面，因为用户输入的其他潜在危险内容（如 `onerror=\"alert(1)\"`）没有被处理。\n\n### 漏洞判定\n\n- **漏洞类型**：CWE-79 反射型 XSS\n- **污染来源**：`text = request.args.get(\"text\", \"\")`\n- **危险函数或触发点**：`return f\"<html><body><p>{text}</p></body></html>\"`\n- **漏洞说明**：用户输入的 `<script>` 标签被移除，但其他潜在危险内容（如 `onerror=\"alert(1)\"`）没有被处理，因此仍然存在 XSS 风险。\n- **修复建议**：使用模板引擎的自动转义机制或显式调用 `html.escape()` 进行转义。\n\n### JSON 结论\n\n```json\n{\n  \"has_vulnerability\": true,\n  \"vulnerability_type\": \"CWE-79 反射型 XSS\",\n  \"risk_level\": \"Medium\",\n  \"source\": \"text = request.args.get(\\\"text\\\", \\\"\\\")\",\n  \"sink\": \"return f\\\"<html><body><p>{text}</p></body></html>\\\"\",\n  \"explanation\": \"用户输入的 <script> 标签被移除，但其他潜在危险内容（如 onerror=\\\"alert(1)\\\"）没有被处理，因此仍然存在 XSS 风险。\",\n  \"fix_suggestion\": \"使用模板引擎的自动转义机制或显式调用 html.escape() 进行转义。\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-79 反射型 XSS",
+            "risk_level": "Medium",
+            "source": "text = request.args.get(\"text\", \"\")",
+            "sink": "return f\"<html><body><p>{text}</p></body></html>\"",
+            "explanation": "用户输入的 <script> 标签被移除，但其他潜在危险内容（如 onerror=\"alert(1)\"）没有被处理，因此仍然存在 XSS 风险。",
+            "fix_suggestion": "使用模板引擎的自动转义机制或显式调用 html.escape() 进行转义。"
+          },
+          "model_has_vulnerability": true,
+          "error": null,
+          "meta": {
+            "eval_count": 526,
+            "eval_duration_ns": 9632296000,
+            "load_duration_ns": 98609549,
+            "total_duration_ns": 10347702971,
+            "prompt_eval_count": 3247
+          }
+        }
+      ],
+      "majority_verdict": true,
+      "agreement_rate": 1.0
+    },
+    {
+      "file": "hard_bypass_04_path_regex.py",
+      "language": "Python",
+      "category": "path_traversal",
+      "difficulty": "hard",
+      "expected_present": true,
+      "expected_vulnerability": "路径穿越：re.search(r'\\.\\./') 只过滤字面 ../，可被 %2e%2e%2f 或 ..\\ 绕过",
+      "expected_cwe": "CWE-22",
+      "runs": [
+        {
+          "run_index": 1,
+          "rag_retrieval": [
+            {
+              "rank": 1,
+              "id": "pathtraversal_safe_pattern",
+              "type": "路径遍历",
+              "cwe": "CWE-22",
+              "distance": 0.4028
+            },
+            {
+              "rank": 2,
+              "id": "path_safe_pattern_strict",
+              "type": "路径穿越",
+              "cwe": "CWE-22",
+              "distance": 0.418
+            },
+            {
+              "rank": 3,
+              "id": "pathtraversal_encoding",
+              "type": "路径遍历",
+              "cwe": "CWE-22",
+              "distance": 0.502
+            },
+            {
+              "rank": 4,
+              "id": "xss_reflected",
+              "type": "XSS",
+              "cwe": "CWE-79",
+              "distance": 0.6079
+            },
+            {
+              "rank": 5,
+              "id": "cmdi_knowledge",
+              "type": "命令注入",
+              "cwe": "CWE-78",
+              "distance": 0.6162
+            }
+          ],
+          "rag_context_chars": 1964,
+          "elapsed_seconds": 7.99,
+          "raw_output": "### 分析过程\n\n1. **路径穿越防护**：\n   - 代码中存在路径拼接用户输入的情况：`full_path = os.path.join(BASE_DIR, filename)`\n   - 用户可控输入 `filename` 直接拼接到路径中，没有进行规范化和校验。\n   - 没有使用 `os.path.abspath` 和 `startswith` 校验来确保最终路径在允许目录内。\n\n2. **硬编码凭证**：\n   - 代码中没有硬编码敏感信息（如密码、API Key 等）。\n\n3. **SQL 注入防护**：\n   - 代码中没有 SQL 查询操作，因此不存在 SQL 注入风险。\n\n4. **命令注入防护**：\n   - 代码中没有执行系统命令的操作，因此不存在命令注入风险。\n\n5. **XSS 防护**：\n   - 代码中没有用户输入直接反射到 HTML 输出的情况，因此不存在 XSS 风险。\n\n6. **反序列化防护**：\n   - 代码中没有反序列化操作，因此不存在反序列化风险。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-22 路径穿越\",\n    \"risk_level\": \"High\",\n    \"source\": \"filename 参数（用户可控）\",\n    \"sink\": \"os.path.join(BASE_DIR, filename)\",\n    \"explanation\": \"用户输入的文件名直接拼接到路径中，没有进行规范化和校验，存在路径穿越风险。\",\n    \"fix_suggestion\": \"使用 os.path.abspath 和 startswith 校验来确保最终路径在允许目录内。例如：base = os.path.abspath(BASE_DIR); full_path = os.path.abspath(os.path.join(base, filename)); if not full_path.startswith(base + os.sep): abort(403)\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-22 路径穿越",
+            "risk_level": "High",
+            "source": "filename 参数（用户可控）",
+            "sink": "os.path.join(BASE_DIR, filename)",
+            "explanation": "用户输入的文件名直接拼接到路径中，没有进行规范化和校验，存在路径穿越风险。",
+            "fix_suggestion": "使用 os.path.abspath 和 startswith 校验来确保最终路径在允许目录内。例如：base = os.path.abspath(BASE_DIR); full_path = os.path.abspath(os.path.join(base, filename)); if not full_path.startswith(base + os.sep): abort(403)"
+          },
+          "model_has_vulnerability": true,
+          "error": null,
+          "meta": {
+            "eval_count": 397,
+            "eval_duration_ns": 7259986000,
+            "load_duration_ns": 98836166,
+            "total_duration_ns": 7985134144,
+            "prompt_eval_count": 3282
+          }
+        }
+      ],
+      "majority_verdict": true,
+      "agreement_rate": 1.0
+    },
+    {
+      "file": "hard_crossfile_01_input.py",
+      "language": "Python",
+      "category": "cross_file_helper",
+      "difficulty": "hard",
+      "expected_present": false,
+      "expected_vulnerability": "无（单独看输入层文件，无 sink；本文件是配套 sink 文件的输入助手）",
+      "expected_cwe": "N/A",
+      "runs": [
+        {
+          "run_index": 1,
+          "rag_retrieval": [
+            {
+              "rank": 1,
+              "id": "xss_safe_pattern",
+              "type": "XSS",
+              "cwe": "CWE-79",
+              "distance": 0.5665
+            },
+            {
+              "rank": 2,
+              "id": "sqli_safe_pattern",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.5795
+            },
+            {
+              "rank": 3,
+              "id": "csrf_token_impl",
+              "type": "CSRF",
+              "cwe": "CWE-352",
+              "distance": 0.6225
+            },
+            {
+              "rank": 4,
+              "id": "idor_safe_pattern",
+              "type": "不安全的直接对象引用",
+              "cwe": "CWE-639",
+              "distance": 0.6321
+            },
+            {
+              "rank": 5,
+              "id": "sqli_dangerous_api",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.634
+            }
+          ],
+          "rag_context_chars": 2449,
+          "elapsed_seconds": 6.71,
+          "raw_output": "### 分析过程\n\n1. **函数 `get_user_input`**:\n   - 该函数从请求中获取用户输入的参数值。\n   - 用户可控输入点：`request.args.get(param, default)`\n   - 危险函数或触发点：`N/A`\n   - 漏洞分析：\n     - 该函数本身不涉及 SQL 注入、命令注入、路径穿越等风险。\n     - 该函数也不涉及 XSS，因为用户输入没有直接进入 HTML 输出。\n\n2. **函数 `get_post_data`**:\n   - 该函数从请求中获取表单数据。\n   - 用户可控输入点：`request.form.get(field, \"\")`\n   - 危险函数或触发点：`N/A`\n   - 漏洞分析：\n     - 该函数本身不涉及 SQL 注入、命令注入、路径穿越等风险。\n     - 该函数也不涉及 XSS，因为用户输入没有直接进入 HTML 输出。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"该代码片段仅从请求中获取用户输入和表单数据，不涉及 SQL 注入、命令注入、路径穿越等风险。也没有直接将用户输入进入 HTML 输出，因此不存在 XSS 风险。\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": false,
+            "vulnerability_type": "none",
+            "risk_level": "None",
+            "source": "N/A",
+            "sink": "N/A",
+            "explanation": "该代码片段仅从请求中获取用户输入和表单数据，不涉及 SQL 注入、命令注入、路径穿越等风险。也没有直接将用户输入进入 HTML 输出，因此不存在 XSS 风险。",
+            "fix_suggestion": "no fix needed"
+          },
+          "model_has_vulnerability": false,
+          "error": null,
+          "meta": {
+            "eval_count": 323,
+            "eval_duration_ns": 5914582000,
+            "load_duration_ns": 98201403,
+            "total_duration_ns": 6699893379,
+            "prompt_eval_count": 3406
+          }
+        }
+      ],
+      "majority_verdict": false,
+      "agreement_rate": 1.0
+    },
+    {
+      "file": "hard_crossfile_01_sink.py",
+      "language": "Python",
+      "category": "sql_injection",
+      "difficulty": "hard",
+      "expected_present": true,
+      "expected_vulnerability": "SQL 注入：跨文件调用 get_user_input() 返回未过滤输入，直接拼接 SQL",
+      "expected_cwe": "CWE-89",
+      "runs": [
+        {
+          "run_index": 1,
+          "rag_retrieval": [
+            {
+              "rank": 1,
+              "id": "sqli_knowledge",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.4156
+            },
+            {
+              "rank": 2,
+              "id": "sqli_safe_pattern",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.4212
+            },
+            {
+              "rank": 3,
+              "id": "sqli_dangerous_api",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.4308
+            },
+            {
+              "rank": 4,
+              "id": "sqli_bypass_filter",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.5407
+            },
+            {
+              "rank": 5,
+              "id": "sqli_orm_misuse",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.5857
+            }
+          ],
+          "rag_context_chars": 2090,
+          "elapsed_seconds": 8.8,
+          "raw_output": "### 分析过程\n\n1. **识别用户可控输入**：\n   - 代码中存在两个用户可控输入：`username` 和 `password`。\n\n2. **检查 SQL 查询构造**：\n   - SQL 查询语句为：`cursor.execute(\"SELECT * FROM users WHERE name='\" + username + \"' AND pass='\" + password + \"'\")`\n   - 这是一个典型的字符串拼接 SQL 语句，用户输入直接拼接到 SQL 字符串中。\n\n3. **判断是否存在安全漏洞**：\n   - 根据知识 1 和知识 3，这种字符串拼接的 SQL 查询存在 SQL 注入风险。\n   - 用户输入 `username` 和 `password` 可以被攻击者利用来注入恶意 SQL 语句。\n\n4. **检查是否命中安全模式白名单**：\n   - 代码没有使用参数化查询（如 `cursor.execute(\"SELECT * FROM users WHERE name = ? AND pass = ?\", (username, password))`）。\n   - 因此，代码未命中安全模式白名单中的任何一项。\n\n5. **总结漏洞信息**：\n   - 漏洞类型：SQL注入（CWE-89）\n   - 污染来源：用户可控输入 `username` 和 `password`\n   - 危险函数或触发点：`cursor.execute()`\n   - 修复建议：使用参数化查询\n\n### JSON 结论\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-89 SQL注入\",\n    \"risk_level\": \"High\",\n    \"source\": \"username, password 参数（用户可控）\",\n    \"sink\": \"cursor.execute() 拼接字符串\",\n    \"explanation\": \"SQL 查询语句中直接拼接了用户输入，存在 SQL 注入风险。攻击者可以通过注入恶意 SQL 语句来操纵数据库查询。\",\n    \"fix_suggestion\": \"使用参数化查询，如 cursor.execute('SELECT * FROM users WHERE name = ? AND pass = ?', (username, password))\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-89 SQL注入",
+            "risk_level": "High",
+            "source": "username, password 参数（用户可控）",
+            "sink": "cursor.execute() 拼接字符串",
+            "explanation": "SQL 查询语句中直接拼接了用户输入，存在 SQL 注入风险。攻击者可以通过注入恶意 SQL 语句来操纵数据库查询。",
+            "fix_suggestion": "使用参数化查询，如 cursor.execute('SELECT * FROM users WHERE name = ? AND pass = ?', (username, password))"
+          },
+          "model_has_vulnerability": true,
+          "error": null,
+          "meta": {
+            "eval_count": 437,
+            "eval_duration_ns": 8011464000,
+            "load_duration_ns": 98451100,
+            "total_duration_ns": 8796650557,
+            "prompt_eval_count": 3351
+          }
+        }
+      ],
+      "majority_verdict": true,
+      "agreement_rate": 1.0
+    },
+    {
+      "file": "hard_crossfile_02_input.py",
+      "language": "Python",
+      "category": "cross_file_helper",
+      "difficulty": "hard",
+      "expected_present": false,
+      "expected_vulnerability": "无（单独看 helper 文件，无外部 source；本文件是配套 sink 的工具函数）",
+      "expected_cwe": "N/A",
+      "runs": [
+        {
+          "run_index": 1,
+          "rag_retrieval": [
+            {
+              "rank": 1,
+              "id": "path_safe_pattern_strict",
+              "type": "路径穿越",
+              "cwe": "CWE-22",
+              "distance": 0.3845
+            },
+            {
+              "rank": 2,
+              "id": "pathtraversal_safe_pattern",
+              "type": "路径遍历",
+              "cwe": "CWE-22",
+              "distance": 0.4119
+            },
+            {
+              "rank": 3,
+              "id": "cmdi_knowledge",
+              "type": "命令注入",
+              "cwe": "CWE-78",
+              "distance": 0.5425
+            },
+            {
+              "rank": 4,
+              "id": "pathtraversal_encoding",
+              "type": "路径遍历",
+              "cwe": "CWE-22",
+              "distance": 0.5883
+            },
+            {
+              "rank": 5,
+              "id": "cmdi_shell_true",
+              "type": "命令注入",
+              "cwe": "CWE-78",
+              "distance": 0.6315
+            }
+          ],
+          "rag_context_chars": 1951,
+          "elapsed_seconds": 7.08,
+          "raw_output": "### 分析过程\n\n1. **路径穿越防护**：\n   - 代码中使用了 `os.path.join(base_dir, filename)` 来构建文件路径。\n   - 然而，代码没有对最终的文件路径进行规范化处理（如使用 `os.path.abspath`）和校验（如使用 `startswith`），这可能导致路径穿越漏洞。\n\n2. **硬编码凭证**：\n   - 代码中没有出现硬编码凭证的情况。\n\n3. **SQL 注入防护**：\n   - 代码中没有涉及 SQL 查询，因此不存在 SQL 注入风险。\n\n4. **命令注入防护**：\n   - 代码中没有涉及命令执行，因此不存在命令注入风险。\n\n5. **XSS 防护**：\n   - 代码中没有涉及用户输入的 HTML 输出，因此不存在 XSS 风险。\n\n6. **反序列化防护**：\n   - 代码中没有涉及反序列化操作，因此不存在反序列化风险。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-22 路径穿越\",\n    \"risk_level\": \"Medium\",\n    \"source\": \"filename 参数（用户可控）\",\n    \"sink\": \"open(filepath, 'r') 拼接路径\",\n    \"explanation\": \"代码中没有对最终的文件路径进行规范化处理和校验，存在路径穿越漏洞。\",\n    \"fix_suggestion\": \"使用 os.path.abspath 规范化路径并解析 .. 序列，然后使用 startswith 校验确保最终路径在允许目录内。\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-22 路径穿越",
+            "risk_level": "Medium",
+            "source": "filename 参数（用户可控）",
+            "sink": "open(filepath, 'r') 拼接路径",
+            "explanation": "代码中没有对最终的文件路径进行规范化处理和校验，存在路径穿越漏洞。",
+            "fix_suggestion": "使用 os.path.abspath 规范化路径并解析 .. 序列，然后使用 startswith 校验确保最终路径在允许目录内。"
+          },
+          "model_has_vulnerability": true,
+          "error": null,
+          "meta": {
+            "eval_count": 349,
+            "eval_duration_ns": 6361564000,
+            "load_duration_ns": 98151053,
+            "total_duration_ns": 7069535393,
+            "prompt_eval_count": 3231
+          }
+        }
+      ],
+      "majority_verdict": true,
+      "agreement_rate": 1.0
+    },
+    {
+      "file": "hard_crossfile_02_sink.py",
+      "language": "Python",
+      "category": "path_traversal",
+      "difficulty": "hard",
+      "expected_present": true,
+      "expected_vulnerability": "路径穿越：跨文件调用 safe_read_file()，filename 含 ../ 可逃逸 BASE_DIR",
+      "expected_cwe": "CWE-22",
+      "runs": [
+        {
+          "run_index": 1,
+          "rag_retrieval": [
+            {
+              "rank": 1,
+              "id": "path_safe_pattern_strict",
+              "type": "路径穿越",
+              "cwe": "CWE-22",
+              "distance": 0.4226
+            },
+            {
+              "rank": 2,
+              "id": "pathtraversal_safe_pattern",
+              "type": "路径遍历",
+              "cwe": "CWE-22",
+              "distance": 0.4805
+            },
+            {
+              "rank": 3,
+              "id": "pathtraversal_encoding",
+              "type": "路径遍历",
+              "cwe": "CWE-22",
+              "distance": 0.5711
+            },
+            {
+              "rank": 4,
+              "id": "xss_reflected",
+              "type": "XSS",
+              "cwe": "CWE-79",
+              "distance": 0.6083
+            },
+            {
+              "rank": 5,
+              "id": "cmdi_knowledge",
+              "type": "命令注入",
+              "cwe": "CWE-78",
+              "distance": 0.64
+            }
+          ],
+          "rag_context_chars": 1964,
+          "elapsed_seconds": 7.17,
+          "raw_output": "### 分析过程\n\n1. **路径穿越防护**：\n   - 代码中存在路径拼接用户输入的情况：`full_path = BASE_DIR + filename`\n   - `BASE_DIR` 是一个固定的目录路径 `/var/www/files`。\n   - 用户可控输入是 `filename`，它直接与 `BASE_DIR` 拼接形成最终的文件路径。\n\n2. **安全模式白名单检查**：\n   - 代码没有使用 `os.path.abspath` 和 `startswith` 校验来确保最终路径在允许目录内。\n   - 也没有使用白名单文件名集合或 `werkzeug.utils.secure_filename` 来校验文件名。\n\n3. **漏洞判定**：\n   - 用户输入 `filename` 直接与固定目录拼接，存在路径穿越的风险。\n   - 如果用户输入包含 `../` 等路径遍历字符，可能会导致访问到服务器上的其他文件或目录。\n\n### JSON 结论\n\n```json\n{\n  \"has_vulnerability\": true,\n  \"vulnerability_type\": \"CWE-22 路径穿越\",\n  \"risk_level\": \"High\",\n  \"source\": \"filename 参数（用户可控）\",\n  \"sink\": \"open(full_path)\",\n  \"explanation\": \"用户输入的 filename 直接与固定目录拼接，存在路径穿越的风险。攻击者可以通过输入如 '../' 等字符绕过限制，访问到服务器上的其他文件或目录。\",\n  \"fix_suggestion\": \"使用 os.path.abspath 和 startswith 校验来确保最终路径在允许目录内，或者使用白名单文件名集合进行校验。\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-22 路径穿越",
+            "risk_level": "High",
+            "source": "filename 参数（用户可控）",
+            "sink": "open(full_path)",
+            "explanation": "用户输入的 filename 直接与固定目录拼接，存在路径穿越的风险。攻击者可以通过输入如 '../' 等字符绕过限制，访问到服务器上的其他文件或目录。",
+            "fix_suggestion": "使用 os.path.abspath 和 startswith 校验来确保最终路径在允许目录内，或者使用白名单文件名集合进行校验。"
+          },
+          "model_has_vulnerability": true,
+          "error": null,
+          "meta": {
+            "eval_count": 353,
+            "eval_duration_ns": 6442906000,
+            "load_duration_ns": 99082595,
+            "total_duration_ns": 7163366294,
+            "prompt_eval_count": 3247
+          }
+        }
+      ],
+      "majority_verdict": true,
+      "agreement_rate": 1.0
+    },
+    {
+      "file": "hard_cve_01_samba_2017_7494.py",
+      "language": "Python",
+      "category": "command_injection",
+      "difficulty": "hard",
+      "expected_present": true,
+      "expected_vulnerability": "命令注入（CVE-2017-7494 风格）：用户可控路径直接拼接到 os.system 命令",
+      "expected_cwe": "CWE-78",
+      "runs": [
+        {
+          "run_index": 1,
+          "rag_retrieval": [
+            {
+              "rank": 1,
+              "id": "path_safe_pattern_strict",
+              "type": "路径穿越",
+              "cwe": "CWE-22",
+              "distance": 0.5335
+            },
+            {
+              "rank": 2,
+              "id": "pathtraversal_safe_pattern",
+              "type": "路径遍历",
+              "cwe": "CWE-22",
+              "distance": 0.6613
+            },
+            {
+              "rank": 3,
+              "id": "cmdi_knowledge",
+              "type": "命令注入",
+              "cwe": "CWE-78",
+              "distance": 0.6691
+            },
+            {
+              "rank": 4,
+              "id": "deser_pickle",
+              "type": "不安全的反序列化",
+              "cwe": "CWE-502",
+              "distance": 0.7407
+            },
+            {
+              "rank": 5,
+              "id": "cmdi_shell_true",
+              "type": "命令注入",
+              "cwe": "CWE-78",
+              "distance": 0.7466
+            }
+          ],
+          "rag_context_chars": 2040,
+          "elapsed_seconds": 7.13,
+          "raw_output": "### 分析过程\n\n1. **路径穿越防护**：\n   - 代码中存在用户可控输入 `module_path`，并且直接用于构建路径并调用 `os.system`。\n   - 路径拼接：`full_path = '/app/data/' + module_path`\n   - 没有使用 `os.path.abspath` 和 `startswith` 校验来确保路径在允许目录内。\n\n2. **命令注入防护**：\n   - 代码中使用了 `os.system(f\"ldconfig -n {os.path.dirname(module_path)}\")`，其中 `module_path` 是用户可控输入。\n   - 没有使用参数列表传递给 `subprocess.run` 或其他安全的命令执行方式。\n\n3. **硬编码凭证**：\n   - 代码中没有硬编码凭证。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-22 路径穿越\",\n    \"risk_level\": \"High\",\n    \"source\": \"module_path 参数（用户可控）\",\n    \"sink\": \"os.system(f'ldconfig -n {os.path.dirname(module_path)}')\",\n    \"explanation\": \"代码中直接拼接用户输入到路径，并调用 os.system 执行命令，存在路径穿越漏洞。攻击者可以通过构造特定的 module_path 来读取或写入任意文件。\",\n    \"fix_suggestion\": \"使用 os.path.abspath 和 startswith 校验来确保路径在允许目录内；避免直接拼接命令，使用参数列表传递给 subprocess.run 或其他安全的命令执行方式。\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-22 路径穿越",
+            "risk_level": "High",
+            "source": "module_path 参数（用户可控）",
+            "sink": "os.system(f'ldconfig -n {os.path.dirname(module_path)}')",
+            "explanation": "代码中直接拼接用户输入到路径，并调用 os.system 执行命令，存在路径穿越漏洞。攻击者可以通过构造特定的 module_path 来读取或写入任意文件。",
+            "fix_suggestion": "使用 os.path.abspath 和 startswith 校验来确保路径在允许目录内；避免直接拼接命令，使用参数列表传递给 subprocess.run 或其他安全的命令执行方式。"
+          },
+          "model_has_vulnerability": true,
+          "error": null,
+          "meta": {
+            "eval_count": 351,
+            "eval_duration_ns": 6411231000,
+            "load_duration_ns": 97467859,
+            "total_duration_ns": 7120636642,
+            "prompt_eval_count": 3266
+          }
+        }
+      ],
+      "majority_verdict": true,
+      "agreement_rate": 1.0
+    },
+    {
+      "file": "hard_cve_02_log4j_2021_44228.py",
+      "language": "Python",
+      "category": "log_injection",
+      "difficulty": "hard",
+      "expected_present": true,
+      "expected_vulnerability": "日志注入（CVE-2021-44228 风格）：用户输入写入日志，可触发 JNDI/换行注入",
+      "expected_cwe": "CWE-117",
+      "runs": [
+        {
+          "run_index": 1,
+          "rag_retrieval": [
+            {
+              "rank": 1,
+              "id": "idor_safe_pattern",
+              "type": "不安全的直接对象引用",
+              "cwe": "CWE-639",
+              "distance": 0.5983
+            },
+            {
+              "rank": 2,
+              "id": "sqli_safe_pattern",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.6034
+            },
+            {
+              "rank": 3,
+              "id": "csrf_token_impl",
+              "type": "CSRF",
+              "cwe": "CWE-352",
+              "distance": 0.6337
+            },
+            {
+              "rank": 4,
+              "id": "cmdi_shell_true",
+              "type": "命令注入",
+              "cwe": "CWE-78",
+              "distance": 0.6543
+            },
+            {
+              "rank": 5,
+              "id": "auth_failure",
+              "type": "认证失效",
+              "cwe": "CWE-287",
+              "distance": 0.6654
+            }
+          ],
+          "rag_context_chars": 2220,
+          "elapsed_seconds": 7.28,
+          "raw_output": "### 分析过程\n\n1. **用户可控输入**：\n   - `username` 是从 `request.args.get(\"username\", \"\")` 获取的，属于用户可控输入。\n\n2. **日志记录**：\n   - 日志记录使用了 `logger.info(f\"Login attempt from user: {username}\")`。\n   - 这里直接将用户输入的 `username` 插入到日志字符串中，没有进行任何转义或处理。\n\n3. **安全模式白名单检查**：\n   - 代码没有使用参数化查询、ORM 查询构造器等安全写法。\n   - 日志记录中的字符串拼接方式是直接将用户输入插入到字符串中，存在 SQL 注入的风险。\n\n4. **漏洞判定**：\n   - 根据安全模式白名单，日志记录中的字符串拼接属于不安全的写法。\n   - 由于 `username` 是用户可控输入，并且没有进行任何转义或处理，直接插入到日志字符串中，存在 SQL 注入的风险。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-89 SQL注入\",\n    \"risk_level\": \"High\",\n    \"source\": \"username 参数（用户可控）\",\n    \"sink\": \"logger.info() 拼接字符串\",\n    \"explanation\": \"日志记录中的字符串拼接方式直接将用户输入插入到日志字符串中，存在 SQL 注入的风险。\",\n    \"fix_suggestion\": \"使用参数化查询或 ORM 查询构造器来处理用户输入。例如：logger.info(f'Login attempt from user: {username!r}')\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-89 SQL注入",
+            "risk_level": "High",
+            "source": "username 参数（用户可控）",
+            "sink": "logger.info() 拼接字符串",
+            "explanation": "日志记录中的字符串拼接方式直接将用户输入插入到日志字符串中，存在 SQL 注入的风险。",
+            "fix_suggestion": "使用参数化查询或 ORM 查询构造器来处理用户输入。例如：logger.info(f'Login attempt from user: {username!r}')"
+          },
+          "model_has_vulnerability": true,
+          "error": null,
+          "meta": {
+            "eval_count": 358,
+            "eval_duration_ns": 6554146000,
+            "load_duration_ns": 96715726,
+            "total_duration_ns": 7272789688,
+            "prompt_eval_count": 3344
+          }
+        }
+      ],
+      "majority_verdict": true,
+      "agreement_rate": 1.0
+    },
+    {
+      "file": "hard_cve_03_tarfile_2025_4517.py",
+      "language": "Python",
+      "category": "path_traversal",
+      "difficulty": "hard",
+      "expected_present": true,
+      "expected_vulnerability": "路径穿越（CVE-2025-4517 风格）：tarfile.extractall(filter='data') 仍可被恶意 tar 路径绕过",
+      "expected_cwe": "CWE-22",
+      "runs": [
+        {
+          "run_index": 1,
+          "rag_retrieval": [
+            {
+              "rank": 1,
+              "id": "path_safe_pattern_strict",
+              "type": "路径穿越",
+              "cwe": "CWE-22",
+              "distance": 0.4916
+            },
+            {
+              "rank": 2,
+              "id": "pathtraversal_safe_pattern",
+              "type": "路径遍历",
+              "cwe": "CWE-22",
+              "distance": 0.5675
+            },
+            {
+              "rank": 3,
+              "id": "xss_reflected",
+              "type": "XSS",
+              "cwe": "CWE-79",
+              "distance": 0.6282
+            },
+            {
+              "rank": 4,
+              "id": "deser_pickle",
+              "type": "不安全的反序列化",
+              "cwe": "CWE-502",
+              "distance": 0.6331
+            },
+            {
+              "rank": 5,
+              "id": "pathtraversal_encoding",
+              "type": "路径遍历",
+              "cwe": "CWE-22",
+              "distance": 0.6708
+            }
+          ],
+          "rag_context_chars": 2181,
+          "elapsed_seconds": 9.24,
+          "raw_output": "### 分析过程\n\n1. **路径穿越防护**：\n   - 代码中存在文件上传并解压的操作：`tar.extractall(path=\"safe_folder\", filter=\"data\")`\n   - 用户可控输入是通过 `request.get_data()` 获取的，然后写入到 `/tmp/upload.tar` 文件中。\n   - 解压操作使用了 `filter=\"data\"` 参数，但没有对文件路径进行严格的校验。\n\n2. **安全模式白名单**：\n   - 代码中没有使用参数化查询、ORM 查询构造器等安全写法。\n   - 没有使用命令注入防护的列表参数或 shell=False。\n   - 没有使用 XSS 防护的 HTML 自动转义或显式调用 `html.escape()`。\n   - 没有使用反序列化防护的 `json.loads` 替代 `pickle.loads`。\n\n3. **硬编码凭证**：\n   - 代码中没有硬编码敏感信息（如密码、API Key 等）。\n\n### 结论\n\n根据上述分析，代码存在路径穿越漏洞。用户可控输入直接用于文件解压操作，但没有进行严格的路径校验，可能导致攻击者通过构造特定的文件名来覆盖或访问任意文件。\n\n```json\n{\n  \"has_vulnerability\": true,\n  \"vulnerability_type\": \"CWE-22 路径穿越\",\n  \"risk_level\": \"High\",\n  \"source\": \"request.get_data()\",\n  \"sink\": \"tar.extractall(path='safe_folder', filter='data')\",\n  \"explanation\": \"用户可控输入直接用于文件解压操作，但没有进行严格的路径校验，可能导致攻击者通过构造特定的文件名来覆盖或访问任意文件。\",\n  \"fix_suggestion\": \"使用 abspath 规范化路径并解析 .. 序列，然后用 startswith 校验确保最终路径在允许目录内。例如：\\nbase = os.path.abspath('/safe_folder/')\\nfull_path = os.path.abspath(os.path.join(base, filename))\\nif not full_path.startswith(base + os.sep):\\n    abort(403)\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-22 路径穿越",
+            "risk_level": "High",
+            "source": "request.get_data()",
+            "sink": "tar.extractall(path='safe_folder', filter='data')",
+            "explanation": "用户可控输入直接用于文件解压操作，但没有进行严格的路径校验，可能导致攻击者通过构造特定的文件名来覆盖或访问任意文件。",
+            "fix_suggestion": "使用 abspath 规范化路径并解析 .. 序列，然后用 startswith 校验确保最终路径在允许目录内。例如：\nbase = os.path.abspath('/safe_folder/')\nfull_path = os.path.abspath(os.path.join(base, filename))\nif not full_path.startswith(base + os.sep):\n    abort(403)"
+          },
+          "model_has_vulnerability": true,
+          "error": null,
+          "meta": {
+            "eval_count": 462,
+            "eval_duration_ns": 8475973000,
+            "load_duration_ns": 98418920,
+            "total_duration_ns": 9233273397,
+            "prompt_eval_count": 3350
+          }
+        }
+      ],
+      "majority_verdict": true,
+      "agreement_rate": 1.0
+    },
+    {
+      "file": "hard_cve_04_ssrf_2025_54381.py",
+      "language": "Python",
+      "category": "ssrf",
+      "difficulty": "hard",
+      "expected_present": true,
+      "expected_vulnerability": "SSRF（CVE-2025-54381 风格）：用户提供的 file_url 直接被服务端 urlopen",
+      "expected_cwe": "CWE-918",
+      "runs": [
+        {
+          "run_index": 1,
+          "rag_retrieval": [
+            {
+              "rank": 1,
+              "id": "pathtraversal_safe_pattern",
+              "type": "路径遍历",
+              "cwe": "CWE-22",
+              "distance": 0.5991
+            },
+            {
+              "rank": 2,
+              "id": "deser_pickle",
+              "type": "不安全的反序列化",
+              "cwe": "CWE-502",
+              "distance": 0.6181
+            },
+            {
+              "rank": 3,
+              "id": "csrf_token_impl",
+              "type": "CSRF",
+              "cwe": "CWE-352",
+              "distance": 0.6275
+            },
+            {
+              "rank": 4,
+              "id": "xss_reflected",
+              "type": "XSS",
+              "cwe": "CWE-79",
+              "distance": 0.6333
+            },
+            {
+              "rank": 5,
+              "id": "deser_safe_pattern",
+              "type": "不安全的反序列化",
+              "cwe": "CWE-502",
+              "distance": 0.6463
+            }
+          ],
+          "rag_context_chars": 1968,
+          "elapsed_seconds": 8.36,
+          "raw_output": "### 分析过程\n\n1. **路径穿越防护**：\n   - 代码中没有涉及文件操作（如 `open`、`read`、`write` 等），因此不存在路径穿越的风险。\n\n2. **SQL 注入防护**：\n   - 代码中没有 SQL 查询，因此不存在 SQL 注入的风险。\n\n3. **命令注入防护**：\n   - 代码中没有执行外部命令的操作（如 `subprocess.run` 或 `os.system`），因此不存在命令注入的风险。\n\n4. **XSS 防护**：\n   - 代码中没有将用户输入直接反射到 HTML 响应中，因此不存在跨站脚本攻击（XSS）的风险。\n\n5. **反序列化防护**：\n   - 代码中使用了 `pickle.loads` 来反序列化数据。根据知识 2 和知识 5，`pickle.loads` 是不安全的，因为它可以通过 `__reduce__` 方法执行任意代码。\n   - 代码没有对反序列化的数据进行任何签名校验或使用安全模式（如 `json.loads` 或 `yaml.safe_load`），因此存在反序列化漏洞。\n\n6. **CSRF 防护**：\n   - 代码中没有涉及表单提交或敏感操作，因此不存在跨站请求伪造（CSRF）的风险。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-502 不安全的反序列化\",\n    \"risk_level\": \"High\",\n    \"source\": \"request.get_json(force=True, silent=True) or {}\",\n    \"sink\": \"pickle.loads(base64.b64decode(data))\",\n    \"explanation\": \"代码使用 pickle.loads 反序列化用户输入的数据，存在任意代码执行的风险。\",\n    \"fix_suggestion\": \"使用 json.loads 替代 pickle.loads，并对反序列化的数据进行签名校验。\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-502 不安全的反序列化",
+            "risk_level": "High",
+            "source": "request.get_json(force=True, silent=True) or {}",
+            "sink": "pickle.loads(base64.b64decode(data))",
+            "explanation": "代码使用 pickle.loads 反序列化用户输入的数据，存在任意代码执行的风险。",
+            "fix_suggestion": "使用 json.loads 替代 pickle.loads，并对反序列化的数据进行签名校验。"
+          },
+          "model_has_vulnerability": true,
+          "error": null,
+          "meta": {
+            "eval_count": 417,
+            "eval_duration_ns": 7628693000,
+            "load_duration_ns": 97853186,
+            "total_duration_ns": 8352909315,
+            "prompt_eval_count": 3266
+          }
+        }
+      ],
+      "majority_verdict": true,
+      "agreement_rate": 1.0
+    },
+    {
+      "file": "hard_longfile_01_hidden_sql.py",
+      "language": "Python",
+      "category": "sql_injection",
+      "difficulty": "hard",
+      "expected_present": true,
+      "expected_vulnerability": "SQL 注入（隐藏在长文件中）：StatsService.export_report 用字符串拼接表名",
+      "expected_cwe": "CWE-89",
+      "runs": [
+        {
+          "run_index": 1,
+          "rag_retrieval": [
+            {
+              "rank": 1,
+              "id": "logging_insufficient",
+              "type": "日志监控不足",
+              "cwe": "CWE-778",
+              "distance": 0.5663
+            },
+            {
+              "rank": 2,
+              "id": "sqli_knowledge",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.5873
+            },
+            {
+              "rank": 3,
+              "id": "deserialization_knowledge",
+              "type": "不安全的反序列化",
+              "cwe": "CWE-502",
+              "distance": 0.5874
+            },
+            {
+              "rank": 4,
+              "id": "sensitivedata_error",
+              "type": "敏感数据泄露",
+              "cwe": "CWE-209",
+              "distance": 0.5916
+            },
+            {
+              "rank": 5,
+              "id": "sqli_second_order",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.5926
+            }
+          ],
+          "rag_context_chars": 1112,
+          "elapsed_seconds": 11.69,
+          "raw_output": "### 分析过程\n\n1. **全局配置**：\n   - `DB_PATH` 是硬编码的数据库路径，属于敏感信息。\n\n2. **工具函数**：\n   - `hash_password` 和 `verify_password` 函数用于密码哈希和验证，使用了安全的算法。\n   - `now_iso` 函数返回当前时间的 ISO 格式字符串。\n   - `format_user_row` 函数将数据库行格式化为字典。\n\n3. **会话管理**：\n   - `SessionStore` 类用于管理用户会话，使用了哈希值作为令牌，并设置了过期时间。\n\n4. **输入校验**：\n   - `validate_username`、`validate_email` 和 `validate_role` 函数用于验证用户输入的合法性。\n   - `has_role` 函数用于检查角色权限。\n\n5. **用户仓储层**：\n   - `UserRepository` 类提供了对用户的 CRUD 操作，所有查询都使用了参数化查询（如 `cur.execute(\"SELECT * FROM users WHERE username = ?\", (username,))`）。\n\n6. **通知服务**：\n   - `NotificationService` 类用于发送通知和管理通知记录，所有查询都使用了参数化查询。\n\n7. **审计日志**：\n   - `AuditLog` 类用于记录审计日志，所有查询都使用了参数化查询。\n\n8. **主服务**：\n   - `UserService` 类提供了用户注册、登录、注销等操作，所有数据库操作都使用了参数化查询。\n\n9. **统计 / 报表层**：\n   - `StatsService` 类提供了统计数据和报表导出功能。需要注意的是，`export_report` 方法中的 `table` 参数直接拼接到了 SQL 查询中，存在 SQL 注入风险。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-89 SQL注入\",\n    \"risk_level\": \"High\",\n    \"source\": \"export_report 方法中的 table 参数\",\n    \"sink\": \"cur.execute(query)\",\n    \"explanation\": \"table 参数直接拼接到了 SQL 查询中，存在 SQL 注入风险。攻击者可以通过构造恶意的 table 值来执行任意 SQL 语句。\",\n    \"fix_suggestion\": \"使用参数化查询或 ORM 构造器来处理动态表名，避免直接拼接用户输入。\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-89 SQL注入",
+            "risk_level": "High",
+            "source": "export_report 方法中的 table 参数",
+            "sink": "cur.execute(query)",
+            "explanation": "table 参数直接拼接到了 SQL 查询中，存在 SQL 注入风险。攻击者可以通过构造恶意的 table 值来执行任意 SQL 语句。",
+            "fix_suggestion": "使用参数化查询或 ORM 构造器来处理动态表名，避免直接拼接用户输入。"
+          },
+          "model_has_vulnerability": true,
+          "error": null,
+          "meta": {
+            "eval_count": 513,
+            "eval_duration_ns": 9764920000,
+            "load_duration_ns": 98600999,
+            "total_duration_ns": 11677218496,
+            "prompt_eval_count": 5534
+          }
+        }
+      ],
+      "majority_verdict": true,
+      "agreement_rate": 1.0
+    },
+    {
+      "file": "hard_owasp_01_file_upload.py",
+      "language": "Python",
+      "category": "unrestricted_upload",
+      "difficulty": "hard",
+      "expected_present": true,
+      "expected_vulnerability": "任意文件上传（OWASP/DVWA 风格）：用户提供的 filename 直接用作保存路径，可上传 .py/.php 等",
+      "expected_cwe": "CWE-434",
+      "runs": [
+        {
+          "run_index": 1,
+          "rag_retrieval": [
+            {
+              "rank": 1,
+              "id": "path_safe_pattern_strict",
+              "type": "路径穿越",
+              "cwe": "CWE-22",
+              "distance": 0.4698
+            },
+            {
+              "rank": 2,
+              "id": "pathtraversal_safe_pattern",
+              "type": "路径遍历",
+              "cwe": "CWE-22",
+              "distance": 0.5029
+            },
+            {
+              "rank": 3,
+              "id": "csrf_token_impl",
+              "type": "CSRF",
+              "cwe": "CWE-352",
+              "distance": 0.6287
+            },
+            {
+              "rank": 4,
+              "id": "pathtraversal_encoding",
+              "type": "路径遍历",
+              "cwe": "CWE-22",
+              "distance": 0.6432
+            },
+            {
+              "rank": 5,
+              "id": "deser_pickle",
+              "type": "不安全的反序列化",
+              "cwe": "CWE-502",
+              "distance": 0.6458
+            }
+          ],
+          "rag_context_chars": 2175,
+          "elapsed_seconds": 7.9,
+          "raw_output": "### 分析过程\n\n1. **路径穿越防护**：\n   - 代码中存在文件上传功能，用户可以上传文件并指定文件名。\n   - 文件保存路径为 `/var/www/uploads`，用户输入的文件名直接拼接到路径中：`target = os.path.join(UPLOAD_DIR, filename)`\n   - 这种写法存在路径穿越漏洞。攻击者可以通过在文件名中使用 `../` 来覆盖上传目录，从而访问或删除其他文件。\n\n2. **安全模式白名单**：\n   - 代码没有使用 `os.path.abspath + startswith` 校验来确保文件路径在允许的目录内。\n   - 也没有使用白名单文件名集合来限制文件类型。\n   - 因此，代码不符合路径穿越防护的安全模式白名单。\n\n3. **其他安全漏洞**：\n   - 代码没有涉及 SQL 注入、命令注入、XSS 或反序列化等其他常见安全问题。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-22 路径穿越\",\n    \"risk_level\": \"High\",\n    \"source\": \"filename 参数（用户可控）\",\n    \"sink\": \"os.path.join(UPLOAD_DIR, filename)\",\n    \"explanation\": \"用户输入的文件名直接拼接到路径中，存在路径穿越漏洞。攻击者可以通过在文件名中使用 ../ 来覆盖上传目录。\",\n    \"fix_suggestion\": \"使用 os.path.abspath + startswith 校验来确保文件路径在允许的目录内，例如：base = os.path.abspath('/var/www/uploads'); full = os.path.abspath(os.path.join(base, filename)); if not full.startswith(base + os.sep): abort(403)\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-22 路径穿越",
+            "risk_level": "High",
+            "source": "filename 参数（用户可控）",
+            "sink": "os.path.join(UPLOAD_DIR, filename)",
+            "explanation": "用户输入的文件名直接拼接到路径中，存在路径穿越漏洞。攻击者可以通过在文件名中使用 ../ 来覆盖上传目录。",
+            "fix_suggestion": "使用 os.path.abspath + startswith 校验来确保文件路径在允许的目录内，例如：base = os.path.abspath('/var/www/uploads'); full = os.path.abspath(os.path.join(base, filename)); if not full.startswith(base + os.sep): abort(403)"
+          },
+          "model_has_vulnerability": true,
+          "error": null,
+          "meta": {
+            "eval_count": 380,
+            "eval_duration_ns": 6972900000,
+            "load_duration_ns": 97602338,
+            "total_duration_ns": 7896307379,
+            "prompt_eval_count": 3360
+          }
+        }
+      ],
+      "majority_verdict": true,
+      "agreement_rate": 1.0
+    },
+    {
+      "file": "hard_longfile_02_hidden_cmd.py",
+      "language": "Python",
+      "category": "command_injection",
+      "difficulty": "hard",
+      "expected_present": true,
+      "expected_vulnerability": "命令注入（隐藏在长文件中）：ExportService.backup_to_archive 用 shell=True 拼接 archive_name",
+      "expected_cwe": "CWE-78",
+      "runs": [
+        {
+          "run_index": 1,
+          "rag_retrieval": [
+            {
+              "rank": 1,
+              "id": "sqli_dangerous_api",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.5215
+            },
+            {
+              "rank": 2,
+              "id": "sqli_orm_misuse",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.5346
+            },
+            {
+              "rank": 3,
+              "id": "sqli_safe_pattern",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.5612
+            },
+            {
+              "rank": 4,
+              "id": "sqli_knowledge",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.5645
+            },
+            {
+              "rank": 5,
+              "id": "sqli_bypass_filter",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.5917
+            }
+          ],
+          "rag_context_chars": 2090,
+          "elapsed_seconds": 11.14,
+          "raw_output": "### 分析过程\n\n1. **SQL注入防护**：\n   - 代码中使用了 `sqlite3.connect` 和参数化查询（如 `cur.execute(\"INSERT INTO orders (id, user_id, amount, currency, status, created_at) VALUES (?, ?, ?, ?, 'created', ?)\", (order_id, user_id, amount, currency, now_iso()))`），符合安全模式白名单中的 SQL 注入防护标准。\n\n2. **命令注入防护**：\n   - 代码中存在一个潜在的命令注入漏洞，位于 `ExportService.backup_to_archive` 方法中。该方法调用 `subprocess.run(f\"tar -cf {target} -C {EXPORT_DIR} .\", shell=True, capture_output=True)`，其中 `archive_name` 参数直接拼接到 shell 命令中，未进行任何校验或转义。\n   - 这种写法存在命令注入风险，因为用户可控的输入（`archive_name`）会被解释为 shell 命令的一部分。\n\n3. **路径穿越防护**：\n   - 代码中没有明显的路径穿越漏洞。所有文件操作都使用了 `os.path.join` 和 `os.path.abspath` 进行路径规范化，并进行了必要的校验。\n\n4. **XSS 防护**：\n   - 代码中没有直接的 XSS 漏洞。所有的用户输入在输出时都没有进行适当的转义或处理。\n\n5. **反序列化防护**：\n   - 代码中没有使用 `pickle` 或 `yaml` 进行反序列化操作，因此不存在反序列化漏洞。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-78 命令注入\",\n    \"risk_level\": \"High\",\n    \"source\": \"archive_name 参数（用户可控）\",\n    \"sink\": \"subprocess.run(f\\\"tar -cf {target} -C {EXPORT_DIR} .\\\", shell=True, capture_output=True)\",\n    \"explanation\": \"archive_name 参数直接拼接到 shell 命令中，未进行任何校验或转义，存在命令注入风险。\",\n    \"fix_suggestion\": \"对 archive_name 进行白名单校验或使用列表参数 + shell=False 的 subprocess.run 方法\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-78 命令注入",
+            "risk_level": "High",
+            "source": "archive_name 参数（用户可控）",
+            "sink": "subprocess.run(f\"tar -cf {target} -C {EXPORT_DIR} .\", shell=True, capture_output=True)",
+            "explanation": "archive_name 参数直接拼接到 shell 命令中，未进行任何校验或转义，存在命令注入风险。",
+            "fix_suggestion": "对 archive_name 进行白名单校验或使用列表参数 + shell=False 的 subprocess.run 方法"
+          },
+          "model_has_vulnerability": true,
+          "error": null,
+          "meta": {
+            "eval_count": 491,
+            "eval_duration_ns": 9334599000,
+            "load_duration_ns": 96311189,
+            "total_duration_ns": 11132713236,
+            "prompt_eval_count": 5315
+          }
+        }
+      ],
+      "majority_verdict": true,
+      "agreement_rate": 1.0
+    },
+    {
+      "file": "hard_owasp_02_dvwa_sql.py",
+      "language": "Python",
+      "category": "sql_injection",
+      "difficulty": "hard",
+      "expected_present": true,
+      "expected_vulnerability": "SQL 注入（DVWA 经典风格）：id 直接拼到 f-string 查询，未类型校验/参数化",
+      "expected_cwe": "CWE-89",
+      "runs": [
+        {
+          "run_index": 1,
+          "rag_retrieval": [
+            {
+              "rank": 1,
+              "id": "sqli_knowledge",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.4037
+            },
+            {
+              "rank": 2,
+              "id": "sqli_dangerous_api",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.4176
+            },
+            {
+              "rank": 3,
+              "id": "sqli_safe_pattern",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.4427
+            },
+            {
+              "rank": 4,
+              "id": "sqli_orm_misuse",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.5463
+            },
+            {
+              "rank": 5,
+              "id": "idor_safe_pattern",
+              "type": "不安全的直接对象引用",
+              "cwe": "CWE-639",
+              "distance": 0.5598
+            }
+          ],
+          "rag_context_chars": 2159,
+          "elapsed_seconds": 12.91,
+          "raw_output": "### 分析过程\n\n1. **用户可控输入**：\n   - `id_param` 是从用户请求中获取的参数，用户可以控制。\n\n2. **数据库查询**：\n   - 查询语句是通过字符串拼接的方式构造的：`query = f\"SELECT first_name, last_name FROM users WHERE user_id = {id_param}\"`\n   - 这种方式直接将用户输入 `id_param` 拼接到 SQL 语句中，存在 SQL 注入的风险。\n\n3. **执行查询**：\n   - 使用 `cursor.execute(query)` 执行拼接后的 SQL 语句。\n   - 如果用户输入包含恶意 SQL 代码，将会被执行，导致数据库注入攻击。\n\n4. **输出结果**：\n   - 查询结果通过 HTML 输出，存在 XSS 风险。\n\n### 安全模式白名单检查\n\n- **SQL 注入防护**：代码使用了字符串拼接的方式构造 SQL 语句，不符合安全模式白名单中的参数化查询或 ORM 查询构造器。\n- **命令注入防护**：没有涉及命令执行。\n- **路径穿越防护**：没有涉及文件路径操作。\n- **XSS 防护**：输出结果通过 HTML 输出，但没有进行适当的转义处理。\n- **反序列化防护**：没有涉及反序列化操作。\n\n### 结论\n\n代码存在 SQL 注入漏洞和 XSS 漏洞。具体分析如下：\n\n- **SQL 注入漏洞**：\n  - **漏洞类型**：CWE-89 SQL注入\n  - **污染来源**：`id_param`（用户可控输入）\n  - **危险函数或触发点**：`cursor.execute(query)`\n  - **漏洞说明**：用户输入直接拼接到 SQL 语句中，存在 SQL 注入风险。\n  - **修复建议**：使用参数化查询。\n\n- **XSS 漏洞**：\n  - **漏洞类型**：CWE-79 跨站脚本（XSS）\n  - **污染来源**：`id_param`（用户可控输入）\n  - **危险函数或触发点**：HTML 输出\n  - **漏洞说明**：输出结果未进行适当的转义处理，存在 XSS 风险。\n  - **修复建议**：使用 HTML 模板自动转义或显式调用 `html.escape()`。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-89 SQL注入, CWE-79 跨站脚本（XSS）\",\n    \"risk_level\": \"High\",\n    \"source\": \"id_param\",\n    \"sink\": \"cursor.execute(query), HTML 输出\",\n    \"explanation\": \"代码存在 SQL 注入和 XSS 漏洞。SQL 注入通过字符串拼接用户输入到 SQL 语句中，XSS 通过未转义的 HTML 输出。\",\n    \"fix_suggestion\": \"使用参数化查询进行数据库查询，并对输出结果进行适当的转义处理。\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-89 SQL注入, CWE-79 跨站脚本（XSS）",
+            "risk_level": "High",
+            "source": "id_param",
+            "sink": "cursor.execute(query), HTML 输出",
+            "explanation": "代码存在 SQL 注入和 XSS 漏洞。SQL 注入通过字符串拼接用户输入到 SQL 语句中，XSS 通过未转义的 HTML 输出。",
+            "fix_suggestion": "使用参数化查询进行数据库查询，并对输出结果进行适当的转义处理。"
+          },
+          "model_has_vulnerability": true,
+          "error": null,
+          "meta": {
+            "eval_count": 649,
+            "eval_duration_ns": 11943986000,
+            "load_duration_ns": 98716618,
+            "total_duration_ns": 12899514968,
+            "prompt_eval_count": 3386
+          }
+        }
+      ],
+      "majority_verdict": true,
+      "agreement_rate": 1.0
+    },
+    {
+      "file": "noise_01_try_catch.py",
+      "language": "Python",
+      "category": "noise",
+      "difficulty": "medium",
+      "expected_present": false,
+      "expected_vulnerability": "无（噪音：try-catch 包裹参数化查询，仍是安全代码）",
+      "expected_cwe": "N/A",
+      "runs": [
+        {
+          "run_index": 1,
+          "rag_retrieval": [
+            {
+              "rank": 1,
+              "id": "sqli_safe_pattern",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.3545
+            },
+            {
+              "rank": 2,
+              "id": "sqli_knowledge",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.3831
+            },
+            {
+              "rank": 3,
+              "id": "sqli_dangerous_api",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.4097
+            },
+            {
+              "rank": 4,
+              "id": "sqli_orm_misuse",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.5549
+            },
+            {
+              "rank": 5,
+              "id": "sqli_bypass_filter",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.5632
+            }
+          ],
+          "rag_context_chars": 2090,
+          "elapsed_seconds": 5.64,
+          "raw_output": "### 分析过程\n\n1. **识别用户可控输入**：\n   - `username` 和 `password` 是通过 `request.args.get` 获取的，属于用户可控输入。\n\n2. **检查 SQL 查询**：\n   - 代码使用了参数化查询：`cursor.execute(\"SELECT * FROM users WHERE name = ? AND pass = ?\", (username, password))`\n   - 这种写法符合安全模式白名单中的 SQL 注入防护标准（参数化查询 / 占位符 + 参数元组）。\n\n3. **检查异常处理**：\n   - 代码捕获了所有异常并忽略，这可能会隐藏潜在的错误信息，但不会影响当前的 SQL 注入防护。\n\n4. **检查其他安全措施**：\n   - 代码没有其他明显的安全漏洞或硬编码凭证。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"代码使用了参数化查询，符合 SQL 注入防护标准。没有其他明显的安全漏洞或硬编码凭证。\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": false,
+            "vulnerability_type": "none",
+            "risk_level": "None",
+            "source": "N/A",
+            "sink": "N/A",
+            "explanation": "代码使用了参数化查询，符合 SQL 注入防护标准。没有其他明显的安全漏洞或硬编码凭证。",
+            "fix_suggestion": "no fix needed"
+          },
+          "model_has_vulnerability": false,
+          "error": null,
+          "meta": {
+            "eval_count": 268,
+            "eval_duration_ns": 4897816000,
+            "load_duration_ns": 97733627,
+            "total_duration_ns": 5637769863,
+            "prompt_eval_count": 3338
+          }
+        }
+      ],
+      "majority_verdict": false,
+      "agreement_rate": 1.0
+    },
+    {
+      "file": "noise_02_misleading_comment.py",
+      "language": "Python",
+      "category": "noise",
+      "difficulty": "medium",
+      "expected_present": false,
+      "expected_vulnerability": "无（噪音：注释谎称有 SQL 注入，但实际是参数化查询）",
+      "expected_cwe": "N/A",
+      "runs": [
+        {
+          "run_index": 1,
+          "rag_retrieval": [
+            {
+              "rank": 1,
+              "id": "sqli_knowledge",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.3654
+            },
+            {
+              "rank": 2,
+              "id": "sqli_safe_pattern",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.3662
+            },
+            {
+              "rank": 3,
+              "id": "sqli_dangerous_api",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.4129
+            },
+            {
+              "rank": 4,
+              "id": "sqli_bypass_filter",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.5204
+            },
+            {
+              "rank": 5,
+              "id": "sqli_orm_misuse",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.5558
+            }
+          ],
+          "rag_context_chars": 2090,
+          "elapsed_seconds": 6.95,
+          "raw_output": "### 分析过程\n\n1. **识别用户可控输入**：\n   - `username` 和 `password` 是通过 `request.args.get(\"username\", \"\")` 和 `request.args.get(\"password\", \"\")` 获取的，属于用户可控输入。\n\n2. **检查 SQL 查询构造**：\n   - 使用了参数化查询：`cursor.execute(\"SELECT * FROM users WHERE name = ? AND pass = ?\", (username, password))`\n   - 这种写法符合安全模式白名单中的 SQL 注入防护标准，即使用了占位符 `?` 和参数元组 `(username, password)`。\n\n3. **检查其他潜在风险**：\n   - 代码中没有使用危险的 API（如 `cursor.executescript()`、`Django raw()` 等）。\n   - 没有硬编码敏感信息（如密码、API Key 等）。\n   - 没有命令注入或路径穿越的风险。\n\n### 结论\n\n根据以上分析，代码使用了参数化查询来处理用户输入的 SQL 查询，符合安全模式白名单中的 SQL 注入防护标准。因此，不存在 SQL 注入漏洞。\n\n```json\n{\n  \"has_vulnerability\": false,\n  \"vulnerability_type\": \"none\",\n  \"risk_level\": \"None\",\n  \"source\": \"N/A\",\n  \"sink\": \"N/A\",\n  \"explanation\": \"代码使用了参数化查询来处理用户输入的 SQL 查询，符合安全模式白名单中的 SQL 注入防护标准。\",\n  \"fix_suggestion\": \"no fix needed\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": false,
+            "vulnerability_type": "none",
+            "risk_level": "None",
+            "source": "N/A",
+            "sink": "N/A",
+            "explanation": "代码使用了参数化查询来处理用户输入的 SQL 查询，符合安全模式白名单中的 SQL 注入防护标准。",
+            "fix_suggestion": "no fix needed"
+          },
+          "model_has_vulnerability": false,
+          "error": null,
+          "meta": {
+            "eval_count": 336,
+            "eval_duration_ns": 6154545000,
+            "load_duration_ns": 97838135,
+            "total_duration_ns": 6944634715,
+            "prompt_eval_count": 3351
+          }
+        }
+      ],
+      "majority_verdict": false,
+      "agreement_rate": 1.0
+    },
+    {
+      "file": "noise_03_harden_string_concat.py",
+      "language": "Python",
+      "category": "noise",
+      "difficulty": "medium",
+      "expected_present": false,
+      "expected_vulnerability": "无（噪音：字符串拼接 SQL，但 name 为硬编码常量，非用户输入）",
+      "expected_cwe": "N/A",
+      "runs": [
+        {
+          "run_index": 1,
+          "rag_retrieval": [
+            {
+              "rank": 1,
+              "id": "sqli_knowledge",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.2866
+            },
+            {
+              "rank": 2,
+              "id": "sqli_dangerous_api",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.3552
+            },
+            {
+              "rank": 3,
+              "id": "sqli_safe_pattern",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.396
+            },
+            {
+              "rank": 4,
+              "id": "sqli_orm_misuse",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.5202
+            },
+            {
+              "rank": 5,
+              "id": "sqli_bypass_filter",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.5317
+            }
+          ],
+          "rag_context_chars": 2090,
+          "elapsed_seconds": 8.42,
+          "raw_output": "### 分析过程\n\n1. **识别用户可控输入**：\n   - 代码中存在一个用户可控的输入变量 `name`，其值为 `\"admin\"`。\n\n2. **检查 SQL 查询构造方式**：\n   - SQL 查询语句是通过字符串拼接的方式构建的：`query = \"SELECT * FROM users WHERE name = '\" + name + \"'\"`\n\n3. **判断是否存在 SQL 注入风险**：\n   - 根据知识 1 和知识 2，SQL注入漏洞的典型场景包括字符串拼接SQL。在这种情况下，用户可控的输入 `name` 直接拼接到 SQL 查询中，没有使用参数化查询。\n   - 因此，这种写法存在 SQL 注入风险。\n\n4. **检查是否命中安全模式白名单**：\n   - 代码未使用参数化查询（? / %s / :name），因此不命中安全模式白名单中的任何一项。\n\n5. **总结漏洞信息**：\n   - 漏洞类型：SQL注入（CWE-89）\n   - 污染来源：`name` 变量\n   - 危险函数或触发点：`cursor.execute(query)`\n   - 修复建议：使用参数化查询，如 `query = \"SELECT * FROM users WHERE name = ?\"; cursor.execute(query, (name,))`\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-89 SQL注入\",\n    \"risk_level\": \"High\",\n    \"source\": \"name 变量\",\n    \"sink\": \"cursor.execute(query)\",\n    \"explanation\": \"SQL 查询语句通过字符串拼接构建，存在 SQL 注入风险。用户可控的输入直接进入 SQL 语法层，未进行转义。\",\n    \"fix_suggestion\": \"使用参数化查询，如 query = \\\"SELECT * FROM users WHERE name = ?\\\"; cursor.execute(query, (name,))\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-89 SQL注入",
+            "risk_level": "High",
+            "source": "name 变量",
+            "sink": "cursor.execute(query)",
+            "explanation": "SQL 查询语句通过字符串拼接构建，存在 SQL 注入风险。用户可控的输入直接进入 SQL 语法层，未进行转义。",
+            "fix_suggestion": "使用参数化查询，如 query = \"SELECT * FROM users WHERE name = ?\"; cursor.execute(query, (name,))"
+          },
+          "model_has_vulnerability": true,
+          "error": null,
+          "meta": {
+            "eval_count": 421,
+            "eval_duration_ns": 7707539000,
+            "load_duration_ns": 96745876,
+            "total_duration_ns": 8414706250,
+            "prompt_eval_count": 3283
+          }
+        }
+      ],
+      "majority_verdict": true,
+      "agreement_rate": 1.0
+    },
+    {
+      "file": "noise_04_commented_dangerous.py",
+      "language": "Python",
+      "category": "noise",
+      "difficulty": "medium",
+      "expected_present": false,
+      "expected_vulnerability": "无（噪音：os.system 调用已被注释掉，仅剩 print）",
+      "expected_cwe": "N/A",
+      "runs": [
+        {
+          "run_index": 1,
+          "rag_retrieval": [
+            {
+              "rank": 1,
+              "id": "cmdi_knowledge",
+              "type": "命令注入",
+              "cwe": "CWE-78",
+              "distance": 0.5099
+            },
+            {
+              "rank": 2,
+              "id": "cmdi_safe_pattern",
+              "type": "命令注入",
+              "cwe": "CWE-78",
+              "distance": 0.5698
+            },
+            {
+              "rank": 3,
+              "id": "cmdi_shell_true",
+              "type": "命令注入",
+              "cwe": "CWE-78",
+              "distance": 0.5847
+            },
+            {
+              "rank": 4,
+              "id": "cmdi_eval_exec",
+              "type": "命令注入",
+              "cwe": "CWE-78",
+              "distance": 0.6165
+            },
+            {
+              "rank": 5,
+              "id": "xss_reflected",
+              "type": "XSS",
+              "cwe": "CWE-79",
+              "distance": 0.6542
+            }
+          ],
+          "rag_context_chars": 1837,
+          "elapsed_seconds": 6.3,
+          "raw_output": "### 分析过程\n\n1. **代码审查**：\n   ```python\n   import os\n\n   def say_hello():\n       # os.system(\"echo hello\")\n       print(\"hello\")\n       return \"hello\"\n   ```\n\n2. **安全模式白名单检查**：\n   - 该代码片段中没有使用 `os.system`、`subprocess.call` 或 `eval/exec` 等可能引发命令注入或反射型 XSS 的函数。\n   - 也没有硬编码敏感信息（如密码、API Key 等）。\n\n3. **漏洞识别**：\n   - 代码中注释掉了 `os.system(\"echo hello\")`，这意味着该代码片段本身没有执行任何用户可控输入的命令。\n   - `print(\"hello\")` 和 `return \"hello\"` 是安全的操作，不会引发 SQL 注入、XSS 或路径穿越等漏洞。\n\n4. **修复建议**：\n   - 由于代码中没有实际执行用户可控输入的命令或反射型 XSS 的操作，因此不需要任何修复。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"代码中没有执行用户可控输入的命令或反射型 XSS 的操作，因此不存在安全漏洞。\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": false,
+            "vulnerability_type": "none",
+            "risk_level": "None",
+            "source": "N/A",
+            "sink": "N/A",
+            "explanation": "代码中没有执行用户可控输入的命令或反射型 XSS 的操作，因此不存在安全漏洞。",
+            "fix_suggestion": "no fix needed"
+          },
+          "model_has_vulnerability": false,
+          "error": null,
+          "meta": {
+            "eval_count": 309,
+            "eval_duration_ns": 5632610000,
+            "load_duration_ns": 99054685,
+            "total_duration_ns": 6298030799,
+            "prompt_eval_count": 3161
+          }
+        }
+      ],
+      "majority_verdict": false,
+      "agreement_rate": 1.0
+    },
+    {
+      "file": "noise_05_decorator_wrapper.py",
+      "language": "Python",
+      "category": "noise",
+      "difficulty": "medium",
+      "expected_present": false,
+      "expected_vulnerability": "无（噪音：多层装饰器包裹，核心仍是参数化查询）",
+      "expected_cwe": "N/A",
+      "runs": [
+        {
+          "run_index": 1,
+          "rag_retrieval": [
+            {
+              "rank": 1,
+              "id": "sqli_safe_pattern",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.3802
+            },
+            {
+              "rank": 2,
+              "id": "sqli_dangerous_api",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.4055
+            },
+            {
+              "rank": 3,
+              "id": "sqli_knowledge",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.4213
+            },
+            {
+              "rank": 4,
+              "id": "sqli_orm_misuse",
+              "type": "SQL注入",
+              "cwe": "CWE-89",
+              "distance": 0.5303
+            },
+            {
+              "rank": 5,
+              "id": "idor_safe_pattern",
+              "type": "不安全的直接对象引用",
+              "cwe": "CWE-639",
+              "distance": 0.5458
+            }
+          ],
+          "rag_context_chars": 2159,
+          "elapsed_seconds": 6.64,
+          "raw_output": "### 分析过程\n\n1. **代码审查**：\n   - 代码定义了一个 Flask 应用，并包含一个装饰器 `wrapper1` 和一个安全的查询函数 `safe_query`。\n   - `safe_query` 函数通过参数化查询来执行 SQL 查询，使用了 `sqlite3.connect(\"users.db\")` 连接到数据库，并执行了 `cursor.execute(\"SELECT * FROM users WHERE name = ?\", (username,))`。\n\n2. **安全模式白名单检查**：\n   - `cursor.execute(\"SELECT * FROM users WHERE name = ?\", (username,))` 是参数化查询，符合 SQL 注入防护的白名单标准。\n   - 该写法不会将用户输入直接拼接到 SQL 语句中，而是通过占位符和参数元组的方式进行安全处理。\n\n3. **漏洞判定**：\n   - 由于 `cursor.execute(\"SELECT * FROM users WHERE name = ?\", (username,))` 是安全的参数化查询，且没有其他明显的安全风险（如硬编码凭证、命令注入等），因此不存在安全漏洞。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"The SQL query is safely parameterized, preventing SQL injection. There are no other obvious vulnerabilities.\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": false,
+            "vulnerability_type": "none",
+            "risk_level": "None",
+            "source": "N/A",
+            "sink": "N/A",
+            "explanation": "The SQL query is safely parameterized, preventing SQL injection. There are no other obvious vulnerabilities.",
+            "fix_suggestion": "no fix needed"
+          },
+          "model_has_vulnerability": false,
+          "error": null,
+          "meta": {
+            "eval_count": 319,
+            "eval_duration_ns": 5842726000,
+            "load_duration_ns": 98345631,
+            "total_duration_ns": 6631784020,
+            "prompt_eval_count": 3364
+          }
+        }
+      ],
+      "majority_verdict": false,
+      "agreement_rate": 1.0
+    },
+    {
+      "file": "noise_06_shell_true_hardcoded.py",
+      "language": "Python",
+      "category": "noise",
+      "difficulty": "medium",
+      "expected_present": false,
+      "expected_vulnerability": "无（噪音：使用 shell=True，但命令为硬编码常量，非用户输入）",
+      "expected_cwe": "N/A",
+      "runs": [
+        {
+          "run_index": 1,
+          "rag_retrieval": [
+            {
+              "rank": 1,
+              "id": "cmdi_safe_pattern",
+              "type": "命令注入",
+              "cwe": "CWE-78",
+              "distance": 0.3817
+            },
+            {
+              "rank": 2,
+              "id": "cmdi_shell_true",
+              "type": "命令注入",
+              "cwe": "CWE-78",
+              "distance": 0.4003
+            },
+            {
+              "rank": 3,
+              "id": "cmdi_knowledge",
+              "type": "命令注入",
+              "cwe": "CWE-78",
+              "distance": 0.4402
+            },
+            {
+              "rank": 4,
+              "id": "cmdi_eval_exec",
+              "type": "命令注入",
+              "cwe": "CWE-78",
+              "distance": 0.6264
+            },
+            {
+              "rank": 5,
+              "id": "pathtraversal_safe_pattern",
+              "type": "路径遍历",
+              "cwe": "CWE-22",
+              "distance": 0.664
+            }
+          ],
+          "rag_context_chars": 1898,
+          "elapsed_seconds": 8.04,
+          "raw_output": "### 分析过程\n\n1. **识别用户可控输入**：\n   - 代码中存在一个用户可控的输入点：`filename`。\n\n2. **检查命令注入风险**：\n   - 代码使用了 `subprocess.run(\"echo 'hello world'\", shell=True, capture_output=True)`。\n   - 这里，`shell=True` 启用了 shell 解释，且命令字符串 `\"echo 'hello world'\"` 是硬编码的，不包含用户输入。\n\n3. **检查路径穿越风险**：\n   - 代码中没有涉及文件操作或路径拼接，因此不存在路径穿越的风险。\n\n4. **检查 SQL 注入风险**：\n   - 代码中没有涉及数据库查询或 SQL 操作，因此不存在 SQL 注入的风险。\n\n5. **检查跨站脚本（XSS）风险**：\n   - 代码中没有涉及用户输入的 HTML 输出，因此不存在 XSS 的风险。\n\n6. **检查反序列化风险**：\n   - 代码中没有涉及反序列化操作，因此不存在反序列化的风险。\n\n7. **检查硬编码凭证风险**：\n   - 代码中没有硬编码敏感信息（如密码、API Key 等），因此不存在硬编码凭证的风险。\n\n### 结论\n\n根据以上分析，代码中存在 `shell=True` 的情况，这可能会导致命令注入漏洞。然而，由于命令字符串是硬编码的，不包含用户输入，因此这种情况下不会触发命令注入漏洞。\n\n```json\n{\n  \"has_vulnerability\": false,\n  \"vulnerability_type\": \"none\",\n  \"risk_level\": \"None\",\n  \"source\": \"N/A\",\n  \"sink\": \"subprocess.run() with shell=True\",\n  \"explanation\": \"The command string is hardcoded and does not contain user input, so it is safe even with shell=True.\",\n  \"fix_suggestion\": \"no fix needed\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": false,
+            "vulnerability_type": "none",
+            "risk_level": "None",
+            "source": "N/A",
+            "sink": "subprocess.run() with shell=True",
+            "explanation": "The command string is hardcoded and does not contain user input, so it is safe even with shell=True.",
+            "fix_suggestion": "no fix needed"
+          },
+          "model_has_vulnerability": false,
+          "error": null,
+          "meta": {
+            "eval_count": 403,
+            "eval_duration_ns": 7352354000,
+            "load_duration_ns": 100906198,
+            "total_duration_ns": 8029413983,
+            "prompt_eval_count": 3180
+          }
+        }
+      ],
+      "majority_verdict": false,
+      "agreement_rate": 1.0
+    }
+  ],
+  "model": "qwen2.5-coder:7b",
+  "host": "http://localhost:11434",
+  "temperature": 0.1,
+  "mode": "rag",
+  "top_k": 5,
+  "repeat": 1,
+  "knowledge_count": 39,
+  "sample_count": 42,
+  "total_runs": 42,
+  "seed": 42,
+  "finished_at": "2026-07-01 14:47:45",
+  "metrics_single_run": {
+    "total": 42,
+    "valid": 42,
+    "invalid": 0,
+    "tp": 26,
+    "tn": 13,
+    "fp": 3,
+    "fn": 0,
+    "vuln_total": 26,
+    "safe_total": 16,
+    "recall": 1.0,
+    "false_positive_rate": 0.1875,
+    "accuracy": 0.9285714285714286,
+    "elapsed_stats": {
+      "avg": 8.09,
+      "max": 12.91,
+      "min": 5.64,
+      "sum": 339.85,
+      "count": 42
+    }
+  },
+  "metrics_majority_vote": {
+    "total_samples": 42,
+    "total_runs": 42,
+    "valid_samples": 42,
+    "tp": 26,
+    "tn": 13,
+    "fp": 3,
+    "fn": 0,
+    "vuln_total": 26,
+    "safe_total": 16,
+    "recall": 1.0,
+    "false_positive_rate": 0.1875,
+    "accuracy": 0.9285714285714286,
+    "accuracy_ci_95": [
+      0.8099,
+      0.9754
+    ],
+    "recall_ci_95": [
+      0.8713,
+      1.0
+    ],
+    "fpr_ci_95": [
+      0.0659,
+      0.4301
+    ],
+    "elapsed_overall": {
+      "count": 42,
+      "mean": 8.09,
+      "std": 1.5,
+      "median": 7.88,
+      "min": 5.64,
+      "max": 12.91,
+      "p95": 11.13,
+      "sum": 339.85
+    },
+    "per_sample": [
+      {
+        "file": "hard_bypass_01_sql_replace.py",
+        "runs": 1,
+        "expected_present": true,
+        "majority_verdict": true,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 1,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 7.93,
+          "std": 0.0,
+          "median": 7.93,
+          "min": 7.93,
+          "max": 7.93,
+          "p95": 7.93,
+          "sum": 7.93
+        }
+      },
+      {
+        "file": "hard_bypass_02_cmd_strip.py",
+        "runs": 1,
+        "expected_present": true,
+        "majority_verdict": true,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 1,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 7.87,
+          "std": 0.0,
+          "median": 7.87,
+          "min": 7.87,
+          "max": 7.87,
+          "p95": 7.87,
+          "sum": 7.87
+        }
+      },
+      {
+        "file": "hard_bypass_03_xss_replace.py",
+        "runs": 1,
+        "expected_present": true,
+        "majority_verdict": true,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 1,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 10.35,
+          "std": 0.0,
+          "median": 10.35,
+          "min": 10.35,
+          "max": 10.35,
+          "p95": 10.35,
+          "sum": 10.35
+        }
+      },
+      {
+        "file": "hard_bypass_04_path_regex.py",
+        "runs": 1,
+        "expected_present": true,
+        "majority_verdict": true,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 1,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 7.99,
+          "std": 0.0,
+          "median": 7.99,
+          "min": 7.99,
+          "max": 7.99,
+          "p95": 7.99,
+          "sum": 7.99
+        }
+      },
+      {
+        "file": "hard_crossfile_01_input.py",
+        "runs": 1,
+        "expected_present": false,
+        "majority_verdict": false,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 0,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 6.71,
+          "std": 0.0,
+          "median": 6.71,
+          "min": 6.71,
+          "max": 6.71,
+          "p95": 6.71,
+          "sum": 6.71
+        }
+      },
+      {
+        "file": "hard_crossfile_01_sink.py",
+        "runs": 1,
+        "expected_present": true,
+        "majority_verdict": true,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 1,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 8.8,
+          "std": 0.0,
+          "median": 8.8,
+          "min": 8.8,
+          "max": 8.8,
+          "p95": 8.8,
+          "sum": 8.8
+        }
+      },
+      {
+        "file": "hard_crossfile_02_input.py",
+        "runs": 1,
+        "expected_present": false,
+        "majority_verdict": true,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 1,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 7.08,
+          "std": 0.0,
+          "median": 7.08,
+          "min": 7.08,
+          "max": 7.08,
+          "p95": 7.08,
+          "sum": 7.08
+        }
+      },
+      {
+        "file": "hard_crossfile_02_sink.py",
+        "runs": 1,
+        "expected_present": true,
+        "majority_verdict": true,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 1,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 7.17,
+          "std": 0.0,
+          "median": 7.17,
+          "min": 7.17,
+          "max": 7.17,
+          "p95": 7.17,
+          "sum": 7.17
+        }
+      },
+      {
+        "file": "hard_cve_01_samba_2017_7494.py",
+        "runs": 1,
+        "expected_present": true,
+        "majority_verdict": true,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 1,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 7.13,
+          "std": 0.0,
+          "median": 7.13,
+          "min": 7.13,
+          "max": 7.13,
+          "p95": 7.13,
+          "sum": 7.13
+        }
+      },
+      {
+        "file": "hard_cve_02_log4j_2021_44228.py",
+        "runs": 1,
+        "expected_present": true,
+        "majority_verdict": true,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 1,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 7.28,
+          "std": 0.0,
+          "median": 7.28,
+          "min": 7.28,
+          "max": 7.28,
+          "p95": 7.28,
+          "sum": 7.28
+        }
+      },
+      {
+        "file": "hard_cve_03_tarfile_2025_4517.py",
+        "runs": 1,
+        "expected_present": true,
+        "majority_verdict": true,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 1,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 9.24,
+          "std": 0.0,
+          "median": 9.24,
+          "min": 9.24,
+          "max": 9.24,
+          "p95": 9.24,
+          "sum": 9.24
+        }
+      },
+      {
+        "file": "hard_cve_04_ssrf_2025_54381.py",
+        "runs": 1,
+        "expected_present": true,
+        "majority_verdict": true,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 1,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 8.36,
+          "std": 0.0,
+          "median": 8.36,
+          "min": 8.36,
+          "max": 8.36,
+          "p95": 8.36,
+          "sum": 8.36
+        }
+      },
+      {
+        "file": "hard_longfile_01_hidden_sql.py",
+        "runs": 1,
+        "expected_present": true,
+        "majority_verdict": true,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 1,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 11.69,
+          "std": 0.0,
+          "median": 11.69,
+          "min": 11.69,
+          "max": 11.69,
+          "p95": 11.69,
+          "sum": 11.69
+        }
+      },
+      {
+        "file": "hard_longfile_02_hidden_cmd.py",
+        "runs": 1,
+        "expected_present": true,
+        "majority_verdict": true,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 1,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 11.14,
+          "std": 0.0,
+          "median": 11.14,
+          "min": 11.14,
+          "max": 11.14,
+          "p95": 11.14,
+          "sum": 11.14
+        }
+      },
+      {
+        "file": "hard_owasp_01_file_upload.py",
+        "runs": 1,
+        "expected_present": true,
+        "majority_verdict": true,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 1,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 7.9,
+          "std": 0.0,
+          "median": 7.9,
+          "min": 7.9,
+          "max": 7.9,
+          "p95": 7.9,
+          "sum": 7.9
+        }
+      },
+      {
+        "file": "hard_owasp_02_dvwa_sql.py",
+        "runs": 1,
+        "expected_present": true,
+        "majority_verdict": true,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 1,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 12.91,
+          "std": 0.0,
+          "median": 12.91,
+          "min": 12.91,
+          "max": 12.91,
+          "p95": 12.91,
+          "sum": 12.91
+        }
+      },
+      {
+        "file": "noise_01_try_catch.py",
+        "runs": 1,
+        "expected_present": false,
+        "majority_verdict": false,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 0,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 5.64,
+          "std": 0.0,
+          "median": 5.64,
+          "min": 5.64,
+          "max": 5.64,
+          "p95": 5.64,
+          "sum": 5.64
+        }
+      },
+      {
+        "file": "noise_02_misleading_comment.py",
+        "runs": 1,
+        "expected_present": false,
+        "majority_verdict": false,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 0,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 6.95,
+          "std": 0.0,
+          "median": 6.95,
+          "min": 6.95,
+          "max": 6.95,
+          "p95": 6.95,
+          "sum": 6.95
+        }
+      },
+      {
+        "file": "noise_03_harden_string_concat.py",
+        "runs": 1,
+        "expected_present": false,
+        "majority_verdict": true,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 1,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 8.42,
+          "std": 0.0,
+          "median": 8.42,
+          "min": 8.42,
+          "max": 8.42,
+          "p95": 8.42,
+          "sum": 8.42
+        }
+      },
+      {
+        "file": "noise_04_commented_dangerous.py",
+        "runs": 1,
+        "expected_present": false,
+        "majority_verdict": false,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 0,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 6.3,
+          "std": 0.0,
+          "median": 6.3,
+          "min": 6.3,
+          "max": 6.3,
+          "p95": 6.3,
+          "sum": 6.3
+        }
+      },
+      {
+        "file": "noise_05_decorator_wrapper.py",
+        "runs": 1,
+        "expected_present": false,
+        "majority_verdict": false,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 0,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 6.64,
+          "std": 0.0,
+          "median": 6.64,
+          "min": 6.64,
+          "max": 6.64,
+          "p95": 6.64,
+          "sum": 6.64
+        }
+      },
+      {
+        "file": "noise_06_shell_true_hardcoded.py",
+        "runs": 1,
+        "expected_present": false,
+        "majority_verdict": false,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 0,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 8.04,
+          "std": 0.0,
+          "median": 8.04,
+          "min": 8.04,
+          "max": 8.04,
+          "p95": 8.04,
+          "sum": 8.04
+        }
+      },
+      {
+        "file": "safe_01_param.py",
+        "runs": 1,
+        "expected_present": false,
+        "majority_verdict": false,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 0,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 7.19,
+          "std": 0.0,
+          "median": 7.19,
+          "min": 7.19,
+          "max": 7.19,
+          "p95": 7.19,
+          "sum": 7.19
+        }
+      },
+      {
+        "file": "safe_02_escape.py",
+        "runs": 1,
+        "expected_present": false,
+        "majority_verdict": false,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 0,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 6.86,
+          "std": 0.0,
+          "median": 6.86,
+          "min": 6.86,
+          "max": 6.86,
+          "p95": 6.86,
+          "sum": 6.86
+        }
+      },
+      {
+        "file": "safe_03_subprocess_list.py",
+        "runs": 1,
+        "expected_present": false,
+        "majority_verdict": false,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 0,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 8.21,
+          "std": 0.0,
+          "median": 8.21,
+          "min": 8.21,
+          "max": 8.21,
+          "p95": 8.21,
+          "sum": 8.21
+        }
+      },
+      {
+        "file": "safe_04_path_whitelist.py",
+        "runs": 1,
+        "expected_present": false,
+        "majority_verdict": false,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 0,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 9.93,
+          "std": 0.0,
+          "median": 9.93,
+          "min": 9.93,
+          "max": 9.93,
+          "p95": 9.93,
+          "sum": 9.93
+        }
+      },
+      {
+        "file": "safe_05_parametrized_like.py",
+        "runs": 1,
+        "expected_present": false,
+        "majority_verdict": false,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 0,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 7.14,
+          "std": 0.0,
+          "median": 7.14,
+          "min": 7.14,
+          "max": 7.14,
+          "p95": 7.14,
+          "sum": 7.14
+        }
+      },
+      {
+        "file": "safe_06_csp_header.py",
+        "runs": 1,
+        "expected_present": false,
+        "majority_verdict": false,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 0,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 8.31,
+          "std": 0.0,
+          "median": 8.31,
+          "min": 8.31,
+          "max": 8.31,
+          "p95": 8.31,
+          "sum": 8.31
+        }
+      },
+      {
+        "file": "safe_07_input_validation.py",
+        "runs": 1,
+        "expected_present": false,
+        "majority_verdict": false,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 0,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 7.81,
+          "std": 0.0,
+          "median": 7.81,
+          "min": 7.81,
+          "max": 7.81,
+          "p95": 7.81,
+          "sum": 7.81
+        }
+      },
+      {
+        "file": "safe_08_shlex.py",
+        "runs": 1,
+        "expected_present": false,
+        "majority_verdict": true,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 1,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 8.0,
+          "std": 0.0,
+          "median": 8.0,
+          "min": 8.0,
+          "max": 8.0,
+          "p95": 8.0,
+          "sum": 8.0
+        }
+      },
+      {
+        "file": "typical_01_sql.py",
+        "runs": 1,
+        "expected_present": true,
+        "majority_verdict": true,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 1,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 10.94,
+          "std": 0.0,
+          "median": 10.94,
+          "min": 10.94,
+          "max": 10.94,
+          "p95": 10.94,
+          "sum": 10.94
+        }
+      },
+      {
+        "file": "typical_02_xss.py",
+        "runs": 1,
+        "expected_present": true,
+        "majority_verdict": true,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 1,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 7.87,
+          "std": 0.0,
+          "median": 7.87,
+          "min": 7.87,
+          "max": 7.87,
+          "p95": 7.87,
+          "sum": 7.87
+        }
+      },
+      {
+        "file": "typical_03_cmd.py",
+        "runs": 1,
+        "expected_present": true,
+        "majority_verdict": true,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 1,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 7.5,
+          "std": 0.0,
+          "median": 7.5,
+          "min": 7.5,
+          "max": 7.5,
+          "p95": 7.5,
+          "sum": 7.5
+        }
+      },
+      {
+        "file": "typical_04_path.py",
+        "runs": 1,
+        "expected_present": true,
+        "majority_verdict": true,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 1,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 8.4,
+          "std": 0.0,
+          "median": 8.4,
+          "min": 8.4,
+          "max": 8.4,
+          "p95": 8.4,
+          "sum": 8.4
+        }
+      },
+      {
+        "file": "typical_05_pickle.py",
+        "runs": 1,
+        "expected_present": true,
+        "majority_verdict": true,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 1,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 7.4,
+          "std": 0.0,
+          "median": 7.4,
+          "min": 7.4,
+          "max": 7.4,
+          "p95": 7.4,
+          "sum": 7.4
+        }
+      },
+      {
+        "file": "typical_06_secret.py",
+        "runs": 1,
+        "expected_present": true,
+        "majority_verdict": true,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 1,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 6.95,
+          "std": 0.0,
+          "median": 6.95,
+          "min": 6.95,
+          "max": 6.95,
+          "p95": 6.95,
+          "sum": 6.95
+        }
+      },
+      {
+        "file": "typical_07_ssrf.py",
+        "runs": 1,
+        "expected_present": true,
+        "majority_verdict": true,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 1,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 7.0,
+          "std": 0.0,
+          "median": 7.0,
+          "min": 7.0,
+          "max": 7.0,
+          "p95": 7.0,
+          "sum": 7.0
+        }
+      },
+      {
+        "file": "typical_08_eval.py",
+        "runs": 1,
+        "expected_present": true,
+        "majority_verdict": true,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 1,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 6.61,
+          "std": 0.0,
+          "median": 6.61,
+          "min": 6.61,
+          "max": 6.61,
+          "p95": 6.61,
+          "sum": 6.61
+        }
+      },
+      {
+        "file": "typical_09_xss_php.php",
+        "runs": 1,
+        "expected_present": true,
+        "majority_verdict": true,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 1,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 8.38,
+          "std": 0.0,
+          "median": 8.38,
+          "min": 8.38,
+          "max": 8.38,
+          "p95": 8.38,
+          "sum": 8.38
+        }
+      },
+      {
+        "file": "typical_10_cmd_js.js",
+        "runs": 1,
+        "expected_present": true,
+        "majority_verdict": true,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 1,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 8.31,
+          "std": 0.0,
+          "median": 8.31,
+          "min": 8.31,
+          "max": 8.31,
+          "p95": 8.31,
+          "sum": 8.31
+        }
+      },
+      {
+        "file": "typical_11_yaml.py",
+        "runs": 1,
+        "expected_present": true,
+        "majority_verdict": true,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 1,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 8.03,
+          "std": 0.0,
+          "median": 8.03,
+          "min": 8.03,
+          "max": 8.03,
+          "p95": 8.03,
+          "sum": 8.03
+        }
+      },
+      {
+        "file": "typical_12_open_redirect.py",
+        "runs": 1,
+        "expected_present": true,
+        "majority_verdict": true,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 1,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 7.47,
+          "std": 0.0,
+          "median": 7.47,
+          "min": 7.47,
+          "max": 7.47,
+          "p95": 7.47,
+          "sum": 7.47
+        }
+      }
+    ]
+  }
+}

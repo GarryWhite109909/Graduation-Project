@@ -4,37 +4,111 @@ Chroma 向量数据库管理器
 """
 
 import os
+import glob
 import chromadb
 from chromadb.utils import embedding_functions
 from typing import List, Dict, Optional
+
+
+# 默认 embedding 模型（sentence-transformers 格式）
+DEFAULT_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+DEFAULT_EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
+
+
+def _set_offline_mode() -> None:
+    """强制 sentence-transformers / transformers 离线，避免运行时访问 HuggingFace。
+
+    这是防御性设置：即使代码其它路径触发模型加载，也不会因为网络问题挂掉。
+    """
+    os.environ.setdefault("HF_HUB_OFFLINE", "1")
+    os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
+
+
+def _find_cached_sentence_transformer(model_name: str) -> Optional[str]:
+    """在 HuggingFace 本地缓存中查找 sentence-transformers 模型的 snapshot 目录。
+
+    支持通过 HF_HOME 环境变量自定义缓存根目录，默认 ~/.cache/huggingface。
+    返回可直接传给 SentenceTransformer(model_name=...) 的本地路径；未找到返回 None。
+    """
+    hf_home = os.environ.get("HF_HOME", os.path.expanduser("~/.cache/huggingface"))
+    hub_dir = os.path.join(hf_home, "hub")
+    if not os.path.isdir(hub_dir):
+        return None
+
+    # HF 缓存目录命名规则：models--<org>--<model>/snapshots/<commit>/
+    repo_name = model_name.replace("/", "--")
+    repo_dir = os.path.join(hub_dir, f"models--{repo_name}")
+    if not os.path.isdir(repo_dir):
+        return None
+
+    snapshots = glob.glob(os.path.join(repo_dir, "snapshots", "*"))
+    for snapshot_dir in snapshots:
+        config_path = os.path.join(snapshot_dir, "config.json")
+        if os.path.isfile(config_path):
+            return snapshot_dir
+    return None
+
+
+def _resolve_embedding_model_path(model_name: str) -> str:
+    """解析 embedding 模型路径，优先使用本地缓存，绝不在运行时联网下载。
+
+    解析顺序：
+    1. CHROMA_EMBEDDING_MODEL_PATH 环境变量（用户显式指定本地路径）
+    2. HuggingFace 本地缓存 (~/.cache/huggingface/hub/...)
+    3. 若都没有，抛出明确错误并告诉用户如何准备模型
+    """
+    explicit_path = os.environ.get("CHROMA_EMBEDDING_MODEL_PATH")
+    if explicit_path:
+        if not os.path.isdir(explicit_path):
+            raise FileNotFoundError(
+                f"[ChromaManager] 环境变量 CHROMA_EMBEDDING_MODEL_PATH 指向的目录不存在: {explicit_path}\n"
+                f"请检查路径，或取消该环境变量以使用默认缓存。"
+            )
+        return explicit_path
+
+    cached = _find_cached_sentence_transformer(model_name)
+    if cached:
+        return cached
+
+    raise RuntimeError(
+        f"[ChromaManager] 未找到本地 embedding 模型: {model_name}\n"
+        f"ChromaManager 已强制离线模式（HF_HUB_OFFLINE=1），不会从 HuggingFace 下载。\n"
+        f"请按以下方式之一准备模型:\n"
+        f"  1. 在有网络的环境执行: python -c \"from sentence_transformers import SentenceTransformer; SentenceTransformer('{model_name}')\"\n"
+        f"     模型将缓存到 ~/.cache/huggingface/hub/\n"
+        f"  2. 手动下载模型文件夹后，设置环境变量: export CHROMA_EMBEDDING_MODEL_PATH=/path/to/local/model\n"
+    )
 
 
 class ChromaManager:
     def __init__(self, persist_dir: str = None):
         """
         初始化 Chroma 客户端
-        
+
         Args:
             persist_dir: 持久化目录，默认使用项目 data/chroma_db
         """
+        # 强制离线，避免 sentence-transformers 联网下载
+        _set_offline_mode()
+
         if persist_dir is None:
             # 优先从环境变量读取，便于打包部署；否则回退到项目根目录下的 data/chroma_db
             persist_dir = os.environ.get("CHROMA_PERSIST_DIR")
             if not persist_dir:
                 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
                 persist_dir = os.path.join(base_dir, "data", "chroma_db")
-        
+
         self.persist_dir = persist_dir
         self.client = chromadb.PersistentClient(path=persist_dir)
-        
-        # 使用 sentence-transformers 的本地 embedding 模型
-        # 模型会自动下载到本地缓存，无需联网
+
+        # 使用本地缓存的 sentence-transformers embedding 模型，运行时绝不联网
+        self._model_path = _resolve_embedding_model_path(DEFAULT_EMBEDDING_MODEL)
         self.embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
-            model_name="all-MiniLM-L6-v2"  # 轻量级，384维，适合本地运行
+            model_name=self._model_path
         )
-        
+
         print(f"[ChromaManager] 数据库路径: {persist_dir}")
-        print(f"[ChromaManager] Embedding 模型: all-MiniLM-L6-v2")
+        print(f"[ChromaManager] Embedding 模型: {DEFAULT_EMBEDDING_MODEL_NAME} (本地: {self._model_path})")
     
     def create_collection(self, name: str, description: str = "") -> chromadb.Collection:
         """创建集合（如果不存在则获取）"""

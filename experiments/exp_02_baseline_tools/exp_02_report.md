@@ -1,12 +1,15 @@
 # 实验 02 报告：传统静态分析工具对比基线
 
-> **2026-06-29 更新**：主模型从 `gemma4:26b` / `gemma4:12b` 切换为 `qwen2.5-coder:14b`，
-> 本报告中的 LLM 对比数据已同步更新为 qwen 在 exp_01 / exp_03 的最新实测结果。
-> 旧版 gemma4:12b 数据已备份至 `../exp_01_basic_scan/results/results.gemma4-12b.final.json`。
+> **2026-06-30 最终更新**：默认主模型已最终切换为 `qwen2.5-coder:7b`。
+> - 纯 LLM (qwen7b)：recall=100%、FPR=0%、accuracy=100%，平均 7.65s
+> - RAG+LLM (qwen7b)：recall=100%、FPR=0%、accuracy=100%，平均 7.74s
+> - qwen7b 在典型样本上**无需 RAG 即可达到 100% 准确率**，安全样本零误报。
+>
+> 历史数据：`../exp_01_basic_scan/results/results.qwen2.5-coder-7b.json`、
 
 ## 一、实验目的
 
-在 exp_01 验证了 `qwen2.5-coder:14b` 在典型漏洞上的检测能力后，本阶段用同一批样本跑
+在 exp_01 验证了 `qwen2.5-coder:7b` 在典型漏洞上的检测能力后，本阶段用同一批样本跑
 传统规则型工具（Bandit / Semgrep），与 LLM 做横向对比，回答四个问题：
 
 1. 传统工具在典型漏洞上的检出率、误报率如何？
@@ -20,8 +23,8 @@
 | --- | --- |
 | Bandit | 1.9.4（pip 安装，conda graproj 环境） |
 | Semgrep | 1.168.0（pip 安装，conda graproj 环境，规则集 `auto`） |
-| LLM | `qwen2.5-coder:14b`（Ollama 本地推理） |
-| 测试时间 | 2026-06-29（无答案泄露版本，Semgrep 已修复） |
+| LLM | `qwen2.5-coder:7b`（Ollama 本地推理，当前默认主模型） |
+| 测试时间 | 2026-06-30（无答案泄露版本，qwen7b 最终验证） |
 | 脚本 | [run_baseline.py](run_baseline.py) |
 | Python | 3.11（miniconda graproj 环境） |
 
@@ -69,10 +72,12 @@
 | insecure_deserialization_01.py | Python | True | True ✅ | True ✅ | True ✅ | True ✅ |
 | insecure_deserialization_02.java | Java | True | True ✅ | True ✅ | N/A | True ✅ |
 | safe_01_parameterized_query.py | Python | False | False ✅ | False ✅ | False ✅ | False ✅ |
-| safe_02_subprocess_list.py | Python | False | **True ❌(FP)** | **False ✅** | True ❌(FP) | False ✅ |
+| safe_02_subprocess_list.py | Python | False | False ✅ | False ✅ | True ❌(FP) | False ✅ |
 
-> **关键差异**：纯 LLM（qwen）对 `safe_02_subprocess_list.py` 产生误报；RAG+LLM 通过知识库中的
-> `cmdi_safe_pattern` 条目纠正了该误报。这说明 RAG 不仅能提升可解释性，还能直接降低误报率。
+> **关键差异**：qwen7b 纯 LLM 已能正确识别 `safe_02_subprocess_list.py` 为安全代码（列表参数 + 输入校验），
+> 无需 RAG 纠正即可达到 100% 准确率。RAG 在此典型样本集上主要提供可解释性增强而非误报纠正
+> （误报纠正价值在 qwen14b 上更显著，qwen7b 的基线能力已消除该误报）。
+> Bandit 对 safe_02 产生 3 条误报（B602/B603/B404），是传统工具规则泛化能力不足的典型案例。
 
 ### 5.2 汇总指标
 
@@ -81,14 +86,14 @@
 | 有效样本数 | 14 | 14 | 8（仅 Python） | 14 |
 | 不支持样本数 | 0 | 0 | 6 | 0 |
 | 真阳性 TP | 12 | 12 | 5 | 9 |
-| 真阴性 TN | 1 | 2 | 1 | 2 |
-| 假阳性 FP（误报） | 1 | 0 | 1 | 0 |
+| 真阴性 TN | 2 | 2 | 1 | 2 |
+| 假阳性 FP（误报） | 0 | 0 | 1 | 0 |
 | 假阴性 FN（漏报） | 0 | 0 | 1 | 3 |
 | **召回率** | **100.0%** (12/12) | **100.0%** (12/12) | 83.3% (5/6) | 75.0% (9/12) |
-| **误报率** | 50.0% (1/2) | **0.0%** (0/2) | 50.0% (1/2) | 0.0% (0/2) |
-| **总体准确率** | 92.9% (13/14) | **100.0%** (14/14) | 75.0% (6/8) | 78.6% (11/14) |
-| 平均单样本耗时 | 17.11s | 16.96s | 0.04s | 8.9s |
-| 总耗时 | 239.5s | 237.45s | 0.54s | 124.61s |
+| **误报率** | **0.0%** (0/2) | **0.0%** (0/2) | 50.0% (1/2) | 0.0% (0/2) |
+| **总体准确率** | **100.0%** (14/14) | **100.0%** (14/14) | 75.0% (6/8) | 78.6% (11/14) |
+| 平均单样本耗时 | 7.65s | 7.74s | 0.04s | 8.9s |
+| 总耗时 | 107.1s | 108.4s | 0.54s | 124.61s |
 | 修复建议 | 自然语言 + 代码 | 自然语言 + 代码 | 规则编号 + 文本 | 规则编号 + 文本 |
 
 ## 六、关键发现
@@ -123,13 +128,13 @@ subprocess.run(['ls', '-l', cmd], check=True)  # 列表形式，无 shell=True
 | --- | --- | --- |
 | Bandit | True ❌(FP) | B602/B603/B404 看到 subprocess 就报警，不理解列表形式安全 |
 | Semgrep | False ✅ | 正确 |
-| 纯 LLM (qwen) | True ❌(FP) | 认为 `host` 可构造 `127.0.0.1; rm -rf /` 绕过 |
-| RAG+LLM (qwen) | False ✅ | 检索到 `cmdi_safe_pattern`，识别列表参数 + shell=False 是安全的 |
+| 纯 LLM (qwen7b) | False ✅ | 正确识别列表参数 + 输入校验是安全写法 |
+| RAG+LLM (qwen7b) | False ✅ | 同上，RAG 在此典型样本上未改变判定 |
 
 **论文论据**：
 - 传统工具基于规则触发，容易对"看起来危险但实际安全"的代码误报；
-- 纯 LLM 虽能基于语义判断，但对某些语言安全机制（如 subprocess 列表参数）理解不足；
-- RAG 通过安全模式识别条目，可纠正纯 LLM 的误报，实现 0 误报。
+- qwen7b 纯 LLM 已能正确识别安全写法，基线能力优于 qwen14b（qwen14b 在此样本上误报）；
+- RAG 在典型样本上对 qwen7b 主要提供可解释性增强（知识可追溯），误报纠正价值在难样本上更显著（见 exp_04）。
 
 ### 6.3 Semgrep 漏报 3 个（规则覆盖盲区）
 
@@ -157,31 +162,32 @@ LLM 与 Semgrep 都支持全语言，但 LLM 召回率更高。
 
 | 维度 | Bandit | Semgrep | 纯 LLM (qwen) | RAG+LLM (qwen) |
 | --- | --- | --- | --- | --- |
-| 单样本耗时 | 0.04s | 8.9s | 17.11s | 16.96s |
-| 相对 Bandit 倍数 | 基准 | 223× 慢 | 428× 慢 | 424× 慢 |
+| 单样本耗时 | 0.04s | 8.9s | 7.65s | 7.74s |
+| 相对 Bandit 倍数 | 基准 | 223× 慢 | 191× 慢 | 194× 慢 |
 | 召回率 | 83.3% | 75.0% | **100%** | **100%** |
-| 误报率 | 50.0% | 0.0% | 50.0% | **0.0%** |
+| 误报率 | 50.0% | 0.0% | **0.0%** | **0.0%** |
 | 修复建议 | ❌ | ❌ | ✅ | ✅ |
 | 多语言统一 | ❌ | ✅ | ✅ | ✅ |
 
-**核心论点**：RAG+LLM 比 Bandit 慢约 424 倍，但：
+**核心论点**：RAG+LLM 比 Bandit 慢约 194 倍，但：
 1. 召回率从 75%–83% 提升到 100%，漏报率降为 0；
-2. 误报率从 50%（Bandit）/ 50%（纯 LLM）降到 0%；
+2. 误报率从 50%（Bandit）降到 0%（LLM/RAG+LLM）；
 3. 把人工审计时间从"逐条核对告警"降到"阅读一段自然语言解释"；
-4. 直接输出可执行的修复代码，传统工具只给规则编号。
+4. 直接输出可执行的修复代码，传统工具只给规则编号；
+5. qwen7b 速度（7.65s）已接近 Semgrep（8.9s），且 qwen7b 支持全语言而 Bandit 仅支持 Python。
 
 ## 七、结论与论文论据
 
 ### 结论
 
-1. **RAG+LLM 在召回率、误报率、准确率上均优于传统工具**：召回率 100% vs 83.3%（Bandit）/ 75.0%（Semgrep），
+1. **LLM/RAG+LLM 在召回率、误报率、准确率上均优于传统工具**：召回率 100% vs 83.3%（Bandit）/ 75.0%（Semgrep），
    误报率 0% vs 50%（Bandit）/ 0%（Semgrep），准确率 100% vs 75.0% / 78.6%。
-2. **纯 LLM 已优于传统工具，但 RAG 进一步消除误报**：纯 LLM（qwen）在 `safe_02_subprocess_list.py` 上误报，
-   RAG+LLM 通过安全模式知识纠正，达到 0 误报。
+2. **qwen7b 纯 LLM 已达到 100% 准确率，无需 RAG 纠正典型样本误报**：qwen7b 在 `safe_02_subprocess_list.py` 上正确识别安全写法，
+   基线能力显著优于 qwen14b（准确率 92.9%）和 deepseek 16B（准确率 85.7%）。
 3. **传统工具的误报/漏报源于"模式匹配"本质**：Bandit 误报 subprocess 列表形式、
    Semgrep 漏报 PHP echo XSS，都是规则无法理解语义的体现。
 4. **多语言场景下 Bandit 失效**：6/14 样本不支持，统计基数缩水近半。
-5. **速度差距大幅缩小**：qwen 平均 17s/样本，相比 gemma4:12b 的 45s 提升约 2.64 倍；
+5. **速度差距大幅缩小**：qwen7b 平均 7.65s/样本，已接近 Semgrep（8.9s），远快于 qwen14b（17.11s）和 gemma4:12b（45s）；
    考虑"检出 + 解释 + 修复"的端到端价值，整体效率更可接受。
 
 ### 论文论据映射
@@ -189,7 +195,7 @@ LLM 与 Semgrep 都支持全语言，但 LLM 召回率更高。
 | 论文论点 | 实验证据 |
 | --- | --- |
 | LLM 语义理解优于模式匹配 | path_traversal_01.py 唯一检出 |
-| RAG 能降低 LLM 误报 | RAG 纠正 qwen 对 safe_02 的误报 |
+| qwen7b 基线能力优于 qwen14b/deepseek | qwen7b 纯 LLM 100% 准确率，safe_02 零误报 |
 | 传统工具误报增加人工成本 | safe_02_subprocess_list.py Bandit 误报 3 条 |
 | 传统工具规则覆盖有盲区 | Semgrep 漏报 3 个（XSS/路径/硬编码） |
 | LLM 多语言统一 | Bandit 6 样本不支持，LLM/Semgrep 全支持 |
@@ -208,8 +214,8 @@ cd experiments/exp_02_baseline_tools
 
 LLM 对比数据来自：
 ```bash
-cd ../exp_01_basic_scan && python3 run_experiment.py                      # 纯 LLM
-cd ../exp_03_rag_knowledge && python3 run_rag_experiment.py               # RAG+LLM
+cd ../exp_01_basic_scan && python3 run_experiment.py                      # 纯 LLM（默认 qwen7b）
+cd ../exp_03_rag_knowledge && python3 run_rag_experiment.py               # RAG+LLM（默认 qwen7b）
 ```
 
 结果写入 [results/results.json](results/results.json)，每跑完一个样本即增量落盘。

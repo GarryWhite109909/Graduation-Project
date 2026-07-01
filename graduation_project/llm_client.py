@@ -8,10 +8,10 @@ import requests
 import time
 from typing import Dict, List, Optional
 
-# schema 与 prompt 统一从 src.schema / src.prompts 导入（全项目唯一来源）。
-# 此处 re-export 仅为向后兼容历史代码 `from src.llm_client import parse_verdict`。
-from src.schema import VERDICT_SCHEMA, parse_verdict, normalize_has_vulnerability
-from src.prompts import SYSTEM_PROMPT, build_user_prompt
+# schema 与 prompt 统一从 graduation_project.schema / graduation_project.prompts 导入（全项目唯一来源）。
+# 此处 re-export 仅为向后兼容历史代码 `from graduation_project.llm_client import parse_verdict`。
+from graduation_project.schema import VERDICT_SCHEMA, parse_verdict, normalize_has_vulnerability
+from graduation_project.prompts import SYSTEM_PROMPT, build_user_prompt
 
 __all__ = [
     "OllamaClient",
@@ -22,7 +22,7 @@ __all__ = [
 
 
 class OllamaClient:
-    def __init__(self, base_url: str = "http://localhost:11434", model: str = "qwen2.5-coder:14b"):
+    def __init__(self, base_url: str = "http://localhost:11434", model: str = "qwen2.5-coder:7b"):
         self.base_url = base_url
         self.model = model
         self.api_generate = f"{base_url}/api/generate"
@@ -175,7 +175,7 @@ class OllamaClient:
 
         Returns:
             generate() 的返回值，text 字段为模型输出（含 JSON 结论块）。
-            统一输出 schema 见 VERDICT_SCHEMA（定义在 src.schema）。
+            统一输出 schema 见 VERDICT_SCHEMA（定义在 graduation_project.schema）。
         """
         prompt = build_user_prompt(
             code=code,
@@ -187,7 +187,7 @@ class OllamaClient:
 
 
 if __name__ == "__main__":
-    client = OllamaClient(model="qwen2.5-coder:14b")
+    client = OllamaClient(model="qwen2.5-coder:7b")
     
     # 检查连接
     if not client.check_connection():
