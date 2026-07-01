@@ -142,10 +142,13 @@
 
 1. **RAG K=5 是当前最优配置**：在 42 段难样本上实现 recall=100%、FPR=18.8%、accuracy=92.9%。
 2. **RAG 的核心价值是召回率提升**：相比纯 LLM（88.5%），RAG K=5（100%）多检出 3 个漏报样本。
-3. **Prompt 变长效应影响 FPR**：随机知识注入也能把 FPR 从 25% 降到 18.8%，说明模型对"上下文更谨慎"也会产生 FPR 下降。
-4. **qwen2.5-coder:7b 的边界在跨文件污点与混淆噪音**：
-   - **FN（漏报）**：`hard_crossfile_02_sink.py`——跨文件污点流分析仍存在盲区，即使注入 input 上下文。
-   - **FP（误报）**：`noise_03_harden_string_concat.py`、`noise_06_shell_true_hardcoded.py`、`safe_08_shlex.py`——混淆模式与安全模式识别仍是难点。
+3. **Prompt 变长效应影响 FPR**：随机知识注入也能把 FPR 从 25% 降到 18.8%，说明模型对"上下文更谨慎"也会产生 FPR 下降；但继续优化 prompt/RAG 对剩余误报的边际收益有限。
+4. **qwen2.5-coder:7b 在难样本上的边界**：
+   - **FP（误报，3 个）**：`safe_08_shlex.py`、`hard_crossfile_02_input.py`、`noise_03_harden_string_concat.py`。
+     - `safe_08_shlex.py`：模型被 RAG 中 `cmdi_shell_true` 知识主导，忽略了 `shlex.quote()` 转义后即使 `shell=True` 也安全的特例。
+     - `hard_crossfile_02_input.py`：单独看 helper 文件无 source 与校验，模型仅依据"路径拼接 + 无校验"这一局部模式误判。
+     - `noise_03_harden_string_concat.py`：模型把硬编码常量 `"admin"` 误判为"用户可控输入"，混淆了变量名与变量值来源。
+   - **FN（漏报）**：在 RAG K=5 下为 0；P1-4 纯 LLM repeat=3 中出现 1 次 `hard_crossfile_02_sink.py` 漏报，说明跨文件污点流分析仍是模型能力边界。
 
 ### 6.2 与 exp_01 对比的意义
 
@@ -155,7 +158,7 @@
 
 ### 6.3 后续优化方向
 
-1. **针对跨文件污点**：在 prompt 中显式要求"先列出所有外部输入源，再追踪到 sink"，或先用 tree-sitter 做 AST 切片。
-2. **针对混淆噪音**：在 knowledge.json 中新增"反混淆示例"知识条（如「代码中带有危险 API 调用但被 try/except 包裹，仍需分析实际执行路径」）。
-3. **针对安全模式误报**：后处理 `apply_safe_pattern_override` 已在 exp_01/03 生效，可推广到 exp_04。
+1. **针对跨文件污点**：在 prompt 中显式要求"先列出所有外部输入源，再追踪到 sink"，或先用 tree-sitter 做 AST 切片； helper 文件应结合调用方上下文判断，避免仅依据局部代码模式误判。
+2. **针对混淆噪音**：在 knowledge.json 中新增"反混淆示例"知识条，强调「判断漏洞必须识别真实的用户可控 source，硬编码常量或已注释掉的代码不构成漏洞」。
+3. **针对安全模式误报**：调整 RAG 安全模式知识的权重与表述，明确 `shlex.quote()` 是专为 `shell=True` 场景设计的安全转义；避免 `cmdi_shell_true` 等危险知识覆盖安全模式知识。不采用后处理规则兜底，以保持 LLM 智能检测的论点。
 4. **Top-1 检索质量提升**：当前 Top-1 类型命中率仅 65.4%，可通过改进知识库文本质量（如增加漏洞签名、强化标题）或更换 embedding 模型提升。
