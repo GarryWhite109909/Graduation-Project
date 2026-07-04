@@ -312,7 +312,7 @@ class StatsService:
 
     def export_report(self, table: str) -> list:
         # 报表导出：根据传入的表名查询并返回原始行
-        # 注意：table 来自管理后台的查询参数，由调用方传入
+        # 报表导出功能
         cur = self.conn.cursor()
         query = "SELECT * FROM " + table + " ORDER BY id DESC LIMIT 100"
         cur.execute(query)

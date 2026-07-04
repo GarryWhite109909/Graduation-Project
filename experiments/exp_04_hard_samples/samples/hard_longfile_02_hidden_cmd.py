@@ -201,7 +201,6 @@ class ExportService:
         # 调用 tar 把 /tmp/exports 目录打包，archive_name 由调用方提供
         os.makedirs(EXPORT_DIR, exist_ok=True)
         target = os.path.join(EXPORT_DIR, archive_name)
-        # 漏洞：archive_name 未做校验直接拼到 shell 命令，可注入 ; rm -rf /
         import subprocess
         result = subprocess.run(
             f"tar -cf {target} -C {EXPORT_DIR} .",
