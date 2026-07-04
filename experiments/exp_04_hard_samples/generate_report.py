@@ -104,15 +104,17 @@ def collect_topk_retrieval(results_data: dict) -> dict:
             continue
         if not expected_cwe or expected_cwe == "N/A":
             continue
+        # 支持分号分隔的多重 CWE（如 "CWE-434; CWE-22"）
+        expected_cwe_list = [c.strip() for c in expected_cwe.split(";") if c.strip()]
         for run in s.get("runs", []):
             retrieval = run.get("rag_retrieval", []) or []
             if not retrieval:
                 continue
             type_total += 1
-            # 检查 Top-1 是否命中（按 CWE 匹配）
+            # 检查 Top-1 是否命中（按 CWE 匹配，任一 expected CWE 命中即可）
             top1 = retrieval[0] if retrieval else {}
             top1_cwe = top1.get("cwe", "") or ""
-            if expected_cwe and expected_cwe in top1_cwe:
+            if any(cwe in top1_cwe for cwe in expected_cwe_list):
                 type_hit_count += 1
             # 收集距离
             for r in retrieval:
@@ -148,17 +150,21 @@ def _find_p1_4_path() -> Path | None:
 
 
 def _find_ablation_path(mode: str, top_k: int = 3) -> Path | None:
-    """自动匹配 P1-5 消融实验结果文件（支持新旧两种命名规范）。"""
+    """自动匹配 P1-5 消融实验结果文件（支持新旧三种命名规范）。"""
     return _find_latest_result([
         f"results.ablation.{mode}.topk{top_k}.json",
+        # v2 命名：results.ablation.{mode}.topk{K}.qwen7b.v2.json
+        f"results.ablation.{mode}.topk{top_k}.*.json",
         f"exp_04_hard_samples.*.{mode}.topk{top_k}.*.json",
     ])
 
 
 def _find_topk_path(top_k: int) -> Path | None:
-    """自动匹配 P2-8 Top-K 实验结果文件（支持新旧两种命名规范）。"""
+    """自动匹配 P2-8 Top-K 实验结果文件（支持新旧三种命名规范）。"""
     return _find_latest_result([
         f"results.ablation.rag.topk{top_k}.json",
+        # v2 命名：results.ablation.rag.topk{K}.qwen7b.v2.json
+        f"results.ablation.rag.topk{top_k}.*.json",
         f"exp_04_hard_samples.*.rag.topk{top_k}.*.json",
     ])
 
@@ -208,10 +214,21 @@ def main() -> int:
     # -----------------------------------------------------------------
     # 组装报告
     # -----------------------------------------------------------------
+    # 从 P1-4 结果读取实际样本数（v1=42, v2=87），用于动态显示
+    p1_4_env = p1_4.get("environment", p1_4) if p1_4 else {}
+    sample_count = p1_4_env.get("sample_count") or p1_4.get("sample_count") or 42
+    sample_set_desc = "87 段（v2 扩展版）" if sample_count == 87 else f"{sample_count} 段"
+    if sample_count == 87:
+        sample_dist_desc = "典型漏洞 36 + 安全对照 18 + 难样本 27 + 混淆噪音 6"
+        hard_types_desc = "绕过过滤 8 / 跨文件污点 6 / 真实 CVE 8 / 长文件隐藏 3 / OWASP 风格 2"
+    else:
+        sample_dist_desc = "典型漏洞 12 + 安全对照 8 + 难样本 16 + 混淆噪音 6"
+        hard_types_desc = "绕过过滤 4 / 跨文件污点 4 / 真实 CVE 4 / 长文件隐藏 2 / OWASP 风格 2"
+
     lines = []
     lines.append("# exp_04 难样本压力测试实验报告")
     lines.append("")
-    lines.append("> 在扩充后的 42 段难样本集上系统评估 LLM 漏洞检测能力，覆盖三大维度：")
+    lines.append(f"> 在扩充后的 {sample_set_desc}难样本集上系统评估 LLM 漏洞检测能力，覆盖三大维度：")
     lines.append("> - **P1-4 重复性与置信区间**：每样本跑 3 次，多数表决 + Wilson 95% CI")
     lines.append("> - **P1-5 RAG 消融对照**：A组(RAG+LLM) vs B组(纯LLM) vs C组(随机知识) vs D组(无关文本)")
     lines.append("> - **P2-8 Top-K 对比**：K=1,3,5,10 对检出率/检索质量/耗时的影响")
@@ -222,9 +239,9 @@ def main() -> int:
     lines.append("")
     lines.append("| 项目 | 值 |")
     lines.append("| --- | --- |")
-    lines.append("| 样本集 | exp_04_hard_samples（42 段） |")
-    lines.append("| 样本分布 | 典型漏洞 12 + 安全对照 8 + 难样本 16 + 混淆噪音 6 |")
-    lines.append("| 难样本类型 | 绕过过滤 4 / 跨文件污点 4 / 真实 CVE 4 / 长文件隐藏 2 / OWASP 风格 2 |")
+    lines.append(f"| 样本集 | exp_04_hard_samples（{sample_count} 段） |")
+    lines.append(f"| 样本分布 | {sample_dist_desc} |")
+    lines.append(f"| 难样本类型 | {hard_types_desc} |")
     lines.append(f"| 模型 | `{setup_model}` |")
     lines.append("| 采样温度 | 0.1 |")
     lines.append("| 评估口径 | 单次口径 + 多数表决口径（含 Wilson 95% CI） |")
@@ -299,7 +316,7 @@ def main() -> int:
     lines.append("")
     lines.append("## 三、P1-5：RAG 消融对照实验")
     lines.append("")
-    lines.append("在相同 42 段样本上对比 4 组，验证 RAG 提升是否来自知识相关性：")
+    lines.append(f"在相同 {sample_count} 段样本上对比 4 组，验证 RAG 提升是否来自知识相关性：")
     lines.append("")
     lines.append("- **A 组 (rag)**：RAG+LLM，按代码语义检索 Top-3")
     lines.append("- **B 组 (pure)**：纯 LLM，无 RAG 上下文")
@@ -338,7 +355,7 @@ def main() -> int:
     lines.append("")
     lines.append("## 四、P2-8：RAG Top-K 对比")
     lines.append("")
-    lines.append("在相同 42 段样本上对比 K=1,3,5,10 对检出率、检索质量、耗时的影响。")
+    lines.append(f"在相同 {sample_count} 段样本上对比 K=1,3,5,10 对检出率、检索质量、耗时的影响。")
     lines.append("")
     lines.append("### 4.1 检出率与耗时")
     lines.append("")
@@ -388,7 +405,7 @@ def main() -> int:
     lines.append("| exp_01（14 段典型样本） | 14 | 100% | 0% | 100% | 教科书式漏洞，能力下限 |")
     if p1_4:
         m = collect_metrics_majority(p1_4)
-        lines.append(f"| exp_04 P1-4（42 段难样本，repeat=3） | 42 | {fmt_pct(m['recall'])} | {fmt_pct(m['fpr'])} | {fmt_pct(m['accuracy'])} | 多数表决 + 95% CI |")
+        lines.append(f"| exp_04 P1-4（{sample_count} 段难样本，repeat=3） | {sample_count} | {fmt_pct(m['recall'])} | {fmt_pct(m['fpr'])} | {fmt_pct(m['accuracy'])} | 多数表决 + 95% CI |")
     lines.append("")
     lines.append("> 若 exp_04 准确率明显低于 exp_01，说明难样本确实测出了模型的边界，")
     lines.append('> 而非"样本太简单导致 100%"。这正是本实验设计的核心目的。')
