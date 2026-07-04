@@ -81,7 +81,12 @@ def build_rag_context(
     Returns:
         (rag_context_str, retrieval_records)
         - rag_context_str: 拼接好的知识上下文，注入 prompt
-        - retrieval_records: 每条检索结果的元信息（id/type/distance），用于结果记录
+        - retrieval_records: 每条检索结果的元信息（id/type/distance/safe_pattern），用于结果记录
+
+    知识标签策略：
+        - metadata.safe_pattern=True  → 标注「安全模式」(帮助避免误报)
+        - 否则                        → 标注「危险模式」(漏洞特征参考)
+    显式标签有助于 LLM 区分两类知识的用法，避免把安全模式知识当成漏洞证据。
     """
     results = cm.query(collection_name, query_code, n_results=top_k)
 
@@ -92,15 +97,19 @@ def build_rag_context(
         results["distances"],
         results["metadatas"],
     )):
+        is_safe = bool(meta.get("safe_pattern", False))
+        tag = "安全模式" if is_safe else "危险模式"
         retrieval_records.append({
             "rank": i + 1,
             "id": results["ids"][i] if i < len(results.get("ids", [])) else None,
             "type": meta.get("type"),
             "cwe": meta.get("cwe"),
             "distance": round(dist, 4),
+            "safe_pattern": is_safe,
+            "tag": tag,
         })
         context_parts.append(
-            f"【知识 {i+1}】({meta.get('type', '未知')} / {meta.get('cwe', '')})\n{doc}"
+            f"【知识 {i+1}】[{tag}] ({meta.get('type', '未知')} / {meta.get('cwe', '')})\n{doc}"
         )
 
     rag_context = "\n\n".join(context_parts) if context_parts else ""
