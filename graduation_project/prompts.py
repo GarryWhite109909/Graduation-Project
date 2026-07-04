@@ -2,15 +2,15 @@
 统一 Prompt 模板 —— 全项目所有漏洞分析调用必须使用本模块的构建函数。
 
 提供三种复用粒度：
-- SYSTEM_PROMPT：角色 + 分析范围 + 安全模式白名单 + Few-shot 示例 + schema + 输出要求（system 字段用）
+- SYSTEM_PROMPT：角色 + 分析范围 + 安全模式白名单 + 硬编码凭证规则 + schema + 输出要求（system 字段用）
 - build_user_prompt()：代码块 + 可选 RAG 上下文 + 收尾（user prompt）
 - build_full_prompt()：SYSTEM_PROMPT + user prompt 拼接（给不用 system 字段的单 prompt 调用用）
 
 schema 字段说明通过 graduation_project.schema.format_schema_for_prompt() 渲染，确保全项目一致。
 
 DeepSeek 安全样本优化（2026-06-30）：
-- 在 SYSTEM_PROMPT 中加入 SAFE_PATTERN_WHITELIST，显式声明常见安全写法
-- 加入 FEW_SHOT_EXAMPLES，提供 2 组漏洞/安全对照，校准模型判定边界
+- 在 SYSTEM_PROMPT 中加入 SAFE_PATTERN_WHITELIST，显式声明常见安全写法（通用领域知识，不含测试样本代码）
+- 不使用 Few-shot 示例，避免与测试样本代码重叠导致答案泄露
 - 目标：把 deepseek-coder-v2:16b 在 exp_01 安全样本上的误报率从 100% 降到 ≤10%
 """
 
@@ -80,86 +80,9 @@ HARDCODED_SECRET_RULE = """\
   真实漏洞，必须判 has_vulnerability=false。"""
 
 # ---------------------------------------------------------------------------
-# Few-shot 示例 —— 3 组漏洞/安全对照，校准模型判定边界。
-# 注意：示例代码不得直接复制项目样本，避免答案泄露。
-# ---------------------------------------------------------------------------
-FEW_SHOT_EXAMPLES = """\
-【Few-shot 示例（学习判定边界）】
-
-示例 A（SQL 注入 - 漏洞 vs 安全）：
-```python
-# A1 漏洞代码（字符串拼接用户输入到 SQL）
-def get_user(name):
-    cur.execute("SELECT * FROM users WHERE name = '" + name + "'")
-# → has_vulnerability: true
-#   vulnerability_type: CWE-89 SQL注入
-#   source: name 参数（用户可控）
-#   sink: cur.execute() 拼接字符串
-#   原因：name 直接通过 + 拼进 SQL 语法层，未转义。
-```
-```python
-# A2 安全代码（参数化查询，占位符 + 参数元组）
-def get_user(name):
-    query = "SELECT * FROM users WHERE name = ?"
-    cur.execute(query, (name,))
-# → has_vulnerability: false
-#   vulnerability_type: none
-#   explanation: ? 是 SQL 占位符，(name,) 作为参数元组传入，数据库驱动会自动转义。
-#   **注意：query 先赋值给变量再传入 execute，依然是参数化查询，不是字符串拼接。**
-#   严禁把这种写法误判为漏洞，更严禁在 fix_suggestion 中推荐 cursor.execute('SELECT ... WHERE name = ?', (name,)) 这种与原代码等价的写法。
-```
-
-示例 B（命令注入 - 漏洞 vs 安全）：
-```python
-# B1 漏洞代码（shell=True 且拼接用户输入）
-def ping(host):
-    subprocess.run("ping -c 1 " + host, shell=True)
-# → has_vulnerability: true
-#   vulnerability_type: CWE-78 命令注入
-#   source: host 参数（用户可控）
-#   sink: subprocess.run(shell=True) 拼接字符串
-#   原因：shell=True 启用 shell 解释，host 中的 ; | & $ ` 等元字符会被解释。
-```
-```python
-# B2 安全代码（列表参数 + shell 默认 False + 输入校验）
-def ping(host):
-    if not host.replace(".", "").replace("-", "").isalnum():
-        return "invalid"
-    subprocess.run(["ping", "-c", "1", host], capture_output=True, timeout=5)
-# → has_vulnerability: false
-#   vulnerability_type: none
-#   explanation: 列表参数 + 未显式启用 shell（默认 shell=False），host 元字符被当作普通字符
-#   传递给 ping 程序；isalnum 校验进一步限制字符集。
-#   **注意：代码中没有 shell=True，严禁在判定中捏造 "subprocess.run(shell=True)"。**
-#   严禁在 fix_suggestion 中推荐 "使用列表参数 + 不启用 shell"——这正是原代码的写法。
-```
-
-示例 C（路径穿越 - 漏洞 vs 安全）：
-```python
-# C1 漏洞代码（直接拼接用户输入到路径）
-def read_file(name):
-    return open("/app/data/" + name).read()
-# → has_vulnerability: true
-#   vulnerability_type: CWE-22 路径穿越
-#   source: name 参数（用户可控）
-#   sink: open() 拼接路径
-```
-```python
-# C2 安全代码（abspath + startswith 校验）
-def read_file(name):
-    base = os.path.abspath("/app/data")
-    full = os.path.abspath(os.path.join(base, name))
-    if not full.startswith(base + os.sep):
-        abort(403)
-    return open(full).read()
-# → has_vulnerability: false
-#   vulnerability_type: none
-#   explanation: abspath 规范化路径并解析 .. 序列，startswith 校验确保最终路径在允许目录内。
-```"""
-
-# ---------------------------------------------------------------------------
 # System Prompt：默认完整版
-# 角色 + 分析范围 + 安全模式白名单 + 硬编码凭证规则 + Few-shot + schema + 输出要求。
+# 角色 + 分析范围 + 安全模式白名单 + 硬编码凭证规则 + schema + 输出要求。
+# 注意：不使用 Few-shot 示例，避免与测试样本代码重叠导致答案泄露。
 # 当前主模型 qwen2.5-coder:7b 依赖该完整 prompt 在 exp_01/exp_03 上达到 100% 准确率。
 # ---------------------------------------------------------------------------
 SYSTEM_PROMPT = (
@@ -181,8 +104,6 @@ SYSTEM_PROMPT = (
     + SAFE_PATTERN_WHITELIST
     + "\n\n"
     + HARDCODED_SECRET_RULE
-    + "\n\n"
-    + FEW_SHOT_EXAMPLES
     + "\n\n在回答的最后，必须严格输出一个 JSON 对象作为最终结论，"
     "JSON 块用 ```json 包裹，字段如下（统一 schema，全项目一致）：\n"
     + format_schema_for_prompt()
@@ -207,8 +128,12 @@ def build_user_prompt(
 
     if rag_context:
         parts.append(
-            f"\n【相关知识参考】\n{rag_context}\n"
-            f"请结合以上知识，更准确地分析代码漏洞。"
+            f"\n【知识库检索结果（仅供参考，可能与当前代码相关也可能无关）】\n{rag_context}\n"
+            f"使用要求：\n"
+            f"1. 上述知识可能命中「危险模式」或「安全模式」两类，请根据知识标题与内容自行判断。\n"
+            f"2. 若知识标注 safe_pattern=true 或描述的是安全写法，应作为「避免误报」的依据，而非漏洞证据。\n"
+            f"3. 若知识与当前代码漏洞类型不匹配（如代码是 SSRF 但检索到路径穿越知识），请忽略该知识，独立判断。\n"
+            f"4. 严禁因为知识中提到某类漏洞就在代码中强行寻找该类漏洞；以代码实际语义为准。"
         )
 
     parts.append("请先给出分析过程，然后在最后给出 JSON 结论。")
