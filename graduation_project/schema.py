@@ -114,11 +114,18 @@ def _extract_verdict_fallback(raw_output: str) -> dict:
 
     处理模型输出 JSON 字符串值中含未转义双引号（如 HTML 属性 class="..."）
     导致 json.loads 失败的情况。仅提取关键字段，不保证完整 schema。
+    同时处理 markdown 列表格式（如 `- **has_vulnerability**: false`）的输出。
     """
     verdict = {}
 
     # 提取 has_vulnerability（最关键字段）
+    # 优先匹配 JSON 格式 "has_vulnerability": true/false
     m = re.search(r'"has_vulnerability"\s*:\s*(true|false|null|"[^"]*"|\d+)', raw_output, re.IGNORECASE)
+    if not m:
+        # 兜底匹配 markdown 格式：**has_vulnerability**: true/false
+        # 形如 - **has_vulnerability**: false  或  **has_vulnerability**: false
+        m = re.search(r'\*{0,2}has_vulnerability\*{0,2}\s*:\s*(true|false|null|none|"[^"]*"|\d+)',
+                      raw_output, re.IGNORECASE)
     if m:
         val = m.group(1).strip().strip('"')
         if val.lower() in ("true", "1"):
@@ -130,13 +137,21 @@ def _extract_verdict_fallback(raw_output: str) -> dict:
 
     # 提取 vulnerability_type（容忍未转义引号：取到下一个字段边界 " 或 }）
     m = re.search(r'"vulnerability_type"\s*:\s*"(.*?)(?=",\s*"|"\s*})', raw_output)
+    if not m:
+        # 兜底匹配 markdown 格式：**vulnerability_type**: none
+        m = re.search(r'\*{0,2}vulnerability_type\*{0,2}\s*:\s*"?([^"\n*]+)"?(?=\s*\n|$)',
+                      raw_output, re.IGNORECASE)
     if m:
         verdict["vulnerability_type"] = m.group(1).strip()
 
     # 提取 risk_level
     m = re.search(r'"risk_level"\s*:\s*"([^"]+)"', raw_output)
+    if not m:
+        # 兜底匹配 markdown 格式：**risk_level**: None
+        m = re.search(r'\*{0,2}risk_level\*{0,2}\s*:\s*"?([^"\n*]+)"?(?=\s*\n|$)',
+                      raw_output, re.IGNORECASE)
     if m:
-        verdict["risk_level"] = m.group(1)
+        verdict["risk_level"] = m.group(1).strip()
 
     return verdict
 

@@ -89,11 +89,11 @@ Graduation-Project/
 │   │   ├── exp_03_report.md               #   实验报告（纯 LLM vs RAG+LLM 对比）
 │   │   ├── results/                       #   实验结果
 │   │   └── knowledge_data/
-│   │       ├── knowledge.json             #   漏洞知识条目（手工编写，34 条）
+│   │       ├── knowledge.json             #   漏洞知识条目（手工编写，72 条，覆盖 39 类 CWE）
 │   │       ├── build_knowledge.py         #   从 JSON 加载 → upsert 入库 Chroma（幂等可重复运行）
 │   │       └── test_rag.py                #   单样本快速验证脚本（正式实验用 run_rag_experiment.py）
-│   └── exp_04_hard_samples/               # 阶段四：难样本压力测试 + 消融实验
-│       ├── samples/                       #   42 段扩展样本（典型 12 + 安全 8 + 难 16 + 噪音 6）
+│   └── exp_04_hard_samples/               #   阶段四：难样本压力测试 + 消融实验
+│       ├── samples/                       #   87 段扩展样本（v2/v3，典型 36 + 安全 18 + 难 27 + 噪音 6）
 │       │   ├── manifest.json              #     12 列 ground truth 标注
 │       │   ├── typical_*.py/php/js         #     典型漏洞样本
 │       │   ├── safe_*.py                  #     安全对照样本
@@ -150,39 +150,52 @@ Graduation-Project/
 
 详见 [experiments/exp\_03\_rag\_knowledge/exp\_03\_report.md](experiments/exp_03_rag_knowledge/exp_03_report.md)。
 
-### ✅ 已完成：阶段四-1 — 实验严谨性修复与难样本集构建（2026-06-29）
+### ✅ 已完成：阶段四-1 — 实验严谨性修复与难样本集构建（2026-06-29 / 2026-07-03 v2 扩容 / 2026-07-05 v3 修复）
 
-针对 exp\_01\~03 评估中发现的实验设计问题（详见 [docs/临时提示词\_下一步计划.md](docs/临时提示词_下一步计划.md)），完成 4 项关键修复：
+针对 exp\_01\~03 评估中发现的实验设计问题（详见 [docs/过程.md](docs/过程.md)），完成 4 项关键修复：
 
 - **P0-1 样本答案泄露修复**：删除 14 段样本中所有 `# 期望/漏洞/安全/样本` 注释，ground truth 仅保留在 manifest.json。用 `gemma4:12b` 重跑三个实验，准确率仍为 100%，证明模型不靠注释作弊。后续默认主模型最终切换为 `qwen2.5-coder:7b`
-- **P0-2 样本集扩充**：在 `experiments/exp_04_hard_samples/samples/` 下新建 42 段样本：
-  - 典型漏洞 12 段（SQL/XSS/命令注入/路径穿越/pickle/硬编码密钥/SSRF/eval/PHP XSS/JS 命令注入/YAML/开放重定向）
-  - 安全对照 8 段（参数化查询/HTML 转义/subprocess 列表/路径白名单/LIKE 参数化/CSP/正则校验/shlex）
-  - 难样本 16 段，覆盖 5 类：绕过式过滤 4 / 跨文件污点流 4 / 真实 CVE 片段 4 / 长文件隐藏漏洞 2 / OWASP-DVWA 风格 2
-  - 混淆噪音 6 段
+- **P0-2 样本集扩充**：在 `experiments/exp_04_hard_samples/samples/` 下分两阶段扩至 **87 段 v3 修复后样本**：
+  - v1（42 段，2026-06-29）：典型 12 + 安全 8 + 难 16 + 噪音 6
+  - v2（87 段，2026-07-03）：CWE 覆盖从 11 类扩至 34 类，新增 Java 7 段、CSRF/SSTI/JWT/IDOR 等 23 类漏洞，安全对照扩至 18 段
+  - v3（87 段，2026-07-05）：删除 47 个文件泄露答案的 docstring/注释；修正 `typical_29_integer_overflow` 为 Java 版本；重命名 2 个误导性 CVE 文件名（`hard_cve_02_python_log_injection.py`、`hard_cve_04_ssrf_urllib.py`）
   - 每段附带 12 列 ground truth（file/language/category/difficulty/expected\_present/expected\_vulnerability/expected\_cwe/expected\_risk\_level/source/sink/taint\_path/fix\_idea）
-- **P1-3 Schema 统一**：`graduation_project/schema.py` 的 `VERDICT_SCHEMA` 为 7 字段版本；安全样本 `risk_level` 填 `N/A`，`source/sink` 填 `None`；新增 DeepSeek 风格畸形 JSON 容错修复（连续字符串值合并）
+- **P1-3 Schema 统一**：`graduation_project/schema.py` 的 `VERDICT_SCHEMA` 为 7 字段版本；安全样本 `risk_level` 填 `N/A`，`source/sink` 填 `None`；新增 DeepSeek 风格畸形 JSON 容错（连续字符串值合并）+ markdown 列表格式兜底解析
 - **P1-7 耗时统计增强**：报告新增中位数耗时与异常值说明（当前默认主模型 qwen2.5-coder:7b 在 exp\_01 平均约 7.7s；deepseek-coder-v2:16b 平均 9.63s；qwen2.5-coder:14b 平均 17.11s）
 
 默认主实验模型最终由 `deepseek-coder-v2:16b` 切换为 `qwen2.5-coder:7b`（dense 代码模型，exp\_01 平均约 7.7s，典型样本无需后处理即可达到 100% 准确率）。`deepseek-coder-v2:16b` 保留作为对照模型。提示：DeepSeek 安全样本优化专项已失败——该模型存在根本性安全模式知识盲区，纯 Prompt 工程与 RAG 均无法克服，后处理白名单虽能修复指标但非模型本身能力提升，维护成本高且泛化性差。**后续安全专用模型将以 qwen2.5-coder:7b 为基座进行 LoRA 微调与蒸馏**。
 
-### ✅ 已完成：阶段四-2 — 难样本压力测试 + 消融实验（2026-07-01）
+### ✅ 已完成：阶段四-2 — 难样本压力测试 + 消融实验（v1 2026-07-01 / v2 2026-07-04 / v3 2026-07-05）
 
-在 exp\_04 难样本集（42 段：典型 12 + 安全 8 + 难 16 + 噪音 6）上完成 3 项实验，
+在 exp\_04 难样本集（**v3 修复后 87 段**：典型 36 + 安全 18 + 难 27 + 噪音 6）上完成 3 项实验，
 详见 [experiments/exp\_04\_hard\_samples/exp\_04\_report.md](experiments/exp_04_hard_samples/exp_04_report.md)：
 
-- **P1-4 重复性与置信区间**：qwen7b，repeat=3，多数表决 recall=96.2%、FPR=25.0%、accuracy=88.1%（Wilson 95% CI）
-- **P1-5 RAG 消融对照**：A(RAG+LLM) recall=96.2%/FPR=18.8% vs B(纯 LLM) 88.5%/25.0% vs C(随机) 88.5%/18.8% vs D(无关) 92.3%/25.0%。
-  **核心发现**：RAG 召回提升（+7.7pp）来自知识相关性，FPR 下降部分来自 prompt 变长效应。
-- **P2-8 Top-K 对比**：K=5 为最优平衡点（recall=100%、FPR=18.8%、accuracy=92.9%），K=10 因噪声引入 FPR 升至 25.0%。
+- **P1-4 重复性与置信区间**：qwen7b，repeat=3，多数表决 recall=83.3% (95% CI [72.0%, 90.7%])、FPR=33.3%、accuracy=78.2% (95% CI [68.4%, 85.5%])
+- **P1-5 RAG 消融对照**：A(RAG+LLM) recall=91.7%/FPR=29.6% vs B(纯 LLM) 95.0%/26.9% vs C(随机) 88.3%/18.5% vs D(无关) 93.2%/25.9%。
+  **核心发现**：v3 修复答案泄露后，RAG 未带来准确率/召回率提升，模型基座已掌握典型漏洞模式；RAG 价值更多体现在可解释性与知识可扩展性。
+- **P2-8 Top-K 对比**：K=5 为最优平衡点（recall=95.0%、FPR=25.9%、accuracy=88.5%），K=10 因噪声引入 FPR 升至 29.6%。
+
+### ✅ 已完成：阶段四-3 — 多模型横向对比（exp_04 v3，2026-07-05/06 完成）
+
+在 87 段 v3 修复后样本上对比 6 个模型零样本能力（纯 LLM 模式，repeat=1），并经结果审查修复（3 个真值错误样本 + 1 个解析错误已修复重跑）。
+
+| 模型 | TP | TN | FP | FN | 准确率 | 召回率 | 误报率 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| qwen2.5-coder:7b | 53 | 21 | 6 | 7 | 85.1% | 88.3% | 22.2% |
+| qwen2.5-coder:14b | 55 | 21 | 6 | 5 | 87.4% | 91.7% | 22.2% |
+| **gemma4:12b** | 57 | 25 | 2 | 3 | **94.3%** | 95.0% | **7.4%** |
+| deepseek-coder-v2:16b | 57 | 15 | 12 | 3 | 82.8% | 95.0% | 44.4% |
+| gpt-oss:20b | 56 | 20 | 7 | 4 | 87.4% | 93.3% | 25.9% |
+| **gemma4:26b** | 57 | 25 | 2 | 3 | **94.3%** | 95.0% | **7.4%** |
+
+**核心结论**：gemma4:12b/26b 表现最优（准确率 94.3%、误报率 7.4%）；deepseek-coder-v2:16b 误报率最高（44.4%），印证 DeepSeek 优化专项失败结论；qwen2.5-coder:7b 召回率 88.3% 略低但体积小速度快，作为安全专用模型微调基座合理。
 
 后续阶段（以 qwen2.5-coder:7b 为基座构建网络安全专用模型，deepseek 16B 因知识盲区问题已放弃作为基座）：
 
 - Prompt 工程对比（零样本 / Few-shot / 思维链 / 安全模式白名单）
 - RAG 安全知识增强（扩充 `cmdi_safe_pattern`、`sqli_safe_pattern` 等安全模式条目）
 - AST 代码切片（tree-sitter，长文件按函数切分）
-- LoRA/QLoRA 微调 deepseek-coder-v2:16b → 网络安全专用模型
-- 多模型对比（deepseek-coder-v2:16b / qwen2.5-coder:14b / gemma4:26b / gpt-oss:20b）
+- LoRA/QLoRA 微调 qwen2.5-coder:7b → 网络安全专用模型
 
 ***
 
@@ -195,7 +208,7 @@ Graduation-Project/
 | 任务                                   | 对应实验    | 状态                |
 | ------------------------------------ | ------- | ----------------- |
 | 传统工具对比基线（Bandit / Semgrep）           | exp\_02 | ✅ 完成              |
-| 真实代码测试（CVE PoC / OWASP WebGoat 等难样本） | exp\_04 | ✅ 已完成（P1-4/P1-5/P2-8 全部完成） |
+| 真实代码测试（CVE PoC / OWASP WebGoat 等难样本） | exp\_04 | ✅ 已完成（v3 修复后 87 段，P1-4/P1-5/P2-8 全部完成） |
 
 ### 💡 创新点（论文核心价值）
 
@@ -203,8 +216,8 @@ Graduation-Project/
 | ---------------------------------------------------------------------------------------- | ------- | ----- |
 | RAG 漏洞知识库（OWASP/CWE/CVE → Chroma，检索注入 Prompt）                                            | exp\_03 | ✅ 完成  |
 | AST 代码切片（tree-sitter，长文件按函数/块切分，解决注意力衰减）                                                 | exp\_04 | ⏳ 待开始 |
-| DeepSeek 安全样本优化（Prompt 工程 / RAG 安全知识 / 后处理白名单，已失败并放弃；改用 qwen2.5-coder:7b 为安全专用模型基座）                                            | exp\_05 | ⏳ 待开始 |
-| 多模型对比（deepseek-coder-v2:16b / qwen2.5-coder:14b / gemma4:12b / gemma4:26b / gpt-oss:20b） | exp\_06 | ⏳ 待开始 |
+| DeepSeek 安全样本优化（Prompt 工程 / RAG 安全知识 / 后处理白名单，已失败并放弃；改用 qwen2.5-coder:7b 为安全专用模型基座）                                            | exp\_05 | ❌ 失败并放弃 |
+| 多模型对比（deepseek-coder-v2:16b / qwen2.5-coder:14b / gemma4:12b / gemma4:26b / gpt-oss:20b） | exp\_04 | ✅ 已完成（v3，2026-07-05/06，含结果审查修复） |
 
 ### ⭐ 加分项（提升完成度）
 
@@ -222,7 +235,7 @@ Graduation-Project/
 | 一、模型能力摸底         | 验证 LLM 在典型漏洞上的下限能力                                 | ✅ 完成   |
 | 二、传统工具对比基线       | 明确 LLM 相对传统工具的改进点                                  | ✅ 完成   |
 | 三、RAG 知识增强       | 引入向量库，对比有/无 RAG 的检出率                               | ✅ 完成   |
-| 四、难样本压力测试 + 消融实验 | 验证 LLM/RAG/传统工具在绕过/CVE/长文件等难样本上的表现                 | ✅ 已完成 |
+| 四、难样本压力测试 + 消融实验 | 验证 LLM/RAG/传统工具在绕过/CVE/长文件等难样本上的表现（含多模型横向对比）       | ✅ 已完成（v3 + 多模型对比 + 结果审查修复） |
 | 五、网络安全专用模型训练与蒸馏  | 以 qwen2.5-coder:7b 为基座，用安全/漏洞数据做 LoRA/QLoRA 微调与蒸馏（deepseek 16B 已放弃作为基座） | ⏳ 待开始  |
 | 六、系统设计与开发        | MVP：代码上传 → LLM 分析 → 结果展示；批量扫描、报告导出                 | ⏳ 待开始  |
 | 七、论文与答辩          | 整理实验数据、撰写论文、答辩演示                                   | ⏳ 待开始  |
@@ -236,7 +249,7 @@ Graduation-Project/
 LLM 单样本耗时约 7.7s（qwen2.5-coder:7b），比 Bandit（\~0.5s）慢约 15 倍，但传统工具只输出"漏洞类型 + 规则号"，人工理解每个漏洞仍需 \~30 分钟；LLM 直接给出自然语言解释 + 修复代码，把人工审计时间降到 \~5 分钟。
 
 **核心论点**：LLM 慢 15 倍，但整体效率（含人工理解成本）显著提升——定位为"增强审计"而非"替代"。
-当前默认主模型 qwen2.5-coder:7b 在典型样本上无需后处理即可达到 100% 准确率，在难样本上 RAG K=5 达到 recall=100%、accuracy=92.9%，显著优于纯 LLM（recall=88.5%、accuracy=83.3%）。
+当前默认主模型 qwen2.5-coder:7b 在典型样本上无需后处理即可达到 100% 准确率；在 v3 修复后 87 段难样本上 RAG K=5 达到 recall=95.0%、accuracy=88.5%，纯 LLM recall=95.0%、accuracy=88.4%（v3 上 RAG 主要提供可解释性而非准确率提升）。
 后续通过专用模型训练（LoRA/QLoRA）进一步提升泛化能力。
 
 | 指标      | Bandit           | Semgrep    | LLM (qwen2.5-coder:7b) |
@@ -245,7 +258,7 @@ LLM 单样本耗时约 7.7s（qwen2.5-coder:7b），比 Bandit（\~0.5s）慢约
 | 人工理解时间  | \~30 分钟/漏洞       | \~30 分钟/漏洞 | \~5 分钟/漏洞              |
 | 修复代码生成  | ❌                | ❌          | ✅                      |
 | 典型样本准确率 | 75.0%（Python 样本） | 78.6%      | 100%（纯 LLM / RAG+LLM） |
-| 难样本准确率 | - | - | 92.9%（RAG K=5）/ 83.3%（纯 LLM） |
+| 难样本准确率 | - | - | 88.5%（RAG K=5 v3 多数表决）/ 78.2%（纯 LLM v3 多数表决） |
 
 > 数据来自 exp\_01 / exp\_02 / exp\_03 实测结果。
 
@@ -376,9 +389,9 @@ python3 run_baseline.py --limit 3               # 只跑前 3 个样本（调试
 ### 跑第三阶段实验（exp\_03，RAG 知识库增强）
 
 ```bash
-# 1. 构建漏洞知识库（幂等，可重复运行）
+# 1. 构建漏洞知识库（首次运行，会下载 embedding 模型）
 cd experiments/exp_03_rag_knowledge/knowledge_data
-python3 build_knowledge.py                      # 从 knowledge.json upsert 34 条知识 → Chroma
+python3 build_knowledge.py                      # 从 knowledge.json upsert 72 条知识 → Chroma
 
 # 2. 批量对比实验：纯 LLM vs RAG+LLM
 cd ..
@@ -435,9 +448,9 @@ python3 generate_report.py
 以下资料用于设计 exp\_04 中的真实 CVE 片段与 OWASP 风格难样本（详见 `experiments/exp_04_hard_samples/samples/manifest.json`）：
 
 - **CVE-2017-7494 Samba 远程命令执行**：`hard_cve_01_samba_2017_7494.py` 的设计依据
-- **CVE-2021-44228 Log4j JNDI 注入**：`hard_cve_02_log4j_2021_44228.py` 的设计依据
+- **Python 日志注入（原引用 CVE-2021-44228 Log4j，已重命名去除误导）**：`hard_cve_02_python_log_injection.py` 的设计依据
 - **CVE-2025-4517 Python tarfile 路径穿越**：`hard_cve_03_tarfile_2025_4517.py` 的设计依据
-- **CVE-2025-54381 BentoML SSRF**：`hard_cve_04_ssrf_2025_54381.py` 的设计依据
+- **Python urllib SSRF（原引用 CVE-2025-54381 BentoML，已重命名去除误导）**：`hard_cve_04_ssrf_urllib.py` 的设计依据
 - **Top 10 Python Security Vulnerabilities** (aikido.dev)：典型 Python 漏洞模式参考
 - **Insecure Deserialization in Python** (semgrep.dev)：pickle / yaml 反序列化样本参考
 - **Vulnerable Web Application examples** (offensive360.com)：OWASP/DVWA 风格样本参考

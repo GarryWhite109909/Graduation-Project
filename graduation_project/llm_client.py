@@ -72,6 +72,8 @@ class OllamaClient:
         keep_alive=0,
         timeout: int = 300,
         num_ctx: int = 16384,
+        num_gpu: Optional[int] = None,
+        num_thread: Optional[int] = None,
     ) -> Dict:
         """
         生成文本
@@ -88,6 +90,14 @@ class OllamaClient:
                      Ollama 默认仅 4096，对长文件/RAG 场景不足，
                      exp_04 中 4 个难样本因 4096 截断导致输出为空。
                      gemma4:12b 原生支持 256K，16384 足够覆盖长文件+RAG。
+            num_gpu: GPU offload 层数。None 表示 Ollama 自动判断（默认）；
+                     0 表示纯 CPU；-1 表示全部 GPU；正数 N 表示前 N 层在 GPU，
+                     其余在 CPU。大模型（20b+）在 16k 上下文时，显存可能不足以
+                     放全部层，Ollama 自动混合模式下 GPU 利用率可能偏低，
+                     可手动调整此参数优化 CPU+GPU 协同（配合高带宽 DDR5）。
+            num_thread: CPU 推理线程数。None 表示 Ollama 默认（通常=物理核数）。
+                        大模型 CPU offload 部分受 CPU 线程数影响，DDR5 高带宽
+                        场景可适当增大以充分利用内存带宽。
 
         Returns:
             {"text": str, "duration": float, "tokens": dict, "meta": dict, "error": str|None}
@@ -96,6 +106,10 @@ class OllamaClient:
         options = {"temperature": temperature, "num_ctx": num_ctx}
         if max_tokens is not None:
             options["num_predict"] = max_tokens
+        if num_gpu is not None:
+            options["num_gpu"] = num_gpu
+        if num_thread is not None:
+            options["num_thread"] = num_thread
 
         payload = {
             "model": self.model,

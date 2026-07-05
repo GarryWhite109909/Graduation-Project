@@ -141,6 +141,43 @@ def _find_latest_result(patterns: list[str]) -> Path | None:
     return sorted(candidates, key=lambda p: p.stat().st_mtime, reverse=True)[0]
 
 
+# 多模型对比：文件名 → 显示名称 + 参数量（用于排序）
+_MULTI_MODEL_ORDER = [
+    ("qwen2.5-coder_7b", "qwen2.5-coder:7b", 7),
+    ("qwen2.5-coder_14b", "qwen2.5-coder:14b", 14),
+    ("gemma4_12b", "gemma4:12b", 12),
+    ("deepseek-coder-v2_16b", "deepseek-coder-v2:16b", 16),
+    ("gpt-oss_20b", "gpt-oss:20b", 20),
+    ("gemma4_26b", "gemma4:26b", 26),
+]
+
+
+def _collect_multi_model_metrics() -> list[dict]:
+    """扫描 v3.multi_model.json 文件，返回各模型的修正后指标（按参数量排序）。"""
+    results = []
+    for file_key, label, param_b in _MULTI_MODEL_ORDER:
+        path = RESULTS_DIR / f"results.pure.{file_key}.v3.multi_model.json"
+        if not path.exists():
+            continue
+        data = load_json(path)
+        m = data.get("metrics_single_run", {})
+        if not m:
+            continue
+        results.append({
+            "label": label,
+            "param_b": param_b,
+            "tp": m.get("tp", 0),
+            "tn": m.get("tn", 0),
+            "fp": m.get("fp", 0),
+            "fn": m.get("fn", 0),
+            "accuracy": m.get("accuracy"),
+            "recall": m.get("recall"),
+            "fpr": m.get("false_positive_rate"),
+        })
+    results.sort(key=lambda x: x["param_b"])
+    return results
+
+
 def _find_p1_4_path() -> Path | None:
     """自动匹配 P1-4 重复实验结果文件（支持新旧两种命名规范）。"""
     return _find_latest_result([
@@ -409,6 +446,70 @@ def main() -> int:
     lines.append("")
     lines.append("> 若 exp_04 准确率明显低于 exp_01，说明难样本确实测出了模型的边界，")
     lines.append('> 而非"样本太简单导致 100%"。这正是本实验设计的核心目的。')
+    lines.append("")
+
+    # -----------------------------------------------------------------
+    # 第六章：多模型横向对比（v3）
+    # -----------------------------------------------------------------
+    lines.append("---")
+    lines.append("")
+    lines.append("## 六、多模型横向对比（v3，2026-07-05/06 完成）")
+    lines.append("")
+    lines.append("> 在 87 段 v3 修复后样本上对比 6 个模型零样本能力（纯 LLM 模式，repeat=1，temperature=0.1）。")
+    lines.append("> 审查修复：3 个真值错误样本已修复代码，1 个解析错误已修复 schema，受影响样本已重跑。")
+    lines.append("")
+
+    multi_models = _collect_multi_model_metrics()
+    if multi_models:
+        lines.append("### 6.1 修正后指标汇总")
+        lines.append("")
+        lines.append("| 模型 | TP | TN | FP | FN | 准确率 | 召回率 | 误报率 |")
+        lines.append("| --- | --- | --- | --- | --- | --- | --- | --- |")
+        for m in multi_models:
+            lines.append(
+                f"| {m['label']} | {m['tp']} | {m['tn']} | {m['fp']} | {m['fn']} | "
+                f"{fmt_pct(m['accuracy'])} | {fmt_pct(m['recall'])} | {fmt_pct(m['fpr'])} |"
+            )
+        lines.append("")
+        lines.append("### 6.2 核心结论")
+        lines.append("")
+        lines.append("1. **gemma4:12b 与 gemma4:26b 表现最优**：准确率 94.3%、误报率 7.4%。12b 已足够，26b 无显著提升。")
+        lines.append("2. **deepseek-coder-v2:16b 误报率最高**（44.4%）：存在幻觉式误报，印证了 DeepSeek 优化专项的失败结论。")
+        lines.append("3. **qwen2.5-coder:7b 作为基座的合理性**：召回率 88.3% 略低，但体积小（4-5GB）、速度快，作为安全专用模型微调基座最合适。")
+        lines.append("4. **qwen2.5-coder:14b 相比 7b**：召回率 +3.4pp，但误报率持平（22.2%），体积翻倍，性价比一般。")
+        lines.append("")
+    else:
+        lines.append("（未找到 v3.multi_model.json 文件，跳过多模型对比章节）")
+        lines.append("")
+
+    # -----------------------------------------------------------------
+    # 第七章：实验结果审查与修复（静态章节）
+    # -----------------------------------------------------------------
+    lines.append("---")
+    lines.append("")
+    lines.append("## 七、实验结果审查与修复（2026-07-06）")
+    lines.append("")
+    lines.append("> **背景**：多模型对比跑完后，审查实验结果的可参考性，重点检查\"答案错误导致实验结果不可参考\"的隐患。")
+    lines.append("")
+    lines.append("### 7.1 真值错误修复（3 个样本）")
+    lines.append("")
+    lines.append("| 样本 | 附带漏洞 | 修复方式 |")
+    lines.append("| --- | --- | --- |")
+    lines.append("| `safe_18_java_prepared_stmt.java` | 硬编码 root/root 数据库凭证（CWE-798） | 改用 `System.getenv()` 读取 |")
+    lines.append("| `safe_13_csrf_token.py` | `f\"Transfer ${amount} to {to}\"` 反射型 XSS（CWE-79） | 增加 `html.escape()` 转义 |")
+    lines.append("| `safe_11_bcrypt_password.py` | `f\"User {username} registered\"` 反射型 XSS（CWE-79） | 增加 `html.escape()` 转义 |")
+    lines.append("")
+    lines.append("修复策略：修改样本代码让其真正安全（而非改真值为 true），保持\"安全对照\"样本集设计意图。")
+    lines.append("")
+    lines.append("### 7.2 解析错误修复")
+    lines.append("")
+    lines.append("`graduation_project/schema.py` 的 `_extract_verdict_fallback` 增加对 markdown 加粗/列表格式（`**has_vulnerability**: true/false`）的兜底正则提取，修复了 qwen2.5-coder:14b 在 safe_07 上输出 markdown 格式导致解析失败的问题。")
+    lines.append("")
+    lines.append("### 7.3 重跑与统计核查")
+    lines.append("")
+    lines.append("- 3 个修复样本 × 6 模型 = 18 次推理重跑；safe_07 用新 schema 重新解析（无需重跑 LLM）")
+    lines.append("- 手工重算 6 个模型的 TP/FP/FN/TN，与脚本 `compute_detection_metrics` 完全一致")
+    lines.append("- 实验结果整体可参考，修正后数据已作为最终结论")
     lines.append("")
 
     REPORT_PATH.write_text("\n".join(lines), encoding="utf-8")

@@ -1,3 +1,4 @@
+import html
 import secrets
 from flask import Flask, request, session
 
@@ -18,6 +19,7 @@ def transfer_safe():
     token = request.form.get("csrf_token", "")
     if not token or token != session.get("csrf_token"):
         return "Invalid CSRF token", 403
-    to = request.form.get("to")
-    amount = request.form.get("amount")
-    return f"Transfer ${amount} to {to}"
+    to = request.form.get("to", "")
+    amount = request.form.get("amount", "")
+    # 输出转义，防止反射型 XSS（CWE-79 防护）
+    return f"Transfer ${html.escape(amount)} to {html.escape(to)}"
