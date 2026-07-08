@@ -141,7 +141,7 @@ Graduation-Project/
 
 ### ✅ 已完成：阶段三 — RAG 漏洞知识库增强（2026-06-29）
 
-- 知识库 34 条，覆盖 14 类漏洞（含安全模式识别条目防误报）
+- 知识库初版 34 条（覆盖 14 类漏洞），阶段四扩容至 72 条（覆盖 39 类 CWE，含安全模式识别条目防误报）
 - ChromaDB 持久化 + all-MiniLM-L6-v2 embedding；`build_knowledge.py` 改用 upsert 幂等写入
 - `run_rag_experiment.py` 批量对比纯 LLM vs RAG+LLM
 - **当前默认主模型结果（qwen2.5-coder:7b）**：RAG+LLM 召回率 100%、误报率 0% (0/2)、准确率 100%；RAG 上下文未对 qwen7b 产生负面影响
@@ -171,7 +171,7 @@ Graduation-Project/
 详见 [experiments/exp\_04\_hard\_samples/exp\_04\_report.md](experiments/exp_04_hard_samples/exp_04_report.md)：
 
 - **P1-4 重复性与置信区间**：qwen7b，repeat=3，多数表决 recall=83.3% (95% CI [72.0%, 90.7%])、FPR=33.3%、accuracy=78.2% (95% CI [68.4%, 85.5%])
-- **P1-5 RAG 消融对照**：A(RAG+LLM) recall=91.7%/FPR=29.6% vs B(纯 LLM) 95.0%/26.9% vs C(随机) 88.3%/18.5% vs D(无关) 93.2%/25.9%。
+- **P1-5 RAG 消融对照**：A(RAG+LLM) recall=91.7%/FPR=29.6% vs B(纯 LLM) 95.0%/25.9% vs C(随机) 88.3%/18.5% vs D(无关) 93.3%/25.9%。
   **核心发现**：v3 修复答案泄露后，RAG 未带来准确率/召回率提升，模型基座已掌握典型漏洞模式；RAG 价值更多体现在可解释性与知识可扩展性。
 - **P2-8 Top-K 对比**：K=5 为最优平衡点（recall=95.0%、FPR=25.9%、accuracy=88.5%），K=10 因噪声引入 FPR 升至 29.6%。
 
