@@ -1,0 +1,494 @@
+{
+  "experiment": "exp_02_baseline_tools",
+  "started_at": "2026-07-06 04:20:33",
+  "samples": [
+    {
+      "file": "sql_injection_01.py",
+      "language": "Python",
+      "category": "sql_injection",
+      "expected_present": true,
+      "expected_vulnerability": "SQL 注入：用户输入直接拼接到 SQL 语句",
+      "tools": {
+        "bandit": {
+          "tool_has_vulnerability": false,
+          "findings": [
+            {
+              "rule_id": "B608",
+              "severity": "MEDIUM",
+              "confidence": "LOW",
+              "message": "Possible SQL injection vector through string-based query construction.",
+              "line": 14,
+              "cwe": "https://cwe.mitre.org/data/definitions/89.html"
+            }
+          ],
+          "findings_count": 1,
+          "elapsed_seconds": 0.137,
+          "error": null,
+          "supported": true,
+          "filtered_findings": [],
+          "filtered_findings_count": 0,
+          "min_severity": "LOW",
+          "min_confidence": "MEDIUM"
+        }
+      }
+    },
+    {
+      "file": "sql_injection_02.py",
+      "language": "Python",
+      "category": "sql_injection",
+      "expected_present": true,
+      "expected_vulnerability": "SQL 注入：f-string 嵌入用户输入到 raw 查询",
+      "tools": {
+        "bandit": {
+          "tool_has_vulnerability": true,
+          "findings": [
+            {
+              "rule_id": "B608",
+              "severity": "MEDIUM",
+              "confidence": "MEDIUM",
+              "message": "Possible SQL injection vector through string-based query construction.",
+              "line": 8,
+              "cwe": "https://cwe.mitre.org/data/definitions/89.html"
+            }
+          ],
+          "findings_count": 1,
+          "elapsed_seconds": 0.09,
+          "error": null,
+          "supported": true,
+          "filtered_findings": [
+            {
+              "rule_id": "B608",
+              "severity": "MEDIUM",
+              "confidence": "MEDIUM",
+              "message": "Possible SQL injection vector through string-based query construction.",
+              "line": 8,
+              "cwe": "https://cwe.mitre.org/data/definitions/89.html"
+            }
+          ],
+          "filtered_findings_count": 1,
+          "min_severity": "LOW",
+          "min_confidence": "MEDIUM"
+        }
+      }
+    },
+    {
+      "file": "xss_01.php",
+      "language": "PHP",
+      "category": "xss",
+      "expected_present": true,
+      "expected_vulnerability": "反射型 XSS：用户输入未转义直接 echo",
+      "tools": {
+        "bandit": {
+          "tool_has_vulnerability": null,
+          "findings": [],
+          "findings_count": 0,
+          "elapsed_seconds": 0.0,
+          "error": "Bandit 仅支持 Python，跳过 xss_01.php",
+          "supported": false,
+          "filtered_findings": [],
+          "filtered_findings_count": 0,
+          "min_severity": "LOW",
+          "min_confidence": "MEDIUM"
+        }
+      }
+    },
+    {
+      "file": "xss_02.js",
+      "language": "JavaScript",
+      "category": "xss",
+      "expected_present": true,
+      "expected_vulnerability": "反射型 XSS：用户输入拼接到 HTML 响应",
+      "tools": {
+        "bandit": {
+          "tool_has_vulnerability": null,
+          "findings": [],
+          "findings_count": 0,
+          "elapsed_seconds": 0.0,
+          "error": "Bandit 仅支持 Python，跳过 xss_02.js",
+          "supported": false,
+          "filtered_findings": [],
+          "filtered_findings_count": 0,
+          "min_severity": "LOW",
+          "min_confidence": "MEDIUM"
+        }
+      }
+    },
+    {
+      "file": "command_injection_01.py",
+      "language": "Python",
+      "category": "command_injection",
+      "expected_present": true,
+      "expected_vulnerability": "命令注入：shell=True 且拼接用户输入",
+      "tools": {
+        "bandit": {
+          "tool_has_vulnerability": true,
+          "findings": [
+            {
+              "rule_id": "B404",
+              "severity": "LOW",
+              "confidence": "HIGH",
+              "message": "Consider possible security implications associated with the subprocess module.",
+              "line": 1,
+              "cwe": "https://cwe.mitre.org/data/definitions/78.html"
+            },
+            {
+              "rule_id": "B602",
+              "severity": "HIGH",
+              "confidence": "HIGH",
+              "message": "subprocess call with shell=True identified, security issue.",
+              "line": 12,
+              "cwe": "https://cwe.mitre.org/data/definitions/78.html"
+            }
+          ],
+          "findings_count": 2,
+          "elapsed_seconds": 0.089,
+          "error": null,
+          "supported": true,
+          "filtered_findings": [
+            {
+              "rule_id": "B404",
+              "severity": "LOW",
+              "confidence": "HIGH",
+              "message": "Consider possible security implications associated with the subprocess module.",
+              "line": 1,
+              "cwe": "https://cwe.mitre.org/data/definitions/78.html"
+            },
+            {
+              "rule_id": "B602",
+              "severity": "HIGH",
+              "confidence": "HIGH",
+              "message": "subprocess call with shell=True identified, security issue.",
+              "line": 12,
+              "cwe": "https://cwe.mitre.org/data/definitions/78.html"
+            }
+          ],
+          "filtered_findings_count": 2,
+          "min_severity": "LOW",
+          "min_confidence": "MEDIUM"
+        }
+      }
+    },
+    {
+      "file": "command_injection_02.js",
+      "language": "JavaScript",
+      "category": "command_injection",
+      "expected_present": true,
+      "expected_vulnerability": "命令注入：exec 中拼接用户输入",
+      "tools": {
+        "bandit": {
+          "tool_has_vulnerability": null,
+          "findings": [],
+          "findings_count": 0,
+          "elapsed_seconds": 0.0,
+          "error": "Bandit 仅支持 Python，跳过 command_injection_02.js",
+          "supported": false,
+          "filtered_findings": [],
+          "filtered_findings_count": 0,
+          "min_severity": "LOW",
+          "min_confidence": "MEDIUM"
+        }
+      }
+    },
+    {
+      "file": "path_traversal_01.py",
+      "language": "Python",
+      "category": "path_traversal",
+      "expected_present": true,
+      "expected_vulnerability": "路径穿越：用户输入拼接到文件路径，未过滤 ../",
+      "tools": {
+        "bandit": {
+          "tool_has_vulnerability": false,
+          "findings": [],
+          "findings_count": 0,
+          "elapsed_seconds": 0.091,
+          "error": null,
+          "supported": true,
+          "filtered_findings": [],
+          "filtered_findings_count": 0,
+          "min_severity": "LOW",
+          "min_confidence": "MEDIUM"
+        }
+      }
+    },
+    {
+      "file": "path_traversal_02.java",
+      "language": "Java",
+      "category": "path_traversal",
+      "expected_present": true,
+      "expected_vulnerability": "路径穿越：直接使用用户输入构造 File 路径",
+      "tools": {
+        "bandit": {
+          "tool_has_vulnerability": null,
+          "findings": [],
+          "findings_count": 0,
+          "elapsed_seconds": 0.0,
+          "error": "Bandit 仅支持 Python，跳过 path_traversal_02.java",
+          "supported": false,
+          "filtered_findings": [],
+          "filtered_findings_count": 0,
+          "min_severity": "LOW",
+          "min_confidence": "MEDIUM"
+        }
+      }
+    },
+    {
+      "file": "hardcoded_secret_01.py",
+      "language": "Python",
+      "category": "hardcoded_secret",
+      "expected_present": true,
+      "expected_vulnerability": "硬编码密钥：AWS Access Key 与 Secret 明文写在源码",
+      "tools": {
+        "bandit": {
+          "tool_has_vulnerability": true,
+          "findings": [
+            {
+              "rule_id": "B105",
+              "severity": "LOW",
+              "confidence": "MEDIUM",
+              "message": "Possible hardcoded password: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'",
+              "line": 4,
+              "cwe": "https://cwe.mitre.org/data/definitions/259.html"
+            }
+          ],
+          "findings_count": 1,
+          "elapsed_seconds": 0.09,
+          "error": null,
+          "supported": true,
+          "filtered_findings": [
+            {
+              "rule_id": "B105",
+              "severity": "LOW",
+              "confidence": "MEDIUM",
+              "message": "Possible hardcoded password: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'",
+              "line": 4,
+              "cwe": "https://cwe.mitre.org/data/definitions/259.html"
+            }
+          ],
+          "filtered_findings_count": 1,
+          "min_severity": "LOW",
+          "min_confidence": "MEDIUM"
+        }
+      }
+    },
+    {
+      "file": "hardcoded_secret_02.java",
+      "language": "Java",
+      "category": "hardcoded_secret",
+      "expected_present": true,
+      "expected_vulnerability": "硬编码密钥：数据库用户名与密码明文写在源码",
+      "tools": {
+        "bandit": {
+          "tool_has_vulnerability": null,
+          "findings": [],
+          "findings_count": 0,
+          "elapsed_seconds": 0.0,
+          "error": "Bandit 仅支持 Python，跳过 hardcoded_secret_02.java",
+          "supported": false,
+          "filtered_findings": [],
+          "filtered_findings_count": 0,
+          "min_severity": "LOW",
+          "min_confidence": "MEDIUM"
+        }
+      }
+    },
+    {
+      "file": "insecure_deserialization_01.py",
+      "language": "Python",
+      "category": "insecure_deserialization",
+      "expected_present": true,
+      "expected_vulnerability": "不安全反序列化：pickle.loads 用户可控数据",
+      "tools": {
+        "bandit": {
+          "tool_has_vulnerability": true,
+          "findings": [
+            {
+              "rule_id": "B403",
+              "severity": "LOW",
+              "confidence": "HIGH",
+              "message": "Consider possible security implications associated with pickle module.",
+              "line": 1,
+              "cwe": "https://cwe.mitre.org/data/definitions/502.html"
+            },
+            {
+              "rule_id": "B301",
+              "severity": "MEDIUM",
+              "confidence": "HIGH",
+              "message": "Pickle and modules that wrap it can be unsafe when used to deserialize untrusted data, possible security issue.",
+              "line": 12,
+              "cwe": "https://cwe.mitre.org/data/definitions/502.html"
+            }
+          ],
+          "findings_count": 2,
+          "elapsed_seconds": 0.089,
+          "error": null,
+          "supported": true,
+          "filtered_findings": [
+            {
+              "rule_id": "B403",
+              "severity": "LOW",
+              "confidence": "HIGH",
+              "message": "Consider possible security implications associated with pickle module.",
+              "line": 1,
+              "cwe": "https://cwe.mitre.org/data/definitions/502.html"
+            },
+            {
+              "rule_id": "B301",
+              "severity": "MEDIUM",
+              "confidence": "HIGH",
+              "message": "Pickle and modules that wrap it can be unsafe when used to deserialize untrusted data, possible security issue.",
+              "line": 12,
+              "cwe": "https://cwe.mitre.org/data/definitions/502.html"
+            }
+          ],
+          "filtered_findings_count": 2,
+          "min_severity": "LOW",
+          "min_confidence": "MEDIUM"
+        }
+      }
+    },
+    {
+      "file": "insecure_deserialization_02.java",
+      "language": "Java",
+      "category": "insecure_deserialization",
+      "expected_present": true,
+      "expected_vulnerability": "不安全反序列化：ObjectInputStream.readObject 用户可控数据",
+      "tools": {
+        "bandit": {
+          "tool_has_vulnerability": null,
+          "findings": [],
+          "findings_count": 0,
+          "elapsed_seconds": 0.0,
+          "error": "Bandit 仅支持 Python，跳过 insecure_deserialization_02.java",
+          "supported": false,
+          "filtered_findings": [],
+          "filtered_findings_count": 0,
+          "min_severity": "LOW",
+          "min_confidence": "MEDIUM"
+        }
+      }
+    },
+    {
+      "file": "safe_01_parameterized_query.py",
+      "language": "Python",
+      "category": "safe_control",
+      "expected_present": false,
+      "expected_vulnerability": "无（安全对照：参数化查询）",
+      "tools": {
+        "bandit": {
+          "tool_has_vulnerability": false,
+          "findings": [],
+          "findings_count": 0,
+          "elapsed_seconds": 0.089,
+          "error": null,
+          "supported": true,
+          "filtered_findings": [],
+          "filtered_findings_count": 0,
+          "min_severity": "LOW",
+          "min_confidence": "MEDIUM"
+        }
+      }
+    },
+    {
+      "file": "safe_02_subprocess_list.py",
+      "language": "Python",
+      "category": "safe_control",
+      "expected_present": false,
+      "expected_vulnerability": "无（安全对照：参数列表 + 输入校验）",
+      "tools": {
+        "bandit": {
+          "tool_has_vulnerability": true,
+          "findings": [
+            {
+              "rule_id": "B404",
+              "severity": "LOW",
+              "confidence": "HIGH",
+              "message": "Consider possible security implications associated with the subprocess module.",
+              "line": 1,
+              "cwe": "https://cwe.mitre.org/data/definitions/78.html"
+            },
+            {
+              "rule_id": "B607",
+              "severity": "LOW",
+              "confidence": "HIGH",
+              "message": "Starting a process with a partial executable path",
+              "line": 12,
+              "cwe": "https://cwe.mitre.org/data/definitions/78.html"
+            },
+            {
+              "rule_id": "B603",
+              "severity": "LOW",
+              "confidence": "HIGH",
+              "message": "subprocess call - check for execution of untrusted input.",
+              "line": 12,
+              "cwe": "https://cwe.mitre.org/data/definitions/78.html"
+            }
+          ],
+          "findings_count": 3,
+          "elapsed_seconds": 0.089,
+          "error": null,
+          "supported": true,
+          "filtered_findings": [
+            {
+              "rule_id": "B404",
+              "severity": "LOW",
+              "confidence": "HIGH",
+              "message": "Consider possible security implications associated with the subprocess module.",
+              "line": 1,
+              "cwe": "https://cwe.mitre.org/data/definitions/78.html"
+            },
+            {
+              "rule_id": "B607",
+              "severity": "LOW",
+              "confidence": "HIGH",
+              "message": "Starting a process with a partial executable path",
+              "line": 12,
+              "cwe": "https://cwe.mitre.org/data/definitions/78.html"
+            },
+            {
+              "rule_id": "B603",
+              "severity": "LOW",
+              "confidence": "HIGH",
+              "message": "subprocess call - check for execution of untrusted input.",
+              "line": 12,
+              "cwe": "https://cwe.mitre.org/data/definitions/78.html"
+            }
+          ],
+          "filtered_findings_count": 3,
+          "min_severity": "LOW",
+          "min_confidence": "MEDIUM"
+        }
+      }
+    }
+  ],
+  "tools": [
+    "bandit"
+  ],
+  "semgrep_config": "auto",
+  "bandit_min_severity": "LOW",
+  "bandit_min_confidence": "MEDIUM",
+  "samples_source": "exp_01_basic_scan/samples",
+  "finished_at": "2026-07-06 04:20:33",
+  "metrics": {
+    "bandit": {
+      "total": 14,
+      "valid": 8,
+      "invalid": 6,
+      "tp": 4,
+      "tn": 1,
+      "fp": 1,
+      "fn": 2,
+      "vuln_total": 6,
+      "safe_total": 2,
+      "recall": 0.6666666666666666,
+      "false_positive_rate": 0.5,
+      "accuracy": 0.625,
+      "elapsed_stats": {
+        "avg": 0.05,
+        "max": 0.14,
+        "min": 0.0,
+        "sum": 0.76,
+        "count": 14
+      }
+    }
+  }
+}

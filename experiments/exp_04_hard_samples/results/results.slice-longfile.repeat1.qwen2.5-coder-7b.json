@@ -1,0 +1,2581 @@
+{
+  "experiment": "exp_04_hard_samples",
+  "started_at": "2026-07-06 03:48:56",
+  "samples": [
+    {
+      "file": "hard_longfile_01_hidden_sql.py",
+      "language": "Python",
+      "category": "sql_injection",
+      "difficulty": "hard",
+      "expected_present": true,
+      "expected_vulnerability": "SQL 注入（隐藏在长文件中）：StatsService.export_report 用字符串拼接表名",
+      "expected_cwe": "CWE-89",
+      "expected_risk_level": "Critical",
+      "slice_mode": true,
+      "slice_chunk_count": 20,
+      "slice_total_lines": 377,
+      "chunks": [
+        {
+          "chunk_id": 2,
+          "name": "hash_password",
+          "start_line": 49,
+          "end_line": 53,
+          "node_type": "function_definition",
+          "char_count": 5449,
+          "prompt_chars": 8670,
+          "runs": [
+            {
+              "run_index": 1,
+              "chunk_id": 2,
+              "chunk_name": "hash_password",
+              "elapsed_seconds": 10.85,
+              "raw_output": "### 分析过程\n\n1. **函数 `hash_password` 的代码片段**：\n   ```python\n   def hash_password(password: str) -> str:\n       digest = hashlib.pbkdf2_hmac(\"sha256\", password.encode(), SALT, PASSWORD_HASH_ITER)\n       return digest.hex()\n   ```\n\n2. **安全模式白名单检查**：\n   - 该函数中没有用户可控输入。\n   - 没有 SQL 查询、命令执行、路径操作等潜在风险点。\n\n3. **硬编码凭证检查**：\n   - `SALT` 和 `PASSWORD_HASH_ITER` 是常量，但它们的值是硬编码的字面量。虽然这些不是直接的凭证（如密码、API Key），但它们可能用于生成敏感数据，因此仍然存在安全风险。\n\n4. **其他潜在漏洞检查**：\n   - 该函数没有明显的 SQL 注入、命令注入、路径穿越、XSS 或反序列化漏洞。\n   - 用户输入 `password` 是通过参数传递的，并且在函数内部被正确处理。\n\n### 结论\n\n- **has_vulnerability**: true\n- **vulnerability_type**: 'CWE-798 Hardcoded Sensitive Information'\n- **risk_level**: 'High'\n- **source**: 'N/A'\n- **sink**: 'N/A'\n- **explanation**: The `SALT` and `PASSWORD_HASH_ITER` constants are hardcoded, which can be considered a security risk.\n- **fix_suggestion**: Avoid hardcoding sensitive information. Use environment variables or configuration files to store such values.\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-798 Hardcoded Sensitive Information\",\n    \"risk_level\": \"High\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"The `SALT` and `PASSWORD_HASH_ITER` constants are hardcoded, which can be considered a security risk.\",\n    \"fix_suggestion\": \"Avoid hardcoding sensitive information. Use environment variables or configuration files to store such values.\"\n}\n```",
+              "parsed_verdict": {
+                "has_vulnerability": true,
+                "vulnerability_type": "CWE-798 Hardcoded Sensitive Information",
+                "risk_level": "High",
+                "source": "N/A",
+                "sink": "N/A",
+                "explanation": "The `SALT` and `PASSWORD_HASH_ITER` constants are hardcoded, which can be considered a security risk.",
+                "fix_suggestion": "Avoid hardcoding sensitive information. Use environment variables or configuration files to store such values."
+              },
+              "model_has_vulnerability": true,
+              "error": null,
+              "meta": {
+                "eval_count": 447,
+                "eval_duration_ns": 8126191000,
+                "load_duration_ns": 1083239189,
+                "total_duration_ns": 10844727800,
+                "prompt_eval_count": 2999
+              }
+            }
+          ],
+          "majority_verdict": true,
+          "agreement_rate": 1.0
+        },
+        {
+          "chunk_id": 5,
+          "name": "format_user_row",
+          "start_line": 66,
+          "end_line": 73,
+          "node_type": "function_definition",
+          "char_count": 5428,
+          "prompt_chars": 8651,
+          "runs": [
+            {
+              "run_index": 1,
+              "chunk_id": 5,
+              "chunk_name": "format_user_row",
+              "elapsed_seconds": 7.22,
+              "raw_output": "### 分析过程\n\n1. **函数 `format_user_row` 的代码片段**：\n   ```python\n   def format_user_row(row):\n       return {\n           \"id\": row[\"id\"],\n           \"username\": row[\"username\"],\n           \"email\": row[\"email\"],\n           \"role\": row[\"role\"],\n           \"created_at\": row[\"created_at\"],\n       }\n   ```\n\n2. **安全模式白名单检查**：\n   - 该函数没有涉及用户可控输入，也没有调用任何可能引入漏洞的函数。\n   - 函数内部只是将数据库查询结果中的字段进行简单的字典重组，并没有进行任何敏感操作。\n\n3. **硬编码凭证检查**：\n   - 代码中没有出现硬编码的密码、API Key 等敏感信息。\n\n4. **其他安全问题检查**：\n   - 没有发现 SQL 注入、命令注入、路径穿越、XSS 或反序列化等漏洞。\n\n### 结论\n\n根据以上分析，该函数 `format_user_row` 不存在任何安全漏洞。它只是对数据库查询结果进行简单的重组，并没有涉及用户可控输入或调用可能引入漏洞的函数。\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"该函数仅对数据库查询结果进行简单的重组，没有涉及用户可控输入或调用可能引入漏洞的函数。\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+              "parsed_verdict": {
+                "has_vulnerability": false,
+                "vulnerability_type": "none",
+                "risk_level": "None",
+                "source": "N/A",
+                "sink": "N/A",
+                "explanation": "该函数仅对数据库查询结果进行简单的重组，没有涉及用户可控输入或调用可能引入漏洞的函数。",
+                "fix_suggestion": "no fix needed"
+              },
+              "model_has_vulnerability": false,
+              "error": null,
+              "meta": {
+                "eval_count": 336,
+                "eval_duration_ns": 6093626000,
+                "load_duration_ns": 142831395,
+                "total_duration_ns": 7213636330,
+                "prompt_eval_count": 2970
+              }
+            }
+          ],
+          "majority_verdict": false,
+          "agreement_rate": 1.0
+        },
+        {
+          "chunk_id": 7,
+          "name": "SessionStore.create",
+          "start_line": 84,
+          "end_line": 91,
+          "node_type": "function_definition",
+          "char_count": 5534,
+          "prompt_chars": 8761,
+          "runs": [
+            {
+              "run_index": 1,
+              "chunk_id": 7,
+              "chunk_name": "SessionStore.create",
+              "elapsed_seconds": 8.55,
+              "raw_output": "### 分析过程\n\n1. **函数 `SessionStore.create` 的代码片段**：\n   ```python\n   def create(self, user_id: int, role: str) -> str:\n       token = hashlib.sha256(f\"{user_id}{time.time()}{os.urandom(8).hex()}\".encode()).hexdigest()\n       self._store[token] = {\n           \"user_id\": user_id,\n           \"role\": role,\n           \"expires_at\": time.time() + SESSION_TTL_SECONDS,\n       }\n       return token\n   ```\n\n2. **安全模式白名单检查**：\n   - 该函数中没有用户可控输入，因此不需要进行任何安全处理。\n\n3. **硬编码凭证检查**：\n   - 代码中没有出现硬编码的密码、API Key 等敏感信息。\n\n4. **SQL 注入检查**：\n   - 代码中没有 SQL 查询语句，因此不存在 SQL 注入风险。\n\n5. **跨站脚本（XSS）检查**：\n   - 代码中没有涉及用户输入到 HTML 输出的情况，因此不存在 XSS 风险。\n\n6. **命令注入检查**：\n   - 代码中没有执行外部命令的操作，因此不存在命令注入风险。\n\n7. **路径穿越检查**：\n   - 代码中没有文件操作或路径拼接，因此不存在路径穿越风险。\n\n8. **反序列化检查**：\n   - 代码中没有反序列化操作，因此不存在反序列化风险。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"The function `SessionStore.create` does not contain any user-controlled input that could be exploited for vulnerabilities.\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+              "parsed_verdict": {
+                "has_vulnerability": false,
+                "vulnerability_type": "none",
+                "risk_level": "None",
+                "source": "N/A",
+                "sink": "N/A",
+                "explanation": "The function `SessionStore.create` does not contain any user-controlled input that could be exploited for vulnerabilities.",
+                "fix_suggestion": "no fix needed"
+              },
+              "model_has_vulnerability": false,
+              "error": null,
+              "meta": {
+                "eval_count": 407,
+                "eval_duration_ns": 7399016000,
+                "load_duration_ns": 132939880,
+                "total_duration_ns": 8537979151,
+                "prompt_eval_count": 3018
+              }
+            }
+          ],
+          "majority_verdict": false,
+          "agreement_rate": 1.0
+        },
+        {
+          "chunk_id": 8,
+          "name": "SessionStore.get",
+          "start_line": 93,
+          "end_line": 102,
+          "node_type": "function_definition",
+          "char_count": 5504,
+          "prompt_chars": 8728,
+          "runs": [
+            {
+              "run_index": 1,
+              "chunk_id": 8,
+              "chunk_name": "SessionStore.get",
+              "elapsed_seconds": 9.67,
+              "raw_output": "### 分析过程\n\n1. **函数 `SessionStore.get` 的定义和调用**：\n   - 函数 `SessionStore.get` 接受一个参数 `token`。\n   - 在函数内部，首先检查 `_store` 字典中是否存在该 `token`。\n   - 如果存在，则进一步检查该 `token` 对应的会话是否已经过期（通过比较 `expires_at` 和当前时间）。\n   - 如果会话未过期，则返回会话信息；否则，从 `_store` 中移除该 `token` 并返回 `None`。\n\n2. **用户可控输入**：\n   - 用户可控输入是 `token` 参数。\n\n3. **安全处理检查**：\n   - 在函数内部，`token` 是通过参数传递的。\n   - 代码中没有直接使用 `token` 进行 SQL 查询、命令执行或文件路径操作。\n   - `_store` 字典的访问和修改都是基于传入的 `token`。\n\n4. **硬编码凭证检查**：\n   - 代码中没有出现硬编码的密码、API Key 等敏感信息。\n\n5. **安全模式白名单检查**：\n   - 代码中没有使用参数化查询、ORM 查询构造器等安全写法。\n   - 代码中也没有使用 `subprocess.run` 或其他命令执行函数。\n   - 代码中没有进行路径穿越操作。\n   - 代码中没有使用 HTML 模板或进行反序列化操作。\n\n### 结论\n\n根据以上分析，代码中没有发现明显的安全漏洞。用户可控输入 `token` 在 `_store` 字典中的访问和修改是安全的，并且没有其他潜在的安全风险。\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"The function `SessionStore.get` safely handles the user-controlled input `token` by accessing and modifying a dictionary. There are no SQL injection, command injection, path traversal, XSS, or deserialization vulnerabilities.\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+              "parsed_verdict": {
+                "has_vulnerability": false,
+                "vulnerability_type": "none",
+                "risk_level": "None",
+                "source": "N/A",
+                "sink": "N/A",
+                "explanation": "The function `SessionStore.get` safely handles the user-controlled input `token` by accessing and modifying a dictionary. There are no SQL injection, command injection, path traversal, XSS, or deserialization vulnerabilities.",
+                "fix_suggestion": "no fix needed"
+              },
+              "model_has_vulnerability": false,
+              "error": null,
+              "meta": {
+                "eval_count": 469,
+                "eval_duration_ns": 8538911000,
+                "load_duration_ns": 140114823,
+                "total_duration_ns": 9658988693,
+                "prompt_eval_count": 3001
+              }
+            }
+          ],
+          "majority_verdict": false,
+          "agreement_rate": 1.0
+        },
+        {
+          "chunk_id": 15,
+          "name": "UserRepository.create_user",
+          "start_line": 139,
+          "end_line": 152,
+          "node_type": "function_definition",
+          "char_count": 5860,
+          "prompt_chars": 9094,
+          "runs": [
+            {
+              "run_index": 1,
+              "chunk_id": 15,
+              "chunk_name": "UserRepository.create_user",
+              "elapsed_seconds": 8.78,
+              "raw_output": "### 分析过程\n\n1. **函数 `UserRepository.create_user`**:\n   - 该函数用于创建新用户。\n   - 用户可控输入包括：`username`, `email`, `password`, 和 `role`。\n\n2. **SQL 注入防护**:\n   - 在 `create_user` 函数中，使用了参数化查询：\n     ```python\n     cur.execute(\n         \"INSERT INTO users (username, email, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?)\",\n         (username, email, hash_password(password), role, now_iso()),\n     )\n     ```\n   - 这符合安全模式白名单中的 SQL 注入防护标准。\n\n3. **其他输入验证**:\n   - 代码中对 `email` 和 `role` 进行了验证：\n     ```python\n     if not validate_email(email):\n         raise ValueError(\"invalid email\")\n     if not validate_role(role):\n         raise ValueError(\"invalid role\")\n     ```\n   - 这些验证措施有助于防止无效输入，但并不直接涉及 SQL 注入。\n\n4. **硬编码凭证**:\n   - 代码中没有发现硬编码的敏感信息（如密码、API Key 等）。\n\n5. **其他安全措施**:\n   - 代码中没有发现明显的跨站脚本（XSS）、命令注入、路径穿越等漏洞。\n\n### 结论\n\n根据上述分析，代码片段中的 `UserRepository.create_user` 函数使用了参数化查询来防止 SQL 注入，并且对用户输入进行了基本的验证。因此，该函数不存在明显的安全漏洞。\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"The function uses parameterized queries to prevent SQL injection and performs basic input validation.\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+              "parsed_verdict": {
+                "has_vulnerability": false,
+                "vulnerability_type": "none",
+                "risk_level": "None",
+                "source": "N/A",
+                "sink": "N/A",
+                "explanation": "The function uses parameterized queries to prevent SQL injection and performs basic input validation.",
+                "fix_suggestion": "no fix needed"
+              },
+              "model_has_vulnerability": false,
+              "error": null,
+              "meta": {
+                "eval_count": 417,
+                "eval_duration_ns": 7602690000,
+                "load_duration_ns": 134722718,
+                "total_duration_ns": 8769464265,
+                "prompt_eval_count": 3074
+              }
+            }
+          ],
+          "majority_verdict": false,
+          "agreement_rate": 1.0
+        },
+        {
+          "chunk_id": 18,
+          "name": "UserRepository.list_users",
+          "start_line": 164,
+          "end_line": 170,
+          "node_type": "function_definition",
+          "char_count": 5496,
+          "prompt_chars": 8729,
+          "runs": [
+            {
+              "run_index": 1,
+              "chunk_id": 18,
+              "chunk_name": "UserRepository.list_users",
+              "elapsed_seconds": 6.33,
+              "raw_output": "### 分析过程\n\n1. **函数 `UserRepository.list_users` 的代码片段**：\n    ```python\n    def list_users(self, limit: int, offset: int) -> List[Dict]:\n        cur = self.conn.cursor()\n        cur.execute(\"SELECT * FROM users ORDER BY id LIMIT ? OFFSET ?\", (limit, offset))\n        return cur.fetchall()\n    ```\n\n2. **安全模式白名单检查**：\n    - 该函数使用了参数化查询，符合 SQL 注入防护的白名单标准。\n\n3. **用户可控输入处理**：\n    - `limit` 和 `offset` 是用户可控输入。\n    - 这些输入通过参数化查询传递给数据库，不会被解释为 SQL 语句的一部分。\n\n4. **其他安全措施**：\n    - 没有发现硬编码凭证、命令注入、路径穿越、XSS 或反序列化漏洞。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"The function uses parameterized queries to safely handle user-controlled inputs (limit and offset). It does not contain any known vulnerabilities.\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+              "parsed_verdict": {
+                "has_vulnerability": false,
+                "vulnerability_type": "none",
+                "risk_level": "None",
+                "source": "N/A",
+                "sink": "N/A",
+                "explanation": "The function uses parameterized queries to safely handle user-controlled inputs (limit and offset). It does not contain any known vulnerabilities.",
+                "fix_suggestion": "no fix needed"
+              },
+              "model_has_vulnerability": false,
+              "error": null,
+              "meta": {
+                "eval_count": 286,
+                "eval_duration_ns": 5207646000,
+                "load_duration_ns": 135142895,
+                "total_duration_ns": 6320397117,
+                "prompt_eval_count": 3002
+              }
+            }
+          ],
+          "majority_verdict": false,
+          "agreement_rate": 1.0
+        },
+        {
+          "chunk_id": 19,
+          "name": "UserRepository.update_role",
+          "start_line": 172,
+          "end_line": 177,
+          "node_type": "function_definition",
+          "char_count": 5486,
+          "prompt_chars": 8720,
+          "runs": [
+            {
+              "run_index": 1,
+              "chunk_id": 19,
+              "chunk_name": "UserRepository.update_role",
+              "elapsed_seconds": 7.47,
+              "raw_output": "### 分析过程\n\n1. **函数 `UserRepository.update_role` 的代码片段**：\n    ```python\n    def update_role(self, user_id: int, role: str) -> None:\n        cur = self.conn.cursor()\n        cur.execute(\"UPDATE users SET role = ? WHERE id = ?\", (role, user_id))\n        self.conn.commit()\n    ```\n\n2. **安全模式白名单检查**：\n    - 该代码片段使用了参数化查询，符合 SQL 注入防护的白名单标准。\n    - `cur.execute(\"UPDATE users SET role = ? WHERE id = ?\", (role, user_id))` 中的 `?` 是 SQL 占位符，参数元组 `(role, user_id)` 中的值会被数据库驱动自动转义，不会进入 SQL 语法层。\n\n3. **其他安全检查**：\n    - 该代码片段没有涉及命令注入、路径穿越、XSS 或反序列化等其他常见漏洞。\n    - 没有硬编码敏感信息（如密码、API Key 等）。\n\n### 结论\n\n根据上述分析，该代码片段符合 SQL 注入防护的白名单标准，并且没有其他明显的安全漏洞。因此，可以判定该代码片段不存在安全漏洞。\n\n```json\n{\n  \"has_vulnerability\": false,\n  \"vulnerability_type\": \"none\",\n  \"risk_level\": \"None\",\n  \"source\": \"N/A\",\n  \"sink\": \"N/A\",\n  \"explanation\": \"The code uses parameterized queries to prevent SQL injection, which is a safe practice.\",\n  \"fix_suggestion\": \"no fix needed\"\n}\n```",
+              "parsed_verdict": {
+                "has_vulnerability": false,
+                "vulnerability_type": "none",
+                "risk_level": "None",
+                "source": "N/A",
+                "sink": "N/A",
+                "explanation": "The code uses parameterized queries to prevent SQL injection, which is a safe practice.",
+                "fix_suggestion": "no fix needed"
+              },
+              "model_has_vulnerability": false,
+              "error": null,
+              "meta": {
+                "eval_count": 347,
+                "eval_duration_ns": 6319704000,
+                "load_duration_ns": 133743895,
+                "total_duration_ns": 7459419561,
+                "prompt_eval_count": 3004
+              }
+            }
+          ],
+          "majority_verdict": false,
+          "agreement_rate": 1.0
+        },
+        {
+          "chunk_id": 22,
+          "name": "NotificationService.send_welcome",
+          "start_line": 192,
+          "end_line": 199,
+          "node_type": "function_definition",
+          "char_count": 5622,
+          "prompt_chars": 8862,
+          "runs": [
+            {
+              "run_index": 1,
+              "chunk_id": 22,
+              "chunk_name": "NotificationService.send_welcome",
+              "elapsed_seconds": 11.29,
+              "raw_output": "### 分析过程\n\n1. **函数 `NotificationService.send_welcome`**:\n   - 该函数用于发送欢迎邮件，并记录通知。\n   - 函数接收两个参数：`user_id` 和 `email`。\n\n2. **SQL 查询**:\n   - 在函数中，有以下 SQL 查询：\n     ```python\n     cur.execute(\"SELECT id, type, payload, created_at FROM notifications WHERE user_id = ? AND read_at IS NULL ORDER BY id DESC\", (user_id,))\n     ```\n   - 这是一个参数化查询，使用了 `?` 作为占位符，并且将 `user_id` 作为参数传递给 `execute` 方法。这是安全的写法，符合 SQL 注入防护的安全模式白名单。\n\n3. **日志记录**:\n   - 函数中使用了 `logger.info` 记录日志：\n     ```python\n     logger.info(\"sending welcome email to user_id=%s email=%s\", user_id, email)\n     ```\n   - 这里没有直接将用户可控输入（`user_id` 和 `email`）拼接到字符串中，而是使用了参数化的方式，因此是安全的。\n\n4. **插入通知**:\n   - 函数中插入一条新通知：\n     ```python\n     cur.execute(\"INSERT INTO notifications (user_id, type, payload, created_at) VALUES (?, ?, ?, ?)\", (user_id, \"welcome\", json.dumps({\"email\": email}), now_iso()))\n     self.conn.commit()\n     ```\n   - 这也是一个参数化查询，使用了 `?` 作为占位符，并且将 `user_id`、`type`、`payload` 和 `created_at` 作为参数传递给 `execute` 方法。这是安全的写法。\n\n5. **硬编码凭证**:\n   - 在文件级上下文中，定义了一些全局常量，包括数据库路径 `DB_PATH`：\n     ```python\n     DB_PATH = \"users.db\"\n     ```\n   - 这是一个硬编码的敏感信息（数据库连接串密码），根据硬编码凭证判定标准，这本身就是漏洞。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-798 Hardcoded Sensitive Information\",\n    \"risk_level\": \"High\",\n    \"source\": \"N/A\",\n    \"sink\": \"DB_PATH = \\\"users.db\\\"\",\n    \"explanation\": \"The database path is hardcoded in the code, which is a sensitive information and considered a vulnerability.\",\n    \"fix_suggestion\": \"Use environment variables or configuration files to store sensitive information.\"\n}\n```",
+              "parsed_verdict": {
+                "has_vulnerability": true,
+                "vulnerability_type": "CWE-798 Hardcoded Sensitive Information",
+                "risk_level": "High",
+                "source": "N/A",
+                "sink": "DB_PATH = \"users.db\"",
+                "explanation": "The database path is hardcoded in the code, which is a sensitive information and considered a vulnerability.",
+                "fix_suggestion": "Use environment variables or configuration files to store sensitive information."
+              },
+              "model_has_vulnerability": true,
+              "error": null,
+              "meta": {
+                "eval_count": 555,
+                "eval_duration_ns": 10140024000,
+                "load_duration_ns": 134476220,
+                "total_duration_ns": 11283725148,
+                "prompt_eval_count": 3035
+              }
+            }
+          ],
+          "majority_verdict": true,
+          "agreement_rate": 1.0
+        },
+        {
+          "chunk_id": 23,
+          "name": "NotificationService.list_unread",
+          "start_line": 201,
+          "end_line": 207,
+          "node_type": "function_definition",
+          "char_count": 5504,
+          "prompt_chars": 8743,
+          "runs": [
+            {
+              "run_index": 1,
+              "chunk_id": 23,
+              "chunk_name": "NotificationService.list_unread",
+              "elapsed_seconds": 8.51,
+              "raw_output": "### 分析过程\n\n1. **函数 `NotificationService.list_unread`**:\n   - 该函数用于获取未读通知。\n   - 输入参数：`user_id`\n\n2. **代码片段**:\n   ```python\n   def list_unread(self, user_id: int) -> List[Dict]:\n       cur = self.conn.cursor()\n       cur.execute(\"SELECT id, type, payload, created_at FROM notifications WHERE user_id = ? AND read_at IS NULL ORDER BY id DESC\", (user_id,))\n       return cur.fetchall()\n   ```\n\n3. **安全分析**:\n   - **SQL 注入防护**: 代码使用了参数化查询，`cur.execute(\"SELECT ... WHERE user_id = ? AND read_at IS NULL ORDER BY id DESC\", (user_id,))`。这是安全的写法。\n   - **XSS 防护**: 该函数没有直接输出用户输入到 HTML 或 JavaScript 中，因此不存在 XSS 漏洞。\n   - **命令注入防护**: 该函数没有执行系统命令，因此不存在命令注入漏洞。\n   - **路径穿越防护**: 该函数没有处理文件路径，因此不存在路径穿越漏洞。\n   - **硬编码敏感信息**: 代码中没有硬编码敏感信息（如密码、API Key 等）。\n\n4. **判定**:\n   - 由于代码使用了参数化查询，符合安全模式白名单中的 SQL 注入防护标准。\n   - 没有其他明显的漏洞。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"代码使用了参数化查询，符合 SQL 注入防护标准，无其他明显漏洞。\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+              "parsed_verdict": {
+                "has_vulnerability": false,
+                "vulnerability_type": "none",
+                "risk_level": "None",
+                "source": "N/A",
+                "sink": "N/A",
+                "explanation": "代码使用了参数化查询，符合 SQL 注入防护标准，无其他明显漏洞。",
+                "fix_suggestion": "no fix needed"
+              },
+              "model_has_vulnerability": false,
+              "error": null,
+              "meta": {
+                "eval_count": 403,
+                "eval_duration_ns": 7354324000,
+                "load_duration_ns": 135540663,
+                "total_duration_ns": 8502251595,
+                "prompt_eval_count": 3012
+              }
+            }
+          ],
+          "majority_verdict": false,
+          "agreement_rate": 1.0
+        },
+        {
+          "chunk_id": 24,
+          "name": "NotificationService.mark_read",
+          "start_line": 209,
+          "end_line": 215,
+          "node_type": "function_definition",
+          "char_count": 5487,
+          "prompt_chars": 8724,
+          "runs": [
+            {
+              "run_index": 1,
+              "chunk_id": 24,
+              "chunk_name": "NotificationService.mark_read",
+              "elapsed_seconds": 8.41,
+              "raw_output": "### 分析过程\n\n1. **函数 `NotificationService.mark_read` 的代码片段**：\n    ```python\n    def mark_read(self, notif_id: int, user_id: int) -> None:\n        cur = self.conn.cursor()\n        now_iso = datetime.utcnow().isoformat() + \"Z\"\n        cur.execute(\"UPDATE notifications SET read_at = ? WHERE id = ? AND user_id = ?\", (now_iso(), notif_id, user_id))\n        self.conn.commit()\n    ```\n\n2. **安全模式白名单检查**：\n    - 该函数中没有明显的 SQL 注入风险，因为使用了参数化查询。\n    - 没有命令注入风险，因为没有调用外部命令。\n    - 没有路径穿越风险，因为没有文件操作。\n    - 没有 XSS 风险，因为没有直接输出用户输入到 HTML 中。\n    - 没有反序列化风险，因为没有使用 `pickle` 或 `yaml` 进行反序列化。\n\n3. **硬编码凭证检查**：\n    - 代码中没有硬编码的敏感信息（如密码、API Key 等）。\n\n4. **其他潜在问题**：\n    - 没有看到明显的逻辑错误或异常处理，但需要确保 `notif_id` 和 `user_id` 的有效性。\n    - 需要确保 `self.conn` 是一个有效的数据库连接对象。\n\n### JSON 结论\n\n```json\n{\n  \"has_vulnerability\": false,\n  \"vulnerability_type\": \"none\",\n  \"risk_level\": \"None\",\n  \"source\": \"N/A\",\n  \"sink\": \"N/A\",\n  \"explanation\": \"The function `NotificationService.mark_read` uses parameterized queries to prevent SQL injection, and there are no other obvious security vulnerabilities.\",\n  \"fix_suggestion\": \"no fix needed\"\n}\n```",
+              "parsed_verdict": {
+                "has_vulnerability": false,
+                "vulnerability_type": "none",
+                "risk_level": "None",
+                "source": "N/A",
+                "sink": "N/A",
+                "explanation": "The function `NotificationService.mark_read` uses parameterized queries to prevent SQL injection, and there are no other obvious security vulnerabilities.",
+                "fix_suggestion": "no fix needed"
+              },
+              "model_has_vulnerability": false,
+              "error": null,
+              "meta": {
+                "eval_count": 400,
+                "eval_duration_ns": 7292502000,
+                "load_duration_ns": 133985043,
+                "total_duration_ns": 8404527454,
+                "prompt_eval_count": 2979
+              }
+            }
+          ],
+          "majority_verdict": false,
+          "agreement_rate": 1.0
+        },
+        {
+          "chunk_id": 26,
+          "name": "AuditLog.log",
+          "start_line": 225,
+          "end_line": 231,
+          "node_type": "function_definition",
+          "char_count": 5510,
+          "prompt_chars": 8730,
+          "runs": [
+            {
+              "run_index": 1,
+              "chunk_id": 26,
+              "chunk_name": "AuditLog.log",
+              "elapsed_seconds": 8.56,
+              "raw_output": "### 分析过程\n\n1. **函数 `AuditLog.log` 的代码片段**：\n    ```python\n    def log(self, user_id: Optional[int], action: str, detail: str = \"\") -> None:\n        cur = self.conn.cursor()\n        now_iso = datetime.utcnow().isoformat() + \"Z\"\n        query = \"INSERT INTO audit_log (user_id, action, detail, created_at) VALUES (?, ?, ?, ?)\"\n        cur.execute(query, (user_id, action, detail, now_iso))\n        self.conn.commit()\n    ```\n\n2. **安全模式白名单检查**：\n    - 该代码片段使用了参数化查询，符合 SQL 注入防护的白名单标准。\n    - `query = \"INSERT INTO audit_log (user_id, action, detail, created_at) VALUES (?, ?, ?, ?)\"` 是一个预编译的 SQL 查询语句。\n    - `cur.execute(query, (user_id, action, detail, now_iso))` 使用了参数化查询，其中 `?` 是占位符，用户可控输入（`user_id`, `action`, `detail`）会被数据库驱动自动转义。\n\n3. **其他安全检查**：\n    - 代码中没有发现硬编码凭证。\n    - 没有发现命令注入、路径穿越、XSS 或反序列化漏洞。\n\n### 结论\n\n根据上述分析，该代码片段符合 SQL 注入防护的白名单标准，并且没有发现其他安全漏洞。因此，可以判定该代码片段不存在安全漏洞。\n\n```json\n{\n  \"has_vulnerability\": false,\n  \"vulnerability_type\": \"none\",\n  \"risk_level\": \"None\",\n  \"source\": \"N/A\",\n  \"sink\": \"N/A\",\n  \"explanation\": \"The code uses parameterized queries to prevent SQL injection, which is a safe practice.\",\n  \"fix_suggestion\": \"no fix needed\"\n}\n```",
+              "parsed_verdict": {
+                "has_vulnerability": false,
+                "vulnerability_type": "none",
+                "risk_level": "None",
+                "source": "N/A",
+                "sink": "N/A",
+                "explanation": "The code uses parameterized queries to prevent SQL injection, which is a safe practice.",
+                "fix_suggestion": "no fix needed"
+              },
+              "model_has_vulnerability": false,
+              "error": null,
+              "meta": {
+                "eval_count": 406,
+                "eval_duration_ns": 7411816000,
+                "load_duration_ns": 137114213,
+                "total_duration_ns": 8555821644,
+                "prompt_eval_count": 3017
+              }
+            }
+          ],
+          "majority_verdict": false,
+          "agreement_rate": 1.0
+        },
+        {
+          "chunk_id": 27,
+          "name": "AuditLog.list_recent",
+          "start_line": 233,
+          "end_line": 239,
+          "node_type": "function_definition",
+          "char_count": 5471,
+          "prompt_chars": 8699,
+          "runs": [
+            {
+              "run_index": 1,
+              "chunk_id": 27,
+              "chunk_name": "AuditLog.list_recent",
+              "elapsed_seconds": 8.44,
+              "raw_output": "### 分析过程\n\n1. **函数定义和上下文**：\n   - `AuditLog.list_recent` 函数用于列出最近的审计日志。\n   - 该函数接收一个参数 `limit`，表示要返回的日志条数。\n\n2. **代码片段分析**：\n   - 在 `AuditLog.list_recent` 函数中，存在以下 SQL 查询语句：\n     ```python\n     cur.execute(\"SELECT * FROM audit_log ORDER BY id DESC LIMIT ?\", (limit,))\n     ```\n   - 这个查询语句使用了参数化查询，其中 `?` 是一个占位符，用于防止 SQL 注入。\n\n3. **安全模式白名单检查**：\n   - 参数化查询是安全的写法，符合安全模式白名单中的 SQL 注入防护标准。\n   - 代码中没有其他明显的安全漏洞。\n\n4. **硬编码凭证检查**：\n   - 代码中没有硬编码敏感信息（如密码、API Key 等）。\n\n5. **命令注入和路径穿越检查**：\n   - 代码中没有涉及命令执行或文件路径操作，因此不存在命令注入和路径穿越风险。\n\n6. **XSS 防护检查**：\n   - 代码中没有涉及到用户输入的 HTML 输出，因此不存在 XSS 风险。\n\n7. **反序列化防护检查**：\n   - 代码中没有涉及反序列化操作，因此不存在反序列化风险。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"The code uses parameterized queries to prevent SQL injection, which is a safe practice. There are no other obvious vulnerabilities.\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+              "parsed_verdict": {
+                "has_vulnerability": false,
+                "vulnerability_type": "none",
+                "risk_level": "None",
+                "source": "N/A",
+                "sink": "N/A",
+                "explanation": "The code uses parameterized queries to prevent SQL injection, which is a safe practice. There are no other obvious vulnerabilities.",
+                "fix_suggestion": "no fix needed"
+              },
+              "model_has_vulnerability": false,
+              "error": null,
+              "meta": {
+                "eval_count": 401,
+                "eval_duration_ns": 7319518000,
+                "load_duration_ns": 132707861,
+                "total_duration_ns": 8429320991,
+                "prompt_eval_count": 2970
+              }
+            }
+          ],
+          "majority_verdict": false,
+          "agreement_rate": 1.0
+        },
+        {
+          "chunk_id": 28,
+          "name": "UserService.__init__",
+          "start_line": 246,
+          "end_line": 250,
+          "node_type": "function_definition",
+          "char_count": 5380,
+          "prompt_chars": 8608,
+          "runs": [
+            {
+              "run_index": 1,
+              "chunk_id": 28,
+              "chunk_name": "UserService.__init__",
+              "elapsed_seconds": 9.07,
+              "raw_output": "### 分析过程\n\n1. **函数 UserService.__init__ 的代码片段**：\n   ```python\n   def __init__(self, conn):\n       self.conn = conn\n       self.users = UserRepository(conn)\n       self.notif = NotificationService(conn)\n       self.audit = AuditLog(conn)\n\n       user_id = self.users.create_user(username, email, password, role=\"user\")\n       self.audit.log(user_id, \"register\", f\"username={username}\")\n\n       row = self.users.get_by_username(username)\n       token = session_store.create(row[\"id\"], row[\"role\"])\n\n       info = session_store.get(token)\n\n       info = session_store.get(token)\n       row = self.users.get_by_id(info[\"user_id\"])\n   ```\n\n2. **安全模式白名单检查**：\n   - 代码中没有明显的 SQL 注入、命令注入、路径穿越、XSS 或反序列化漏洞。\n   - `username`, `email` 和 `password` 是用户可控输入，但它们在进入数据库查询之前被传递给了 `self.users.create_user` 方法。\n\n3. **硬编码凭证检查**：\n   - 代码中没有硬编码的敏感信息（如密码、API Key 等）。\n\n4. **具体漏洞分析**：\n   - `username`, `email` 和 `password` 是用户可控输入，但它们在进入数据库查询之前被传递给了 `self.users.create_user` 方法。\n   - 代码中没有明显的 SQL 注入风险，因为使用了参数化查询（如 `cur.execute(\"SELECT * FROM users WHERE username = ?\", (username,))`）。\n\n### 结论\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"The code uses parameterized queries to prevent SQL injection. There are no hard-coded sensitive credentials, and the user-controlled inputs are properly handled.\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+              "parsed_verdict": {
+                "has_vulnerability": false,
+                "vulnerability_type": "none",
+                "risk_level": "None",
+                "source": "N/A",
+                "sink": "N/A",
+                "explanation": "The code uses parameterized queries to prevent SQL injection. There are no hard-coded sensitive credentials, and the user-controlled inputs are properly handled.",
+                "fix_suggestion": "no fix needed"
+              },
+              "model_has_vulnerability": false,
+              "error": null,
+              "meta": {
+                "eval_count": 435,
+                "eval_duration_ns": 7943891000,
+                "load_duration_ns": 133479796,
+                "total_duration_ns": 9058800271,
+                "prompt_eval_count": 2978
+              }
+            }
+          ],
+          "majority_verdict": false,
+          "agreement_rate": 1.0
+        },
+        {
+          "chunk_id": 29,
+          "name": "UserService.register",
+          "start_line": 252,
+          "end_line": 258,
+          "node_type": "function_definition",
+          "char_count": 5598,
+          "prompt_chars": 8826,
+          "runs": [
+            {
+              "run_index": 1,
+              "chunk_id": 29,
+              "chunk_name": "UserService.register",
+              "elapsed_seconds": 9.21,
+              "raw_output": "### 分析过程\n\n1. **函数 UserService.register**\n   - 该函数用于用户注册。\n   - 输入参数包括 `username`, `email`, 和 `password`。\n\n2. **输入验证**\n   - `validate_username(username)` 和 `validate_email(email)` 进行了基本的格式验证，但没有对密码进行任何验证。\n\n3. **数据库操作**\n   - 使用 `self.users.create_user(username, email, password, role=\"user\")` 创建用户。\n   - 在创建用户后，调用 `self.audit.log(user_id, \"register\", f\"username={username}\")` 记录注册日志。\n\n4. **SQL 查询**\n   - 在 `create_user` 方法中，有以下 SQL 查询：\n     ```python\n     cur.execute(\"SELECT * FROM users WHERE username = ?\", (username,))\n     ```\n     这是一个参数化查询，符合安全模式白名单中的 SQL 注入防护标准。\n\n5. **硬编码敏感信息**\n   - 文件中存在硬编码的数据库路径 `DB_PATH = \"users.db\"`，这属于硬编码凭证漏洞。\n\n### 结论\n\n- **has_vulnerability**: true\n- **vulnerability_type**: CWE-798 硬编码凭证\n- **risk_level**: High\n- **source**: N/A\n- **sink**: N/A\n- **explanation**: 文件中存在硬编码的数据库路径，属于硬编码凭证漏洞。\n- **fix_suggestion**: 将硬编码的数据库路径从代码中移除，并通过环境变量或配置文件读取。\n\n```json\n{\n  \"has_vulnerability\": true,\n  \"vulnerability_type\": \"CWE-798 硬编码凭证\",\n  \"risk_level\": \"High\",\n  \"source\": \"N/A\",\n  \"sink\": \"N/A\",\n  \"explanation\": \"文件中存在硬编码的数据库路径，属于硬编码凭证漏洞。\",\n  \"fix_suggestion\": \"将硬编码的数据库路径从代码中移除，并通过环境变量或配置文件读取。\"\n}\n```",
+              "parsed_verdict": {
+                "has_vulnerability": true,
+                "vulnerability_type": "CWE-798 硬编码凭证",
+                "risk_level": "High",
+                "source": "N/A",
+                "sink": "N/A",
+                "explanation": "文件中存在硬编码的数据库路径，属于硬编码凭证漏洞。",
+                "fix_suggestion": "将硬编码的数据库路径从代码中移除，并通过环境变量或配置文件读取。"
+              },
+              "model_has_vulnerability": true,
+              "error": null,
+              "meta": {
+                "eval_count": 441,
+                "eval_duration_ns": 8057428000,
+                "load_duration_ns": 133897633,
+                "total_duration_ns": 9199236722,
+                "prompt_eval_count": 3027
+              }
+            }
+          ],
+          "majority_verdict": true,
+          "agreement_rate": 1.0
+        },
+        {
+          "chunk_id": 30,
+          "name": "UserService.login",
+          "start_line": 260,
+          "end_line": 269,
+          "node_type": "function_definition",
+          "char_count": 5630,
+          "prompt_chars": 8855,
+          "runs": [
+            {
+              "run_index": 1,
+              "chunk_id": 30,
+              "chunk_name": "UserService.login",
+              "elapsed_seconds": 10.05,
+              "raw_output": "### 分析过程\n\n1. **函数 UserService.login**\n   - 该函数用于用户登录验证。\n   - 用户输入的 `username` 和 `password` 需要进行验证和处理。\n\n2. **SQL 查询**\n   - 在 `login` 方法中，存在以下 SQL 查询：\n     ```python\n     cur.execute(\"SELECT * FROM users WHERE username = ?\", (username,))\n     ```\n   - 这是一个参数化查询，符合安全模式白名单中的 SQL 注入防护标准。\n\n3. **密码验证**\n   - 代码中没有直接使用用户输入的 `password` 进行 SQL 查询。\n   - 密码验证逻辑在后续处理中进行：\n     ```python\n     row = self.users.get_by_username(username)\n     if row[\"password_hash\"] != hash_password(password):\n         self.audit.log(row[\"id\"], \"login_failed\")\n         return None\n     ```\n   - 这里使用了 `hash_password` 函数对用户输入的密码进行哈希处理，然后与数据库中存储的哈希值进行比较。\n\n4. **会话创建**\n   - 如果密码验证通过，会创建一个会话并返回 token：\n     ```python\n     token = session_store.create(row[\"id\"], row[\"role\"])\n     self.audit.log(row[\"id\"], \"login_ok\")\n     return token\n     ```\n\n5. **硬编码凭证**\n   - 代码中没有发现硬编码的敏感信息（如密码、API Key 等）。\n\n### 结论\n\n- **has_vulnerability**: false\n- **vulnerability_type**: none\n- **risk_level**: None\n- **source**: N/A\n- **sink**: N/A\n- **explanation**: 代码中使用了参数化查询进行 SQL 查询，密码验证逻辑安全，没有发现硬编码凭证。\n- **fix_suggestion**: no fix needed\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"代码中使用了参数化查询进行 SQL 查询，密码验证逻辑安全，没有发现硬编码凭证。\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+              "parsed_verdict": {
+                "has_vulnerability": false,
+                "vulnerability_type": "none",
+                "risk_level": "None",
+                "source": "N/A",
+                "sink": "N/A",
+                "explanation": "代码中使用了参数化查询进行 SQL 查询，密码验证逻辑安全，没有发现硬编码凭证。",
+                "fix_suggestion": "no fix needed"
+              },
+              "model_has_vulnerability": false,
+              "error": null,
+              "meta": {
+                "eval_count": 485,
+                "eval_duration_ns": 8891489000,
+                "load_duration_ns": 133515406,
+                "total_duration_ns": 10042879470,
+                "prompt_eval_count": 3037
+              }
+            }
+          ],
+          "majority_verdict": false,
+          "agreement_rate": 1.0
+        },
+        {
+          "chunk_id": 31,
+          "name": "UserService.logout",
+          "start_line": 271,
+          "end_line": 275,
+          "node_type": "function_definition",
+          "char_count": 5388,
+          "prompt_chars": 8614,
+          "runs": [
+            {
+              "run_index": 1,
+              "chunk_id": 31,
+              "chunk_name": "UserService.logout",
+              "elapsed_seconds": 9.36,
+              "raw_output": "### 分析过程\n\n1. **函数定义和初始化**：\n   - `UserService` 类的 `logout` 方法接收一个用户会话令牌 `token`。\n\n2. **获取会话信息**：\n   - 调用 `session_store.get(token)` 获取与该令牌相关的用户信息。\n   - 如果没有找到对应的会话信息，返回 `None`。\n\n3. **获取用户信息**：\n   - 调用 `self.users.get_by_id(info[\"user_id\"])` 根据用户 ID 获取用户详细信息。\n\n### 安全分析\n\n1. **SQL 注入防护**：\n   - 代码中没有直接的 SQL 查询语句，因此不存在 SQL 注入风险。\n\n2. **跨站脚本（XSS）**：\n   - 代码中没有涉及 HTML 输出或用户输入直接拼接到 HTML 中的情况，因此不存在 XSS 风险。\n\n3. **命令注入防护**：\n   - 代码中没有执行外部命令的操作，因此不存在命令注入风险。\n\n4. **路径穿越防护**：\n   - 代码中没有文件操作或路径相关的操作，因此不存在路径穿越风险。\n\n5. **硬编码敏感信息（密钥/密码/Token）**：\n   - 代码中没有硬编码的凭证，如密码、API Key 等。所有敏感信息都通过配置文件或环境变量获取。\n\n6. **不安全的反序列化**：\n   - 代码中没有使用 `pickle` 或 `yaml` 进行反序列化的操作，因此不存在不安全的反序列化风险。\n\n### 结论\n\n根据以上分析，代码中没有发现任何安全漏洞。所有用户可控输入都经过了适当的处理和验证。\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"代码中没有发现任何安全漏洞。所有用户可控输入都经过了适当的处理和验证。\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+              "parsed_verdict": {
+                "has_vulnerability": false,
+                "vulnerability_type": "none",
+                "risk_level": "None",
+                "source": "N/A",
+                "sink": "N/A",
+                "explanation": "代码中没有发现任何安全漏洞。所有用户可控输入都经过了适当的处理和验证。",
+                "fix_suggestion": "no fix needed"
+              },
+              "model_has_vulnerability": false,
+              "error": null,
+              "meta": {
+                "eval_count": 449,
+                "eval_duration_ns": 8237666999,
+                "load_duration_ns": 135800871,
+                "total_duration_ns": 9357175069,
+                "prompt_eval_count": 2980
+              }
+            }
+          ],
+          "majority_verdict": false,
+          "agreement_rate": 1.0
+        },
+        {
+          "chunk_id": 32,
+          "name": "UserService.profile",
+          "start_line": 277,
+          "end_line": 284,
+          "node_type": "function_definition",
+          "char_count": 5469,
+          "prompt_chars": 8696,
+          "runs": [
+            {
+              "run_index": 1,
+              "chunk_id": 32,
+              "chunk_name": "UserService.profile",
+              "elapsed_seconds": 7.35,
+              "raw_output": "### 分析过程\n\n1. **函数 UserService.profile**\n   - 该函数用于获取用户信息。\n   - 用户可控输入：`user_id`\n\n2. **代码片段**\n   ```python\n   def profile(self, user_id: int) -> dict:\n       cur = self.conn.cursor()\n       cur.execute(\"SELECT * FROM users WHERE id = ?\", (user_id,))\n       row = cur.fetchone()\n       if row is None:\n           return None\n       return format_user_row(row)\n   ```\n\n3. **安全分析**\n   - **SQL 注入防护**：\n     - 使用了参数化查询 `cur.execute(\"SELECT * FROM users WHERE id = ?\", (user_id,))`，符合安全模式白名单中的 SQL 注入防护标准。\n   - **命令注入防护**：\n     - 无命令执行相关代码。\n   - **路径穿越防护**：\n     - 无文件路径操作相关代码。\n   - **XSS 防护**：\n     - 无用户输入直接输出到 HTML 的情况。\n   - **反序列化防护**：\n     - 无反序列化相关代码。\n\n4. **硬编码凭证**\n   - 无硬编码凭证出现。\n\n### 结论\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"代码使用了参数化查询，符合 SQL 注入防护标准。无其他安全漏洞。\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+              "parsed_verdict": {
+                "has_vulnerability": false,
+                "vulnerability_type": "none",
+                "risk_level": "None",
+                "source": "N/A",
+                "sink": "N/A",
+                "explanation": "代码使用了参数化查询，符合 SQL 注入防护标准。无其他安全漏洞。",
+                "fix_suggestion": "no fix needed"
+              },
+              "model_has_vulnerability": false,
+              "error": null,
+              "meta": {
+                "eval_count": 341,
+                "eval_duration_ns": 6217631000,
+                "load_duration_ns": 135189035,
+                "total_duration_ns": 7338774021,
+                "prompt_eval_count": 2972
+              }
+            }
+          ],
+          "majority_verdict": false,
+          "agreement_rate": 1.0
+        },
+        {
+          "chunk_id": 36,
+          "name": "StatsService.daily_new_users",
+          "start_line": 304,
+          "end_line": 311,
+          "node_type": "function_definition",
+          "char_count": 5569,
+          "prompt_chars": 8805,
+          "runs": [
+            {
+              "run_index": 1,
+              "chunk_id": 36,
+              "chunk_name": "StatsService.daily_new_users",
+              "elapsed_seconds": 9.62,
+              "raw_output": "### 分析过程\n\n#### 代码片段分析\n```python\nclass StatsService:\n    def __init__(self, conn):\n        self.conn = conn\n\n    def daily_new_users(self, days: int) -> list:\n        cur = self.conn.cursor()\n        query = \"SELECT * FROM users WHERE created_at >= ? GROUP BY d ORDER BY d\"\n        cur.execute(query, ((datetime.utcnow() - timedelta(days=days)).isoformat() + \"Z\",))\n        return cur.fetchall()\n\n    def export_report(self, table: str) -> list:\n        # 报表导出：根据传入的表名查询并返回原始行\n        # 报表导出功能\n        cur = self.conn.cursor()\n        query = \"SELECT * FROM \" + table + \" ORDER BY id DESC LIMIT 100\"\n```\n\n#### 安全模式白名单检查\n- `daily_new_users` 方法中，SQL 查询使用了参数化查询：\n  ```python\n  cur.execute(query, ((datetime.utcnow() - timedelta(days=days)).isoformat() + \"Z\",))\n  ```\n  这符合安全模式白名单中的 SQL 注入防护标准。\n\n- `export_report` 方法中，SQL 查询没有使用参数化查询：\n  ```python\n  query = \"SELECT * FROM \" + table + \" ORDER BY id DESC LIMIT 100\"\n  ```\n\n#### 漏洞判定\n- `daily_new_users` 方法中的 SQL 查询是安全的，符合参数化查询的标准。\n- `export_report` 方法中的 SQL 查询存在 SQL 注入风险，因为用户可控输入 `table` 直接拼接到 SQL 字符串中。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-89 SQL注入\",\n    \"risk_level\": \"High\",\n    \"source\": \"export_report 方法中的 table 参数\",\n    \"sink\": \"cur.execute(query)\",\n    \"explanation\": \"用户可控输入 `table` 直接拼接到 SQL 字符串中，存在 SQL 注入风险。\",\n    \"fix_suggestion\": \"使用参数化查询来防止 SQL 注入。\"\n}\n```",
+              "parsed_verdict": {
+                "has_vulnerability": true,
+                "vulnerability_type": "CWE-89 SQL注入",
+                "risk_level": "High",
+                "source": "export_report 方法中的 table 参数",
+                "sink": "cur.execute(query)",
+                "explanation": "用户可控输入 `table` 直接拼接到 SQL 字符串中，存在 SQL 注入风险。",
+                "fix_suggestion": "使用参数化查询来防止 SQL 注入。"
+              },
+              "model_has_vulnerability": true,
+              "error": null,
+              "meta": {
+                "eval_count": 463,
+                "eval_duration_ns": 8468651000,
+                "load_duration_ns": 133504616,
+                "total_duration_ns": 9614504003,
+                "prompt_eval_count": 3050
+              }
+            }
+          ],
+          "majority_verdict": true,
+          "agreement_rate": 1.0
+        },
+        {
+          "chunk_id": 37,
+          "name": "StatsService.export_report",
+          "start_line": 313,
+          "end_line": 319,
+          "node_type": "function_definition",
+          "char_count": 5518,
+          "prompt_chars": 8752,
+          "runs": [
+            {
+              "run_index": 1,
+              "chunk_id": 37,
+              "chunk_name": "StatsService.export_report",
+              "elapsed_seconds": 10.16,
+              "raw_output": "### 分析过程\n\n1. **代码片段定位**：\n   - 当前分析目标是 `StatsService.export_report` 函数。\n\n2. **函数逻辑概述**：\n   - 该函数用于根据传入的表名查询并返回原始行。\n   - 表名通过用户可控输入传递。\n\n3. **安全模式白名单检查**：\n   - 检查代码是否符合 SQL 注入防护、命令注入防护、路径穿越防护、XSS 防护和反序列化防护的安全模式白名单。\n\n4. **SQL 注入防护**：\n   - 代码中存在以下 SQL 查询语句：\n     ```python\n     cur.execute(\"SELECT * FROM \" + table + \" ORDER BY id DESC LIMIT 100\")\n     ```\n   - 这里直接将用户可控输入 `table` 拼接到 SQL 查询字符串中，存在 SQL 注入风险。\n\n5. **命令注入防护**：\n   - 代码中没有涉及命令执行的部分，因此不需要检查命令注入防护。\n\n6. **路径穿越防护**：\n   - 代码中没有涉及文件路径操作的部分，因此不需要检查路径穿越防护。\n\n7. **XSS 防护**：\n   - 代码中没有涉及用户输入直接输出到 HTML 的部分，因此不需要检查 XSS 防护。\n\n8. **反序列化防护**：\n   - 代码中没有涉及反序列化的部分，因此不需要检查反序列化防护。\n\n### 结论\n\n根据上述分析，`StatsService.export_report` 函数存在 SQL 注入风险。具体来说，用户可控输入 `table` 直接拼接到 SQL 查询字符串中，导致潜在的 SQL 注入漏洞。\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-89 SQL注入\",\n    \"risk_level\": \"High\",\n    \"source\": \"用户可控输入点：table\",\n    \"sink\": \"危险函数或触发点：cur.execute(query)\",\n    \"explanation\": \"代码中存在直接将用户可控输入拼接到 SQL 查询字符串中的情况，导致潜在的 SQL 注入漏洞。\",\n    \"fix_suggestion\": \"使用参数化查询来防止 SQL 注入。例如：cursor.execute(\\\"SELECT * FROM ? ORDER BY id DESC LIMIT 100\\\", (table,))\"\n}\n```",
+              "parsed_verdict": {
+                "has_vulnerability": true,
+                "vulnerability_type": "CWE-89 SQL注入",
+                "risk_level": "High",
+                "source": "用户可控输入点：table",
+                "sink": "危险函数或触发点：cur.execute(query)",
+                "explanation": "代码中存在直接将用户可控输入拼接到 SQL 查询字符串中的情况，导致潜在的 SQL 注入漏洞。",
+                "fix_suggestion": "使用参数化查询来防止 SQL 注入。例如：cursor.execute(\"SELECT * FROM ? ORDER BY id DESC LIMIT 100\", (table,))"
+              },
+              "model_has_vulnerability": true,
+              "error": null,
+              "meta": {
+                "eval_count": 495,
+                "eval_duration_ns": 9042167000,
+                "load_duration_ns": 134761268,
+                "total_duration_ns": 10153976973,
+                "prompt_eval_count": 2980
+              }
+            }
+          ],
+          "majority_verdict": true,
+          "agreement_rate": 1.0
+        },
+        {
+          "chunk_id": 38,
+          "name": "init_db",
+          "start_line": 325,
+          "end_line": 356,
+          "node_type": "function_definition",
+          "char_count": 6157,
+          "prompt_chars": 9372,
+          "runs": [
+            {
+              "run_index": 1,
+              "chunk_id": 38,
+              "chunk_name": "init_db",
+              "elapsed_seconds": 6.84,
+              "raw_output": "### 分析过程\n\n1. **函数 `init_db` 的代码片段**：\n   ```python\n   def init_db():\n       conn = sqlite3.connect(DB_PATH)\n       conn.row_factory = sqlite3.Row\n       return conn\n   ```\n\n2. **安全模式白名单检查**：\n   - 该函数没有用户可控输入，也没有执行任何可能引入漏洞的操作。\n   - `DB_PATH` 是一个全局常量，硬编码在代码中。\n\n3. **硬编码凭证判定**：\n   - `DB_PATH = \"users.db\"` 是一个文件路径，不是敏感信息（如密码、API Key 等），因此不构成漏洞。\n\n4. **其他安全检查**：\n   - 该函数没有执行 SQL 查询、命令注入或路径穿越等操作。\n   - 没有使用用户可控输入来构造 SQL 查询或命令行参数。\n\n### 结论\n\n根据以上分析，代码片段 `init_db` 中没有发现任何安全漏洞。它只是简单地连接到一个 SQLite 数据库，并没有涉及任何可能引入漏洞的操作。\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"The function init_db does not involve any user-controlled input or operations that could introduce vulnerabilities.\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+              "parsed_verdict": {
+                "has_vulnerability": false,
+                "vulnerability_type": "none",
+                "risk_level": "None",
+                "source": "N/A",
+                "sink": "N/A",
+                "explanation": "The function init_db does not involve any user-controlled input or operations that could introduce vulnerabilities.",
+                "fix_suggestion": "no fix needed"
+              },
+              "model_has_vulnerability": false,
+              "error": null,
+              "meta": {
+                "eval_count": 310,
+                "eval_duration_ns": 5664284000,
+                "load_duration_ns": 133959363,
+                "total_duration_ns": 6832189696,
+                "prompt_eval_count": 3104
+              }
+            }
+          ],
+          "majority_verdict": false,
+          "agreement_rate": 1.0
+        }
+      ],
+      "runs": [
+        {
+          "run_index": 1,
+          "chunk_id": 2,
+          "chunk_name": "hash_password",
+          "elapsed_seconds": 10.85,
+          "raw_output": "### 分析过程\n\n1. **函数 `hash_password` 的代码片段**：\n   ```python\n   def hash_password(password: str) -> str:\n       digest = hashlib.pbkdf2_hmac(\"sha256\", password.encode(), SALT, PASSWORD_HASH_ITER)\n       return digest.hex()\n   ```\n\n2. **安全模式白名单检查**：\n   - 该函数中没有用户可控输入。\n   - 没有 SQL 查询、命令执行、路径操作等潜在风险点。\n\n3. **硬编码凭证检查**：\n   - `SALT` 和 `PASSWORD_HASH_ITER` 是常量，但它们的值是硬编码的字面量。虽然这些不是直接的凭证（如密码、API Key），但它们可能用于生成敏感数据，因此仍然存在安全风险。\n\n4. **其他潜在漏洞检查**：\n   - 该函数没有明显的 SQL 注入、命令注入、路径穿越、XSS 或反序列化漏洞。\n   - 用户输入 `password` 是通过参数传递的，并且在函数内部被正确处理。\n\n### 结论\n\n- **has_vulnerability**: true\n- **vulnerability_type**: 'CWE-798 Hardcoded Sensitive Information'\n- **risk_level**: 'High'\n- **source**: 'N/A'\n- **sink**: 'N/A'\n- **explanation**: The `SALT` and `PASSWORD_HASH_ITER` constants are hardcoded, which can be considered a security risk.\n- **fix_suggestion**: Avoid hardcoding sensitive information. Use environment variables or configuration files to store such values.\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-798 Hardcoded Sensitive Information\",\n    \"risk_level\": \"High\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"The `SALT` and `PASSWORD_HASH_ITER` constants are hardcoded, which can be considered a security risk.\",\n    \"fix_suggestion\": \"Avoid hardcoding sensitive information. Use environment variables or configuration files to store such values.\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-798 Hardcoded Sensitive Information",
+            "risk_level": "High",
+            "source": "N/A",
+            "sink": "N/A",
+            "explanation": "The `SALT` and `PASSWORD_HASH_ITER` constants are hardcoded, which can be considered a security risk.",
+            "fix_suggestion": "Avoid hardcoding sensitive information. Use environment variables or configuration files to store such values."
+          },
+          "model_has_vulnerability": true,
+          "error": null
+        },
+        {
+          "run_index": 2,
+          "chunk_id": 5,
+          "chunk_name": "format_user_row",
+          "elapsed_seconds": 7.22,
+          "raw_output": "### 分析过程\n\n1. **函数 `format_user_row` 的代码片段**：\n   ```python\n   def format_user_row(row):\n       return {\n           \"id\": row[\"id\"],\n           \"username\": row[\"username\"],\n           \"email\": row[\"email\"],\n           \"role\": row[\"role\"],\n           \"created_at\": row[\"created_at\"],\n       }\n   ```\n\n2. **安全模式白名单检查**：\n   - 该函数没有涉及用户可控输入，也没有调用任何可能引入漏洞的函数。\n   - 函数内部只是将数据库查询结果中的字段进行简单的字典重组，并没有进行任何敏感操作。\n\n3. **硬编码凭证检查**：\n   - 代码中没有出现硬编码的密码、API Key 等敏感信息。\n\n4. **其他安全问题检查**：\n   - 没有发现 SQL 注入、命令注入、路径穿越、XSS 或反序列化等漏洞。\n\n### 结论\n\n根据以上分析，该函数 `format_user_row` 不存在任何安全漏洞。它只是对数据库查询结果进行简单的重组，并没有涉及用户可控输入或调用可能引入漏洞的函数。\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"该函数仅对数据库查询结果进行简单的重组，没有涉及用户可控输入或调用可能引入漏洞的函数。\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": false,
+            "vulnerability_type": "none",
+            "risk_level": "None",
+            "source": "N/A",
+            "sink": "N/A",
+            "explanation": "该函数仅对数据库查询结果进行简单的重组，没有涉及用户可控输入或调用可能引入漏洞的函数。",
+            "fix_suggestion": "no fix needed"
+          },
+          "model_has_vulnerability": false,
+          "error": null
+        },
+        {
+          "run_index": 3,
+          "chunk_id": 7,
+          "chunk_name": "SessionStore.create",
+          "elapsed_seconds": 8.55,
+          "raw_output": "### 分析过程\n\n1. **函数 `SessionStore.create` 的代码片段**：\n   ```python\n   def create(self, user_id: int, role: str) -> str:\n       token = hashlib.sha256(f\"{user_id}{time.time()}{os.urandom(8).hex()}\".encode()).hexdigest()\n       self._store[token] = {\n           \"user_id\": user_id,\n           \"role\": role,\n           \"expires_at\": time.time() + SESSION_TTL_SECONDS,\n       }\n       return token\n   ```\n\n2. **安全模式白名单检查**：\n   - 该函数中没有用户可控输入，因此不需要进行任何安全处理。\n\n3. **硬编码凭证检查**：\n   - 代码中没有出现硬编码的密码、API Key 等敏感信息。\n\n4. **SQL 注入检查**：\n   - 代码中没有 SQL 查询语句，因此不存在 SQL 注入风险。\n\n5. **跨站脚本（XSS）检查**：\n   - 代码中没有涉及用户输入到 HTML 输出的情况，因此不存在 XSS 风险。\n\n6. **命令注入检查**：\n   - 代码中没有执行外部命令的操作，因此不存在命令注入风险。\n\n7. **路径穿越检查**：\n   - 代码中没有文件操作或路径拼接，因此不存在路径穿越风险。\n\n8. **反序列化检查**：\n   - 代码中没有反序列化操作，因此不存在反序列化风险。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"The function `SessionStore.create` does not contain any user-controlled input that could be exploited for vulnerabilities.\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": false,
+            "vulnerability_type": "none",
+            "risk_level": "None",
+            "source": "N/A",
+            "sink": "N/A",
+            "explanation": "The function `SessionStore.create` does not contain any user-controlled input that could be exploited for vulnerabilities.",
+            "fix_suggestion": "no fix needed"
+          },
+          "model_has_vulnerability": false,
+          "error": null
+        },
+        {
+          "run_index": 4,
+          "chunk_id": 8,
+          "chunk_name": "SessionStore.get",
+          "elapsed_seconds": 9.67,
+          "raw_output": "### 分析过程\n\n1. **函数 `SessionStore.get` 的定义和调用**：\n   - 函数 `SessionStore.get` 接受一个参数 `token`。\n   - 在函数内部，首先检查 `_store` 字典中是否存在该 `token`。\n   - 如果存在，则进一步检查该 `token` 对应的会话是否已经过期（通过比较 `expires_at` 和当前时间）。\n   - 如果会话未过期，则返回会话信息；否则，从 `_store` 中移除该 `token` 并返回 `None`。\n\n2. **用户可控输入**：\n   - 用户可控输入是 `token` 参数。\n\n3. **安全处理检查**：\n   - 在函数内部，`token` 是通过参数传递的。\n   - 代码中没有直接使用 `token` 进行 SQL 查询、命令执行或文件路径操作。\n   - `_store` 字典的访问和修改都是基于传入的 `token`。\n\n4. **硬编码凭证检查**：\n   - 代码中没有出现硬编码的密码、API Key 等敏感信息。\n\n5. **安全模式白名单检查**：\n   - 代码中没有使用参数化查询、ORM 查询构造器等安全写法。\n   - 代码中也没有使用 `subprocess.run` 或其他命令执行函数。\n   - 代码中没有进行路径穿越操作。\n   - 代码中没有使用 HTML 模板或进行反序列化操作。\n\n### 结论\n\n根据以上分析，代码中没有发现明显的安全漏洞。用户可控输入 `token` 在 `_store` 字典中的访问和修改是安全的，并且没有其他潜在的安全风险。\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"The function `SessionStore.get` safely handles the user-controlled input `token` by accessing and modifying a dictionary. There are no SQL injection, command injection, path traversal, XSS, or deserialization vulnerabilities.\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": false,
+            "vulnerability_type": "none",
+            "risk_level": "None",
+            "source": "N/A",
+            "sink": "N/A",
+            "explanation": "The function `SessionStore.get` safely handles the user-controlled input `token` by accessing and modifying a dictionary. There are no SQL injection, command injection, path traversal, XSS, or deserialization vulnerabilities.",
+            "fix_suggestion": "no fix needed"
+          },
+          "model_has_vulnerability": false,
+          "error": null
+        },
+        {
+          "run_index": 5,
+          "chunk_id": 15,
+          "chunk_name": "UserRepository.create_user",
+          "elapsed_seconds": 8.78,
+          "raw_output": "### 分析过程\n\n1. **函数 `UserRepository.create_user`**:\n   - 该函数用于创建新用户。\n   - 用户可控输入包括：`username`, `email`, `password`, 和 `role`。\n\n2. **SQL 注入防护**:\n   - 在 `create_user` 函数中，使用了参数化查询：\n     ```python\n     cur.execute(\n         \"INSERT INTO users (username, email, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?)\",\n         (username, email, hash_password(password), role, now_iso()),\n     )\n     ```\n   - 这符合安全模式白名单中的 SQL 注入防护标准。\n\n3. **其他输入验证**:\n   - 代码中对 `email` 和 `role` 进行了验证：\n     ```python\n     if not validate_email(email):\n         raise ValueError(\"invalid email\")\n     if not validate_role(role):\n         raise ValueError(\"invalid role\")\n     ```\n   - 这些验证措施有助于防止无效输入，但并不直接涉及 SQL 注入。\n\n4. **硬编码凭证**:\n   - 代码中没有发现硬编码的敏感信息（如密码、API Key 等）。\n\n5. **其他安全措施**:\n   - 代码中没有发现明显的跨站脚本（XSS）、命令注入、路径穿越等漏洞。\n\n### 结论\n\n根据上述分析，代码片段中的 `UserRepository.create_user` 函数使用了参数化查询来防止 SQL 注入，并且对用户输入进行了基本的验证。因此，该函数不存在明显的安全漏洞。\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"The function uses parameterized queries to prevent SQL injection and performs basic input validation.\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": false,
+            "vulnerability_type": "none",
+            "risk_level": "None",
+            "source": "N/A",
+            "sink": "N/A",
+            "explanation": "The function uses parameterized queries to prevent SQL injection and performs basic input validation.",
+            "fix_suggestion": "no fix needed"
+          },
+          "model_has_vulnerability": false,
+          "error": null
+        },
+        {
+          "run_index": 6,
+          "chunk_id": 18,
+          "chunk_name": "UserRepository.list_users",
+          "elapsed_seconds": 6.33,
+          "raw_output": "### 分析过程\n\n1. **函数 `UserRepository.list_users` 的代码片段**：\n    ```python\n    def list_users(self, limit: int, offset: int) -> List[Dict]:\n        cur = self.conn.cursor()\n        cur.execute(\"SELECT * FROM users ORDER BY id LIMIT ? OFFSET ?\", (limit, offset))\n        return cur.fetchall()\n    ```\n\n2. **安全模式白名单检查**：\n    - 该函数使用了参数化查询，符合 SQL 注入防护的白名单标准。\n\n3. **用户可控输入处理**：\n    - `limit` 和 `offset` 是用户可控输入。\n    - 这些输入通过参数化查询传递给数据库，不会被解释为 SQL 语句的一部分。\n\n4. **其他安全措施**：\n    - 没有发现硬编码凭证、命令注入、路径穿越、XSS 或反序列化漏洞。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"The function uses parameterized queries to safely handle user-controlled inputs (limit and offset). It does not contain any known vulnerabilities.\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": false,
+            "vulnerability_type": "none",
+            "risk_level": "None",
+            "source": "N/A",
+            "sink": "N/A",
+            "explanation": "The function uses parameterized queries to safely handle user-controlled inputs (limit and offset). It does not contain any known vulnerabilities.",
+            "fix_suggestion": "no fix needed"
+          },
+          "model_has_vulnerability": false,
+          "error": null
+        },
+        {
+          "run_index": 7,
+          "chunk_id": 19,
+          "chunk_name": "UserRepository.update_role",
+          "elapsed_seconds": 7.47,
+          "raw_output": "### 分析过程\n\n1. **函数 `UserRepository.update_role` 的代码片段**：\n    ```python\n    def update_role(self, user_id: int, role: str) -> None:\n        cur = self.conn.cursor()\n        cur.execute(\"UPDATE users SET role = ? WHERE id = ?\", (role, user_id))\n        self.conn.commit()\n    ```\n\n2. **安全模式白名单检查**：\n    - 该代码片段使用了参数化查询，符合 SQL 注入防护的白名单标准。\n    - `cur.execute(\"UPDATE users SET role = ? WHERE id = ?\", (role, user_id))` 中的 `?` 是 SQL 占位符，参数元组 `(role, user_id)` 中的值会被数据库驱动自动转义，不会进入 SQL 语法层。\n\n3. **其他安全检查**：\n    - 该代码片段没有涉及命令注入、路径穿越、XSS 或反序列化等其他常见漏洞。\n    - 没有硬编码敏感信息（如密码、API Key 等）。\n\n### 结论\n\n根据上述分析，该代码片段符合 SQL 注入防护的白名单标准，并且没有其他明显的安全漏洞。因此，可以判定该代码片段不存在安全漏洞。\n\n```json\n{\n  \"has_vulnerability\": false,\n  \"vulnerability_type\": \"none\",\n  \"risk_level\": \"None\",\n  \"source\": \"N/A\",\n  \"sink\": \"N/A\",\n  \"explanation\": \"The code uses parameterized queries to prevent SQL injection, which is a safe practice.\",\n  \"fix_suggestion\": \"no fix needed\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": false,
+            "vulnerability_type": "none",
+            "risk_level": "None",
+            "source": "N/A",
+            "sink": "N/A",
+            "explanation": "The code uses parameterized queries to prevent SQL injection, which is a safe practice.",
+            "fix_suggestion": "no fix needed"
+          },
+          "model_has_vulnerability": false,
+          "error": null
+        },
+        {
+          "run_index": 8,
+          "chunk_id": 22,
+          "chunk_name": "NotificationService.send_welcome",
+          "elapsed_seconds": 11.29,
+          "raw_output": "### 分析过程\n\n1. **函数 `NotificationService.send_welcome`**:\n   - 该函数用于发送欢迎邮件，并记录通知。\n   - 函数接收两个参数：`user_id` 和 `email`。\n\n2. **SQL 查询**:\n   - 在函数中，有以下 SQL 查询：\n     ```python\n     cur.execute(\"SELECT id, type, payload, created_at FROM notifications WHERE user_id = ? AND read_at IS NULL ORDER BY id DESC\", (user_id,))\n     ```\n   - 这是一个参数化查询，使用了 `?` 作为占位符，并且将 `user_id` 作为参数传递给 `execute` 方法。这是安全的写法，符合 SQL 注入防护的安全模式白名单。\n\n3. **日志记录**:\n   - 函数中使用了 `logger.info` 记录日志：\n     ```python\n     logger.info(\"sending welcome email to user_id=%s email=%s\", user_id, email)\n     ```\n   - 这里没有直接将用户可控输入（`user_id` 和 `email`）拼接到字符串中，而是使用了参数化的方式，因此是安全的。\n\n4. **插入通知**:\n   - 函数中插入一条新通知：\n     ```python\n     cur.execute(\"INSERT INTO notifications (user_id, type, payload, created_at) VALUES (?, ?, ?, ?)\", (user_id, \"welcome\", json.dumps({\"email\": email}), now_iso()))\n     self.conn.commit()\n     ```\n   - 这也是一个参数化查询，使用了 `?` 作为占位符，并且将 `user_id`、`type`、`payload` 和 `created_at` 作为参数传递给 `execute` 方法。这是安全的写法。\n\n5. **硬编码凭证**:\n   - 在文件级上下文中，定义了一些全局常量，包括数据库路径 `DB_PATH`：\n     ```python\n     DB_PATH = \"users.db\"\n     ```\n   - 这是一个硬编码的敏感信息（数据库连接串密码），根据硬编码凭证判定标准，这本身就是漏洞。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-798 Hardcoded Sensitive Information\",\n    \"risk_level\": \"High\",\n    \"source\": \"N/A\",\n    \"sink\": \"DB_PATH = \\\"users.db\\\"\",\n    \"explanation\": \"The database path is hardcoded in the code, which is a sensitive information and considered a vulnerability.\",\n    \"fix_suggestion\": \"Use environment variables or configuration files to store sensitive information.\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-798 Hardcoded Sensitive Information",
+            "risk_level": "High",
+            "source": "N/A",
+            "sink": "DB_PATH = \"users.db\"",
+            "explanation": "The database path is hardcoded in the code, which is a sensitive information and considered a vulnerability.",
+            "fix_suggestion": "Use environment variables or configuration files to store sensitive information."
+          },
+          "model_has_vulnerability": true,
+          "error": null
+        },
+        {
+          "run_index": 9,
+          "chunk_id": 23,
+          "chunk_name": "NotificationService.list_unread",
+          "elapsed_seconds": 8.51,
+          "raw_output": "### 分析过程\n\n1. **函数 `NotificationService.list_unread`**:\n   - 该函数用于获取未读通知。\n   - 输入参数：`user_id`\n\n2. **代码片段**:\n   ```python\n   def list_unread(self, user_id: int) -> List[Dict]:\n       cur = self.conn.cursor()\n       cur.execute(\"SELECT id, type, payload, created_at FROM notifications WHERE user_id = ? AND read_at IS NULL ORDER BY id DESC\", (user_id,))\n       return cur.fetchall()\n   ```\n\n3. **安全分析**:\n   - **SQL 注入防护**: 代码使用了参数化查询，`cur.execute(\"SELECT ... WHERE user_id = ? AND read_at IS NULL ORDER BY id DESC\", (user_id,))`。这是安全的写法。\n   - **XSS 防护**: 该函数没有直接输出用户输入到 HTML 或 JavaScript 中，因此不存在 XSS 漏洞。\n   - **命令注入防护**: 该函数没有执行系统命令，因此不存在命令注入漏洞。\n   - **路径穿越防护**: 该函数没有处理文件路径，因此不存在路径穿越漏洞。\n   - **硬编码敏感信息**: 代码中没有硬编码敏感信息（如密码、API Key 等）。\n\n4. **判定**:\n   - 由于代码使用了参数化查询，符合安全模式白名单中的 SQL 注入防护标准。\n   - 没有其他明显的漏洞。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"代码使用了参数化查询，符合 SQL 注入防护标准，无其他明显漏洞。\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": false,
+            "vulnerability_type": "none",
+            "risk_level": "None",
+            "source": "N/A",
+            "sink": "N/A",
+            "explanation": "代码使用了参数化查询，符合 SQL 注入防护标准，无其他明显漏洞。",
+            "fix_suggestion": "no fix needed"
+          },
+          "model_has_vulnerability": false,
+          "error": null
+        },
+        {
+          "run_index": 10,
+          "chunk_id": 24,
+          "chunk_name": "NotificationService.mark_read",
+          "elapsed_seconds": 8.41,
+          "raw_output": "### 分析过程\n\n1. **函数 `NotificationService.mark_read` 的代码片段**：\n    ```python\n    def mark_read(self, notif_id: int, user_id: int) -> None:\n        cur = self.conn.cursor()\n        now_iso = datetime.utcnow().isoformat() + \"Z\"\n        cur.execute(\"UPDATE notifications SET read_at = ? WHERE id = ? AND user_id = ?\", (now_iso(), notif_id, user_id))\n        self.conn.commit()\n    ```\n\n2. **安全模式白名单检查**：\n    - 该函数中没有明显的 SQL 注入风险，因为使用了参数化查询。\n    - 没有命令注入风险，因为没有调用外部命令。\n    - 没有路径穿越风险，因为没有文件操作。\n    - 没有 XSS 风险，因为没有直接输出用户输入到 HTML 中。\n    - 没有反序列化风险，因为没有使用 `pickle` 或 `yaml` 进行反序列化。\n\n3. **硬编码凭证检查**：\n    - 代码中没有硬编码的敏感信息（如密码、API Key 等）。\n\n4. **其他潜在问题**：\n    - 没有看到明显的逻辑错误或异常处理，但需要确保 `notif_id` 和 `user_id` 的有效性。\n    - 需要确保 `self.conn` 是一个有效的数据库连接对象。\n\n### JSON 结论\n\n```json\n{\n  \"has_vulnerability\": false,\n  \"vulnerability_type\": \"none\",\n  \"risk_level\": \"None\",\n  \"source\": \"N/A\",\n  \"sink\": \"N/A\",\n  \"explanation\": \"The function `NotificationService.mark_read` uses parameterized queries to prevent SQL injection, and there are no other obvious security vulnerabilities.\",\n  \"fix_suggestion\": \"no fix needed\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": false,
+            "vulnerability_type": "none",
+            "risk_level": "None",
+            "source": "N/A",
+            "sink": "N/A",
+            "explanation": "The function `NotificationService.mark_read` uses parameterized queries to prevent SQL injection, and there are no other obvious security vulnerabilities.",
+            "fix_suggestion": "no fix needed"
+          },
+          "model_has_vulnerability": false,
+          "error": null
+        },
+        {
+          "run_index": 11,
+          "chunk_id": 26,
+          "chunk_name": "AuditLog.log",
+          "elapsed_seconds": 8.56,
+          "raw_output": "### 分析过程\n\n1. **函数 `AuditLog.log` 的代码片段**：\n    ```python\n    def log(self, user_id: Optional[int], action: str, detail: str = \"\") -> None:\n        cur = self.conn.cursor()\n        now_iso = datetime.utcnow().isoformat() + \"Z\"\n        query = \"INSERT INTO audit_log (user_id, action, detail, created_at) VALUES (?, ?, ?, ?)\"\n        cur.execute(query, (user_id, action, detail, now_iso))\n        self.conn.commit()\n    ```\n\n2. **安全模式白名单检查**：\n    - 该代码片段使用了参数化查询，符合 SQL 注入防护的白名单标准。\n    - `query = \"INSERT INTO audit_log (user_id, action, detail, created_at) VALUES (?, ?, ?, ?)\"` 是一个预编译的 SQL 查询语句。\n    - `cur.execute(query, (user_id, action, detail, now_iso))` 使用了参数化查询，其中 `?` 是占位符，用户可控输入（`user_id`, `action`, `detail`）会被数据库驱动自动转义。\n\n3. **其他安全检查**：\n    - 代码中没有发现硬编码凭证。\n    - 没有发现命令注入、路径穿越、XSS 或反序列化漏洞。\n\n### 结论\n\n根据上述分析，该代码片段符合 SQL 注入防护的白名单标准，并且没有发现其他安全漏洞。因此，可以判定该代码片段不存在安全漏洞。\n\n```json\n{\n  \"has_vulnerability\": false,\n  \"vulnerability_type\": \"none\",\n  \"risk_level\": \"None\",\n  \"source\": \"N/A\",\n  \"sink\": \"N/A\",\n  \"explanation\": \"The code uses parameterized queries to prevent SQL injection, which is a safe practice.\",\n  \"fix_suggestion\": \"no fix needed\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": false,
+            "vulnerability_type": "none",
+            "risk_level": "None",
+            "source": "N/A",
+            "sink": "N/A",
+            "explanation": "The code uses parameterized queries to prevent SQL injection, which is a safe practice.",
+            "fix_suggestion": "no fix needed"
+          },
+          "model_has_vulnerability": false,
+          "error": null
+        },
+        {
+          "run_index": 12,
+          "chunk_id": 27,
+          "chunk_name": "AuditLog.list_recent",
+          "elapsed_seconds": 8.44,
+          "raw_output": "### 分析过程\n\n1. **函数定义和上下文**：\n   - `AuditLog.list_recent` 函数用于列出最近的审计日志。\n   - 该函数接收一个参数 `limit`，表示要返回的日志条数。\n\n2. **代码片段分析**：\n   - 在 `AuditLog.list_recent` 函数中，存在以下 SQL 查询语句：\n     ```python\n     cur.execute(\"SELECT * FROM audit_log ORDER BY id DESC LIMIT ?\", (limit,))\n     ```\n   - 这个查询语句使用了参数化查询，其中 `?` 是一个占位符，用于防止 SQL 注入。\n\n3. **安全模式白名单检查**：\n   - 参数化查询是安全的写法，符合安全模式白名单中的 SQL 注入防护标准。\n   - 代码中没有其他明显的安全漏洞。\n\n4. **硬编码凭证检查**：\n   - 代码中没有硬编码敏感信息（如密码、API Key 等）。\n\n5. **命令注入和路径穿越检查**：\n   - 代码中没有涉及命令执行或文件路径操作，因此不存在命令注入和路径穿越风险。\n\n6. **XSS 防护检查**：\n   - 代码中没有涉及到用户输入的 HTML 输出，因此不存在 XSS 风险。\n\n7. **反序列化防护检查**：\n   - 代码中没有涉及反序列化操作，因此不存在反序列化风险。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"The code uses parameterized queries to prevent SQL injection, which is a safe practice. There are no other obvious vulnerabilities.\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": false,
+            "vulnerability_type": "none",
+            "risk_level": "None",
+            "source": "N/A",
+            "sink": "N/A",
+            "explanation": "The code uses parameterized queries to prevent SQL injection, which is a safe practice. There are no other obvious vulnerabilities.",
+            "fix_suggestion": "no fix needed"
+          },
+          "model_has_vulnerability": false,
+          "error": null
+        },
+        {
+          "run_index": 13,
+          "chunk_id": 28,
+          "chunk_name": "UserService.__init__",
+          "elapsed_seconds": 9.07,
+          "raw_output": "### 分析过程\n\n1. **函数 UserService.__init__ 的代码片段**：\n   ```python\n   def __init__(self, conn):\n       self.conn = conn\n       self.users = UserRepository(conn)\n       self.notif = NotificationService(conn)\n       self.audit = AuditLog(conn)\n\n       user_id = self.users.create_user(username, email, password, role=\"user\")\n       self.audit.log(user_id, \"register\", f\"username={username}\")\n\n       row = self.users.get_by_username(username)\n       token = session_store.create(row[\"id\"], row[\"role\"])\n\n       info = session_store.get(token)\n\n       info = session_store.get(token)\n       row = self.users.get_by_id(info[\"user_id\"])\n   ```\n\n2. **安全模式白名单检查**：\n   - 代码中没有明显的 SQL 注入、命令注入、路径穿越、XSS 或反序列化漏洞。\n   - `username`, `email` 和 `password` 是用户可控输入，但它们在进入数据库查询之前被传递给了 `self.users.create_user` 方法。\n\n3. **硬编码凭证检查**：\n   - 代码中没有硬编码的敏感信息（如密码、API Key 等）。\n\n4. **具体漏洞分析**：\n   - `username`, `email` 和 `password` 是用户可控输入，但它们在进入数据库查询之前被传递给了 `self.users.create_user` 方法。\n   - 代码中没有明显的 SQL 注入风险，因为使用了参数化查询（如 `cur.execute(\"SELECT * FROM users WHERE username = ?\", (username,))`）。\n\n### 结论\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"The code uses parameterized queries to prevent SQL injection. There are no hard-coded sensitive credentials, and the user-controlled inputs are properly handled.\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": false,
+            "vulnerability_type": "none",
+            "risk_level": "None",
+            "source": "N/A",
+            "sink": "N/A",
+            "explanation": "The code uses parameterized queries to prevent SQL injection. There are no hard-coded sensitive credentials, and the user-controlled inputs are properly handled.",
+            "fix_suggestion": "no fix needed"
+          },
+          "model_has_vulnerability": false,
+          "error": null
+        },
+        {
+          "run_index": 14,
+          "chunk_id": 29,
+          "chunk_name": "UserService.register",
+          "elapsed_seconds": 9.21,
+          "raw_output": "### 分析过程\n\n1. **函数 UserService.register**\n   - 该函数用于用户注册。\n   - 输入参数包括 `username`, `email`, 和 `password`。\n\n2. **输入验证**\n   - `validate_username(username)` 和 `validate_email(email)` 进行了基本的格式验证，但没有对密码进行任何验证。\n\n3. **数据库操作**\n   - 使用 `self.users.create_user(username, email, password, role=\"user\")` 创建用户。\n   - 在创建用户后，调用 `self.audit.log(user_id, \"register\", f\"username={username}\")` 记录注册日志。\n\n4. **SQL 查询**\n   - 在 `create_user` 方法中，有以下 SQL 查询：\n     ```python\n     cur.execute(\"SELECT * FROM users WHERE username = ?\", (username,))\n     ```\n     这是一个参数化查询，符合安全模式白名单中的 SQL 注入防护标准。\n\n5. **硬编码敏感信息**\n   - 文件中存在硬编码的数据库路径 `DB_PATH = \"users.db\"`，这属于硬编码凭证漏洞。\n\n### 结论\n\n- **has_vulnerability**: true\n- **vulnerability_type**: CWE-798 硬编码凭证\n- **risk_level**: High\n- **source**: N/A\n- **sink**: N/A\n- **explanation**: 文件中存在硬编码的数据库路径，属于硬编码凭证漏洞。\n- **fix_suggestion**: 将硬编码的数据库路径从代码中移除，并通过环境变量或配置文件读取。\n\n```json\n{\n  \"has_vulnerability\": true,\n  \"vulnerability_type\": \"CWE-798 硬编码凭证\",\n  \"risk_level\": \"High\",\n  \"source\": \"N/A\",\n  \"sink\": \"N/A\",\n  \"explanation\": \"文件中存在硬编码的数据库路径，属于硬编码凭证漏洞。\",\n  \"fix_suggestion\": \"将硬编码的数据库路径从代码中移除，并通过环境变量或配置文件读取。\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-798 硬编码凭证",
+            "risk_level": "High",
+            "source": "N/A",
+            "sink": "N/A",
+            "explanation": "文件中存在硬编码的数据库路径，属于硬编码凭证漏洞。",
+            "fix_suggestion": "将硬编码的数据库路径从代码中移除，并通过环境变量或配置文件读取。"
+          },
+          "model_has_vulnerability": true,
+          "error": null
+        },
+        {
+          "run_index": 15,
+          "chunk_id": 30,
+          "chunk_name": "UserService.login",
+          "elapsed_seconds": 10.05,
+          "raw_output": "### 分析过程\n\n1. **函数 UserService.login**\n   - 该函数用于用户登录验证。\n   - 用户输入的 `username` 和 `password` 需要进行验证和处理。\n\n2. **SQL 查询**\n   - 在 `login` 方法中，存在以下 SQL 查询：\n     ```python\n     cur.execute(\"SELECT * FROM users WHERE username = ?\", (username,))\n     ```\n   - 这是一个参数化查询，符合安全模式白名单中的 SQL 注入防护标准。\n\n3. **密码验证**\n   - 代码中没有直接使用用户输入的 `password` 进行 SQL 查询。\n   - 密码验证逻辑在后续处理中进行：\n     ```python\n     row = self.users.get_by_username(username)\n     if row[\"password_hash\"] != hash_password(password):\n         self.audit.log(row[\"id\"], \"login_failed\")\n         return None\n     ```\n   - 这里使用了 `hash_password` 函数对用户输入的密码进行哈希处理，然后与数据库中存储的哈希值进行比较。\n\n4. **会话创建**\n   - 如果密码验证通过，会创建一个会话并返回 token：\n     ```python\n     token = session_store.create(row[\"id\"], row[\"role\"])\n     self.audit.log(row[\"id\"], \"login_ok\")\n     return token\n     ```\n\n5. **硬编码凭证**\n   - 代码中没有发现硬编码的敏感信息（如密码、API Key 等）。\n\n### 结论\n\n- **has_vulnerability**: false\n- **vulnerability_type**: none\n- **risk_level**: None\n- **source**: N/A\n- **sink**: N/A\n- **explanation**: 代码中使用了参数化查询进行 SQL 查询，密码验证逻辑安全，没有发现硬编码凭证。\n- **fix_suggestion**: no fix needed\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"代码中使用了参数化查询进行 SQL 查询，密码验证逻辑安全，没有发现硬编码凭证。\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": false,
+            "vulnerability_type": "none",
+            "risk_level": "None",
+            "source": "N/A",
+            "sink": "N/A",
+            "explanation": "代码中使用了参数化查询进行 SQL 查询，密码验证逻辑安全，没有发现硬编码凭证。",
+            "fix_suggestion": "no fix needed"
+          },
+          "model_has_vulnerability": false,
+          "error": null
+        },
+        {
+          "run_index": 16,
+          "chunk_id": 31,
+          "chunk_name": "UserService.logout",
+          "elapsed_seconds": 9.36,
+          "raw_output": "### 分析过程\n\n1. **函数定义和初始化**：\n   - `UserService` 类的 `logout` 方法接收一个用户会话令牌 `token`。\n\n2. **获取会话信息**：\n   - 调用 `session_store.get(token)` 获取与该令牌相关的用户信息。\n   - 如果没有找到对应的会话信息，返回 `None`。\n\n3. **获取用户信息**：\n   - 调用 `self.users.get_by_id(info[\"user_id\"])` 根据用户 ID 获取用户详细信息。\n\n### 安全分析\n\n1. **SQL 注入防护**：\n   - 代码中没有直接的 SQL 查询语句，因此不存在 SQL 注入风险。\n\n2. **跨站脚本（XSS）**：\n   - 代码中没有涉及 HTML 输出或用户输入直接拼接到 HTML 中的情况，因此不存在 XSS 风险。\n\n3. **命令注入防护**：\n   - 代码中没有执行外部命令的操作，因此不存在命令注入风险。\n\n4. **路径穿越防护**：\n   - 代码中没有文件操作或路径相关的操作，因此不存在路径穿越风险。\n\n5. **硬编码敏感信息（密钥/密码/Token）**：\n   - 代码中没有硬编码的凭证，如密码、API Key 等。所有敏感信息都通过配置文件或环境变量获取。\n\n6. **不安全的反序列化**：\n   - 代码中没有使用 `pickle` 或 `yaml` 进行反序列化的操作，因此不存在不安全的反序列化风险。\n\n### 结论\n\n根据以上分析，代码中没有发现任何安全漏洞。所有用户可控输入都经过了适当的处理和验证。\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"代码中没有发现任何安全漏洞。所有用户可控输入都经过了适当的处理和验证。\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": false,
+            "vulnerability_type": "none",
+            "risk_level": "None",
+            "source": "N/A",
+            "sink": "N/A",
+            "explanation": "代码中没有发现任何安全漏洞。所有用户可控输入都经过了适当的处理和验证。",
+            "fix_suggestion": "no fix needed"
+          },
+          "model_has_vulnerability": false,
+          "error": null
+        },
+        {
+          "run_index": 17,
+          "chunk_id": 32,
+          "chunk_name": "UserService.profile",
+          "elapsed_seconds": 7.35,
+          "raw_output": "### 分析过程\n\n1. **函数 UserService.profile**\n   - 该函数用于获取用户信息。\n   - 用户可控输入：`user_id`\n\n2. **代码片段**\n   ```python\n   def profile(self, user_id: int) -> dict:\n       cur = self.conn.cursor()\n       cur.execute(\"SELECT * FROM users WHERE id = ?\", (user_id,))\n       row = cur.fetchone()\n       if row is None:\n           return None\n       return format_user_row(row)\n   ```\n\n3. **安全分析**\n   - **SQL 注入防护**：\n     - 使用了参数化查询 `cur.execute(\"SELECT * FROM users WHERE id = ?\", (user_id,))`，符合安全模式白名单中的 SQL 注入防护标准。\n   - **命令注入防护**：\n     - 无命令执行相关代码。\n   - **路径穿越防护**：\n     - 无文件路径操作相关代码。\n   - **XSS 防护**：\n     - 无用户输入直接输出到 HTML 的情况。\n   - **反序列化防护**：\n     - 无反序列化相关代码。\n\n4. **硬编码凭证**\n   - 无硬编码凭证出现。\n\n### 结论\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"代码使用了参数化查询，符合 SQL 注入防护标准。无其他安全漏洞。\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": false,
+            "vulnerability_type": "none",
+            "risk_level": "None",
+            "source": "N/A",
+            "sink": "N/A",
+            "explanation": "代码使用了参数化查询，符合 SQL 注入防护标准。无其他安全漏洞。",
+            "fix_suggestion": "no fix needed"
+          },
+          "model_has_vulnerability": false,
+          "error": null
+        },
+        {
+          "run_index": 18,
+          "chunk_id": 36,
+          "chunk_name": "StatsService.daily_new_users",
+          "elapsed_seconds": 9.62,
+          "raw_output": "### 分析过程\n\n#### 代码片段分析\n```python\nclass StatsService:\n    def __init__(self, conn):\n        self.conn = conn\n\n    def daily_new_users(self, days: int) -> list:\n        cur = self.conn.cursor()\n        query = \"SELECT * FROM users WHERE created_at >= ? GROUP BY d ORDER BY d\"\n        cur.execute(query, ((datetime.utcnow() - timedelta(days=days)).isoformat() + \"Z\",))\n        return cur.fetchall()\n\n    def export_report(self, table: str) -> list:\n        # 报表导出：根据传入的表名查询并返回原始行\n        # 报表导出功能\n        cur = self.conn.cursor()\n        query = \"SELECT * FROM \" + table + \" ORDER BY id DESC LIMIT 100\"\n```\n\n#### 安全模式白名单检查\n- `daily_new_users` 方法中，SQL 查询使用了参数化查询：\n  ```python\n  cur.execute(query, ((datetime.utcnow() - timedelta(days=days)).isoformat() + \"Z\",))\n  ```\n  这符合安全模式白名单中的 SQL 注入防护标准。\n\n- `export_report` 方法中，SQL 查询没有使用参数化查询：\n  ```python\n  query = \"SELECT * FROM \" + table + \" ORDER BY id DESC LIMIT 100\"\n  ```\n\n#### 漏洞判定\n- `daily_new_users` 方法中的 SQL 查询是安全的，符合参数化查询的标准。\n- `export_report` 方法中的 SQL 查询存在 SQL 注入风险，因为用户可控输入 `table` 直接拼接到 SQL 字符串中。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-89 SQL注入\",\n    \"risk_level\": \"High\",\n    \"source\": \"export_report 方法中的 table 参数\",\n    \"sink\": \"cur.execute(query)\",\n    \"explanation\": \"用户可控输入 `table` 直接拼接到 SQL 字符串中，存在 SQL 注入风险。\",\n    \"fix_suggestion\": \"使用参数化查询来防止 SQL 注入。\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-89 SQL注入",
+            "risk_level": "High",
+            "source": "export_report 方法中的 table 参数",
+            "sink": "cur.execute(query)",
+            "explanation": "用户可控输入 `table` 直接拼接到 SQL 字符串中，存在 SQL 注入风险。",
+            "fix_suggestion": "使用参数化查询来防止 SQL 注入。"
+          },
+          "model_has_vulnerability": true,
+          "error": null
+        },
+        {
+          "run_index": 19,
+          "chunk_id": 37,
+          "chunk_name": "StatsService.export_report",
+          "elapsed_seconds": 10.16,
+          "raw_output": "### 分析过程\n\n1. **代码片段定位**：\n   - 当前分析目标是 `StatsService.export_report` 函数。\n\n2. **函数逻辑概述**：\n   - 该函数用于根据传入的表名查询并返回原始行。\n   - 表名通过用户可控输入传递。\n\n3. **安全模式白名单检查**：\n   - 检查代码是否符合 SQL 注入防护、命令注入防护、路径穿越防护、XSS 防护和反序列化防护的安全模式白名单。\n\n4. **SQL 注入防护**：\n   - 代码中存在以下 SQL 查询语句：\n     ```python\n     cur.execute(\"SELECT * FROM \" + table + \" ORDER BY id DESC LIMIT 100\")\n     ```\n   - 这里直接将用户可控输入 `table` 拼接到 SQL 查询字符串中，存在 SQL 注入风险。\n\n5. **命令注入防护**：\n   - 代码中没有涉及命令执行的部分，因此不需要检查命令注入防护。\n\n6. **路径穿越防护**：\n   - 代码中没有涉及文件路径操作的部分，因此不需要检查路径穿越防护。\n\n7. **XSS 防护**：\n   - 代码中没有涉及用户输入直接输出到 HTML 的部分，因此不需要检查 XSS 防护。\n\n8. **反序列化防护**：\n   - 代码中没有涉及反序列化的部分，因此不需要检查反序列化防护。\n\n### 结论\n\n根据上述分析，`StatsService.export_report` 函数存在 SQL 注入风险。具体来说，用户可控输入 `table` 直接拼接到 SQL 查询字符串中，导致潜在的 SQL 注入漏洞。\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-89 SQL注入\",\n    \"risk_level\": \"High\",\n    \"source\": \"用户可控输入点：table\",\n    \"sink\": \"危险函数或触发点：cur.execute(query)\",\n    \"explanation\": \"代码中存在直接将用户可控输入拼接到 SQL 查询字符串中的情况，导致潜在的 SQL 注入漏洞。\",\n    \"fix_suggestion\": \"使用参数化查询来防止 SQL 注入。例如：cursor.execute(\\\"SELECT * FROM ? ORDER BY id DESC LIMIT 100\\\", (table,))\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-89 SQL注入",
+            "risk_level": "High",
+            "source": "用户可控输入点：table",
+            "sink": "危险函数或触发点：cur.execute(query)",
+            "explanation": "代码中存在直接将用户可控输入拼接到 SQL 查询字符串中的情况，导致潜在的 SQL 注入漏洞。",
+            "fix_suggestion": "使用参数化查询来防止 SQL 注入。例如：cursor.execute(\"SELECT * FROM ? ORDER BY id DESC LIMIT 100\", (table,))"
+          },
+          "model_has_vulnerability": true,
+          "error": null
+        },
+        {
+          "run_index": 20,
+          "chunk_id": 38,
+          "chunk_name": "init_db",
+          "elapsed_seconds": 6.84,
+          "raw_output": "### 分析过程\n\n1. **函数 `init_db` 的代码片段**：\n   ```python\n   def init_db():\n       conn = sqlite3.connect(DB_PATH)\n       conn.row_factory = sqlite3.Row\n       return conn\n   ```\n\n2. **安全模式白名单检查**：\n   - 该函数没有用户可控输入，也没有执行任何可能引入漏洞的操作。\n   - `DB_PATH` 是一个全局常量，硬编码在代码中。\n\n3. **硬编码凭证判定**：\n   - `DB_PATH = \"users.db\"` 是一个文件路径，不是敏感信息（如密码、API Key 等），因此不构成漏洞。\n\n4. **其他安全检查**：\n   - 该函数没有执行 SQL 查询、命令注入或路径穿越等操作。\n   - 没有使用用户可控输入来构造 SQL 查询或命令行参数。\n\n### 结论\n\n根据以上分析，代码片段 `init_db` 中没有发现任何安全漏洞。它只是简单地连接到一个 SQLite 数据库，并没有涉及任何可能引入漏洞的操作。\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"The function init_db does not involve any user-controlled input or operations that could introduce vulnerabilities.\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": false,
+            "vulnerability_type": "none",
+            "risk_level": "None",
+            "source": "N/A",
+            "sink": "N/A",
+            "explanation": "The function init_db does not involve any user-controlled input or operations that could introduce vulnerabilities.",
+            "fix_suggestion": "no fix needed"
+          },
+          "model_has_vulnerability": false,
+          "error": null
+        }
+      ],
+      "majority_verdict": true,
+      "agreement_rate": 0.25,
+      "true_chunks": [
+        "hash_password",
+        "NotificationService.send_welcome",
+        "UserService.register",
+        "StatsService.daily_new_users",
+        "StatsService.export_report"
+      ]
+    },
+    {
+      "file": "hard_longfile_02_hidden_cmd.py",
+      "language": "Python",
+      "category": "command_injection",
+      "difficulty": "hard",
+      "expected_present": true,
+      "expected_vulnerability": "命令注入（隐藏在长文件中）：ExportService.backup_to_archive 用 shell=True 拼接 archive_name",
+      "expected_cwe": "CWE-78",
+      "expected_risk_level": "Critical",
+      "slice_mode": true,
+      "slice_chunk_count": 15,
+      "slice_total_lines": 297,
+      "chunks": [
+        {
+          "chunk_id": 3,
+          "name": "validate_amount",
+          "start_line": 47,
+          "end_line": 54,
+          "node_type": "function_definition",
+          "char_count": 4423,
+          "prompt_chars": 7646,
+          "runs": [
+            {
+              "run_index": 1,
+              "chunk_id": 3,
+              "chunk_name": "validate_amount",
+              "elapsed_seconds": 7.68,
+              "raw_output": "### 分析过程\n\n1. **函数 `validate_amount`**：\n   - 该函数用于验证输入的金额是否有效。\n   - 输入参数 `amount` 是用户可控的。\n   - 在函数内部，首先尝试将 `amount` 转换为浮点数。如果转换失败，则抛出 `ValueError`。\n   - 如果转换成功，检查金额是否在允许范围内（0 到 1,000,000）。如果超出范围，抛出 `ValueError`。\n   - 最后返回验证后的金额。\n\n2. **安全模式白名单检查**：\n   - 该函数没有使用任何用户可控输入作为 SQL 查询参数、命令行参数或文件路径。\n   - 没有硬编码敏感信息（如密码、API Key 等）。\n   - 没有进行反序列化操作。\n\n3. **潜在风险点**：\n   - 虽然 `amount` 是用户可控的，但该函数通过类型检查和范围检查确保了输入的有效性。这种做法是安全的，不会导致 SQL 注入、命令注入或路径穿越等漏洞。\n   - 没有发现任何硬编码凭证的情况。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"The function validate_amount safely handles user-controlled input by performing type checking and range validation. It does not involve any SQL queries, command execution, or file path manipulations that could lead to vulnerabilities.\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+              "parsed_verdict": {
+                "has_vulnerability": false,
+                "vulnerability_type": "none",
+                "risk_level": "None",
+                "source": "N/A",
+                "sink": "N/A",
+                "explanation": "The function validate_amount safely handles user-controlled input by performing type checking and range validation. It does not involve any SQL queries, command execution, or file path manipulations that could lead to vulnerabilities.",
+                "fix_suggestion": "no fix needed"
+              },
+              "model_has_vulnerability": false,
+              "error": null,
+              "meta": {
+                "eval_count": 366,
+                "eval_duration_ns": 6654884000,
+                "load_duration_ns": 133806434,
+                "total_duration_ns": 7673470100,
+                "prompt_eval_count": 2721
+              }
+            }
+          ],
+          "majority_verdict": false,
+          "agreement_rate": 1.0
+        },
+        {
+          "chunk_id": 7,
+          "name": "OrderRepository.create",
+          "start_line": 74,
+          "end_line": 83,
+          "node_type": "function_definition",
+          "char_count": 4614,
+          "prompt_chars": 7844,
+          "runs": [
+            {
+              "run_index": 1,
+              "chunk_id": 7,
+              "chunk_name": "OrderRepository.create",
+              "elapsed_seconds": 10.65,
+              "raw_output": "### 分析过程\n\n1. **函数 `OrderRepository.create` 的代码片段**：\n   - 该函数用于创建一个新的订单。\n   - 用户可控输入包括 `user_id`, `amount`, 和 `currency`。\n\n2. **SQL 注入防护**：\n   - 在执行 SQL 查询时，使用了参数化查询（例如：`cur.execute(\"SELECT * FROM orders WHERE id = ?\", (order_id,))`）。\n   - 这符合安全模式白名单中的 SQL 注入防护标准。\n\n3. **命令注入防护**：\n   - 代码中存在一个调用 `subprocess.run` 的地方，但使用了列表参数且未启用 shell（例如：`os.makedirs(EXPORT_DIR, exist_ok=True)`）。\n   - 这符合安全模式白名单中的命令注入防护标准。\n\n4. **路径穿越防护**：\n   - 代码中存在一个文件路径操作（例如：`path = os.path.join(EXPORT_DIR, filename)`），但没有看到明显的路径校验或规范化操作。\n   - 需要进一步检查是否存在路径穿越风险。\n\n5. **XSS 防护**：\n   - 代码中没有看到任何 HTML 输出或模板渲染，因此不存在 XSS 风险。\n\n6. **反序列化防护**：\n   - 代码中没有看到任何反序列化操作，因此不存在反序列化风险。\n\n7. **硬编码凭证**：\n   - 代码中没有看到硬编码的敏感信息（如密码、API Key 等）。\n\n### 结论\n\n- **SQL 注入防护**：符合安全模式白名单。\n- **命令注入防护**：符合安全模式白名单。\n- **路径穿越防护**：未看到明显的路径校验或规范化操作，可能存在路径穿越风险。\n- **XSS 防护**：不存在 XSS 风险。\n- **反序列化防护**：不存在反序列化风险。\n- **硬编码凭证**：不存在硬编码凭证。\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"路径穿越\",\n    \"risk_level\": \"Medium\",\n    \"source\": \"EXPORT_DIR\",\n    \"sink\": \"os.makedirs(EXPORT_DIR, exist_ok=True)\",\n    \"explanation\": \"代码中存在文件路径操作，但未看到明显的路径校验或规范化操作，可能存在路径穿越风险。\",\n    \"fix_suggestion\": \"对导出目录进行规范化处理，并添加路径白名单校验。\"\n}\n```",
+              "parsed_verdict": {
+                "has_vulnerability": true,
+                "vulnerability_type": "路径穿越",
+                "risk_level": "Medium",
+                "source": "EXPORT_DIR",
+                "sink": "os.makedirs(EXPORT_DIR, exist_ok=True)",
+                "explanation": "代码中存在文件路径操作，但未看到明显的路径校验或规范化操作，可能存在路径穿越风险。",
+                "fix_suggestion": "对导出目录进行规范化处理，并添加路径白名单校验。"
+              },
+              "model_has_vulnerability": true,
+              "error": null,
+              "meta": {
+                "eval_count": 529,
+                "eval_duration_ns": 9630859000,
+                "load_duration_ns": 136482236,
+                "total_duration_ns": 10644904739,
+                "prompt_eval_count": 2751
+              }
+            }
+          ],
+          "majority_verdict": true,
+          "agreement_rate": 1.0
+        },
+        {
+          "chunk_id": 9,
+          "name": "OrderRepository.list_by_user",
+          "start_line": 90,
+          "end_line": 96,
+          "node_type": "function_definition",
+          "char_count": 4455,
+          "prompt_chars": 7691,
+          "runs": [
+            {
+              "run_index": 1,
+              "chunk_id": 9,
+              "chunk_name": "OrderRepository.list_by_user",
+              "elapsed_seconds": 11.26,
+              "raw_output": "### 分析过程\n\n1. **函数 `OrderRepository.list_by_user` 的定义和调用**：\n   - 该函数用于根据用户ID查询订单。\n   - 函数接收两个参数：`user_id` 和 `limit`。\n\n2. **SQL 查询的执行**：\n   - 在函数内部，使用 `self.conn.cursor().execute` 方法执行 SQL 查询。\n   - SQL 查询语句为 `\"SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT ?\"`。\n   - 参数元组 `(user_id, limit)` 通过占位符 `?` 传递给查询。\n\n3. **参数化查询的使用**：\n   - 使用 `?` 占位符和参数元组 `(user_id, limit)` 进行 SQL 查询，这是标准的参数化查询写法。\n   - 参数元组中的值会被数据库驱动自动转义，不会进入 SQL 语法层。\n\n4. **命令执行部分**：\n   - 在 `ExportService.to_csv` 方法中，调用 `subprocess.run` 执行系统命令。\n   - 命令为 `tar`，用于打包 `/tmp/exports` 目录。\n   - 使用了 `shell=True` 参数，这会导致命令注入风险。\n\n### 安全模式白名单检查\n\n1. **SQL 注入防护**：\n   - 代码使用了参数化查询，符合安全模式白名单中的 SQL 注入防护标准。\n\n2. **命令注入防护**：\n   - 代码中存在 `subprocess.run` 调用，并且使用了 `shell=True`。\n   - 这不符合安全模式白名单中的命令注入防护标准。\n\n### 漏洞判定\n\n1. **SQL 注入漏洞**：\n   - 由于使用了参数化查询，不存在 SQL 注入风险。\n\n2. **命令注入漏洞**：\n   - 由于使用了 `subprocess.run` 并且设置了 `shell=True`，存在命令注入风险。\n\n### 修复建议\n\n- 避免使用 `shell=True`，改为使用列表形式传递命令参数。\n- 使用 `shlex.quote()` 对用户输入进行转义。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-78 Command Injection\",\n    \"risk_level\": \"High\",\n    \"source\": \"user_id, limit\",\n    \"sink\": \"subprocess.run\",\n    \"explanation\": \"The code uses subprocess.run with shell=True, which can lead to command injection vulnerabilities.\",\n    \"fix_suggestion\": \"Replace subprocess.run with a list of arguments and avoid using shell=True.\"\n}\n```",
+              "parsed_verdict": {
+                "has_vulnerability": true,
+                "vulnerability_type": "CWE-78 Command Injection",
+                "risk_level": "High",
+                "source": "user_id, limit",
+                "sink": "subprocess.run",
+                "explanation": "The code uses subprocess.run with shell=True, which can lead to command injection vulnerabilities.",
+                "fix_suggestion": "Replace subprocess.run with a list of arguments and avoid using shell=True."
+              },
+              "model_has_vulnerability": true,
+              "error": null,
+              "meta": {
+                "eval_count": 564,
+                "eval_duration_ns": 10269581000,
+                "load_duration_ns": 130898413,
+                "total_duration_ns": 11256512367,
+                "prompt_eval_count": 2714
+              }
+            }
+          ],
+          "majority_verdict": true,
+          "agreement_rate": 1.0
+        },
+        {
+          "chunk_id": 10,
+          "name": "OrderRepository.update_status",
+          "start_line": 98,
+          "end_line": 111,
+          "node_type": "function_definition",
+          "char_count": 4796,
+          "prompt_chars": 8033,
+          "runs": [
+            {
+              "run_index": 1,
+              "chunk_id": 10,
+              "chunk_name": "OrderRepository.update_status",
+              "elapsed_seconds": 7.52,
+              "raw_output": "### 分析过程\n\n#### 代码片段概述\n当前分析的目标是 `OrderRepository.update_status` 函数。该函数用于更新订单状态，并且涉及数据库操作。\n\n#### 关键点分析\n1. **SQL 注入防护**：\n   - 使用了参数化查询，符合安全模式白名单中的 SQL 注入防护标准。\n   ```python\n   cur.execute(\"UPDATE orders SET status = ?, updated_at = ? WHERE id = ?\", (new_status, now_iso(), order_id))\n   ```\n\n2. **命令注入防护**：\n   - 代码中没有涉及命令执行的部分。\n\n3. **路径穿越防护**：\n   - 代码中没有涉及文件路径操作的部分。\n\n4. **XSS 防护**：\n   - 代码中没有涉及用户输入直接输出到 HTML 的部分。\n\n5. **反序列化防护**：\n   - 代码中没有涉及反序列化的部分。\n\n#### 安全模式白名单检查\n- `OrderRepository.update_status` 函数中的 SQL 查询使用了参数化查询，符合安全模式白名单中的 SQL 注入防护标准。\n- 其他部分（如命令执行、路径穿越、XSS 和反序列化）没有涉及。\n\n### 最终结论\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"The SQL query in the OrderRepository.update_status function uses parameterized queries, which is a safe practice. There are no other security vulnerabilities present.\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+              "parsed_verdict": {
+                "has_vulnerability": false,
+                "vulnerability_type": "none",
+                "risk_level": "None",
+                "source": "N/A",
+                "sink": "N/A",
+                "explanation": "The SQL query in the OrderRepository.update_status function uses parameterized queries, which is a safe practice. There are no other security vulnerabilities present.",
+                "fix_suggestion": "no fix needed"
+              },
+              "model_has_vulnerability": false,
+              "error": null,
+              "meta": {
+                "eval_count": 356,
+                "eval_duration_ns": 6482558000,
+                "load_duration_ns": 131894127,
+                "total_duration_ns": 7511718389,
+                "prompt_eval_count": 2789
+              }
+            }
+          ],
+          "majority_verdict": false,
+          "agreement_rate": 1.0
+        },
+        {
+          "chunk_id": 11,
+          "name": "OrderRepository.list_all",
+          "start_line": 113,
+          "end_line": 119,
+          "node_type": "function_definition",
+          "char_count": 4456,
+          "prompt_chars": 7688,
+          "runs": [
+            {
+              "run_index": 1,
+              "chunk_id": 11,
+              "chunk_name": "OrderRepository.list_all",
+              "elapsed_seconds": 14.36,
+              "raw_output": "### 分析过程\n\n1. **函数 `OrderRepository.list_all`**:\n   - 该函数用于查询所有订单。\n   - 函数内部使用了 SQL 查询语句：\n     ```python\n     cur.execute(\"SELECT * FROM orders ORDER BY created_at DESC LIMIT ?\", (limit,))\n     ```\n   - 这是一个参数化查询，其中 `?` 是 SQL 占位符，`limit` 是用户可控输入。\n\n2. **命令执行部分**:\n   - 在 `ExportService.to_csv` 方法中，调用了 `subprocess.run`：\n     ```python\n     result = subprocess.run(\n         shell=True,\n         capture_output=True,\n     ```\n   - 这里没有看到具体的命令参数，但 `shell=True` 被显式设置为 `True`。\n\n3. **硬编码凭证**:\n   - 在文件级上下文中，定义了 `DB_PATH` 和 `EXPORT_DIR`：\n     ```python\n     DB_PATH = \"orders.db\"\n     EXPORT_DIR = \"/tmp/exports\"\n     ```\n   - 这些变量名包含敏感信息（如数据库路径和导出目录），但它们没有被实际使用。\n\n### 安全模式白名单检查\n\n1. **SQL 注入防护**:\n   - `OrderRepository.list_all` 中的 SQL 查询是参数化查询，符合安全模式白名单中的 SQL 注入防护标准。\n\n2. **命令注入防护**:\n   - `ExportService.to_csv` 方法中使用了 `subprocess.run`，但 `shell=True` 被显式设置为 `True`。这不符合安全模式白名单中的命令注入防护标准。\n\n3. **路径穿越防护**:\n   - 代码中没有涉及路径穿越操作。\n\n4. **XSS 防护**:\n   - 代码中没有涉及用户输入的 HTML 输出。\n\n5. **反序列化防护**:\n   - 代码中没有涉及反序列化操作。\n\n### 硬编码凭证判定\n\n- `DB_PATH` 和 `EXPORT_DIR` 被硬编码在代码中，但它们没有被实际使用。因此，这些变量不被视为硬编码凭证。\n\n### 结论\n\n- **存在漏洞**: 是的，因为 `ExportService.to_csv` 方法中使用了 `subprocess.run` 并设置了 `shell=True`。\n- **漏洞类型**: CWE-78 OS命令注入\n- **风险级别**: High\n- **污染来源**: 用户可控输入点（`archive_name`）\n- **危险函数或触发点**: `subprocess.run`\n- **漏洞说明**: 由于 `shell=True` 被显式设置为 `True`，用户输入的 `archive_name` 可能会被解释为 shell 命令的一部分，从而导致命令注入攻击。\n- **修复建议**: 避免使用 `shell=True`，而是传递一个列表参数给 `subprocess.run`。\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-78 OS命令注入\",\n    \"risk_level\": \"High\",\n    \"source\": \"archive_name\",\n    \"sink\": \"subprocess.run\",\n    \"explanation\": \"由于 shell=True 被显式设置为 True，用户输入的 archive_name 可能会被解释为 shell 命令的一部分，从而导致命令注入攻击。\",\n    \"fix_suggestion\": \"避免使用 shell=True，而是传递一个列表参数给 subprocess.run\"\n}\n```",
+              "parsed_verdict": {
+                "has_vulnerability": true,
+                "vulnerability_type": "CWE-78 OS命令注入",
+                "risk_level": "High",
+                "source": "archive_name",
+                "sink": "subprocess.run",
+                "explanation": "由于 shell=True 被显式设置为 True，用户输入的 archive_name 可能会被解释为 shell 命令的一部分，从而导致命令注入攻击。",
+                "fix_suggestion": "避免使用 shell=True，而是传递一个列表参数给 subprocess.run"
+              },
+              "model_has_vulnerability": true,
+              "error": null,
+              "meta": {
+                "eval_count": 733,
+                "eval_duration_ns": 13363206000,
+                "load_duration_ns": 135517303,
+                "total_duration_ns": 14353190164,
+                "prompt_eval_count": 2688
+              }
+            }
+          ],
+          "majority_verdict": true,
+          "agreement_rate": 1.0
+        },
+        {
+          "chunk_id": 13,
+          "name": "RefundService.refund",
+          "start_line": 130,
+          "end_line": 143,
+          "node_type": "function_definition",
+          "char_count": 4843,
+          "prompt_chars": 8071,
+          "runs": [
+            {
+              "run_index": 1,
+              "chunk_id": 13,
+              "chunk_name": "RefundService.refund",
+              "elapsed_seconds": 11.75,
+              "raw_output": "### 分析过程\n\n1. **函数 `RefundService.refund`**：\n   - 该函数用于处理退款请求。\n   - 输入参数包括 `order_id` 和 `reason`。\n\n2. **输入验证**：\n   - 在调用 `self.orders.get(order_id)` 获取订单信息后，检查订单状态是否为 \"paid\" 或 \"shipped\"。如果不是，则抛出异常。\n\n3. **插入退款记录**：\n   - 使用参数化查询插入退款记录到数据库中。\n   ```python\n   cur.execute(\n       \"INSERT INTO refunds (order_id, amount, reason, created_at) VALUES (?, ?, ?, ?)\",\n       (order_id, row[\"amount\"], reason, now_iso()),\n   )\n   ```\n\n4. **更新订单状态**：\n   - 更新订单状态为 \"refunded\"。\n   ```python\n   self.orders.update_status(order_id, \"refunded\")\n   ```\n\n5. **返回退款结果**：\n   - 返回退款成功的信息。\n\n### 安全分析\n\n1. **SQL 注入防护**：\n   - 使用参数化查询插入退款记录，符合安全模式白名单中的 SQL 注入防护标准。\n   ```python\n   cur.execute(\n       \"INSERT INTO refunds (order_id, amount, reason, created_at) VALUES (?, ?, ?, ?)\",\n       (order_id, row[\"amount\"], reason, now_iso()),\n   )\n   ```\n\n2. **命令注入防护**：\n   - 代码中没有涉及命令执行的部分。\n\n3. **路径穿越防护**：\n   - 代码中没有涉及文件路径操作的部分。\n\n4. **XSS 防护**：\n   - 代码中没有涉及用户输入直接输出到 HTML 的部分。\n\n5. **反序列化防护**：\n   - 代码中没有涉及反序列化的部分。\n\n### 结论\n\n根据以上分析，代码片段中存在以下问题：\n\n- **硬编码凭证**：在文件级上下文中，`DB_PATH` 和 `EXPORT_DIR` 是硬编码的字符串字面量。\n  ```python\n  DB_PATH = \"orders.db\"\n  EXPORT_DIR = \"/tmp/exports\"\n  ```\n  这些变量名包含 \"path\" 或 \"dir\"，且赋值为字符串字面量，符合硬编码凭证判定标准。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-798 Hardcoded Credentials\",\n    \"risk_level\": \"High\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"The variables DB_PATH and EXPORT_DIR are hardcoded string literals, which is a security risk.\",\n    \"fix_suggestion\": \"Read sensitive information from environment variables or configuration files.\"\n}\n```",
+              "parsed_verdict": {
+                "has_vulnerability": true,
+                "vulnerability_type": "CWE-798 Hardcoded Credentials",
+                "risk_level": "High",
+                "source": "N/A",
+                "sink": "N/A",
+                "explanation": "The variables DB_PATH and EXPORT_DIR are hardcoded string literals, which is a security risk.",
+                "fix_suggestion": "Read sensitive information from environment variables or configuration files."
+              },
+              "model_has_vulnerability": true,
+              "error": null,
+              "meta": {
+                "eval_count": 586,
+                "eval_duration_ns": 10700138000,
+                "load_duration_ns": 133522816,
+                "total_duration_ns": 11741379352,
+                "prompt_eval_count": 2806
+              }
+            }
+          ],
+          "majority_verdict": true,
+          "agreement_rate": 1.0
+        },
+        {
+          "chunk_id": 14,
+          "name": "RefundService.list_refunds",
+          "start_line": 145,
+          "end_line": 151,
+          "node_type": "function_definition",
+          "char_count": 4426,
+          "prompt_chars": 7660,
+          "runs": [
+            {
+              "run_index": 1,
+              "chunk_id": 14,
+              "chunk_name": "RefundService.list_refunds",
+              "elapsed_seconds": 7.41,
+              "raw_output": "### 分析过程\n\n1. **函数 `RefundService.list_refunds`**:\n   - 函数签名：`def list_refunds(self, order_id: str) -> List[Dict[str, Any]]`\n   - 该函数用于查询退款记录。\n\n2. **代码逻辑分析**:\n   - 获取数据库连接并创建游标。\n   - 执行 SQL 查询语句：\n     ```python\n     cur.execute(\"SELECT * FROM refunds WHERE order_id = ? ORDER BY created_at DESC\", (order_id,))\n     ```\n   - 该查询使用了参数化查询，符合安全模式白名单中的 SQL 注入防护标准。\n\n3. **用户可控输入**:\n   - `order_id` 是用户可控的输入。\n   - 由于使用了参数化查询，`order_id` 不会被直接拼接到 SQL 语句中，而是通过占位符传递给数据库驱动进行转义。\n\n4. **其他安全措施**:\n   - 没有发现其他明显的安全漏洞或硬编码凭证。\n\n### 结论\n\n根据上述分析，代码片段中的 `RefundService.list_refunds` 函数使用了参数化查询来处理用户可控输入，符合 SQL 注入防护的标准。因此，该函数不存在安全漏洞。\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"The function uses parameterized queries to handle user-controlled input, which is a safe practice for SQL injection protection.\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+              "parsed_verdict": {
+                "has_vulnerability": false,
+                "vulnerability_type": "none",
+                "risk_level": "None",
+                "source": "N/A",
+                "sink": "N/A",
+                "explanation": "The function uses parameterized queries to handle user-controlled input, which is a safe practice for SQL injection protection.",
+                "fix_suggestion": "no fix needed"
+              },
+              "model_has_vulnerability": false,
+              "error": null,
+              "meta": {
+                "eval_count": 353,
+                "eval_duration_ns": 6418107000,
+                "load_duration_ns": 134926447,
+                "total_duration_ns": 7399047837,
+                "prompt_eval_count": 2682
+              }
+            }
+          ],
+          "majority_verdict": false,
+          "agreement_rate": 1.0
+        },
+        {
+          "chunk_id": 16,
+          "name": "OrderNotifier.notify",
+          "start_line": 161,
+          "end_line": 167,
+          "node_type": "function_definition",
+          "char_count": 4481,
+          "prompt_chars": 7709,
+          "runs": [
+            {
+              "run_index": 1,
+              "chunk_id": 16,
+              "chunk_name": "OrderNotifier.notify",
+              "elapsed_seconds": 7.57,
+              "raw_output": "### 分析过程\n\n1. **函数 `OrderNotifier.notify` 的代码片段**：\n   ```python\n   def notify(self, user_id: int, order_id: str, event: str) -> None:\n       cur = self.conn.cursor()\n       cur.execute(\n           \"SELECT * FROM order_events WHERE order_id = ? ORDER BY id DESC\",\n           (order_id,)\n       )\n       # ... 其他代码\n   ```\n\n2. **安全模式白名单检查**：\n   - 该函数中没有明显的 SQL 注入风险，因为使用了参数化查询。\n   - 没有命令注入风险，因为没有调用外部命令。\n   - 没有路径穿越风险，因为没有处理文件路径。\n   - 没有 XSS 风险，因为没有输出用户可控输入到 HTML 中。\n   - 没有反序列化风险，因为没有使用 `pickle` 或 `yaml` 进行反序列化。\n\n3. **硬编码凭证检查**：\n   - 代码中没有硬编码的敏感信息（如密码、API Key 等）。\n\n### 结论\n\n根据上述分析，该函数 `OrderNotifier.notify` 没有明显的安全漏洞。它使用了参数化查询来防止 SQL 注入，并且没有其他已知的安全风险。\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"该函数使用了参数化查询来防止 SQL 注入，并且没有其他已知的安全风险。\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+              "parsed_verdict": {
+                "has_vulnerability": false,
+                "vulnerability_type": "none",
+                "risk_level": "None",
+                "source": "N/A",
+                "sink": "N/A",
+                "explanation": "该函数使用了参数化查询来防止 SQL 注入，并且没有其他已知的安全风险。",
+                "fix_suggestion": "no fix needed"
+              },
+              "model_has_vulnerability": false,
+              "error": null,
+              "meta": {
+                "eval_count": 366,
+                "eval_duration_ns": 6652315000,
+                "load_duration_ns": 136394567,
+                "total_duration_ns": 7564558393,
+                "prompt_eval_count": 2722
+              }
+            }
+          ],
+          "majority_verdict": false,
+          "agreement_rate": 1.0
+        },
+        {
+          "chunk_id": 17,
+          "name": "OrderNotifier.list_events",
+          "start_line": 169,
+          "end_line": 175,
+          "node_type": "function_definition",
+          "char_count": 4421,
+          "prompt_chars": 7654,
+          "runs": [
+            {
+              "run_index": 1,
+              "chunk_id": 17,
+              "chunk_name": "OrderNotifier.list_events",
+              "elapsed_seconds": 8.27,
+              "raw_output": "### 分析过程\n\n1. **函数 `OrderNotifier.list_events` 的定义和调用**：\n   - 该函数用于查询订单事件。\n   - 函数接收三个参数：`user_id`, `order_id`, 和 `event`。\n\n2. **SQL 查询的执行**：\n   - 在函数内部，使用 `self.conn.cursor()` 创建一个游标对象。\n   - 执行 SQL 查询语句：`cur.execute(\"SELECT * FROM order_events WHERE order_id = ? ORDER BY id DESC\", (order_id,))`\n   - 这是一个参数化查询，符合安全模式白名单中的 SQL 注入防护标准。\n\n3. **用户可控输入的处理**：\n   - `user_id`, `order_id`, 和 `event` 都是函数的参数。\n   - 这些参数通过 `cur.execute` 方法传递给 SQL 查询，确保了这些参数不会被解释为 SQL 语法的一部分。\n\n4. **其他部分的代码分析**：\n   - 其他部分的代码没有涉及到用户可控输入和潜在的安全风险。\n\n### 结论\n\n根据上述分析，代码片段中存在以下情况：\n\n- `user_id`, `order_id`, 和 `event` 都是通过参数化查询传递给 SQL 查询的，符合安全模式白名单中的 SQL 注入防护标准。\n- 没有其他明显的安全漏洞。\n\n因此，该代码片段没有发现安全漏洞。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"代码使用了参数化查询，确保用户可控输入不会被解释为 SQL 语法的一部分，符合安全模式白名单中的 SQL 注入防护标准。\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+              "parsed_verdict": {
+                "has_vulnerability": false,
+                "vulnerability_type": "none",
+                "risk_level": "None",
+                "source": "N/A",
+                "sink": "N/A",
+                "explanation": "代码使用了参数化查询，确保用户可控输入不会被解释为 SQL 语法的一部分，符合安全模式白名单中的 SQL 注入防护标准。",
+                "fix_suggestion": "no fix needed"
+              },
+              "model_has_vulnerability": false,
+              "error": null,
+              "meta": {
+                "eval_count": 401,
+                "eval_duration_ns": 7291004000,
+                "load_duration_ns": 135022236,
+                "total_duration_ns": 8267240493,
+                "prompt_eval_count": 2680
+              }
+            }
+          ],
+          "majority_verdict": false,
+          "agreement_rate": 1.0
+        },
+        {
+          "chunk_id": 19,
+          "name": "ExportService.to_csv",
+          "start_line": 186,
+          "end_line": 198,
+          "node_type": "function_definition",
+          "char_count": 4790,
+          "prompt_chars": 8018,
+          "runs": [
+            {
+              "run_index": 1,
+              "chunk_id": 19,
+              "chunk_name": "ExportService.to_csv",
+              "elapsed_seconds": 9.36,
+              "raw_output": "### 分析过程\n\n1. **函数 `ExportService.to_csv`**:\n   - 该函数负责将订单数据导出为 CSV 文件。\n   - 用户可控输入：`user_id`。\n\n2. **代码逻辑分析**:\n   - 首先，通过 `self.orders.list_by_user(user_id)` 获取用户订单数据。\n   - 然后，生成一个文件名并将其保存到 `/tmp/exports` 目录下。\n   - 最后，使用 `subprocess.run` 调用 `tar` 命令将 `/tmp/exports` 目录打包。\n\n3. **安全检查**:\n   - **SQL 注入防护**: 代码中没有直接的 SQL 查询，因此不存在 SQL 注入风险。\n   - **命令注入防护**: \n     - `subprocess.run` 使用了 `shell=True`，这意味着用户输入会通过 shell 解释器执行。\n     - 用户可控输入 `archive_name` 直接拼接到 `tar` 命令中，存在命令注入风险。\n   - **路径穿越防护**: 代码中没有涉及文件路径操作，因此不存在路径穿越风险。\n   - **XSS 防护**: 代码中没有直接输出用户输入到 HTML 页面，因此不存在 XSS 风险。\n   - **反序列化防护**: 代码中没有使用 `pickle` 或 `yaml` 进行反序列化，因此不存在反序列化风险。\n\n4. **硬编码凭证**:\n   - 代码中没有硬编码敏感信息（如密码、API Key 等）。\n\n### 结论\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-78 Command Injection\",\n    \"risk_level\": \"High\",\n    \"source\": \"archive_name\",\n    \"sink\": \"subprocess.run\",\n    \"explanation\": \"The `archive_name` parameter is directly used in the `tar` command, which can be manipulated by an attacker to execute arbitrary shell commands.\",\n    \"fix_suggestion\": \"Use a whitelist of allowed archive names and validate user input against this list.\"\n}\n```",
+              "parsed_verdict": {
+                "has_vulnerability": true,
+                "vulnerability_type": "CWE-78 Command Injection",
+                "risk_level": "High",
+                "source": "archive_name",
+                "sink": "subprocess.run",
+                "explanation": "The `archive_name` parameter is directly used in the `tar` command, which can be manipulated by an attacker to execute arbitrary shell commands.",
+                "fix_suggestion": "Use a whitelist of allowed archive names and validate user input against this list."
+              },
+              "model_has_vulnerability": true,
+              "error": null,
+              "meta": {
+                "eval_count": 456,
+                "eval_duration_ns": 8312147000,
+                "load_duration_ns": 134193481,
+                "total_duration_ns": 9350206614,
+                "prompt_eval_count": 2819
+              }
+            }
+          ],
+          "majority_verdict": true,
+          "agreement_rate": 1.0
+        },
+        {
+          "chunk_id": 20,
+          "name": "ExportService.backup_to_archive",
+          "start_line": 200,
+          "end_line": 212,
+          "node_type": "function_definition",
+          "char_count": 4716,
+          "prompt_chars": 7955,
+          "runs": [
+            {
+              "run_index": 1,
+              "chunk_id": 20,
+              "chunk_name": "ExportService.backup_to_archive",
+              "elapsed_seconds": 8.76,
+              "raw_output": "### 分析过程\n\n1. **代码片段定位**：\n   - 当前分析目标是 `ExportService.backup_to_archive` 函数。\n\n2. **函数逻辑概述**：\n   - 该函数用于将 `/tmp/exports` 目录打包成一个 tar 归档文件。\n   - 使用 `subprocess.run` 执行系统命令 `tar -cf {target} -C {EXPORT_DIR} .`，其中 `{target}` 是由调用方提供的参数。\n\n3. **安全模式白名单检查**：\n   - 该函数使用了 `subprocess.run`，但没有显式设置 `shell=True`。\n   - 根据安全模式白名单规则2，`subprocess.run` 列表参数 + 未启用 shell 是安全的。\n\n4. **用户可控输入处理**：\n   - `{target}` 参数是用户可控输入，需要确保其不会导致命令注入漏洞。\n   - 代码中没有对 `{target}` 进行任何转义或校验。\n\n5. **硬编码凭证检查**：\n   - 代码中没有出现硬编码的敏感信息（如密码、API Key 等）。\n\n6. **其他安全问题检查**：\n   - 该函数没有涉及 SQL 注入、XSS、路径穿越等其他常见安全问题。\n\n### 结论\n\n根据以上分析，`ExportService.backup_to_archive` 函数在使用 `subprocess.run` 时符合安全模式白名单规则2，且没有明显的用户可控输入导致的安全漏洞。因此，该函数不存在安全漏洞。\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"The function uses subprocess.run with a list parameter and shell=False, which is safe. There are no user-controlled inputs that could lead to vulnerabilities.\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+              "parsed_verdict": {
+                "has_vulnerability": false,
+                "vulnerability_type": "none",
+                "risk_level": "None",
+                "source": "N/A",
+                "sink": "N/A",
+                "explanation": "The function uses subprocess.run with a list parameter and shell=False, which is safe. There are no user-controlled inputs that could lead to vulnerabilities.",
+                "fix_suggestion": "no fix needed"
+              },
+              "model_has_vulnerability": false,
+              "error": null,
+              "meta": {
+                "eval_count": 425,
+                "eval_duration_ns": 7744311000,
+                "load_duration_ns": 136815715,
+                "total_duration_ns": 8754103967,
+                "prompt_eval_count": 2738
+              }
+            }
+          ],
+          "majority_verdict": false,
+          "agreement_rate": 1.0
+        },
+        {
+          "chunk_id": 21,
+          "name": "OrderService.__init__",
+          "start_line": 219,
+          "end_line": 224,
+          "node_type": "function_definition",
+          "char_count": 4400,
+          "prompt_chars": 7629,
+          "runs": [
+            {
+              "run_index": 1,
+              "chunk_id": 21,
+              "chunk_name": "OrderService.__init__",
+              "elapsed_seconds": 11.09,
+              "raw_output": "### 分析过程\n\n1. **代码片段概述**：\n   - 该代码片段属于 `OrderService` 类的初始化方法 `__init__`。\n   - 主要功能是初始化数据库连接，并调用其他服务类的方法进行订单处理、退款处理和通知。\n\n2. **关键点分析**：\n   - **SQL 注入防护**：在 `OrderRepository` 的 `create` 方法中，使用了参数化查询来防止 SQL 注入。\n     ```python\n     cur.execute(\"SELECT * FROM orders WHERE id = ?\", (order_id,))\n     ```\n   - **命令注入防护**：在 `ExportService` 的 `to_csv` 方法中，调用了 `subprocess.run` 来打包文件。这里存在潜在的命令注入风险。\n     ```python\n     result = subprocess.run(\n         shell=True,\n         capture_output=True,\n     )\n     ```\n   - **路径穿越防护**：在 `ExportService` 的 `to_csv` 方法中，使用了 `os.path.join` 来构建文件路径，防止路径穿越。\n     ```python\n     path = os.path.join(EXPORT_DIR, filename)\n     ```\n\n3. **安全模式白名单检查**：\n   - SQL 注入防护：参数化查询符合安全模式白名单。\n   - 命令注入防护：`subprocess.run` 使用了 `shell=True`，不符合安全模式白名单。\n   - 路径穿越防护：路径构建使用了 `os.path.join`，符合安全模式白名单。\n\n4. **硬编码凭证检查**：\n   - 代码中没有硬编码的敏感信息（如密码、API Key 等）。\n\n### 结论\n\n- **存在漏洞**：命令注入风险。\n- **漏洞类型**：CWE-78 OS命令注入\n- **风险级别**：High\n- **污染来源**：用户可控输入点 `archive_name`\n- **危险函数或触发点**：`subprocess.run`\n- **漏洞说明**：代码中使用了 `shell=True`，可能导致命令注入攻击。\n- **修复建议**：避免使用 `shell=True`，改为列表参数形式。\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-78 OS命令注入\",\n    \"risk_level\": \"High\",\n    \"source\": \"archive_name\",\n    \"sink\": \"subprocess.run\",\n    \"explanation\": \"代码中使用了 subprocess.run 并设置了 shell=True，可能导致命令注入攻击。\",\n    \"fix_suggestion\": \"避免使用 shell=True，改为列表参数形式。\"\n}\n```",
+              "parsed_verdict": {
+                "has_vulnerability": true,
+                "vulnerability_type": "CWE-78 OS命令注入",
+                "risk_level": "High",
+                "source": "archive_name",
+                "sink": "subprocess.run",
+                "explanation": "代码中使用了 subprocess.run 并设置了 shell=True，可能导致命令注入攻击。",
+                "fix_suggestion": "避免使用 shell=True，改为列表参数形式。"
+              },
+              "model_has_vulnerability": true,
+              "error": null,
+              "meta": {
+                "eval_count": 553,
+                "eval_duration_ns": 10074045000,
+                "load_duration_ns": 135390674,
+                "total_duration_ns": 11080375309,
+                "prompt_eval_count": 2707
+              }
+            }
+          ],
+          "majority_verdict": true,
+          "agreement_rate": 1.0
+        },
+        {
+          "chunk_id": 22,
+          "name": "OrderService.place_order",
+          "start_line": 226,
+          "end_line": 230,
+          "node_type": "function_definition",
+          "char_count": 4402,
+          "prompt_chars": 7634,
+          "runs": [
+            {
+              "run_index": 1,
+              "chunk_id": 22,
+              "chunk_name": "OrderService.place_order",
+              "elapsed_seconds": 8.91,
+              "raw_output": "### 分析过程\n\n1. **函数 `OrderService.place_order` 的代码片段**：\n   ```python\n   def place_order(self, user_id: int, amount: float, currency: str = \"USD\", reason: Optional[str] = None) -> str:\n       amt = validate_amount(amount)\n       order_id = self.orders.create(user_id, amt)\n\n       row = self.orders.get(order_id)\n\n       if reason:\n           result = self.refunds.refund(order_id, reason)\n           row = self.orders.get(order_id)\n\n       return order_id\n   ```\n\n2. **安全模式白名单检查**：\n   - 该函数中没有明显的 SQL 注入、命令注入、路径穿越、XSS 或反序列化漏洞。\n   - `validate_amount` 函数对输入进行验证，但未涉及数据库操作或命令执行。\n\n3. **硬编码凭证检查**：\n   - 代码中没有出现硬编码的密码、API Key、Secret 等敏感信息。\n\n4. **具体分析**：\n   - `OrderService.place_order` 函数主要处理订单创建和退款逻辑。\n   - `validate_amount` 函数对输入进行验证，确保金额格式正确。\n   - `self.orders.create(user_id, amt)` 调用 `OrderRepository` 的 `create` 方法，该方法使用参数化查询来插入数据，符合安全模式白名单中的 SQL 注入防护标准。\n   - `self.refunds.refund(order_id, reason)` 调用 `RefundService` 的 `refund` 方法，该方法也使用了参数化查询。\n\n### 结论\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"代码中没有明显的安全漏洞，所有数据库操作都使用了参数化查询，符合安全模式白名单中的 SQL 注入防护标准。\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+              "parsed_verdict": {
+                "has_vulnerability": false,
+                "vulnerability_type": "none",
+                "risk_level": "None",
+                "source": "N/A",
+                "sink": "N/A",
+                "explanation": "代码中没有明显的安全漏洞，所有数据库操作都使用了参数化查询，符合安全模式白名单中的 SQL 注入防护标准。",
+                "fix_suggestion": "no fix needed"
+              },
+              "model_has_vulnerability": false,
+              "error": null,
+              "meta": {
+                "eval_count": 435,
+                "eval_duration_ns": 7918064000,
+                "load_duration_ns": 134734148,
+                "total_duration_ns": 8906606767,
+                "prompt_eval_count": 2705
+              }
+            }
+          ],
+          "majority_verdict": false,
+          "agreement_rate": 1.0
+        },
+        {
+          "chunk_id": 25,
+          "name": "OrderService.refund",
+          "start_line": 242,
+          "end_line": 246,
+          "node_type": "function_definition",
+          "char_count": 4410,
+          "prompt_chars": 7637,
+          "runs": [
+            {
+              "run_index": 1,
+              "chunk_id": 25,
+              "chunk_name": "OrderService.refund",
+              "elapsed_seconds": 10.75,
+              "raw_output": "### 分析过程\n\n1. **代码片段概述**：\n   - 该代码片段属于 `OrderService` 类中的 `refund` 方法。\n   - 主要功能是处理订单退款请求，并调用其他服务进行相关操作。\n\n2. **关键点分析**：\n   - **用户可控输入**：`order_id` 和 `reason` 是用户可控的输入参数。\n   - **数据库操作**：使用了 SQLite 数据库，涉及查询和更新操作。\n   - **命令执行**：在 `ExportService` 类中调用了 `subprocess.run` 执行系统命令。\n\n3. **安全模式白名单检查**：\n   - **SQL 注入防护**：代码中没有明显的 SQL 注入风险，使用了参数化查询。\n   - **命令注入防护**：在 `ExportService` 中调用 `subprocess.run` 时，使用了 `shell=True`，存在命令注入风险。\n\n4. **硬编码凭证检查**：\n   - 代码中没有硬编码的敏感信息（如密码、API Key 等）。\n\n5. **其他安全问题**：\n   - **路径穿越防护**：代码中没有明显的路径穿越风险。\n   - **XSS 防护**：代码中没有明显的 XSS 风险。\n   - **反序列化防护**：代码中没有使用 `pickle` 或 `yaml` 进行反序列化。\n\n### 结论\n\n- **存在漏洞**：命令注入风险\n- **漏洞类型**：CWE-78 命令注入\n- **风险级别**：High\n- **污染来源**：用户可控输入点（`order_id` 和 `reason`）\n- **危险函数或触发点**：`subprocess.run`\n- **漏洞说明**：在 `ExportService` 中调用 `subprocess.run` 时使用了 `shell=True`，存在命令注入风险。\n- **修复建议**：避免使用 `shell=True`，改为使用列表参数形式。\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-78 命令注入\",\n    \"risk_level\": \"High\",\n    \"source\": \"用户可控输入点（order_id 和 reason）\",\n    \"sink\": \"subprocess.run\",\n    \"explanation\": \"在 ExportService 中调用 subprocess.run 时使用了 shell=True，存在命令注入风险。\",\n    \"fix_suggestion\": \"避免使用 shell=True，改为使用列表参数形式。\"\n}\n```",
+              "parsed_verdict": {
+                "has_vulnerability": true,
+                "vulnerability_type": "CWE-78 命令注入",
+                "risk_level": "High",
+                "source": "用户可控输入点（order_id 和 reason）",
+                "sink": "subprocess.run",
+                "explanation": "在 ExportService 中调用 subprocess.run 时使用了 shell=True，存在命令注入风险。",
+                "fix_suggestion": "避免使用 shell=True，改为使用列表参数形式。"
+              },
+              "model_has_vulnerability": true,
+              "error": null,
+              "meta": {
+                "eval_count": 537,
+                "eval_duration_ns": 9773658000,
+                "load_duration_ns": 133596569,
+                "total_duration_ns": 10740181723,
+                "prompt_eval_count": 2678
+              }
+            }
+          ],
+          "majority_verdict": true,
+          "agreement_rate": 1.0
+        },
+        {
+          "chunk_id": 26,
+          "name": "init_db",
+          "start_line": 252,
+          "end_line": 283,
+          "node_type": "function_definition",
+          "char_count": 5088,
+          "prompt_chars": 8303,
+          "runs": [
+            {
+              "run_index": 1,
+              "chunk_id": 26,
+              "chunk_name": "init_db",
+              "elapsed_seconds": 7.66,
+              "raw_output": "### 分析过程\n\n#### 代码片段分析\n\n```python\ndef init_db():\n    conn = sqlite3.connect(DB_PATH)\n    conn.row_factory = sqlite3.Row\n    return conn\n```\n\n这段代码的主要功能是初始化数据库连接。\n\n1. **硬编码敏感信息**：\n   - `DB_PATH` 是一个硬编码的字符串，值为 `\"orders.db\"`。根据硬编码凭证判定标准，这被视为漏洞。\n   \n2. **SQL 注入防护**：\n   - 该函数没有涉及 SQL 查询或命令执行，因此不存在 SQL 注入风险。\n\n3. **命令注入防护**：\n   - 该函数没有涉及命令执行，因此不存在命令注入风险。\n\n4. **路径穿越防护**：\n   - 该函数没有涉及文件路径操作，因此不存在路径穿越风险。\n\n5. **XSS 防护**：\n   - 该函数没有涉及用户输入的 HTML 输出，因此不存在 XSS 风险。\n\n6. **反序列化防护**：\n   - 该函数没有涉及反序列化操作，因此不存在反序列化风险。\n\n#### 安全模式白名单检查\n\n- `DB_PATH` 是硬编码的字符串，不符合安全模式白名单中的任何一项。\n\n### 最终结论\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-798 硬编码凭证\",\n    \"risk_level\": \"High\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"DB_PATH 是硬编码的字符串，属于敏感信息。\",\n    \"fix_suggestion\": \"从 os.environ 或配置文件中读取数据库路径。\"\n}\n```",
+              "parsed_verdict": {
+                "has_vulnerability": true,
+                "vulnerability_type": "CWE-798 硬编码凭证",
+                "risk_level": "High",
+                "source": "N/A",
+                "sink": "N/A",
+                "explanation": "DB_PATH 是硬编码的字符串，属于敏感信息。",
+                "fix_suggestion": "从 os.environ 或配置文件中读取数据库路径。"
+              },
+              "model_has_vulnerability": true,
+              "error": null,
+              "meta": {
+                "eval_count": 362,
+                "eval_duration_ns": 6598332000,
+                "load_duration_ns": 133804457,
+                "total_duration_ns": 7648049608,
+                "prompt_eval_count": 2834
+              }
+            }
+          ],
+          "majority_verdict": true,
+          "agreement_rate": 1.0
+        }
+      ],
+      "runs": [
+        {
+          "run_index": 1,
+          "chunk_id": 3,
+          "chunk_name": "validate_amount",
+          "elapsed_seconds": 7.68,
+          "raw_output": "### 分析过程\n\n1. **函数 `validate_amount`**：\n   - 该函数用于验证输入的金额是否有效。\n   - 输入参数 `amount` 是用户可控的。\n   - 在函数内部，首先尝试将 `amount` 转换为浮点数。如果转换失败，则抛出 `ValueError`。\n   - 如果转换成功，检查金额是否在允许范围内（0 到 1,000,000）。如果超出范围，抛出 `ValueError`。\n   - 最后返回验证后的金额。\n\n2. **安全模式白名单检查**：\n   - 该函数没有使用任何用户可控输入作为 SQL 查询参数、命令行参数或文件路径。\n   - 没有硬编码敏感信息（如密码、API Key 等）。\n   - 没有进行反序列化操作。\n\n3. **潜在风险点**：\n   - 虽然 `amount` 是用户可控的，但该函数通过类型检查和范围检查确保了输入的有效性。这种做法是安全的，不会导致 SQL 注入、命令注入或路径穿越等漏洞。\n   - 没有发现任何硬编码凭证的情况。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"The function validate_amount safely handles user-controlled input by performing type checking and range validation. It does not involve any SQL queries, command execution, or file path manipulations that could lead to vulnerabilities.\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": false,
+            "vulnerability_type": "none",
+            "risk_level": "None",
+            "source": "N/A",
+            "sink": "N/A",
+            "explanation": "The function validate_amount safely handles user-controlled input by performing type checking and range validation. It does not involve any SQL queries, command execution, or file path manipulations that could lead to vulnerabilities.",
+            "fix_suggestion": "no fix needed"
+          },
+          "model_has_vulnerability": false,
+          "error": null
+        },
+        {
+          "run_index": 2,
+          "chunk_id": 7,
+          "chunk_name": "OrderRepository.create",
+          "elapsed_seconds": 10.65,
+          "raw_output": "### 分析过程\n\n1. **函数 `OrderRepository.create` 的代码片段**：\n   - 该函数用于创建一个新的订单。\n   - 用户可控输入包括 `user_id`, `amount`, 和 `currency`。\n\n2. **SQL 注入防护**：\n   - 在执行 SQL 查询时，使用了参数化查询（例如：`cur.execute(\"SELECT * FROM orders WHERE id = ?\", (order_id,))`）。\n   - 这符合安全模式白名单中的 SQL 注入防护标准。\n\n3. **命令注入防护**：\n   - 代码中存在一个调用 `subprocess.run` 的地方，但使用了列表参数且未启用 shell（例如：`os.makedirs(EXPORT_DIR, exist_ok=True)`）。\n   - 这符合安全模式白名单中的命令注入防护标准。\n\n4. **路径穿越防护**：\n   - 代码中存在一个文件路径操作（例如：`path = os.path.join(EXPORT_DIR, filename)`），但没有看到明显的路径校验或规范化操作。\n   - 需要进一步检查是否存在路径穿越风险。\n\n5. **XSS 防护**：\n   - 代码中没有看到任何 HTML 输出或模板渲染，因此不存在 XSS 风险。\n\n6. **反序列化防护**：\n   - 代码中没有看到任何反序列化操作，因此不存在反序列化风险。\n\n7. **硬编码凭证**：\n   - 代码中没有看到硬编码的敏感信息（如密码、API Key 等）。\n\n### 结论\n\n- **SQL 注入防护**：符合安全模式白名单。\n- **命令注入防护**：符合安全模式白名单。\n- **路径穿越防护**：未看到明显的路径校验或规范化操作，可能存在路径穿越风险。\n- **XSS 防护**：不存在 XSS 风险。\n- **反序列化防护**：不存在反序列化风险。\n- **硬编码凭证**：不存在硬编码凭证。\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"路径穿越\",\n    \"risk_level\": \"Medium\",\n    \"source\": \"EXPORT_DIR\",\n    \"sink\": \"os.makedirs(EXPORT_DIR, exist_ok=True)\",\n    \"explanation\": \"代码中存在文件路径操作，但未看到明显的路径校验或规范化操作，可能存在路径穿越风险。\",\n    \"fix_suggestion\": \"对导出目录进行规范化处理，并添加路径白名单校验。\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "路径穿越",
+            "risk_level": "Medium",
+            "source": "EXPORT_DIR",
+            "sink": "os.makedirs(EXPORT_DIR, exist_ok=True)",
+            "explanation": "代码中存在文件路径操作，但未看到明显的路径校验或规范化操作，可能存在路径穿越风险。",
+            "fix_suggestion": "对导出目录进行规范化处理，并添加路径白名单校验。"
+          },
+          "model_has_vulnerability": true,
+          "error": null
+        },
+        {
+          "run_index": 3,
+          "chunk_id": 9,
+          "chunk_name": "OrderRepository.list_by_user",
+          "elapsed_seconds": 11.26,
+          "raw_output": "### 分析过程\n\n1. **函数 `OrderRepository.list_by_user` 的定义和调用**：\n   - 该函数用于根据用户ID查询订单。\n   - 函数接收两个参数：`user_id` 和 `limit`。\n\n2. **SQL 查询的执行**：\n   - 在函数内部，使用 `self.conn.cursor().execute` 方法执行 SQL 查询。\n   - SQL 查询语句为 `\"SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT ?\"`。\n   - 参数元组 `(user_id, limit)` 通过占位符 `?` 传递给查询。\n\n3. **参数化查询的使用**：\n   - 使用 `?` 占位符和参数元组 `(user_id, limit)` 进行 SQL 查询，这是标准的参数化查询写法。\n   - 参数元组中的值会被数据库驱动自动转义，不会进入 SQL 语法层。\n\n4. **命令执行部分**：\n   - 在 `ExportService.to_csv` 方法中，调用 `subprocess.run` 执行系统命令。\n   - 命令为 `tar`，用于打包 `/tmp/exports` 目录。\n   - 使用了 `shell=True` 参数，这会导致命令注入风险。\n\n### 安全模式白名单检查\n\n1. **SQL 注入防护**：\n   - 代码使用了参数化查询，符合安全模式白名单中的 SQL 注入防护标准。\n\n2. **命令注入防护**：\n   - 代码中存在 `subprocess.run` 调用，并且使用了 `shell=True`。\n   - 这不符合安全模式白名单中的命令注入防护标准。\n\n### 漏洞判定\n\n1. **SQL 注入漏洞**：\n   - 由于使用了参数化查询，不存在 SQL 注入风险。\n\n2. **命令注入漏洞**：\n   - 由于使用了 `subprocess.run` 并且设置了 `shell=True`，存在命令注入风险。\n\n### 修复建议\n\n- 避免使用 `shell=True`，改为使用列表形式传递命令参数。\n- 使用 `shlex.quote()` 对用户输入进行转义。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-78 Command Injection\",\n    \"risk_level\": \"High\",\n    \"source\": \"user_id, limit\",\n    \"sink\": \"subprocess.run\",\n    \"explanation\": \"The code uses subprocess.run with shell=True, which can lead to command injection vulnerabilities.\",\n    \"fix_suggestion\": \"Replace subprocess.run with a list of arguments and avoid using shell=True.\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-78 Command Injection",
+            "risk_level": "High",
+            "source": "user_id, limit",
+            "sink": "subprocess.run",
+            "explanation": "The code uses subprocess.run with shell=True, which can lead to command injection vulnerabilities.",
+            "fix_suggestion": "Replace subprocess.run with a list of arguments and avoid using shell=True."
+          },
+          "model_has_vulnerability": true,
+          "error": null
+        },
+        {
+          "run_index": 4,
+          "chunk_id": 10,
+          "chunk_name": "OrderRepository.update_status",
+          "elapsed_seconds": 7.52,
+          "raw_output": "### 分析过程\n\n#### 代码片段概述\n当前分析的目标是 `OrderRepository.update_status` 函数。该函数用于更新订单状态，并且涉及数据库操作。\n\n#### 关键点分析\n1. **SQL 注入防护**：\n   - 使用了参数化查询，符合安全模式白名单中的 SQL 注入防护标准。\n   ```python\n   cur.execute(\"UPDATE orders SET status = ?, updated_at = ? WHERE id = ?\", (new_status, now_iso(), order_id))\n   ```\n\n2. **命令注入防护**：\n   - 代码中没有涉及命令执行的部分。\n\n3. **路径穿越防护**：\n   - 代码中没有涉及文件路径操作的部分。\n\n4. **XSS 防护**：\n   - 代码中没有涉及用户输入直接输出到 HTML 的部分。\n\n5. **反序列化防护**：\n   - 代码中没有涉及反序列化的部分。\n\n#### 安全模式白名单检查\n- `OrderRepository.update_status` 函数中的 SQL 查询使用了参数化查询，符合安全模式白名单中的 SQL 注入防护标准。\n- 其他部分（如命令执行、路径穿越、XSS 和反序列化）没有涉及。\n\n### 最终结论\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"The SQL query in the OrderRepository.update_status function uses parameterized queries, which is a safe practice. There are no other security vulnerabilities present.\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": false,
+            "vulnerability_type": "none",
+            "risk_level": "None",
+            "source": "N/A",
+            "sink": "N/A",
+            "explanation": "The SQL query in the OrderRepository.update_status function uses parameterized queries, which is a safe practice. There are no other security vulnerabilities present.",
+            "fix_suggestion": "no fix needed"
+          },
+          "model_has_vulnerability": false,
+          "error": null
+        },
+        {
+          "run_index": 5,
+          "chunk_id": 11,
+          "chunk_name": "OrderRepository.list_all",
+          "elapsed_seconds": 14.36,
+          "raw_output": "### 分析过程\n\n1. **函数 `OrderRepository.list_all`**:\n   - 该函数用于查询所有订单。\n   - 函数内部使用了 SQL 查询语句：\n     ```python\n     cur.execute(\"SELECT * FROM orders ORDER BY created_at DESC LIMIT ?\", (limit,))\n     ```\n   - 这是一个参数化查询，其中 `?` 是 SQL 占位符，`limit` 是用户可控输入。\n\n2. **命令执行部分**:\n   - 在 `ExportService.to_csv` 方法中，调用了 `subprocess.run`：\n     ```python\n     result = subprocess.run(\n         shell=True,\n         capture_output=True,\n     ```\n   - 这里没有看到具体的命令参数，但 `shell=True` 被显式设置为 `True`。\n\n3. **硬编码凭证**:\n   - 在文件级上下文中，定义了 `DB_PATH` 和 `EXPORT_DIR`：\n     ```python\n     DB_PATH = \"orders.db\"\n     EXPORT_DIR = \"/tmp/exports\"\n     ```\n   - 这些变量名包含敏感信息（如数据库路径和导出目录），但它们没有被实际使用。\n\n### 安全模式白名单检查\n\n1. **SQL 注入防护**:\n   - `OrderRepository.list_all` 中的 SQL 查询是参数化查询，符合安全模式白名单中的 SQL 注入防护标准。\n\n2. **命令注入防护**:\n   - `ExportService.to_csv` 方法中使用了 `subprocess.run`，但 `shell=True` 被显式设置为 `True`。这不符合安全模式白名单中的命令注入防护标准。\n\n3. **路径穿越防护**:\n   - 代码中没有涉及路径穿越操作。\n\n4. **XSS 防护**:\n   - 代码中没有涉及用户输入的 HTML 输出。\n\n5. **反序列化防护**:\n   - 代码中没有涉及反序列化操作。\n\n### 硬编码凭证判定\n\n- `DB_PATH` 和 `EXPORT_DIR` 被硬编码在代码中，但它们没有被实际使用。因此，这些变量不被视为硬编码凭证。\n\n### 结论\n\n- **存在漏洞**: 是的，因为 `ExportService.to_csv` 方法中使用了 `subprocess.run` 并设置了 `shell=True`。\n- **漏洞类型**: CWE-78 OS命令注入\n- **风险级别**: High\n- **污染来源**: 用户可控输入点（`archive_name`）\n- **危险函数或触发点**: `subprocess.run`\n- **漏洞说明**: 由于 `shell=True` 被显式设置为 `True`，用户输入的 `archive_name` 可能会被解释为 shell 命令的一部分，从而导致命令注入攻击。\n- **修复建议**: 避免使用 `shell=True`，而是传递一个列表参数给 `subprocess.run`。\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-78 OS命令注入\",\n    \"risk_level\": \"High\",\n    \"source\": \"archive_name\",\n    \"sink\": \"subprocess.run\",\n    \"explanation\": \"由于 shell=True 被显式设置为 True，用户输入的 archive_name 可能会被解释为 shell 命令的一部分，从而导致命令注入攻击。\",\n    \"fix_suggestion\": \"避免使用 shell=True，而是传递一个列表参数给 subprocess.run\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-78 OS命令注入",
+            "risk_level": "High",
+            "source": "archive_name",
+            "sink": "subprocess.run",
+            "explanation": "由于 shell=True 被显式设置为 True，用户输入的 archive_name 可能会被解释为 shell 命令的一部分，从而导致命令注入攻击。",
+            "fix_suggestion": "避免使用 shell=True，而是传递一个列表参数给 subprocess.run"
+          },
+          "model_has_vulnerability": true,
+          "error": null
+        },
+        {
+          "run_index": 6,
+          "chunk_id": 13,
+          "chunk_name": "RefundService.refund",
+          "elapsed_seconds": 11.75,
+          "raw_output": "### 分析过程\n\n1. **函数 `RefundService.refund`**：\n   - 该函数用于处理退款请求。\n   - 输入参数包括 `order_id` 和 `reason`。\n\n2. **输入验证**：\n   - 在调用 `self.orders.get(order_id)` 获取订单信息后，检查订单状态是否为 \"paid\" 或 \"shipped\"。如果不是，则抛出异常。\n\n3. **插入退款记录**：\n   - 使用参数化查询插入退款记录到数据库中。\n   ```python\n   cur.execute(\n       \"INSERT INTO refunds (order_id, amount, reason, created_at) VALUES (?, ?, ?, ?)\",\n       (order_id, row[\"amount\"], reason, now_iso()),\n   )\n   ```\n\n4. **更新订单状态**：\n   - 更新订单状态为 \"refunded\"。\n   ```python\n   self.orders.update_status(order_id, \"refunded\")\n   ```\n\n5. **返回退款结果**：\n   - 返回退款成功的信息。\n\n### 安全分析\n\n1. **SQL 注入防护**：\n   - 使用参数化查询插入退款记录，符合安全模式白名单中的 SQL 注入防护标准。\n   ```python\n   cur.execute(\n       \"INSERT INTO refunds (order_id, amount, reason, created_at) VALUES (?, ?, ?, ?)\",\n       (order_id, row[\"amount\"], reason, now_iso()),\n   )\n   ```\n\n2. **命令注入防护**：\n   - 代码中没有涉及命令执行的部分。\n\n3. **路径穿越防护**：\n   - 代码中没有涉及文件路径操作的部分。\n\n4. **XSS 防护**：\n   - 代码中没有涉及用户输入直接输出到 HTML 的部分。\n\n5. **反序列化防护**：\n   - 代码中没有涉及反序列化的部分。\n\n### 结论\n\n根据以上分析，代码片段中存在以下问题：\n\n- **硬编码凭证**：在文件级上下文中，`DB_PATH` 和 `EXPORT_DIR` 是硬编码的字符串字面量。\n  ```python\n  DB_PATH = \"orders.db\"\n  EXPORT_DIR = \"/tmp/exports\"\n  ```\n  这些变量名包含 \"path\" 或 \"dir\"，且赋值为字符串字面量，符合硬编码凭证判定标准。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-798 Hardcoded Credentials\",\n    \"risk_level\": \"High\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"The variables DB_PATH and EXPORT_DIR are hardcoded string literals, which is a security risk.\",\n    \"fix_suggestion\": \"Read sensitive information from environment variables or configuration files.\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-798 Hardcoded Credentials",
+            "risk_level": "High",
+            "source": "N/A",
+            "sink": "N/A",
+            "explanation": "The variables DB_PATH and EXPORT_DIR are hardcoded string literals, which is a security risk.",
+            "fix_suggestion": "Read sensitive information from environment variables or configuration files."
+          },
+          "model_has_vulnerability": true,
+          "error": null
+        },
+        {
+          "run_index": 7,
+          "chunk_id": 14,
+          "chunk_name": "RefundService.list_refunds",
+          "elapsed_seconds": 7.41,
+          "raw_output": "### 分析过程\n\n1. **函数 `RefundService.list_refunds`**:\n   - 函数签名：`def list_refunds(self, order_id: str) -> List[Dict[str, Any]]`\n   - 该函数用于查询退款记录。\n\n2. **代码逻辑分析**:\n   - 获取数据库连接并创建游标。\n   - 执行 SQL 查询语句：\n     ```python\n     cur.execute(\"SELECT * FROM refunds WHERE order_id = ? ORDER BY created_at DESC\", (order_id,))\n     ```\n   - 该查询使用了参数化查询，符合安全模式白名单中的 SQL 注入防护标准。\n\n3. **用户可控输入**:\n   - `order_id` 是用户可控的输入。\n   - 由于使用了参数化查询，`order_id` 不会被直接拼接到 SQL 语句中，而是通过占位符传递给数据库驱动进行转义。\n\n4. **其他安全措施**:\n   - 没有发现其他明显的安全漏洞或硬编码凭证。\n\n### 结论\n\n根据上述分析，代码片段中的 `RefundService.list_refunds` 函数使用了参数化查询来处理用户可控输入，符合 SQL 注入防护的标准。因此，该函数不存在安全漏洞。\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"The function uses parameterized queries to handle user-controlled input, which is a safe practice for SQL injection protection.\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": false,
+            "vulnerability_type": "none",
+            "risk_level": "None",
+            "source": "N/A",
+            "sink": "N/A",
+            "explanation": "The function uses parameterized queries to handle user-controlled input, which is a safe practice for SQL injection protection.",
+            "fix_suggestion": "no fix needed"
+          },
+          "model_has_vulnerability": false,
+          "error": null
+        },
+        {
+          "run_index": 8,
+          "chunk_id": 16,
+          "chunk_name": "OrderNotifier.notify",
+          "elapsed_seconds": 7.57,
+          "raw_output": "### 分析过程\n\n1. **函数 `OrderNotifier.notify` 的代码片段**：\n   ```python\n   def notify(self, user_id: int, order_id: str, event: str) -> None:\n       cur = self.conn.cursor()\n       cur.execute(\n           \"SELECT * FROM order_events WHERE order_id = ? ORDER BY id DESC\",\n           (order_id,)\n       )\n       # ... 其他代码\n   ```\n\n2. **安全模式白名单检查**：\n   - 该函数中没有明显的 SQL 注入风险，因为使用了参数化查询。\n   - 没有命令注入风险，因为没有调用外部命令。\n   - 没有路径穿越风险，因为没有处理文件路径。\n   - 没有 XSS 风险，因为没有输出用户可控输入到 HTML 中。\n   - 没有反序列化风险，因为没有使用 `pickle` 或 `yaml` 进行反序列化。\n\n3. **硬编码凭证检查**：\n   - 代码中没有硬编码的敏感信息（如密码、API Key 等）。\n\n### 结论\n\n根据上述分析，该函数 `OrderNotifier.notify` 没有明显的安全漏洞。它使用了参数化查询来防止 SQL 注入，并且没有其他已知的安全风险。\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"该函数使用了参数化查询来防止 SQL 注入，并且没有其他已知的安全风险。\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": false,
+            "vulnerability_type": "none",
+            "risk_level": "None",
+            "source": "N/A",
+            "sink": "N/A",
+            "explanation": "该函数使用了参数化查询来防止 SQL 注入，并且没有其他已知的安全风险。",
+            "fix_suggestion": "no fix needed"
+          },
+          "model_has_vulnerability": false,
+          "error": null
+        },
+        {
+          "run_index": 9,
+          "chunk_id": 17,
+          "chunk_name": "OrderNotifier.list_events",
+          "elapsed_seconds": 8.27,
+          "raw_output": "### 分析过程\n\n1. **函数 `OrderNotifier.list_events` 的定义和调用**：\n   - 该函数用于查询订单事件。\n   - 函数接收三个参数：`user_id`, `order_id`, 和 `event`。\n\n2. **SQL 查询的执行**：\n   - 在函数内部，使用 `self.conn.cursor()` 创建一个游标对象。\n   - 执行 SQL 查询语句：`cur.execute(\"SELECT * FROM order_events WHERE order_id = ? ORDER BY id DESC\", (order_id,))`\n   - 这是一个参数化查询，符合安全模式白名单中的 SQL 注入防护标准。\n\n3. **用户可控输入的处理**：\n   - `user_id`, `order_id`, 和 `event` 都是函数的参数。\n   - 这些参数通过 `cur.execute` 方法传递给 SQL 查询，确保了这些参数不会被解释为 SQL 语法的一部分。\n\n4. **其他部分的代码分析**：\n   - 其他部分的代码没有涉及到用户可控输入和潜在的安全风险。\n\n### 结论\n\n根据上述分析，代码片段中存在以下情况：\n\n- `user_id`, `order_id`, 和 `event` 都是通过参数化查询传递给 SQL 查询的，符合安全模式白名单中的 SQL 注入防护标准。\n- 没有其他明显的安全漏洞。\n\n因此，该代码片段没有发现安全漏洞。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"代码使用了参数化查询，确保用户可控输入不会被解释为 SQL 语法的一部分，符合安全模式白名单中的 SQL 注入防护标准。\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": false,
+            "vulnerability_type": "none",
+            "risk_level": "None",
+            "source": "N/A",
+            "sink": "N/A",
+            "explanation": "代码使用了参数化查询，确保用户可控输入不会被解释为 SQL 语法的一部分，符合安全模式白名单中的 SQL 注入防护标准。",
+            "fix_suggestion": "no fix needed"
+          },
+          "model_has_vulnerability": false,
+          "error": null
+        },
+        {
+          "run_index": 10,
+          "chunk_id": 19,
+          "chunk_name": "ExportService.to_csv",
+          "elapsed_seconds": 9.36,
+          "raw_output": "### 分析过程\n\n1. **函数 `ExportService.to_csv`**:\n   - 该函数负责将订单数据导出为 CSV 文件。\n   - 用户可控输入：`user_id`。\n\n2. **代码逻辑分析**:\n   - 首先，通过 `self.orders.list_by_user(user_id)` 获取用户订单数据。\n   - 然后，生成一个文件名并将其保存到 `/tmp/exports` 目录下。\n   - 最后，使用 `subprocess.run` 调用 `tar` 命令将 `/tmp/exports` 目录打包。\n\n3. **安全检查**:\n   - **SQL 注入防护**: 代码中没有直接的 SQL 查询，因此不存在 SQL 注入风险。\n   - **命令注入防护**: \n     - `subprocess.run` 使用了 `shell=True`，这意味着用户输入会通过 shell 解释器执行。\n     - 用户可控输入 `archive_name` 直接拼接到 `tar` 命令中，存在命令注入风险。\n   - **路径穿越防护**: 代码中没有涉及文件路径操作，因此不存在路径穿越风险。\n   - **XSS 防护**: 代码中没有直接输出用户输入到 HTML 页面，因此不存在 XSS 风险。\n   - **反序列化防护**: 代码中没有使用 `pickle` 或 `yaml` 进行反序列化，因此不存在反序列化风险。\n\n4. **硬编码凭证**:\n   - 代码中没有硬编码敏感信息（如密码、API Key 等）。\n\n### 结论\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-78 Command Injection\",\n    \"risk_level\": \"High\",\n    \"source\": \"archive_name\",\n    \"sink\": \"subprocess.run\",\n    \"explanation\": \"The `archive_name` parameter is directly used in the `tar` command, which can be manipulated by an attacker to execute arbitrary shell commands.\",\n    \"fix_suggestion\": \"Use a whitelist of allowed archive names and validate user input against this list.\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-78 Command Injection",
+            "risk_level": "High",
+            "source": "archive_name",
+            "sink": "subprocess.run",
+            "explanation": "The `archive_name` parameter is directly used in the `tar` command, which can be manipulated by an attacker to execute arbitrary shell commands.",
+            "fix_suggestion": "Use a whitelist of allowed archive names and validate user input against this list."
+          },
+          "model_has_vulnerability": true,
+          "error": null
+        },
+        {
+          "run_index": 11,
+          "chunk_id": 20,
+          "chunk_name": "ExportService.backup_to_archive",
+          "elapsed_seconds": 8.76,
+          "raw_output": "### 分析过程\n\n1. **代码片段定位**：\n   - 当前分析目标是 `ExportService.backup_to_archive` 函数。\n\n2. **函数逻辑概述**：\n   - 该函数用于将 `/tmp/exports` 目录打包成一个 tar 归档文件。\n   - 使用 `subprocess.run` 执行系统命令 `tar -cf {target} -C {EXPORT_DIR} .`，其中 `{target}` 是由调用方提供的参数。\n\n3. **安全模式白名单检查**：\n   - 该函数使用了 `subprocess.run`，但没有显式设置 `shell=True`。\n   - 根据安全模式白名单规则2，`subprocess.run` 列表参数 + 未启用 shell 是安全的。\n\n4. **用户可控输入处理**：\n   - `{target}` 参数是用户可控输入，需要确保其不会导致命令注入漏洞。\n   - 代码中没有对 `{target}` 进行任何转义或校验。\n\n5. **硬编码凭证检查**：\n   - 代码中没有出现硬编码的敏感信息（如密码、API Key 等）。\n\n6. **其他安全问题检查**：\n   - 该函数没有涉及 SQL 注入、XSS、路径穿越等其他常见安全问题。\n\n### 结论\n\n根据以上分析，`ExportService.backup_to_archive` 函数在使用 `subprocess.run` 时符合安全模式白名单规则2，且没有明显的用户可控输入导致的安全漏洞。因此，该函数不存在安全漏洞。\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"The function uses subprocess.run with a list parameter and shell=False, which is safe. There are no user-controlled inputs that could lead to vulnerabilities.\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": false,
+            "vulnerability_type": "none",
+            "risk_level": "None",
+            "source": "N/A",
+            "sink": "N/A",
+            "explanation": "The function uses subprocess.run with a list parameter and shell=False, which is safe. There are no user-controlled inputs that could lead to vulnerabilities.",
+            "fix_suggestion": "no fix needed"
+          },
+          "model_has_vulnerability": false,
+          "error": null
+        },
+        {
+          "run_index": 12,
+          "chunk_id": 21,
+          "chunk_name": "OrderService.__init__",
+          "elapsed_seconds": 11.09,
+          "raw_output": "### 分析过程\n\n1. **代码片段概述**：\n   - 该代码片段属于 `OrderService` 类的初始化方法 `__init__`。\n   - 主要功能是初始化数据库连接，并调用其他服务类的方法进行订单处理、退款处理和通知。\n\n2. **关键点分析**：\n   - **SQL 注入防护**：在 `OrderRepository` 的 `create` 方法中，使用了参数化查询来防止 SQL 注入。\n     ```python\n     cur.execute(\"SELECT * FROM orders WHERE id = ?\", (order_id,))\n     ```\n   - **命令注入防护**：在 `ExportService` 的 `to_csv` 方法中，调用了 `subprocess.run` 来打包文件。这里存在潜在的命令注入风险。\n     ```python\n     result = subprocess.run(\n         shell=True,\n         capture_output=True,\n     )\n     ```\n   - **路径穿越防护**：在 `ExportService` 的 `to_csv` 方法中，使用了 `os.path.join` 来构建文件路径，防止路径穿越。\n     ```python\n     path = os.path.join(EXPORT_DIR, filename)\n     ```\n\n3. **安全模式白名单检查**：\n   - SQL 注入防护：参数化查询符合安全模式白名单。\n   - 命令注入防护：`subprocess.run` 使用了 `shell=True`，不符合安全模式白名单。\n   - 路径穿越防护：路径构建使用了 `os.path.join`，符合安全模式白名单。\n\n4. **硬编码凭证检查**：\n   - 代码中没有硬编码的敏感信息（如密码、API Key 等）。\n\n### 结论\n\n- **存在漏洞**：命令注入风险。\n- **漏洞类型**：CWE-78 OS命令注入\n- **风险级别**：High\n- **污染来源**：用户可控输入点 `archive_name`\n- **危险函数或触发点**：`subprocess.run`\n- **漏洞说明**：代码中使用了 `shell=True`，可能导致命令注入攻击。\n- **修复建议**：避免使用 `shell=True`，改为列表参数形式。\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-78 OS命令注入\",\n    \"risk_level\": \"High\",\n    \"source\": \"archive_name\",\n    \"sink\": \"subprocess.run\",\n    \"explanation\": \"代码中使用了 subprocess.run 并设置了 shell=True，可能导致命令注入攻击。\",\n    \"fix_suggestion\": \"避免使用 shell=True，改为列表参数形式。\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-78 OS命令注入",
+            "risk_level": "High",
+            "source": "archive_name",
+            "sink": "subprocess.run",
+            "explanation": "代码中使用了 subprocess.run 并设置了 shell=True，可能导致命令注入攻击。",
+            "fix_suggestion": "避免使用 shell=True，改为列表参数形式。"
+          },
+          "model_has_vulnerability": true,
+          "error": null
+        },
+        {
+          "run_index": 13,
+          "chunk_id": 22,
+          "chunk_name": "OrderService.place_order",
+          "elapsed_seconds": 8.91,
+          "raw_output": "### 分析过程\n\n1. **函数 `OrderService.place_order` 的代码片段**：\n   ```python\n   def place_order(self, user_id: int, amount: float, currency: str = \"USD\", reason: Optional[str] = None) -> str:\n       amt = validate_amount(amount)\n       order_id = self.orders.create(user_id, amt)\n\n       row = self.orders.get(order_id)\n\n       if reason:\n           result = self.refunds.refund(order_id, reason)\n           row = self.orders.get(order_id)\n\n       return order_id\n   ```\n\n2. **安全模式白名单检查**：\n   - 该函数中没有明显的 SQL 注入、命令注入、路径穿越、XSS 或反序列化漏洞。\n   - `validate_amount` 函数对输入进行验证，但未涉及数据库操作或命令执行。\n\n3. **硬编码凭证检查**：\n   - 代码中没有出现硬编码的密码、API Key、Secret 等敏感信息。\n\n4. **具体分析**：\n   - `OrderService.place_order` 函数主要处理订单创建和退款逻辑。\n   - `validate_amount` 函数对输入进行验证，确保金额格式正确。\n   - `self.orders.create(user_id, amt)` 调用 `OrderRepository` 的 `create` 方法，该方法使用参数化查询来插入数据，符合安全模式白名单中的 SQL 注入防护标准。\n   - `self.refunds.refund(order_id, reason)` 调用 `RefundService` 的 `refund` 方法，该方法也使用了参数化查询。\n\n### 结论\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"代码中没有明显的安全漏洞，所有数据库操作都使用了参数化查询，符合安全模式白名单中的 SQL 注入防护标准。\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": false,
+            "vulnerability_type": "none",
+            "risk_level": "None",
+            "source": "N/A",
+            "sink": "N/A",
+            "explanation": "代码中没有明显的安全漏洞，所有数据库操作都使用了参数化查询，符合安全模式白名单中的 SQL 注入防护标准。",
+            "fix_suggestion": "no fix needed"
+          },
+          "model_has_vulnerability": false,
+          "error": null
+        },
+        {
+          "run_index": 14,
+          "chunk_id": 25,
+          "chunk_name": "OrderService.refund",
+          "elapsed_seconds": 10.75,
+          "raw_output": "### 分析过程\n\n1. **代码片段概述**：\n   - 该代码片段属于 `OrderService` 类中的 `refund` 方法。\n   - 主要功能是处理订单退款请求，并调用其他服务进行相关操作。\n\n2. **关键点分析**：\n   - **用户可控输入**：`order_id` 和 `reason` 是用户可控的输入参数。\n   - **数据库操作**：使用了 SQLite 数据库，涉及查询和更新操作。\n   - **命令执行**：在 `ExportService` 类中调用了 `subprocess.run` 执行系统命令。\n\n3. **安全模式白名单检查**：\n   - **SQL 注入防护**：代码中没有明显的 SQL 注入风险，使用了参数化查询。\n   - **命令注入防护**：在 `ExportService` 中调用 `subprocess.run` 时，使用了 `shell=True`，存在命令注入风险。\n\n4. **硬编码凭证检查**：\n   - 代码中没有硬编码的敏感信息（如密码、API Key 等）。\n\n5. **其他安全问题**：\n   - **路径穿越防护**：代码中没有明显的路径穿越风险。\n   - **XSS 防护**：代码中没有明显的 XSS 风险。\n   - **反序列化防护**：代码中没有使用 `pickle` 或 `yaml` 进行反序列化。\n\n### 结论\n\n- **存在漏洞**：命令注入风险\n- **漏洞类型**：CWE-78 命令注入\n- **风险级别**：High\n- **污染来源**：用户可控输入点（`order_id` 和 `reason`）\n- **危险函数或触发点**：`subprocess.run`\n- **漏洞说明**：在 `ExportService` 中调用 `subprocess.run` 时使用了 `shell=True`，存在命令注入风险。\n- **修复建议**：避免使用 `shell=True`，改为使用列表参数形式。\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-78 命令注入\",\n    \"risk_level\": \"High\",\n    \"source\": \"用户可控输入点（order_id 和 reason）\",\n    \"sink\": \"subprocess.run\",\n    \"explanation\": \"在 ExportService 中调用 subprocess.run 时使用了 shell=True，存在命令注入风险。\",\n    \"fix_suggestion\": \"避免使用 shell=True，改为使用列表参数形式。\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-78 命令注入",
+            "risk_level": "High",
+            "source": "用户可控输入点（order_id 和 reason）",
+            "sink": "subprocess.run",
+            "explanation": "在 ExportService 中调用 subprocess.run 时使用了 shell=True，存在命令注入风险。",
+            "fix_suggestion": "避免使用 shell=True，改为使用列表参数形式。"
+          },
+          "model_has_vulnerability": true,
+          "error": null
+        },
+        {
+          "run_index": 15,
+          "chunk_id": 26,
+          "chunk_name": "init_db",
+          "elapsed_seconds": 7.66,
+          "raw_output": "### 分析过程\n\n#### 代码片段分析\n\n```python\ndef init_db():\n    conn = sqlite3.connect(DB_PATH)\n    conn.row_factory = sqlite3.Row\n    return conn\n```\n\n这段代码的主要功能是初始化数据库连接。\n\n1. **硬编码敏感信息**：\n   - `DB_PATH` 是一个硬编码的字符串，值为 `\"orders.db\"`。根据硬编码凭证判定标准，这被视为漏洞。\n   \n2. **SQL 注入防护**：\n   - 该函数没有涉及 SQL 查询或命令执行，因此不存在 SQL 注入风险。\n\n3. **命令注入防护**：\n   - 该函数没有涉及命令执行，因此不存在命令注入风险。\n\n4. **路径穿越防护**：\n   - 该函数没有涉及文件路径操作，因此不存在路径穿越风险。\n\n5. **XSS 防护**：\n   - 该函数没有涉及用户输入的 HTML 输出，因此不存在 XSS 风险。\n\n6. **反序列化防护**：\n   - 该函数没有涉及反序列化操作，因此不存在反序列化风险。\n\n#### 安全模式白名单检查\n\n- `DB_PATH` 是硬编码的字符串，不符合安全模式白名单中的任何一项。\n\n### 最终结论\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-798 硬编码凭证\",\n    \"risk_level\": \"High\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"DB_PATH 是硬编码的字符串，属于敏感信息。\",\n    \"fix_suggestion\": \"从 os.environ 或配置文件中读取数据库路径。\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-798 硬编码凭证",
+            "risk_level": "High",
+            "source": "N/A",
+            "sink": "N/A",
+            "explanation": "DB_PATH 是硬编码的字符串，属于敏感信息。",
+            "fix_suggestion": "从 os.environ 或配置文件中读取数据库路径。"
+          },
+          "model_has_vulnerability": true,
+          "error": null
+        }
+      ],
+      "majority_verdict": true,
+      "agreement_rate": 0.5333,
+      "true_chunks": [
+        "OrderRepository.create",
+        "OrderRepository.list_by_user",
+        "OrderRepository.list_all",
+        "RefundService.refund",
+        "ExportService.to_csv",
+        "OrderService.__init__",
+        "OrderService.refund",
+        "init_db"
+      ]
+    },
+    {
+      "file": "hard_longfile_03_hidden_ssti.py",
+      "language": "Python",
+      "category": "ssti",
+      "difficulty": "hard",
+      "expected_present": true,
+      "expected_vulnerability": "SSTI 隐藏在长文件深处：~190 行用户管理服务中，/welcome 路由用 from_string 渲染用户输入",
+      "expected_cwe": "CWE-1336",
+      "expected_risk_level": "Critical",
+      "slice_mode": true,
+      "slice_chunk_count": 7,
+      "slice_total_lines": 181,
+      "chunks": [
+        {
+          "chunk_id": 1,
+          "name": "init_db",
+          "start_line": 19,
+          "end_line": 43,
+          "node_type": "function_definition",
+          "char_count": 5510,
+          "prompt_chars": 8727,
+          "runs": [
+            {
+              "run_index": 1,
+              "chunk_id": 1,
+              "chunk_name": "init_db",
+              "elapsed_seconds": 8.22,
+              "raw_output": "### 分析过程\n\n1. **函数 `init_db` 分析**：\n   - 该函数用于初始化数据库。\n   - 它创建了两个表：`users` 和 `orders`。\n\n2. **SQL 注入防护检查**：\n   - 在 `init_db` 函数中，所有的 SQL 查询都使用了参数化查询。例如：\n     ```python\n     c.execute(\"\"\"\n         CREATE TABLE IF NOT EXISTS users (\n             id INTEGER PRIMARY KEY,\n             username TEXT UNIQUE,\n             password_hash TEXT,\n             email TEXT,\n             role TEXT DEFAULT 'user',\n             created_at INTEGER\n         )\n     \"\"\")\n     ```\n   - 这些 SQL 查询使用了字符串字面量，而不是用户可控输入。因此，这些查询不会受到 SQL 注入攻击。\n\n3. **硬编码凭证检查**：\n   - 在文件级上下文中，有一个硬编码的密钥：\n     ```python\n     app.secret_key = \"very_long_dev_secret_key_for_testing_only\"\n     ```\n   - 这个密钥是硬编码在代码中的，不符合安全标准。因此，存在硬编码凭证漏洞。\n\n4. **其他安全检查**：\n   - 代码中没有明显的跨站脚本（XSS）、命令注入、路径穿越或不安全的反序列化问题。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-798 硬编码凭证\",\n    \"risk_level\": \"High\",\n    \"source\": \"app.secret_key\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"代码中硬编码了一个密钥，这本身就是漏洞。应从环境变量或配置文件中读取密钥。\",\n    \"fix_suggestion\": \"将 app.secret_key 从硬编码改为从 os.environ 或配置文件中读取。\"\n}\n```",
+              "parsed_verdict": {
+                "has_vulnerability": true,
+                "vulnerability_type": "CWE-798 硬编码凭证",
+                "risk_level": "High",
+                "source": "app.secret_key",
+                "sink": "N/A",
+                "explanation": "代码中硬编码了一个密钥，这本身就是漏洞。应从环境变量或配置文件中读取密钥。",
+                "fix_suggestion": "将 app.secret_key 从硬编码改为从 os.environ 或配置文件中读取。"
+              },
+              "model_has_vulnerability": true,
+              "error": null,
+              "meta": {
+                "eval_count": 393,
+                "eval_duration_ns": 7158614000,
+                "load_duration_ns": 137993096,
+                "total_duration_ns": 8210252398,
+                "prompt_eval_count": 2761
+              }
+            }
+          ],
+          "majority_verdict": true,
+          "agreement_rate": 1.0
+        },
+        {
+          "chunk_id": 2,
+          "name": "register",
+          "start_line": 50,
+          "end_line": 69,
+          "node_type": "function_definition",
+          "char_count": 5562,
+          "prompt_chars": 8780,
+          "runs": [
+            {
+              "run_index": 1,
+              "chunk_id": 2,
+              "chunk_name": "register",
+              "elapsed_seconds": 10.68,
+              "raw_output": "### 分析过程\n\n1. **SQL 注入防护**：\n   - 在 `register` 函数中，用户可控输入的 `username`, `password_hash`, 和 `email` 被直接插入到 SQL 查询中。\n   - 代码片段如下：\n     ```python\n     c.execute(\n         \"INSERT INTO users (username, password_hash, email, created_at) VALUES (?, ?, ?, ?)\",\n         (username, password_hash, email, int(time.time()))\n     )\n     ```\n   - 这是一个参数化查询，符合安全模式白名单中的 SQL 注入防护标准。\n\n2. **命令注入防护**：\n   - 代码中没有涉及命令执行的部分，因此不存在命令注入风险。\n\n3. **路径穿越防护**：\n   - 代码中没有涉及文件路径操作的部分，因此不存在路径穿越风险。\n\n4. **XSS 防护**：\n   - 在 `welcome` 函数中，用户可控输入的 `greeting` 参数被直接插入到 HTML 模板中。\n   - 代码片段如下：\n     ```python\n     custom_greeting = request.args.get(\"greeting\", \"Welcome\")\n     template_str = f\"<h1>{custom_greeting}, {{ user }}</h1>\"\n     env = Environment(loader=BaseLoader())\n     template = env.from_string(template_str)\n     return template.render(user=session.get(\"user_id\"))\n     ```\n   - 这里没有使用 HTML 模板自动转义，存在 XSS 风险。\n\n5. **反序列化防护**：\n   - 代码中没有涉及反序列化的部分，因此不存在反序列化风险。\n\n6. **硬编码凭证判定标准**：\n   - 在 `app.secret_key` 中硬编码了一个开发密钥 `\"very_long_dev_secret_key_for_testing_only\"`。\n   - 这是一个敏感信息，应判为漏洞。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-79 XSS\",\n    \"risk_level\": \"High\",\n    \"source\": \"request.args.get('greeting', 'Welcome')\",\n    \"sink\": \"template.render(user=session.get('user_id'))\",\n    \"explanation\": \"用户可控输入的 'greeting' 参数被直接插入到 HTML 模板中，存在 XSS 风险。\",\n    \"fix_suggestion\": \"使用 Jinja2 的自动转义功能或显式调用 html.escape() 进行转义。\"\n}\n```",
+              "parsed_verdict": {
+                "has_vulnerability": true,
+                "vulnerability_type": "CWE-79 XSS",
+                "risk_level": "High",
+                "source": "request.args.get('greeting', 'Welcome')",
+                "sink": "template.render(user=session.get('user_id'))",
+                "explanation": "用户可控输入的 'greeting' 参数被直接插入到 HTML 模板中，存在 XSS 风险。",
+                "fix_suggestion": "使用 Jinja2 的自动转义功能或显式调用 html.escape() 进行转义。"
+              },
+              "model_has_vulnerability": true,
+              "error": null,
+              "meta": {
+                "eval_count": 528,
+                "eval_duration_ns": 9629895000,
+                "load_duration_ns": 134498938,
+                "total_duration_ns": 10667915289,
+                "prompt_eval_count": 2795
+              }
+            }
+          ],
+          "majority_verdict": true,
+          "agreement_rate": 1.0
+        },
+        {
+          "chunk_id": 3,
+          "name": "login",
+          "start_line": 76,
+          "end_line": 92,
+          "node_type": "function_definition",
+          "char_count": 5394,
+          "prompt_chars": 8609,
+          "runs": [
+            {
+              "run_index": 1,
+              "chunk_id": 3,
+              "chunk_name": "login",
+              "elapsed_seconds": 9.44,
+              "raw_output": "### 分析过程\n\n1. **函数 `login` 的代码片段**：\n   ```python\n   username = request.form.get(\"username\", \"\")\n   password = request.form.get(\"password\", \"\")\n   password_hash = hashlib.sha256(password.encode()).hexdigest()\n   conn = sqlite3.connect(\"app.db\")\n   c = conn.cursor()\n   c.execute(\n       \"SELECT id, role FROM users WHERE username = ? AND password_hash = ?\",\n       (username, password_hash)\n   )\n   row = c.fetchone()\n   conn.close()\n   if row:\n       session[\"user_id\"] = row[0]\n       session[\"role\"] = row[1]\n       return \"Login success\"\n   return \"Invalid\", 401\n   ```\n\n2. **安全模式白名单检查**：\n   - SQL 注入防护：代码使用了参数化查询，符合安全模式白名单中的标准写法。\n     ```python\n     c.execute(\n         \"SELECT id, role FROM users WHERE username = ? AND password_hash = ?\",\n         (username, password_hash)\n     )\n     ```\n   - 命令注入防护：没有涉及命令执行。\n   - 路径穿越防护：没有涉及文件路径操作。\n   - XSS 防护：没有涉及用户输入的 HTML 输出。\n   - 反序列化防护：没有涉及反序列化操作。\n\n3. **硬编码凭证检查**：\n   - 代码中存在硬编码的敏感信息，即 `app.secret_key` 和数据库连接串密码。\n     ```python\n     app.secret_key = \"very_long_dev_secret_key_for_testing_only\"\n     ```\n   - 这些硬编码的敏感信息是漏洞。\n\n### JSON 结论\n\n```json\n{\n  \"has_vulnerability\": true,\n  \"vulnerability_type\": \"CWE-798 Hardcoded Credentials\",\n  \"risk_level\": \"High\",\n  \"source\": \"app.secret_key\",\n  \"sink\": \"N/A\",\n  \"explanation\": \"The code contains hardcoded sensitive information such as the secret key and database connection password.\",\n  \"fix_suggestion\": \"Remove hard-coded credentials and use environment variables or configuration files to store them.\"\n}\n```",
+              "parsed_verdict": {
+                "has_vulnerability": true,
+                "vulnerability_type": "CWE-798 Hardcoded Credentials",
+                "risk_level": "High",
+                "source": "app.secret_key",
+                "sink": "N/A",
+                "explanation": "The code contains hardcoded sensitive information such as the secret key and database connection password.",
+                "fix_suggestion": "Remove hard-coded credentials and use environment variables or configuration files to store them."
+              },
+              "model_has_vulnerability": true,
+              "error": null,
+              "meta": {
+                "eval_count": 462,
+                "eval_duration_ns": 8417062000,
+                "load_duration_ns": 133014646,
+                "total_duration_ns": 9435362964,
+                "prompt_eval_count": 2765
+              }
+            }
+          ],
+          "majority_verdict": true,
+          "agreement_rate": 1.0
+        },
+        {
+          "chunk_id": 5,
+          "name": "list_orders",
+          "start_line": 108,
+          "end_line": 119,
+          "node_type": "function_definition",
+          "char_count": 5271,
+          "prompt_chars": 8492,
+          "runs": [
+            {
+              "run_index": 1,
+              "chunk_id": 5,
+              "chunk_name": "list_orders",
+              "elapsed_seconds": 8.74,
+              "raw_output": "### 分析过程\n\n1. **函数 `list_orders` 的代码片段**：\n   ```python\n   @app.route(\"/orders\")\n   def list_orders():\n       if \"user_id\" not in session:\n           return \"Please login\", 401\n       conn = sqlite3.connect(\"app.db\")\n       c = conn.cursor()\n       c.execute(\n           \"SELECT id, product_name, amount, status FROM orders WHERE user_id = ?\",\n           (session[\"user_id\"],)\n       )\n       rows = c.fetchall()\n       conn.close()\n       return jsonify([{\"id\": r[0], \"product\": r[1], \"amount\": r[2], \"status\": r[3]} for r in rows])\n   ```\n\n2. **安全模式白名单检查**：\n   - 该函数中使用了参数化查询，符合 SQL 注入防护的白名单标准。\n     ```python\n     c.execute(\n         \"SELECT id, product_name, amount, status FROM orders WHERE user_id = ?\",\n         (session[\"user_id\"],)\n     )\n     ```\n   - `session[\"user_id\"]` 是用户可控输入，但通过参数化查询的方式被安全处理。\n\n3. **其他潜在漏洞检查**：\n   - 该函数没有涉及命令注入、路径穿越、XSS 或反序列化等风险。\n   - 没有硬编码敏感信息（如密码、API Key 等）。\n\n### 结论\n\n根据上述分析，代码片段 `list_orders` 中的 SQL 查询使用了参数化查询，符合安全模式白名单标准。因此，该函数不存在安全漏洞。\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"The SQL query uses parameterized queries, which is a safe practice against SQL injection.\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+              "parsed_verdict": {
+                "has_vulnerability": false,
+                "vulnerability_type": "none",
+                "risk_level": "None",
+                "source": "N/A",
+                "sink": "N/A",
+                "explanation": "The SQL query uses parameterized queries, which is a safe practice against SQL injection.",
+                "fix_suggestion": "no fix needed"
+              },
+              "model_has_vulnerability": false,
+              "error": null,
+              "meta": {
+                "eval_count": 424,
+                "eval_duration_ns": 7723327000,
+                "load_duration_ns": 133306872,
+                "total_duration_ns": 8727818624,
+                "prompt_eval_count": 2748
+              }
+            }
+          ],
+          "majority_verdict": false,
+          "agreement_rate": 1.0
+        },
+        {
+          "chunk_id": 6,
+          "name": "profile",
+          "start_line": 126,
+          "end_line": 134,
+          "node_type": "function_definition",
+          "char_count": 5177,
+          "prompt_chars": 8394,
+          "runs": [
+            {
+              "run_index": 1,
+              "chunk_id": 6,
+              "chunk_name": "profile",
+              "elapsed_seconds": 8.31,
+              "raw_output": "### 分析过程\n\n1. **函数 `profile` 的代码片段**：\n   ```python\n   @app.route(\"/profile\")\n   def profile():\n       if \"user_id\" not in session:\n           return \"Please login\", 401\n       conn = sqlite3.connect(\"app.db\")\n       c = conn.cursor()\n       c.execute(\"SELECT username, email FROM users WHERE id = ?\", (session[\"user_id\"],))\n       row = c.fetchone()\n       conn.close()\n       return jsonify({\"username\": row[0], \"email\": row[1]})\n   ```\n\n2. **安全模式白名单检查**：\n   - SQL 注入防护：代码使用了参数化查询 `c.execute(\"SELECT username, email FROM users WHERE id = ?\", (session[\"user_id\"],))`，符合安全模式白名单中的参数化查询标准写法。\n   - 命令注入防护：没有涉及命令执行。\n   - 路径穿越防护：没有涉及文件路径操作。\n   - XSS 防护：返回的 JSON 数据不会被直接渲染到 HTML 中，因此不需要额外的 XSS 防护。\n   - 反序列化防护：没有涉及反序列化操作。\n\n3. **硬编码凭证检查**：\n   - 代码中没有出现硬编码的敏感信息（如密码、API Key 等）。\n\n4. **其他安全问题检查**：\n   - 没有发现其他明显的安全漏洞。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"代码使用了参数化查询，符合 SQL 注入防护的安全模式白名单。没有发现其他明显的安全漏洞。\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+              "parsed_verdict": {
+                "has_vulnerability": false,
+                "vulnerability_type": "none",
+                "risk_level": "None",
+                "source": "N/A",
+                "sink": "N/A",
+                "explanation": "代码使用了参数化查询，符合 SQL 注入防护的安全模式白名单。没有发现其他明显的安全漏洞。",
+                "fix_suggestion": "no fix needed"
+              },
+              "model_has_vulnerability": false,
+              "error": null,
+              "meta": {
+                "eval_count": 402,
+                "eval_duration_ns": 7315617000,
+                "load_duration_ns": 133926955,
+                "total_duration_ns": 8303271532,
+                "prompt_eval_count": 2712
+              }
+            }
+          ],
+          "majority_verdict": false,
+          "agreement_rate": 1.0
+        },
+        {
+          "chunk_id": 7,
+          "name": "welcome",
+          "start_line": 141,
+          "end_line": 148,
+          "node_type": "function_definition",
+          "char_count": 5200,
+          "prompt_chars": 8417,
+          "runs": [
+            {
+              "run_index": 1,
+              "chunk_id": 7,
+              "chunk_name": "welcome",
+              "elapsed_seconds": 7.98,
+              "raw_output": "### 分析过程\n\n1. **函数 `welcome` 的输入参数**：\n   - 用户可控输入点：`custom_greeting = request.args.get(\"greeting\", \"Welcome\")`\n\n2. **模板渲染**：\n   - 模板字符串：`template_str = f\"<h1>{custom_greeting}, {{ user }}</h1>\"`\n   - 使用 `Jinja2` 渲染模板：`template.render(user=session.get(\"user_id\"))`\n\n3. **安全模式白名单检查**：\n   - `Jinja2` 模板引擎默认是自动转义的，因此用户可控输入不会直接进入 HTML 语法层。\n\n4. **其他安全措施**：\n   - 用户会话管理：通过 `session.get(\"user_id\")` 获取用户 ID，并将其传递给模板渲染。\n   - 输入验证：没有看到对 `custom_greeting` 的显式验证或过滤。\n\n### 结论\n\n- **has_vulnerability**: false\n- **vulnerability_type**: none\n- **risk_level**: None\n- **source**: request.args.get(\"greeting\", \"Welcome\")\n- **sink**: template.render(user=session.get(\"user_id\"))\n- **explanation**: 模板引擎默认自动转义，用户可控输入不会直接进入 HTML 语法层。\n- **fix_suggestion**: no fix needed\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"request.args.get(\\\"greeting\\\", \\\"Welcome\\\")\",\n    \"sink\": \"template.render(user=session.get(\\\"user_id\\\"))\",\n    \"explanation\": \"模板引擎默认自动转义，用户可控输入不会直接进入 HTML 语法层。\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+              "parsed_verdict": {
+                "has_vulnerability": false,
+                "vulnerability_type": "none",
+                "risk_level": "None",
+                "source": "request.args.get(\"greeting\", \"Welcome\")",
+                "sink": "template.render(user=session.get(\"user_id\"))",
+                "explanation": "模板引擎默认自动转义，用户可控输入不会直接进入 HTML 语法层。",
+                "fix_suggestion": "no fix needed"
+              },
+              "model_has_vulnerability": false,
+              "error": null,
+              "meta": {
+                "eval_count": 384,
+                "eval_duration_ns": 6986318000,
+                "load_duration_ns": 133204923,
+                "total_duration_ns": 7971392381,
+                "prompt_eval_count": 2711
+              }
+            }
+          ],
+          "majority_verdict": false,
+          "agreement_rate": 1.0
+        },
+        {
+          "chunk_id": 8,
+          "name": "admin_list_users",
+          "start_line": 155,
+          "end_line": 165,
+          "node_type": "function_definition",
+          "char_count": 5259,
+          "prompt_chars": 8485,
+          "runs": [
+            {
+              "run_index": 1,
+              "chunk_id": 8,
+              "chunk_name": "admin_list_users",
+              "elapsed_seconds": 8.53,
+              "raw_output": "### 分析过程\n\n1. **函数 `admin_list_users` 的代码片段**：\n   ```python\n   @app.route(\"/admin/users\")\n   def admin_list_users():\n       if \"user_id\" not in session:\n           return \"Please login\", 401\n       if session.get(\"role\") != \"admin\":\n           return \"Forbidden\", 403\n       conn = sqlite3.connect(\"app.db\")\n       c = conn.cursor()\n       c.execute(\"SELECT id, username, email FROM users\")\n       rows = c.fetchall()\n       conn.close()\n       return jsonify([{\"id\": r[0], \"username\": r[1], \"email\": r[2]} for r in rows])\n   ```\n\n2. **安全模式白名单检查**：\n   - 该函数中没有用户可控输入，因此不需要进行 SQL 注入、命令注入、路径穿越等防护。\n   - 没有硬编码凭证。\n\n3. **代码逻辑分析**：\n   - 函数首先检查用户是否登录且角色是否为管理员。如果未登录或不是管理员，则返回相应的错误信息。\n   - 如果通过验证，函数连接到 SQLite 数据库并执行一个简单的 SQL 查询 `SELECT id, username, email FROM users`。\n   - 查询结果被转换为 JSON 格式并返回。\n\n4. **漏洞检查**：\n   - 该函数没有用户可控输入，因此不存在 SQL 注入、命令注入、路径穿越等风险。\n   - 没有硬编码凭证。\n\n### 结论\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"该函数没有用户可控输入，因此不存在 SQL 注入、命令注入、路径穿越等风险。也没有硬编码凭证。\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+              "parsed_verdict": {
+                "has_vulnerability": false,
+                "vulnerability_type": "none",
+                "risk_level": "None",
+                "source": "N/A",
+                "sink": "N/A",
+                "explanation": "该函数没有用户可控输入，因此不存在 SQL 注入、命令注入、路径穿越等风险。也没有硬编码凭证。",
+                "fix_suggestion": "no fix needed"
+              },
+              "model_has_vulnerability": false,
+              "error": null,
+              "meta": {
+                "eval_count": 413,
+                "eval_duration_ns": 7521202000,
+                "load_duration_ns": 134035534,
+                "total_duration_ns": 8524115136,
+                "prompt_eval_count": 2740
+              }
+            }
+          ],
+          "majority_verdict": false,
+          "agreement_rate": 1.0
+        }
+      ],
+      "runs": [
+        {
+          "run_index": 1,
+          "chunk_id": 1,
+          "chunk_name": "init_db",
+          "elapsed_seconds": 8.22,
+          "raw_output": "### 分析过程\n\n1. **函数 `init_db` 分析**：\n   - 该函数用于初始化数据库。\n   - 它创建了两个表：`users` 和 `orders`。\n\n2. **SQL 注入防护检查**：\n   - 在 `init_db` 函数中，所有的 SQL 查询都使用了参数化查询。例如：\n     ```python\n     c.execute(\"\"\"\n         CREATE TABLE IF NOT EXISTS users (\n             id INTEGER PRIMARY KEY,\n             username TEXT UNIQUE,\n             password_hash TEXT,\n             email TEXT,\n             role TEXT DEFAULT 'user',\n             created_at INTEGER\n         )\n     \"\"\")\n     ```\n   - 这些 SQL 查询使用了字符串字面量，而不是用户可控输入。因此，这些查询不会受到 SQL 注入攻击。\n\n3. **硬编码凭证检查**：\n   - 在文件级上下文中，有一个硬编码的密钥：\n     ```python\n     app.secret_key = \"very_long_dev_secret_key_for_testing_only\"\n     ```\n   - 这个密钥是硬编码在代码中的，不符合安全标准。因此，存在硬编码凭证漏洞。\n\n4. **其他安全检查**：\n   - 代码中没有明显的跨站脚本（XSS）、命令注入、路径穿越或不安全的反序列化问题。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-798 硬编码凭证\",\n    \"risk_level\": \"High\",\n    \"source\": \"app.secret_key\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"代码中硬编码了一个密钥，这本身就是漏洞。应从环境变量或配置文件中读取密钥。\",\n    \"fix_suggestion\": \"将 app.secret_key 从硬编码改为从 os.environ 或配置文件中读取。\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-798 硬编码凭证",
+            "risk_level": "High",
+            "source": "app.secret_key",
+            "sink": "N/A",
+            "explanation": "代码中硬编码了一个密钥，这本身就是漏洞。应从环境变量或配置文件中读取密钥。",
+            "fix_suggestion": "将 app.secret_key 从硬编码改为从 os.environ 或配置文件中读取。"
+          },
+          "model_has_vulnerability": true,
+          "error": null
+        },
+        {
+          "run_index": 2,
+          "chunk_id": 2,
+          "chunk_name": "register",
+          "elapsed_seconds": 10.68,
+          "raw_output": "### 分析过程\n\n1. **SQL 注入防护**：\n   - 在 `register` 函数中，用户可控输入的 `username`, `password_hash`, 和 `email` 被直接插入到 SQL 查询中。\n   - 代码片段如下：\n     ```python\n     c.execute(\n         \"INSERT INTO users (username, password_hash, email, created_at) VALUES (?, ?, ?, ?)\",\n         (username, password_hash, email, int(time.time()))\n     )\n     ```\n   - 这是一个参数化查询，符合安全模式白名单中的 SQL 注入防护标准。\n\n2. **命令注入防护**：\n   - 代码中没有涉及命令执行的部分，因此不存在命令注入风险。\n\n3. **路径穿越防护**：\n   - 代码中没有涉及文件路径操作的部分，因此不存在路径穿越风险。\n\n4. **XSS 防护**：\n   - 在 `welcome` 函数中，用户可控输入的 `greeting` 参数被直接插入到 HTML 模板中。\n   - 代码片段如下：\n     ```python\n     custom_greeting = request.args.get(\"greeting\", \"Welcome\")\n     template_str = f\"<h1>{custom_greeting}, {{ user }}</h1>\"\n     env = Environment(loader=BaseLoader())\n     template = env.from_string(template_str)\n     return template.render(user=session.get(\"user_id\"))\n     ```\n   - 这里没有使用 HTML 模板自动转义，存在 XSS 风险。\n\n5. **反序列化防护**：\n   - 代码中没有涉及反序列化的部分，因此不存在反序列化风险。\n\n6. **硬编码凭证判定标准**：\n   - 在 `app.secret_key` 中硬编码了一个开发密钥 `\"very_long_dev_secret_key_for_testing_only\"`。\n   - 这是一个敏感信息，应判为漏洞。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": true,\n    \"vulnerability_type\": \"CWE-79 XSS\",\n    \"risk_level\": \"High\",\n    \"source\": \"request.args.get('greeting', 'Welcome')\",\n    \"sink\": \"template.render(user=session.get('user_id'))\",\n    \"explanation\": \"用户可控输入的 'greeting' 参数被直接插入到 HTML 模板中，存在 XSS 风险。\",\n    \"fix_suggestion\": \"使用 Jinja2 的自动转义功能或显式调用 html.escape() 进行转义。\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-79 XSS",
+            "risk_level": "High",
+            "source": "request.args.get('greeting', 'Welcome')",
+            "sink": "template.render(user=session.get('user_id'))",
+            "explanation": "用户可控输入的 'greeting' 参数被直接插入到 HTML 模板中，存在 XSS 风险。",
+            "fix_suggestion": "使用 Jinja2 的自动转义功能或显式调用 html.escape() 进行转义。"
+          },
+          "model_has_vulnerability": true,
+          "error": null
+        },
+        {
+          "run_index": 3,
+          "chunk_id": 3,
+          "chunk_name": "login",
+          "elapsed_seconds": 9.44,
+          "raw_output": "### 分析过程\n\n1. **函数 `login` 的代码片段**：\n   ```python\n   username = request.form.get(\"username\", \"\")\n   password = request.form.get(\"password\", \"\")\n   password_hash = hashlib.sha256(password.encode()).hexdigest()\n   conn = sqlite3.connect(\"app.db\")\n   c = conn.cursor()\n   c.execute(\n       \"SELECT id, role FROM users WHERE username = ? AND password_hash = ?\",\n       (username, password_hash)\n   )\n   row = c.fetchone()\n   conn.close()\n   if row:\n       session[\"user_id\"] = row[0]\n       session[\"role\"] = row[1]\n       return \"Login success\"\n   return \"Invalid\", 401\n   ```\n\n2. **安全模式白名单检查**：\n   - SQL 注入防护：代码使用了参数化查询，符合安全模式白名单中的标准写法。\n     ```python\n     c.execute(\n         \"SELECT id, role FROM users WHERE username = ? AND password_hash = ?\",\n         (username, password_hash)\n     )\n     ```\n   - 命令注入防护：没有涉及命令执行。\n   - 路径穿越防护：没有涉及文件路径操作。\n   - XSS 防护：没有涉及用户输入的 HTML 输出。\n   - 反序列化防护：没有涉及反序列化操作。\n\n3. **硬编码凭证检查**：\n   - 代码中存在硬编码的敏感信息，即 `app.secret_key` 和数据库连接串密码。\n     ```python\n     app.secret_key = \"very_long_dev_secret_key_for_testing_only\"\n     ```\n   - 这些硬编码的敏感信息是漏洞。\n\n### JSON 结论\n\n```json\n{\n  \"has_vulnerability\": true,\n  \"vulnerability_type\": \"CWE-798 Hardcoded Credentials\",\n  \"risk_level\": \"High\",\n  \"source\": \"app.secret_key\",\n  \"sink\": \"N/A\",\n  \"explanation\": \"The code contains hardcoded sensitive information such as the secret key and database connection password.\",\n  \"fix_suggestion\": \"Remove hard-coded credentials and use environment variables or configuration files to store them.\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-798 Hardcoded Credentials",
+            "risk_level": "High",
+            "source": "app.secret_key",
+            "sink": "N/A",
+            "explanation": "The code contains hardcoded sensitive information such as the secret key and database connection password.",
+            "fix_suggestion": "Remove hard-coded credentials and use environment variables or configuration files to store them."
+          },
+          "model_has_vulnerability": true,
+          "error": null
+        },
+        {
+          "run_index": 4,
+          "chunk_id": 5,
+          "chunk_name": "list_orders",
+          "elapsed_seconds": 8.74,
+          "raw_output": "### 分析过程\n\n1. **函数 `list_orders` 的代码片段**：\n   ```python\n   @app.route(\"/orders\")\n   def list_orders():\n       if \"user_id\" not in session:\n           return \"Please login\", 401\n       conn = sqlite3.connect(\"app.db\")\n       c = conn.cursor()\n       c.execute(\n           \"SELECT id, product_name, amount, status FROM orders WHERE user_id = ?\",\n           (session[\"user_id\"],)\n       )\n       rows = c.fetchall()\n       conn.close()\n       return jsonify([{\"id\": r[0], \"product\": r[1], \"amount\": r[2], \"status\": r[3]} for r in rows])\n   ```\n\n2. **安全模式白名单检查**：\n   - 该函数中使用了参数化查询，符合 SQL 注入防护的白名单标准。\n     ```python\n     c.execute(\n         \"SELECT id, product_name, amount, status FROM orders WHERE user_id = ?\",\n         (session[\"user_id\"],)\n     )\n     ```\n   - `session[\"user_id\"]` 是用户可控输入，但通过参数化查询的方式被安全处理。\n\n3. **其他潜在漏洞检查**：\n   - 该函数没有涉及命令注入、路径穿越、XSS 或反序列化等风险。\n   - 没有硬编码敏感信息（如密码、API Key 等）。\n\n### 结论\n\n根据上述分析，代码片段 `list_orders` 中的 SQL 查询使用了参数化查询，符合安全模式白名单标准。因此，该函数不存在安全漏洞。\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"The SQL query uses parameterized queries, which is a safe practice against SQL injection.\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": false,
+            "vulnerability_type": "none",
+            "risk_level": "None",
+            "source": "N/A",
+            "sink": "N/A",
+            "explanation": "The SQL query uses parameterized queries, which is a safe practice against SQL injection.",
+            "fix_suggestion": "no fix needed"
+          },
+          "model_has_vulnerability": false,
+          "error": null
+        },
+        {
+          "run_index": 5,
+          "chunk_id": 6,
+          "chunk_name": "profile",
+          "elapsed_seconds": 8.31,
+          "raw_output": "### 分析过程\n\n1. **函数 `profile` 的代码片段**：\n   ```python\n   @app.route(\"/profile\")\n   def profile():\n       if \"user_id\" not in session:\n           return \"Please login\", 401\n       conn = sqlite3.connect(\"app.db\")\n       c = conn.cursor()\n       c.execute(\"SELECT username, email FROM users WHERE id = ?\", (session[\"user_id\"],))\n       row = c.fetchone()\n       conn.close()\n       return jsonify({\"username\": row[0], \"email\": row[1]})\n   ```\n\n2. **安全模式白名单检查**：\n   - SQL 注入防护：代码使用了参数化查询 `c.execute(\"SELECT username, email FROM users WHERE id = ?\", (session[\"user_id\"],))`，符合安全模式白名单中的参数化查询标准写法。\n   - 命令注入防护：没有涉及命令执行。\n   - 路径穿越防护：没有涉及文件路径操作。\n   - XSS 防护：返回的 JSON 数据不会被直接渲染到 HTML 中，因此不需要额外的 XSS 防护。\n   - 反序列化防护：没有涉及反序列化操作。\n\n3. **硬编码凭证检查**：\n   - 代码中没有出现硬编码的敏感信息（如密码、API Key 等）。\n\n4. **其他安全问题检查**：\n   - 没有发现其他明显的安全漏洞。\n\n### JSON 结论\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"代码使用了参数化查询，符合 SQL 注入防护的安全模式白名单。没有发现其他明显的安全漏洞。\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": false,
+            "vulnerability_type": "none",
+            "risk_level": "None",
+            "source": "N/A",
+            "sink": "N/A",
+            "explanation": "代码使用了参数化查询，符合 SQL 注入防护的安全模式白名单。没有发现其他明显的安全漏洞。",
+            "fix_suggestion": "no fix needed"
+          },
+          "model_has_vulnerability": false,
+          "error": null
+        },
+        {
+          "run_index": 6,
+          "chunk_id": 7,
+          "chunk_name": "welcome",
+          "elapsed_seconds": 7.98,
+          "raw_output": "### 分析过程\n\n1. **函数 `welcome` 的输入参数**：\n   - 用户可控输入点：`custom_greeting = request.args.get(\"greeting\", \"Welcome\")`\n\n2. **模板渲染**：\n   - 模板字符串：`template_str = f\"<h1>{custom_greeting}, {{ user }}</h1>\"`\n   - 使用 `Jinja2` 渲染模板：`template.render(user=session.get(\"user_id\"))`\n\n3. **安全模式白名单检查**：\n   - `Jinja2` 模板引擎默认是自动转义的，因此用户可控输入不会直接进入 HTML 语法层。\n\n4. **其他安全措施**：\n   - 用户会话管理：通过 `session.get(\"user_id\")` 获取用户 ID，并将其传递给模板渲染。\n   - 输入验证：没有看到对 `custom_greeting` 的显式验证或过滤。\n\n### 结论\n\n- **has_vulnerability**: false\n- **vulnerability_type**: none\n- **risk_level**: None\n- **source**: request.args.get(\"greeting\", \"Welcome\")\n- **sink**: template.render(user=session.get(\"user_id\"))\n- **explanation**: 模板引擎默认自动转义，用户可控输入不会直接进入 HTML 语法层。\n- **fix_suggestion**: no fix needed\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"request.args.get(\\\"greeting\\\", \\\"Welcome\\\")\",\n    \"sink\": \"template.render(user=session.get(\\\"user_id\\\"))\",\n    \"explanation\": \"模板引擎默认自动转义，用户可控输入不会直接进入 HTML 语法层。\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": false,
+            "vulnerability_type": "none",
+            "risk_level": "None",
+            "source": "request.args.get(\"greeting\", \"Welcome\")",
+            "sink": "template.render(user=session.get(\"user_id\"))",
+            "explanation": "模板引擎默认自动转义，用户可控输入不会直接进入 HTML 语法层。",
+            "fix_suggestion": "no fix needed"
+          },
+          "model_has_vulnerability": false,
+          "error": null
+        },
+        {
+          "run_index": 7,
+          "chunk_id": 8,
+          "chunk_name": "admin_list_users",
+          "elapsed_seconds": 8.53,
+          "raw_output": "### 分析过程\n\n1. **函数 `admin_list_users` 的代码片段**：\n   ```python\n   @app.route(\"/admin/users\")\n   def admin_list_users():\n       if \"user_id\" not in session:\n           return \"Please login\", 401\n       if session.get(\"role\") != \"admin\":\n           return \"Forbidden\", 403\n       conn = sqlite3.connect(\"app.db\")\n       c = conn.cursor()\n       c.execute(\"SELECT id, username, email FROM users\")\n       rows = c.fetchall()\n       conn.close()\n       return jsonify([{\"id\": r[0], \"username\": r[1], \"email\": r[2]} for r in rows])\n   ```\n\n2. **安全模式白名单检查**：\n   - 该函数中没有用户可控输入，因此不需要进行 SQL 注入、命令注入、路径穿越等防护。\n   - 没有硬编码凭证。\n\n3. **代码逻辑分析**：\n   - 函数首先检查用户是否登录且角色是否为管理员。如果未登录或不是管理员，则返回相应的错误信息。\n   - 如果通过验证，函数连接到 SQLite 数据库并执行一个简单的 SQL 查询 `SELECT id, username, email FROM users`。\n   - 查询结果被转换为 JSON 格式并返回。\n\n4. **漏洞检查**：\n   - 该函数没有用户可控输入，因此不存在 SQL 注入、命令注入、路径穿越等风险。\n   - 没有硬编码凭证。\n\n### 结论\n\n```json\n{\n    \"has_vulnerability\": false,\n    \"vulnerability_type\": \"none\",\n    \"risk_level\": \"None\",\n    \"source\": \"N/A\",\n    \"sink\": \"N/A\",\n    \"explanation\": \"该函数没有用户可控输入，因此不存在 SQL 注入、命令注入、路径穿越等风险。也没有硬编码凭证。\",\n    \"fix_suggestion\": \"no fix needed\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": false,
+            "vulnerability_type": "none",
+            "risk_level": "None",
+            "source": "N/A",
+            "sink": "N/A",
+            "explanation": "该函数没有用户可控输入，因此不存在 SQL 注入、命令注入、路径穿越等风险。也没有硬编码凭证。",
+            "fix_suggestion": "no fix needed"
+          },
+          "model_has_vulnerability": false,
+          "error": null
+        }
+      ],
+      "majority_verdict": true,
+      "agreement_rate": 0.4286,
+      "true_chunks": [
+        "init_db",
+        "register",
+        "login"
+      ]
+    }
+  ],
+  "model": "qwen2.5-coder:7b",
+  "host": "http://localhost:11434",
+  "temperature": 0.1,
+  "repeat": 1,
+  "sample_count": 3,
+  "total_runs": 3,
+  "slice_enabled": true,
+  "slice_min_lines": 150,
+  "slice_only": "longfile",
+  "finished_at": "2026-07-06 03:55:17",
+  "metrics_single_run": {
+    "total": 3,
+    "valid": 3,
+    "invalid": 0,
+    "tp": 3,
+    "tn": 0,
+    "fp": 0,
+    "fn": 0,
+    "vuln_total": 3,
+    "safe_total": 0,
+    "recall": 1.0,
+    "false_positive_rate": null,
+    "accuracy": 1.0,
+    "elapsed_stats": {
+      "avg": 126.88,
+      "max": 175.74,
+      "min": 61.9,
+      "sum": 380.64,
+      "count": 3
+    }
+  },
+  "metrics_majority_vote": {
+    "total_samples": 3,
+    "total_runs": 3,
+    "valid_samples": 3,
+    "tp": 3,
+    "tn": 0,
+    "fp": 0,
+    "fn": 0,
+    "vuln_total": 3,
+    "safe_total": 0,
+    "recall": 1.0,
+    "false_positive_rate": null,
+    "accuracy": 1.0,
+    "accuracy_ci_95": [
+      0.4385,
+      1.0
+    ],
+    "recall_ci_95": [
+      0.4385,
+      1.0
+    ],
+    "fpr_ci_95": null,
+    "elapsed_overall": {
+      "count": 3,
+      "mean": 126.88,
+      "std": 58.61,
+      "median": 143.0,
+      "min": 61.9,
+      "max": 175.74,
+      "p95": 172.47,
+      "sum": 380.64
+    },
+    "per_sample": [
+      {
+        "file": "hard_longfile_01_hidden_sql.py",
+        "runs": 1,
+        "expected_present": true,
+        "majority_verdict": true,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 1,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 175.74,
+          "std": 0.0,
+          "median": 175.74,
+          "min": 175.74,
+          "max": 175.74,
+          "p95": 175.74,
+          "sum": 175.74
+        }
+      },
+      {
+        "file": "hard_longfile_02_hidden_cmd.py",
+        "runs": 1,
+        "expected_present": true,
+        "majority_verdict": true,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 1,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 143.0,
+          "std": 0.0,
+          "median": 143.0,
+          "min": 143.0,
+          "max": 143.0,
+          "p95": 143.0,
+          "sum": 143.0
+        }
+      },
+      {
+        "file": "hard_longfile_03_hidden_ssti.py",
+        "runs": 1,
+        "expected_present": true,
+        "majority_verdict": true,
+        "agreement_rate": 1.0,
+        "true_count_in_runs": 1,
+        "none_count_in_runs": 0,
+        "elapsed_stats": {
+          "count": 1,
+          "mean": 61.9,
+          "std": 0.0,
+          "median": 61.9,
+          "min": 61.9,
+          "max": 61.9,
+          "p95": 61.9,
+          "sum": 61.9
+        }
+      }
+    ]
+  },
+  "metrics_chunk_level": {
+    "total": 42,
+    "valid": 42,
+    "invalid": 0,
+    "tp": 16,
+    "tn": 0,
+    "fp": 0,
+    "fn": 26,
+    "vuln_total": 42,
+    "safe_total": 0,
+    "recall": 0.38095238095238093,
+    "false_positive_rate": null,
+    "accuracy": 0.38095238095238093,
+    "elapsed_stats": {
+      "avg": 9.06,
+      "max": 14.36,
+      "min": 6.33,
+      "sum": 380.64,
+      "count": 42
+    }
+  }
+}

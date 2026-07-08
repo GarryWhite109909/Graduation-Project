@@ -33,35 +33,12 @@ ANALYSIS_SCOPE = (
 # ---------------------------------------------------------------------------
 SAFE_PATTERN_WHITELIST = """\
 【安全模式白名单（命中以下模式且无其他漏洞时，应判 has_vulnerability=false）】
-1. SQL 注入防护：
-   - 参数化查询 / 占位符 + 参数元组：cursor.execute("SELECT ... WHERE id = ?", (user_id,))
-     关键：? / %s / :name 是 SQL 占位符，参数元组中的值会被数据库驱动自动转义，
-     不会进入 SQL 语法层。**这不是字符串拼接**，是参数化查询的标准写法。
-   - ORM 查询构造器：Model.objects.filter(name=q) / session.query(User).filter_by(name=q)
-   - 注意：query = "SELECT ... WHERE id = ?"; cursor.execute(query, (user_id,)) 也是参数化查询，
-     即使 SQL 字符串先赋值给变量再传入 execute，依然安全。
-2. 命令注入防护：
-   - subprocess.run/Popen 列表参数 + 未启用 shell：subprocess.run(["cmd", "arg1", arg2])
-     关键：Python 文档明确规定 subprocess.run/Popen 的 shell 参数**默认值为 False**。
-     **不显式写 shell=True 就是 shell=False**，这是 Python 语言事实，不是"未设置"。
-     列表形式 + shell=False 时，元字符被当作普通字符传递给程序，不会触发 shell 解释，
-     即使用户输入作为参数也是安全的。
-   - 严禁以"没有显式设置 shell=False"为由判漏洞——这是对 Python 语义的误解。
-   - 严禁捏造代码中不存在的 shell=True：判定前必须确认代码中确实出现 shell=True 才能据此判漏洞。
-   - shlex.quote() 对拼接场景做转义：cmd = "grep " + shlex.quote(keyword)
-   - 输入白名单校验（isalnum / 正则白名单）后 再进入命令参数
-3. 路径穿越防护：
-   - os.path.abspath 规范化 + startswith 校验是否在允许目录内
-   - 白名单文件名集合：if filename not in ALLOWED_FILES: abort(403)
-4. XSS 防护：
-   - HTML 模板自动转义（Jinja2 autoescape=True、Django 模板默认转义）
-   - 显式调用 html.escape() / htmlspecialchars(..., ENT_QUOTES, 'UTF-8')
-   - 使用 textContent 而非 innerHTML
-5. 反序列化防护：
-   - json.loads 替代 pickle.loads
-   - yaml.safe_load 替代 yaml.load
-   - hmac 签名校验 + 白名单类反序列化
-判断要点：以上模式只要使用得当，用户可控输入进入 sink 也是安全的。不要因为"用户输入到达 sink"就一律判漏洞，必须看 sink 之前的防御措施是否有效。"""
+1. SQL 参数化查询：cursor.execute("... WHERE id=?", (user_id,))，占位符 + 参数元组，非字符串拼接。
+2. subprocess 列表参数：subprocess.run(["cmd", arg])，shell 默认 False，列表形式不触发 shell 解释。不要捏造 shell=True。
+3. 路径校验：os.path.abspath + startswith 限定目录，或白名单文件名集合。
+4. XSS 防护：html.escape() / 模板自动转义 / textContent。
+5. 反序列化：json.loads 替代 pickle.loads，yaml.safe_load 替代 yaml.load。
+判断要点：用户输入到达 sink 不等于漏洞，必须看 sink 前的防御是否有效。但也不要因为代码"看起来安全"就忽略实际存在的漏洞。"""
 
 # ---------------------------------------------------------------------------
 # 硬编码凭证判定标准 —— 单独列出，避免与"安全模式白名单"混淆。
@@ -157,6 +134,180 @@ def build_full_prompt(
     )
 
 
+# ---------------------------------------------------------------------------
+# Prompt 工程消融变体（exp_05_prompt_ablation 使用）
+# ---------------------------------------------------------------------------
+# 5 个变体用于系统对比不同 Prompt 策略对难样本召回与安全样本误报的影响：
+#   1. zero_shot      当前完整版 SYSTEM_PROMPT（含白名单+硬编码规则+多条要求+schema）
+#   2. whitelist_only 仅角色 + SAFE_PATTERN_WHITELIST + schema（去掉其他规则）
+#                     验证白名单本身的独立价值（与 zero_shot 对比看其他规则的增量）
+#   3. few_shot       在 zero_shot 基础上加 3 组示例（漏洞/安全/漏洞）
+#                     示例代码刻意与 manifest 样本不同，避免答案泄露
+#   4. cot            在 zero_shot 基础上显式要求按 5 步思维链分析
+#   5. combined       zero_shot + few_shot + cot 三合一
+# ---------------------------------------------------------------------------
+PROMPT_VARIANTS = ("zero_shot", "whitelist_only", "few_shot", "cot", "combined")
+
+
+# Few-shot 示例：刻意选用与 manifest 样本不同的简短代码，避免答案泄露。
+# 3 组示例覆盖：SQL 注入漏洞 → 参数化查询安全 → 命令注入漏洞
+FEW_SHOT_EXAMPLES = """\
+【示例 1（漏洞）】
+代码：
+```python
+def auth(user, pwd):
+    cur = db.cursor()
+    cur.execute("SELECT * FROM users WHERE name='" + user + "' AND pwd='" + pwd + "'")
+    return cur.fetchone()
+```
+分析：用户输入 user/pwd 通过字符串拼接直接进入 SQL 语句，未使用参数化查询。
+结论：
+```json
+{"has_vulnerability": true, "vulnerability_type": "CWE-89 SQL注入", "risk_level": "Critical", "source": "函数参数 user/pwd", "sink": "cur.execute 拼接 SQL", "explanation": "字符串拼接 SQL 允许注入", "fix_suggestion": "改用占位符参数化查询"}
+```
+
+【示例 2（安全）】
+代码：
+```python
+def auth(user, pwd):
+    cur = db.cursor()
+    cur.execute("SELECT * FROM users WHERE name=? AND pwd=?", (user, pwd))
+    return cur.fetchone()
+```
+分析：使用 ? 占位符 + 参数元组，是参数化查询标准写法，数据库驱动会自动转义。
+结论：
+```json
+{"has_vulnerability": false, "vulnerability_type": "none", "risk_level": "None", "source": "N/A", "sink": "N/A", "explanation": "参数化查询已正确防护", "fix_suggestion": "no fix needed"}
+```
+
+【示例 3（漏洞）】
+代码：
+```python
+import os
+def lookup(host):
+    os.system("nslookup " + host)
+```
+分析：用户输入 host 直接拼接到 os.system 命令字符串，可注入 shell 元字符（如 ; rm -rf）。
+结论：
+```json
+{"has_vulnerability": true, "vulnerability_type": "CWE-78 命令注入", "risk_level": "Critical", "source": "函数参数 host", "sink": "os.system 拼接命令", "explanation": "os.system 拼接用户输入可触发 shell 注入", "fix_suggestion": "改用 subprocess.run(['nslookup', host]) 列表形式"}
+```
+"""
+
+
+# 思维链（CoT）分析步骤要求
+COT_STEPS = """\
+【分析步骤要求（必须逐步执行）】
+请严格按以下 5 步分析后再下结论：
+1. 识别代码中所有用户可控输入点（source），如 request.args / 函数参数 / 文件读取等。
+2. 追踪这些输入的数据流，判断是否到达危险函数（sink），如 execute / system / open / pickle.loads 等。
+3. 检查 source 到 sink 之间是否存在防御措施（参数化查询、白名单校验、转义、abspath+startswith 等）。
+4. 若有防御措施，评估其是否有效（如参数化查询是有效的，简单 replace/strip 过滤通常无效）。
+5. 综合以上分析得出最终结论，并在 JSON 中体现 source/sink/explanation 字段。
+注意：分析过程必须真实展现上述步骤，不能跳步直接给结论。"""
+
+
+def _build_whitelist_only_prompt() -> str:
+    """变体 2：仅角色 + 白名单 + schema（去掉其他规则）。"""
+    return (
+        "你是一名资深的代码安全审计专家。请对给出的代码片段进行安全分析，"
+        "判断其中是否存在安全漏洞。分析范围包括但不限于："
+        + ANALYSIS_SCOPE
+        + "。\n\n"
+        + SAFE_PATTERN_WHITELIST
+        + "\n\n在回答的最后，必须严格输出一个 JSON 对象作为最终结论，"
+        "JSON 块用 ```json 包裹，字段如下（统一 schema，全项目一致）：\n"
+        + format_schema_for_prompt()
+        + "\n\n请先给出分析过程，然后在最后给出 JSON 结论。"
+    )
+
+
+def _build_few_shot_prompt() -> str:
+    """变体 3：在 zero_shot 基础上加入 3 组 few-shot 示例。"""
+    return (
+        SYSTEM_PROMPT
+        + "\n\n"
+        + FEW_SHOT_EXAMPLES
+    )
+
+
+def _apply_cot_to_system_prompt(base: str) -> str:
+    """把 SYSTEM_PROMPT 末尾的"请先给出分析过程..."替换为 CoT 步骤版本。
+
+    内部辅助函数，供 _build_cot_prompt 与 _build_combined_prompt 复用。
+    """
+    cot_suffix = (
+        "\n\n" + COT_STEPS
+        + "\n\n请按上述步骤逐步分析，然后在最后给出 JSON 结论。"
+    )
+    old_tail = "请先给出分析过程，然后在最后给出 JSON 结论。"
+    if old_tail in base:
+        # 用 rfind 定位最后一次出现（避免与 user prompt 中相同文本冲突）
+        idx = base.rfind(old_tail)
+        return base[:idx] + cot_suffix
+    return base + cot_suffix
+
+
+def _build_cot_prompt() -> str:
+    """变体 4：在 zero_shot 基础上加入 CoT 思维链要求。"""
+    return _apply_cot_to_system_prompt(SYSTEM_PROMPT)
+
+
+def _build_combined_prompt() -> str:
+    """变体 5：zero_shot + few_shot + cot 三合一。
+
+    构造顺序：把 SYSTEM_PROMPT 的尾部替换为 CoT 版本，再追加 few-shot 示例。
+    这样既保留了 CoT 步骤要求，又保留了 few-shot 示例。
+    """
+    cot_system = _apply_cot_to_system_prompt(SYSTEM_PROMPT)
+    return cot_system + "\n\n" + FEW_SHOT_EXAMPLES
+
+
+def build_system_prompt_variant(variant: str) -> str:
+    """根据变体名返回对应的 system prompt。
+
+    Args:
+        variant: 变体名，取值见 PROMPT_VARIANTS
+            - zero_shot      完整版 SYSTEM_PROMPT（基线）
+            - whitelist_only 仅白名单 + schema
+            - few_shot       zero_shot + 3 组示例
+            - cot            zero_shot + CoT 步骤要求
+            - combined       zero_shot + few_shot + cot
+
+    Returns:
+        对应的 system prompt 字符串。未知 variant 抛 ValueError。
+    """
+    if variant == "zero_shot":
+        return SYSTEM_PROMPT
+    if variant == "whitelist_only":
+        return _build_whitelist_only_prompt()
+    if variant == "few_shot":
+        return _build_few_shot_prompt()
+    if variant == "cot":
+        return _build_cot_prompt()
+    if variant == "combined":
+        return _build_combined_prompt()
+    raise ValueError(f"未知 prompt 变体: {variant}（合法值: {PROMPT_VARIANTS}）")
+
+
+def build_full_prompt_variant(
+    variant: str,
+    code: str,
+    language: str = "python",
+    filename: Optional[str] = None,
+    rag_context: Optional[str] = None,
+) -> str:
+    """构建指定变体的完整单条 prompt（system + user 拼接）。
+
+    供 exp_05_prompt_ablation 等消融实验使用。
+    """
+    system = build_system_prompt_variant(variant)
+    user = build_user_prompt(
+        code=code, language=language, filename=filename, rag_context=rag_context
+    )
+    return system + "\n\n" + user
+
+
 if __name__ == "__main__":
     # 自检
     test_code = "cursor.execute(\"SELECT * FROM u WHERE name='\" + name + \"'\")"
@@ -165,3 +316,9 @@ if __name__ == "__main__":
     print(f"\n=== SYSTEM_PROMPT 总长度: {len(SYSTEM_PROMPT)} 字符 ===")
     print("\n=== build_full_prompt 预览 ===")
     print(build_full_prompt(test_code, "python", "demo.py"))
+
+    # 自检：5 个变体
+    print("\n=== 5 个 Prompt 变体长度对比 ===")
+    for v in PROMPT_VARIANTS:
+        sp = build_system_prompt_variant(v)
+        print(f"  {v:15s}: {len(sp):5d} 字符")

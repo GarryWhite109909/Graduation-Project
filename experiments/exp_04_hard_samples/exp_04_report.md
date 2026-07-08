@@ -67,21 +67,40 @@
 
 ### 3.1 总体指标对比
 
+> 4 组均基于 87 个有效样本（60 漏洞 / 27 安全），分母一致，可直接横向比较。
+> 修复说明：B 组 `safe_06_csp_header.py` 旧 schema 解析失败已用新 schema 救回（None→False）；
+> D 组 `typical_33_php_type_juggling.php` 输出截断已重跑。详见第七节。
+
 | 组别 | 召回率 | 误报率 | 准确率 | TP/TN/FP/FN | 平均耗时 |
 | --- | --- | --- | --- | --- | --- |
 | rag (A组) | 91.7% | 29.6% | 85.1% | 55/19/8/5 | 7.9s |
-| pure (B组) | 95.0% | 26.9% | 88.4% | 57/19/7/3 | 7.1s |
+| pure (B组) | 95.0% | 25.9% | 88.5% | 57/20/7/3 | 7.1s |
 | random (C组) | 88.3% | 18.5% | 86.2% | 53/22/5/7 | 7.6s |
-| irrelevant (D组) | 93.2% | 25.9% | 87.2% | 55/20/7/4 | 7.9s |
+| irrelevant (D组) | 93.3% | 25.9% | 87.4% | 56/20/7/4 | 7.9s |
 
 ### 3.2 结论判断
 
-按以下逻辑判断 RAG 是否真正有用：
+判断逻辑：
 
 - 若 A > B：RAG 注入知识确实带来提升
 - 若 A ≈ B：RAG 在该样本集上无明显作用（可能因模型已具备知识）
 - 若 A > C 且 A > D：提升来自知识相关性，而非 prompt 变长
 - 若 A ≈ C 或 A ≈ D：提升仅来自 prompt 变长，RAG 无实质价值
+
+**实际数据对照**：
+
+- **A vs B**：A 组召回率 91.7% **<** B 组 95.0%；A 组准确率 85.1% **<** B 组 88.5%。RAG 不仅未带来提升，反而略有下降。
+- **A vs C**：A 组召回率 91.7% **>** C 组 88.3%，但 A 组准确率 85.1% **<** C 组 86.2%。两者接近，无显著差异。
+- **A vs D**：A 组召回率 91.7% **<** D 组 93.3%；A 组准确率 85.1% **<** D 组 87.4%。RAG 反而不如等长无关文本。
+
+**结论**：在本样本集（87 段难样本，qwen2.5-coder:7b）上，**RAG 未带来检测能力提升**。
+可能原因：(1) qwen2.5-coder:7b 预训练已覆盖常见漏洞模式，知识库注入的边际信息有限；
+(2) RAG 上下文变长反而稀释了模型对代码本身的注意力，导致准确率下降；
+(3) 难样本（CVE/跨文件/长文件隐藏）的瓶颈是推理能力而非知识召回，外接知识库无法弥补。
+
+> 该结论与 P2-8 Top-K 实验一致：K=1/3/5/10 的准确率分别为 88.5%/85.1%/88.5%/82.8%，
+> RAG 在所有 K 值下均未显著超过 B 组纯 LLM（88.5%）。后续系统设计应以纯 LLM 为基线，
+> RAG 仅作为可选增强（用于知识稀缺场景或小模型）。
 
 ---
 
@@ -173,3 +192,110 @@
 - 3 个修复样本 × 6 模型 = 18 次推理重跑；safe_07 用新 schema 重新解析（无需重跑 LLM）
 - 手工重算 6 个模型的 TP/FP/FN/TN，与脚本 `compute_detection_metrics` 完全一致
 - 实验结果整体可参考，修正后数据已作为最终结论
+
+### 7.4 P1-5 消融对照实验分母对齐修复（2026-07-06）
+
+> **背景**：7.1-7.3 修复后，复核 P1-5 消融对照实验时发现 B、D 两组各存在 1 个无判定样本，
+> 导致 4 组横向比较时分母不一致（A/C 组 87 样本，B 组 86 样本且 fpr 分母=26，D 组 86 样本且 recall 分母=59）。
+
+| 组别 | 样本 | 问题 | 修复方式 |
+| --- | --- | --- | --- |
+| B 组 (pure) | `safe_06_csp_header.py` | 旧 schema 解析 markdown 列表格式失败（与 safe_07 同类问题） | 用新 schema 重新解析，救回 `None -> False`（无需重跑 LLM） |
+| D 组 (irrelevant) | `typical_33_php_type_juggling.php` | raw_output 在 533 字符处被截断，无 `### 结论` 部分 | 重跑 LLM（D 组 irrelevant 模式），新输出 856 字符含完整结论，判定=True（与真值一致） |
+
+**修正前后指标对比**：
+
+| 组别 | 修正前 acc / recall / fpr | 修正后 acc / recall / fpr | 变化 |
+| --- | --- | --- | --- |
+| A 组 rag | 85.1% / 91.7% / 29.6% | 85.1% / 91.7% / 29.6% | 不变 |
+| B 组 pure | 88.4% / 95.0% / 26.9% | 88.5% / 95.0% / 25.9% | acc +0.1pp，fpr -1.0pp |
+| C 组 random | 86.2% / 88.3% / 18.5% | 86.2% / 88.3% / 18.5% | 不变 |
+| D 组 irrelevant | 87.2% / 93.2% / 25.9% | 87.4% / 93.3% / 25.9% | acc +0.2pp，recall +0.1pp |
+
+修复后 4 组均基于 87 个有效样本（60 漏洞 / 27 安全），分母一致，可比性恢复。
+3.1 表与 3.2 节结论已同步更新。修复脚本：`rerun_p15_fix.py`。
+
+## 八、AST 代码切片实验（2026-07-06）
+
+> **背景**：v3 多模型对比中发现 qwen2.5-coder:7b 在 3 个 `hard_longfile_*` 样本上虽二值判定全 True，
+> 但 longfile_01/03 的判定**理由错误**——模型把文件开头的 `DB_PATH="users.db"` / `app.secret_key`
+> 误判为硬编码凭证（CWE-798），**漏掉了文件末尾隐藏的 SQL 注入与 SSTI**。这是长上下文注意力衰减的典型表现。
+>
+> **假设**：用 tree-sitter 按 AST 函数边界切分长文件，让模型聚焦单个函数，可缓解注意力衰减，提升隐藏漏洞的识别质量。
+
+### 8.1 实现方案
+
+新增 [graduation_project/code_slicer.py](../../graduation_project/code_slicer.py)：
+
+- 用 `tree-sitter` 0.20.4 + `tree-sitter-languages` 1.10.2，支持 Python / JavaScript / Java / PHP
+- 文件行数 < `min_lines`（默认 150）不切片，整文件返回
+- 文件 >= `min_lines` 按顶层函数 / 类方法切分，每个切片含：
+  - 文件级上下文头（imports / 全局常量 / 类骨架，不含方法体）
+  - 当前函数 / 方法的完整代码
+- 切片结果：`SliceResult` 含 `sliced` 标志、`chunks` 列表
+
+[run_experiment.py](run_experiment.py) 新增参数：
+
+- `--slice`：启用 AST 切片模式
+- `--min-lines N`：切片阈值（默认 150）
+- `--only {all,longfile,hard}`：切片范围
+- `--filter SUBSTR`：只跑文件名含 SUBSTR 的样本
+
+切片模式下每个 chunk 单独送入 LLM，**chunk 间 OR 合并**（任一 chunk 判 True 则整体 True，保守策略宁误报不漏报）。
+
+### 8.2 实验设计
+
+- **模型**：qwen2.5-coder:7b
+- **样本**：3 个 `hard_longfile_*`（仅这 3 个 >= 150 行，其余 84 个样本不受切片影响）
+- **重复**：每 chunk 重复 3 次，chunk 内多数表决，chunk 间 OR 合并
+- **对比基线**：v3 多模型对比中 qwen2.5-coder:7b 的整文件结果（repeat=1）
+
+| 样本 | 总行数 | 切片数 | 漏洞所在函数 | 期望 CWE |
+| --- | --- | --- | --- | --- |
+| hard_longfile_01_hidden_sql.py | 377 | 20 | `StatsService.export_report` (L313-319) | CWE-89 SQL注入 |
+| hard_longfile_02_hidden_cmd.py | 297 | 15 | `ExportService.backup_to_archive` (L200-212) | CWE-78 命令注入 |
+| hard_longfile_03_hidden_ssti.py | 181 | 7 | `welcome` (L141-148) | CWE-1336 SSTI |
+
+### 8.3 切片 vs 整文件对比
+
+| 样本 | 整文件判定理由（v3 基线） | 切片后判定理由（repeat=3） | 切片改进 |
+| --- | --- | --- | --- |
+| longfile_01 | CWE-798 硬编码凭证（**错**，漏 SQL 注入） | **CWE-89 SQL注入**（3/3 一致，agreement=1.0） | ✓ 理由修正 |
+| longfile_02 | CWE-78 命令注入（正确） | CWE-78 命令注入（2/3 一致，agreement=0.667） | — 已识别 |
+| longfile_03 | CWE-798 硬编码凭证（**错**，漏 SSTI） | `welcome` chunk 3/3 判 False（**仍漏 SSTI**） | ✗ 未改进 |
+
+**关键发现**：
+
+1. **longfile_01 切片后正确识别 SQL 注入**：模型聚焦 `export_report` 函数后，3/3 一致判定 CWE-89 SQL注入，
+   不再被文件开头的 `DB_PATH="users.db"` 干扰。这是 AST 切片的核心价值——**让模型注意力聚焦到漏洞函数**。
+2. **longfile_03 SSTI 仍未识别**：`welcome` chunk 3/3 判 False，模型解释"模板引擎默认自动转义"。
+   这是模型对 SSTI 的理解问题（f-string 拼接模板字符串本身是 SSTI，与自动转义无关），**需要 RAG 知识辅助**，
+   非切片能解决。
+3. **longfile_02 命令注入切片前后都正确**：命令注入模式较易识别，切片无显著影响。
+
+### 8.4 总体指标
+
+| 口径 | TP | FN | 召回率 | 备注 |
+| --- | --- | --- | --- | --- |
+| Sample 级别（OR 合并） | 3 | 0 | 100.0% | 3 个 longfile 全部判定 True |
+| Chunk 级别（参考） | 45 | 81 | 35.7% | 126 chunks 中 45 个判 True |
+
+- Sample 级别一致率：均值 1.000，最低 1.000（所有样本 OR 合并结果稳定）
+- 关键 chunk 一致率：longfile_01 `export_report` = 1.0，longfile_02 `backup_to_archive` = 0.667，longfile_03 `welcome` = 1.0
+- 总耗时：3 个样本 × 42 chunks × 3 次 = 126 次推理，平均 9.06s/chunk，总 ~19 分钟
+- **误报影响**：仅 3 个 longfile >= 150 行会被切片，其余 84 个样本（含 27 个 safe 样本）不受影响，无额外误报风险
+
+### 8.5 结论
+
+1. **AST 切片对长文件隐藏的 SQL 注入有显著改进**：从"误判硬编码凭证"变为"正确识别 SQL 注入"（3/3 一致），
+   验证了注意力衰减假设与切片方案的有效性。
+2. **AST 切片对需要领域知识的漏洞（如 SSTI）效果有限**：模型本身对 SSTI 理解不足，切片只能让模型聚焦到正确函数，
+   但无法补充漏洞模式知识——这是 RAG 的职责。
+3. **AST 切片 + RAG 是互补方案**：切片解决"注意力衰减"（让模型看到漏洞函数），RAG 解决"知识缺失"（告诉模型漏洞模式），
+   两者结合可进一步提升长文件难样本的检出质量。
+4. **保守 OR 合并策略的代价**：sample 级别召回率 100% 但 chunk 级别仅 35.7%，意味着大量非漏洞函数被误判 True，
+   依赖 OR 合并"碰巧"覆盖到真正的漏洞函数。后续可探索更精细的合并策略（如只保留高置信度 chunk 的判定）。
+
+结果文件：
+- [results.slice-longfile.repeat1.qwen2.5-coder-7b.json](results/results.slice-longfile.repeat1.qwen2.5-coder-7b.json)
+- [results.slice-longfile.repeat3.qwen2.5-coder-7b.json](results/results.slice-longfile.repeat3.qwen2.5-coder-7b.json)

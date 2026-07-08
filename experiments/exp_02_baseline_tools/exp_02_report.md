@@ -219,3 +219,68 @@ cd ../exp_03_rag_knowledge && python3 run_rag_experiment.py               # RAG+
 ```
 
 结果写入 [results/results.json](results/results.json)，每跑完一个样本即增量落盘。
+
+## 九、P2-6 Bandit 告警级别过滤（2026-07-06）
+
+> **背景**：5.1 表中 Bandit 对 `safe_02_subprocess_list.py` 误报 3 条（B404/B607/B603），均源于 `subprocess` 模块的使用——
+> B404 是 `import subprocess` 的信息性告警（severity=LOW），B607/B603 是部分路径/未校验输入的潜在告警（severity=LOW）。
+> 这些 LOW severity 告警对"是否真有漏洞"的判别力很弱，计入漏洞会显著抬高误报率，对传统工具有失公平。
+>
+> **修复**：`run_baseline.py` 加 `--bandit-min-severity` / `--bandit-min-confidence` 参数，按 severity/confidence 过滤告警。
+> 本节对比两种口径：宽松（LOW+MEDIUM，保留所有告警）与严格（MEDIUM+MEDIUM，过滤 LOW severity 告警）。
+
+### 9.1 两种口径逐样本对比
+
+| 文件 | 期望 | 宽松(LOW+MED) | 严格(MED+MED) | 宽松规则 | 严格规则 |
+| --- | --- | --- | --- | --- | --- |
+| sql_injection_01.py | True | False ❌(FN) | False ❌(FN) | — | — |
+| sql_injection_02.py | True | True ✅ | True ✅ | B608 | B608 |
+| command_injection_01.py | True | True ✅ | True ✅ | B404,B602 | B602 |
+| path_traversal_01.py | True | False ❌(FN) | False ❌(FN) | — | — |
+| hardcoded_secret_01.py | True | True ✅ | **False ❌(FN)** | B105 | — |
+| insecure_deserialization_01.py | True | True ✅ | True ✅ | B403,B301 | B301 |
+| safe_01_parameterized_query.py | False | False ✅ | False ✅ | — | — |
+| safe_02_subprocess_list.py | False | **True ❌(FP)** | False ✅ | B404,B607,B603 | — |
+
+### 9.2 两种口径汇总指标
+
+| 口径 | TP | TN | FP | FN | 召回率 | 误报率 | 准确率 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 宽松 LOW+MEDIUM | 4 | 1 | 1 | 2 | 66.7% (4/6) | 50.0% (1/2) | 62.5% (5/8) |
+| 严格 MEDIUM+MEDIUM | 3 | 2 | **0** | 3 | 50.0% (3/6) | **0.0%** (0/2) | 62.5% (5/8) |
+| LLM (qwen7b) | 12 | 2 | 0 | 0 | **100%** | **0%** | **100%** |
+
+### 9.3 关键发现
+
+1. **严格口径消除了 safe_02 误报**：B404/B607/B603 全是 LOW severity，用 MEDIUM+MEDIUM 过滤后 safe_02 判 False（✅）。
+   但代价是 `hardcoded_secret_01.py` 的 B105（hardcoded_password_string，LOW severity）也被过滤，导致真漏洞漏报（FN）。
+2. **传统工具面临 recall/fpr 权衡**：严格口径 fpr 50%→0%，但 recall 66.7%→50.0%；宽松口径反之。
+   无论哪种口径，准确率都卡在 62.5%（样本量小，TP→FN 与 FP→TN 互相抵消）。
+3. **LLM 不存在此权衡**：qwen7b 同时达到 recall=100% 和 fpr=0%，无需在漏报与误报间取舍。
+   这是 LLM 语义理解相对于规则匹配的核心优势——**不依赖 severity 阈值调参**。
+4. **B105 漏报的启示**：B105（硬编码密码字符串）是 LOW severity 但高价值规则，过滤掉会导致真漏洞漏检。
+   说明 Bandit 的 severity 标注本身并不完全可靠——真漏洞可能被标 LOW，信息性告警也可能标 LOW，
+   严格口径无法区分两者。LLM 通过语义理解可以区分"真硬编码密码"与"subprocess import"。
+
+### 9.4 论文论据增强
+
+| 论点 | 旧论据（无过滤） | 新论据（P2-6 后） |
+| --- | --- | --- |
+| 传统工具误报增加人工成本 | safe_02 Bandit 误报 3 条 | 严格口径可消除误报但引入漏报，**传统工具面临 recall/fpr 权衡** |
+| LLM 语义理解优于模式匹配 | path_traversal_01 唯一检出 | LLM 无需 severity 调参即可同时达到 100% recall + 0% fpr |
+| 规则 severity 标注不可靠 | — | B105（真漏洞）与 B404（信息性）同为 LOW severity，规则无法区分 |
+
+### 9.5 复现方式
+
+```bash
+# 宽松口径（LOW+MEDIUM，默认）
+python run_baseline.py --tool bandit --bandit-min-severity LOW --bandit-min-confidence MEDIUM
+
+# 严格口径（MEDIUM+MEDIUM）
+python run_baseline.py --tool bandit --bandit-min-severity MEDIUM --bandit-min-confidence MEDIUM
+```
+
+结果文件：
+- [results.bandit-loose.low-med.json](results/results.bandit-loose.low-med.json)：宽松口径
+- [results.bandit-strict.med-med.json](results/results.bandit-strict.med-med.json)：严格口径
+- [results.json](results/results.json)：历史完整结果（含 Semgrep + 旧版 Bandit，2026-06-29 跑）

@@ -663,8 +663,12 @@
           "rag_context_chars": 0,
           "elapsed_seconds": 5.25,
           "raw_output": "### 分析过程\n\n1. **用户可控输入**：`user_input` 是从 `request.args.get(\"content\", \"\")` 获取的，是用户可控的。\n2. **安全处理**：\n   - `safe_content = html.escape(user_input)` 使用了 `html.escape()` 函数对用户输入进行转义，防止了跨站脚本（XSS）攻击。\n3. **输出**：生成的 HTML 内容中使用了 `{safe_content}`，确保了用户输入被安全处理后才插入到 HTML 中。\n4. **CSP 头设置**：\n   - `resp.headers[\"Content-Security-Policy\"] = \"default-src 'self'; script-src 'none'\"` 设置了内容安全策略（CSP），限制了页面只能加载来自自身域名的资源，并且禁止执行脚本，进一步增强了安全性。\n\n### 结论\n\n- **has_vulnerability**: false\n- **vulnerability_type**: none\n- **risk_level**: None\n- **source**: N/A\n- **sink**: N/A\n- **explanation**: 代码通过使用 `html.escape()` 对用户输入进行转义，并设置了严格的内容安全策略（CSP），有效防止了跨站脚本攻击。\n- **fix_suggestion**: no fix needed",
-          "parsed_verdict": {},
-          "model_has_vulnerability": null,
+          "parsed_verdict": {
+            "has_vulnerability": false,
+            "vulnerability_type": "none",
+            "risk_level": "None"
+          },
+          "model_has_vulnerability": false,
           "error": null,
           "meta": {
             "eval_count": 271,
@@ -672,11 +676,12 @@
             "load_duration_ns": 132525022,
             "total_duration_ns": 5245749105,
             "prompt_eval_count": 1590
-          }
+          },
+          "rerun_reason": "schema_fix_reparse"
         }
       ],
-      "majority_verdict": null,
-      "agreement_rate": null
+      "majority_verdict": false,
+      "agreement_rate": 1.0
     },
     {
       "file": "safe_07_input_validation.py",
@@ -3314,17 +3319,17 @@
   "finished_at": "2026-07-05 05:13:51",
   "metrics_single_run": {
     "total": 87,
-    "valid": 86,
-    "invalid": 1,
+    "valid": 87,
+    "invalid": 0,
     "tp": 57,
-    "tn": 19,
+    "tn": 20,
     "fp": 7,
     "fn": 3,
     "vuln_total": 60,
-    "safe_total": 26,
+    "safe_total": 27,
     "recall": 0.95,
-    "false_positive_rate": 0.2692307692307692,
-    "accuracy": 0.8837209302325582,
+    "false_positive_rate": 0.25925925925925924,
+    "accuracy": 0.8850574712643678,
     "elapsed_stats": {
       "avg": 7.06,
       "max": 13.39,
@@ -5023,5 +5028,6 @@
         }
       }
     ]
-  }
+  },
+  "schema_fix_at": "2026-07-06 03:23:50"
 }

@@ -3001,22 +3001,31 @@
             }
           ],
           "rag_context_chars": 1500,
-          "elapsed_seconds": 7.17,
-          "raw_output": "### 分析过程\n\n1. **用户可控输入**：\n   - 用户传入的 `token` 通过 `$_GET['token'] ?? ''` 获取。\n\n2. **硬编码凭证**：\n   - 系统下发的 `expected_token` 是一个字符串字面量 `'0e462097431906509019562988736854'`，这属于硬编码凭证。\n\n3. **比较逻辑**：\n   - 使用 `==` 进行比较。PHP 中的 `==` 操作符在比较时会进行类型转换。\n   - 如果用户传入的 `token` 是一个浮点数或整数，并且其科学计数法表示与 `expected_token` 相等，那么比较结果为真。\n\n4. **漏洞分析**：\n   - 由于使用了 `==` 进行比较，PHP 会进行类型转换。如果用户传入的 `token` 是一个浮点数或整数，并且其科学计数法表示与 `expected_token` 相等，那么比较结果为真。\n   - 例如，用户传入的 `token` 可以是 `'0e462097431906509019562988736854'` 的科学计数法表示形式，如 `'0.0000000000000000000000000000000",
-          "parsed_verdict": {},
-          "model_has_vulnerability": null,
+          "elapsed_seconds": 12.06,
+          "raw_output": "### 分析过程\n\n1. **代码功能**：\n   - 代码接收一个用户传入的 `token` 参数，并与系统下发的 `expected_token` 进行比较。\n   - 如果匹配，则输出 \"Auth success, welcome admin\"；否则输出 \"Invalid token\"。\n\n2. **用户可控输入**：\n   - 用户传入的 `token` 是通过 `$_GET['token'] ?? ''` 获取的，属于用户可控输入。\n\n3. **安全模式白名单检查**：\n   - 代码没有使用任何参数化查询、ORM 查询构造器等 SQL 注入防护措施。\n   - 代码没有使用 `subprocess.run/Popen` 等命令注入防护措施。\n   - 代码没有使用路径穿越防护措施。\n   - 代码没有使用 HTML 模板自动转义或显式调用 `html.escape()` 等 XSS 防护措施。\n   - 代码没有使用反序列化防护措施。\n\n4. **硬编码凭证检查**：\n   - `$expected_token` 是一个字符串字面量，属于硬编码凭证。根据判定标准，这本身就是漏洞。\n\n5. **漏洞类型和风险级别**：\n   - 漏洞类型：CWE-798 硬编码凭证\n   - 风险级别：High\n\n### JSON 结论\n\n```json\n{\n  \"has_vulnerability\": true,\n  \"vulnerability_type\": \"CWE-798 硬编码凭证\",\n  \"risk_level\": \"High\",\n  \"source\": \"$expected_token\",\n  \"sink\": \"N/A\",\n  \"explanation\": \"代码中硬编码了凭证 '0e462097431906509019562988736854'，属于高风险漏洞。\",\n  \"fix_suggestion\": \"从环境变量或配置文件中读取凭证，而不是硬编码字面量。\"\n}\n```",
+          "parsed_verdict": {
+            "has_vulnerability": true,
+            "vulnerability_type": "CWE-798 硬编码凭证",
+            "risk_level": "High",
+            "source": "$expected_token",
+            "sink": "N/A",
+            "explanation": "代码中硬编码了凭证 '0e462097431906509019562988736854'，属于高风险漏洞。",
+            "fix_suggestion": "从环境变量或配置文件中读取凭证，而不是硬编码字面量。"
+          },
+          "model_has_vulnerability": true,
           "error": null,
+          "rerun_reason": "output_truncated_rerun",
           "meta": {
-            "eval_count": null,
-            "eval_duration_ns": null,
-            "load_duration_ns": null,
-            "total_duration_ns": null,
-            "prompt_eval_count": null
+            "eval_count": 423,
+            "eval_duration_ns": 7666943000,
+            "load_duration_ns": 2800669074,
+            "total_duration_ns": 12045532052,
+            "prompt_eval_count": 2626
           }
         }
       ],
-      "majority_verdict": null,
-      "agreement_rate": null
+      "majority_verdict": true,
+      "agreement_rate": 1.0
     },
     {
       "file": "typical_34_java_jdbc_sql.java",
@@ -4180,22 +4189,22 @@
   "finished_at": "2026-07-05 05:56:30",
   "metrics_single_run": {
     "total": 87,
-    "valid": 86,
-    "invalid": 1,
-    "tp": 55,
+    "valid": 87,
+    "invalid": 0,
+    "tp": 56,
     "tn": 20,
     "fp": 7,
     "fn": 4,
-    "vuln_total": 59,
+    "vuln_total": 60,
     "safe_total": 27,
-    "recall": 0.9322033898305084,
+    "recall": 0.9333333333333333,
     "false_positive_rate": 0.25925925925925924,
-    "accuracy": 0.872093023255814,
+    "accuracy": 0.8735632183908046,
     "elapsed_stats": {
-      "avg": 7.88,
+      "avg": 7.93,
       "max": 12.14,
       "min": 5.49,
-      "sum": 685.27,
+      "sum": 690.16,
       "count": 87
     }
   },
@@ -5889,5 +5898,6 @@
         }
       }
     ]
-  }
+  },
+  "rerun_fixed_at": "2026-07-06 03:24:06"
 }
