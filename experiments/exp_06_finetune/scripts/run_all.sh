@@ -1,29 +1,35 @@
 #!/bin/bash
 # ============================================================================
-# exp_06_finetune 完整运行脚本（P0+P1 改造版）
+# exp_06_finetune 完整运行脚本
+#
+# 数据流：
+#   build_dataset.py          → train_chatml.jsonl              (222 手写样本)
+#   generate_distill_data.py  → distill_corpus_annotated.jsonl  (400 蒸馏 v1)
+#   regenerate_cot_with_teacher.py → distill_corpus_annotated_v2.jsonl (400 v2, 教师CoT)
+#   supplement_hard_samples.py → supplement_chatml.jsonl        (49 对抗补充)
+#   combine_and_augment.py    → train_chatml_v2.jsonl           (671 最终训练集)
 #
 # 流程：
 #   0. 环境检查
-#   1. 构建训练数据集（222 样本，42 CWE，9 语言）
-#   2. 数据增强（变量重命名 + 日志注入 + 注释混淆，222→666 样本）
-#   3. 单种子训练（5 epochs + early stopping + dev split + best checkpoint）
-#   4. 评估基座（确定性解码，temperature=0.0）
-#   5. 评估微调后模型（用 best checkpoint）
-#   6. Bootstrap 显著性检验（baseline vs finetuned）
-#   7. （可选）多种子训练 + 评估（更严格的显著性检验）
-#   8. （可选）CVE-fix held-out 独立测试集评估
+#   1. 构建训练数据集（222 原始 + 400 蒸馏v2 + 49 补充 → 671 条）
+#   2. 单种子训练（LoRA + early stopping + dev split + best checkpoint）
+#   3. 评估基座（确定性解码，temperature=0.0）
+#   4. 评估微调后模型（用 best checkpoint）
+#   5. Bootstrap 显著性检验（baseline vs finetuned）
+#   6. （可选）多种子训练 + 评估
+#   7. （可选）CVE-fix held-out 独立测试集评估
 #
 # 用法：
 #   cd /home/zane/文档/code/毕业设计
 #   bash experiments/exp_06_finetune/scripts/run_all.sh
 #
 # 可选标志（环境变量）：
-#   SKIP_TRAIN=1            跳过训练，只评估现有 checkpoint
-#   SKIP_MULTISEED=1        跳过多种子训练（默认跳过，需 --multiseed 启用）
-#   MULTISEED=1             启用多种子训练 + 评估
-#   CVE_FIX=1               启用 CVE-fix held-out 测试集评估
-#   USE_AUGMENTED=0         不用增强数据训练（默认 1 用增强数据）
-#   SEED=42                 单种子训练的种子（默认 42）
+#   SKIP_TRAIN=1      跳过训练，只评估现有 checkpoint
+#   MULTISEED=1       启用多种子训练 + 评估
+#   CVE_FIX=1         启用 CVE-fix held-out 测试集评估
+#   SEED=42           单种子训练的种子（默认 42）
+#   EPOCHS=3          训练轮数（默认 3，上次 5 轮在 epoch 3 后严重过拟合）
+#   LR=5e-5           学习率（默认 5e-5，2e-4 对 LoRA r=16 偏高）
 #
 # 注意：在真实终端运行（非 IDE 沙箱），需 GPU + 网络访问。
 # ============================================================================
@@ -35,28 +41,17 @@ AI_PYTHON="/home/zane/miniconda3/envs/AI/bin/python"
 GRAFROJ_PYTHON="/home/zane/miniconda3/envs/graproj/bin/python3"
 MODEL_ID="Qwen/Qwen2.5-Coder-3B-Instruct"
 
-# 训练超参
-EPOCHS="${EPOCHS:-5}"
+# 训练超参（默认值已根据上次 trainer_state.json 过拟合分析调整）
+EPOCHS="${EPOCHS:-3}"
 LORA_R="${LORA_R:-16}"
 LORA_ALPHA="${LORA_ALPHA:-32}"
 SEED="${SEED:-42}"
 BATCH_SIZE="${BATCH_SIZE:-1}"
 GRAD_ACCUM="${GRAD_ACCUM:-8}"
-LR="${LR:-2e-4}"
+LR="${LR:-1e-4}"
 
-# 数据文件选择
-#   USE_COMBINED=1（默认）：用合并数据（原始增强 666 + 蒸馏 400 + 蒸馏增强 800 = 1866 条）
-#   USE_AUGMENTED=1       ：仅用原始增强数据（666 条）
-#   都不设                ：仅用原始数据（222 条）
-USE_COMBINED="${USE_COMBINED:-1}"
-USE_AUGMENTED="${USE_AUGMENTED:-0}"
-if [ "$USE_COMBINED" = "1" ]; then
-    DATA_FILE="${PROJECT_ROOT}/experiments/exp_06_finetune/data/combined_train_chatml.jsonl"
-elif [ "$USE_AUGMENTED" = "1" ]; then
-    DATA_FILE="${PROJECT_ROOT}/experiments/exp_06_finetune/data/augmented_train_chatml.jsonl"
-else
-    DATA_FILE="${PROJECT_ROOT}/experiments/exp_06_finetune/data/train_chatml.jsonl"
-fi
+# 训练数据文件（train_chatml_v2.jsonl = 222 原始 + 400 蒸馏v2 + 49 补充 + 35 长尾CWE = 706 条）
+DATA_FILE="${PROJECT_ROOT}/experiments/exp_06_finetune/data/train_chatml_v2.jsonl"
 
 # Checkpoint 路径（与 train_qlora.py 输出目录规则一致）
 ADAPTER_DIR="${PROJECT_ROOT}/experiments/exp_06_finetune/outputs/lora_r${LORA_R}_a${LORA_ALPHA}_e${EPOCHS}_s${SEED}/best"
@@ -75,11 +70,11 @@ export HIP_VISIBLE_DEVICES="0"
 cd "${PROJECT_ROOT}"
 
 echo "============================================================"
-echo "exp_06_finetune 完整流程（P0+P1 改造版）"
+echo "exp_06_finetune 完整流程"
 echo "============================================================"
 echo "模型: ${MODEL_ID}"
 echo "训练数据: ${DATA_FILE}"
-echo "LoRA: r=${LORA_R} alpha=${LORA_ALPHA} epochs=${EPOCHS} seed=${SEED}"
+echo "LoRA: r=${LORA_R} alpha=${LORA_ALPHA} epochs=${EPOCHS} seed=${SEED} lr=${LR}"
 echo "适配器输出: ${ADAPTER_DIR}"
 echo ""
 
@@ -102,48 +97,30 @@ print('peft:', peft.__version__, 'trl:', trl.__version__, 'transformers:', trans
 "
 
 # ----------------------------------------------------------------------------
-# 阶段 1：构建训练数据集（原始 222 条 + 蒸馏 400 条 + 增强合并到 1866 条）
+# 阶段 1：构建训练数据集（222 原始 + 400 蒸馏v2 + 49 补充 → 671 条）
 # ----------------------------------------------------------------------------
 echo ""
 echo "============================================================"
 echo "阶段 1：构建训练数据集"
 echo "============================================================"
-# 1a. 原始手写样本（222 条）
+# 1a. 原始手写样本（222 条，42 CWE，9 语言）
 PYTHONPATH=${PROJECT_ROOT} ${GRAFROJ_PYTHON} experiments/exp_06_finetune/scripts/build_dataset.py
-# 1b. 蒸馏标注样本（400 条，由 GLM-5.2 生成 CoT）
+# 1b. 蒸馏标注样本 v1（400 条，模板 CoT，作为 regenerate_cot_with_teacher.py 的输入）
 PYTHONPATH=${PROJECT_ROOT} ${GRAFROJ_PYTHON} experiments/exp_06_finetune/scripts/generate_distill_data.py
-# 1c. 蒸馏 → ChatML 格式转换
-PYTHONPATH=${PROJECT_ROOT} ${GRAFROJ_PYTHON} experiments/exp_06_finetune/scripts/format_distilled.py \
-    --input experiments/exp_06_finetune/data/distill_corpus_annotated.jsonl \
-    --output experiments/exp_06_finetune/data/train_chatml_distilled.jsonl
+# 1c. 合并所有数据源 → train_chatml_v2.jsonl（671 条）
+#     注：distill_corpus_annotated_v2.jsonl 和 supplement_chatml.jsonl 为预生成资产，
+#     若需重新生成，手动运行：
+#       regenerate_cot_with_teacher.py（需 Ollama qwen2.5-coder:7b 教师模型）
+#       supplement_hard_samples.py
+PYTHONPATH=${PROJECT_ROOT} ${GRAFROJ_PYTHON} experiments/exp_06_finetune/scripts/combine_and_augment.py
 
 # ----------------------------------------------------------------------------
-# 阶段 2：数据增强 + 合并（666 增强 + 400 蒸馏 + 800 蒸馏增强 = 1866 条）
-# ----------------------------------------------------------------------------
-if [ "$USE_COMBINED" = "1" ] || [ "$USE_AUGMENTED" = "1" ]; then
-    echo ""
-    echo "============================================================"
-    echo "阶段 2：数据增强 + 合并"
-    echo "============================================================"
-    # 先对原始数据做增强
-    PYTHONPATH=${PROJECT_ROOT} ${GRAFROJ_PYTHON} experiments/exp_06_finetune/scripts/augment_data.py \
-        --variants 2 --append
-    # 如果用合并模式，再合并蒸馏数据 + 蒸馏增强
-    if [ "$USE_COMBINED" = "1" ]; then
-        PYTHONPATH=${PROJECT_ROOT} ${GRAFROJ_PYTHON} experiments/exp_06_finetune/scripts/combine_and_augment.py
-    fi
-else
-    echo ""
-    echo "阶段 2：跳过数据增强（USE_COMBINED=0 USE_AUGMENTED=0）"
-fi
-
-# ----------------------------------------------------------------------------
-# 阶段 3：单种子训练
+# 阶段 2：单种子训练
 # ----------------------------------------------------------------------------
 if [ -z "$SKIP_TRAIN" ]; then
     echo ""
     echo "============================================================"
-    echo "阶段 3：单种子训练（seed=${SEED}, epochs=${EPOCHS} + early stopping）"
+    echo "阶段 2：单种子训练（seed=${SEED}, epochs=${EPOCHS}, lr=${LR}）"
     echo "============================================================"
     PYTHONPATH=${PROJECT_ROOT} ${AI_PYTHON} experiments/exp_06_finetune/scripts/train_qlora.py \
         --epochs ${EPOCHS} \
@@ -159,15 +136,15 @@ if [ -z "$SKIP_TRAIN" ]; then
         --data-file "${DATA_FILE}"
 else
     echo ""
-    echo "阶段 3：跳过训练（SKIP_TRAIN=1）"
+    echo "阶段 2：跳过训练（SKIP_TRAIN=1）"
 fi
 
 # ----------------------------------------------------------------------------
-# 阶段 4：评估基座（对照组，确定性解码）
+# 阶段 3：评估基座（对照组，确定性解码）
 # ----------------------------------------------------------------------------
 echo ""
 echo "============================================================"
-echo "阶段 4：评估基座（temperature=0.0 确定性解码）"
+echo "阶段 3：评估基座（temperature=0.0 确定性解码）"
 echo "============================================================"
 PYTHONPATH=${PROJECT_ROOT} ${AI_PYTHON} experiments/exp_06_finetune/scripts/evaluate.py \
     --mode baseline
@@ -176,11 +153,11 @@ BASELINE_RESULT=$(ls -t ${PROJECT_ROOT}/experiments/exp_06_finetune/results/exp_
 echo "基线结果: ${BASELINE_RESULT}"
 
 # ----------------------------------------------------------------------------
-# 阶段 5：评估微调后模型（best checkpoint，确定性解码）
+# 阶段 4：评估微调后模型（best checkpoint，确定性解码）
 # ----------------------------------------------------------------------------
 echo ""
 echo "============================================================"
-echo "阶段 5：评估微调后模型（best checkpoint, temperature=0.0）"
+echo "阶段 4：评估微调后模型（best checkpoint, temperature=0.0）"
 echo "============================================================"
 if [ ! -d "${ADAPTER_DIR}" ]; then
     echo "错误：适配器目录不存在: ${ADAPTER_DIR}"
@@ -195,11 +172,11 @@ FINETUNED_RESULT=$(ls -t ${PROJECT_ROOT}/experiments/exp_06_finetune/results/exp
 echo "微调结果: ${FINETUNED_RESULT}"
 
 # ----------------------------------------------------------------------------
-# 阶段 6：Bootstrap 显著性检验
+# 阶段 5：Bootstrap 显著性检验
 # ----------------------------------------------------------------------------
 echo ""
 echo "============================================================"
-echo "阶段 6：Bootstrap 显著性检验（baseline vs finetuned）"
+echo "阶段 5：Bootstrap 显著性检验（baseline vs finetuned）"
 echo "============================================================"
 PYTHONPATH=${PROJECT_ROOT} ${GRAFROJ_PYTHON} experiments/exp_06_finetune/scripts/bootstrap_significance.py \
     --baseline "${BASELINE_RESULT}" \
@@ -207,12 +184,12 @@ PYTHONPATH=${PROJECT_ROOT} ${GRAFROJ_PYTHON} experiments/exp_06_finetune/scripts
     --n-bootstrap 10000
 
 # ----------------------------------------------------------------------------
-# 阶段 7：（可选）多种子训练 + 评估
+# 阶段 6：（可选）多种子训练 + 评估
 # ----------------------------------------------------------------------------
 if [ "$MULTISEED" = "1" ]; then
     echo ""
     echo "============================================================"
-    echo "阶段 7：多种子训练 + 评估（seeds=42,1042,2042）"
+    echo "阶段 6：多种子训练 + 评估（seeds=42,1042,2042）"
     echo "============================================================"
     PYTHONPATH=${PROJECT_ROOT} ${AI_PYTHON} experiments/exp_06_finetune/scripts/run_multiseed.py \
         --epochs ${EPOCHS} \
@@ -221,16 +198,16 @@ if [ "$MULTISEED" = "1" ]; then
         --data-file "${DATA_FILE}"
 else
     echo ""
-    echo "阶段 7：跳过多种子训练（MULTISEED=1 启用）"
+    echo "阶段 6：跳过多种子训练（MULTISEED=1 启用）"
 fi
 
 # ----------------------------------------------------------------------------
-# 阶段 8：（可选）CVE-fix held-out 独立测试集评估
+# 阶段 7：（可选）CVE-fix held-out 独立测试集评估
 # ----------------------------------------------------------------------------
 if [ "$CVE_FIX" = "1" ]; then
     echo ""
     echo "============================================================"
-    echo "阶段 8：CVE-fix held-out 独立测试集评估"
+    echo "阶段 7：CVE-fix held-out 独立测试集评估"
     echo "============================================================"
     TESTSET_DIR="${PROJECT_ROOT}/experiments/exp_06_finetune/testset_cve_fix"
     if [ ! -d "${TESTSET_DIR}" ]; then
@@ -244,7 +221,7 @@ if [ "$CVE_FIX" = "1" ]; then
     echo "  - 参考 evaluate.py 的 MANIFEST_PATH 常量做临时修改后运行"
 else
     echo ""
-    echo "阶段 8：跳过 CVE-fix 测试集（CVE_FIX=1 启用）"
+    echo "阶段 7：跳过 CVE-fix 测试集（CVE_FIX=1 启用）"
 fi
 
 # ----------------------------------------------------------------------------
