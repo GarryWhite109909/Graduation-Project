@@ -4,7 +4,7 @@ QLoRA 微调脚本 —— 支持 Qwen2.5-Coder-7B-Instruct（4bit）或 3B（fp1
 数据：experiments/exp_06_finetune/data/train_chatml_v2.jsonl（760 条 ChatML 样本）
 基座：Qwen/Qwen2.5-Coder-7B-Instruct（默认，4bit QLoRA）
       Qwen/Qwen2.5-Coder-3B-Instruct（--model-id 指定，fp16 LoRA）
-方法：4bit NF4 量化 + LoRA（r=16, alpha=32）+ 梯度检查点
+方法：4bit NF4 量化 + LoRA（默认 r=8, alpha=16）+ 梯度检查点
 硬件：AMD Radeon RX 9060 XT 16GB + ROCm 7.2
       7B 4bit 实测：加载 6GB，LoRA 挂载 10.9GB，前向+反向峰值 11.0GB（余量 6GB）
 
@@ -12,12 +12,13 @@ QLoRA 微调脚本 —— 支持 Qwen2.5-Coder-7B-Instruct（4bit）或 3B（fp1
   - 从训练集分 15% 作 dev，按 dev loss 选 best checkpoint
   - EarlyStoppingCallback：dev loss 连续 patience 轮不降则停
   - load_best_model_at_end=True：训练结束自动回滚到 best checkpoint
-  - 推荐 epochs=3, lr=1e-4
+  - 默认 epochs=1, lr=1e-5（依据 docs/改进.md：7B baseline 已 90.8%，
+    强干预会负蒸馏覆盖预训练知识，只需轻量补盲）
 
 用法（在 AI conda 环境中运行，需 GPU 访问）：
-  # 7B 4bit QLoRA（默认）
+  # 7B 4bit QLoRA（默认，轻量补盲配置）
   HF_HUB_OFFLINE=1 /home/zane/miniconda3/envs/AI/bin/python train_qlora.py \
-      --epochs 3 --batch-size 1 --grad-accum 8 --lr 1e-4
+      --epochs 1 --batch-size 1 --grad-accum 8 --lr 1e-5
 
   # 3B fp16（用 --no-4bit + --model-id 切换）
   HF_HUB_OFFLINE=1 /home/zane/miniconda3/envs/AI/bin/python train_qlora.py \
@@ -110,12 +111,16 @@ def try_4bit_quant(use_4bit: bool) -> BitsAndBytesConfig | None:
 
 def main():
     parser = argparse.ArgumentParser(description="QLoRA 微调 Qwen2.5-Coder-3B-Instruct")
-    parser.add_argument("--epochs", type=int, default=2, help="训练轮数（默认 2，避免过拟合）")
+    parser.add_argument("--epochs", type=int, default=1,
+                        help="训练轮数（默认 1；7B baseline 已 90.8%%，多轮易负蒸馏覆盖原知识）")
     parser.add_argument("--batch-size", type=int, default=1, help="每设备 batch size")
     parser.add_argument("--grad-accum", type=int, default=8, help="梯度累积步数")
-    parser.add_argument("--lr", type=float, default=5e-5, help="学习率（LoRA 推荐 1e-5 ~ 5e-5）")
-    parser.add_argument("--lora-r", type=int, default=16, help="LoRA rank")
-    parser.add_argument("--lora-alpha", type=int, default=32, help="LoRA alpha")
+    parser.add_argument("--lr", type=float, default=1e-5,
+                        help="学习率（默认 1e-5；模型已较好，lr 过大会覆盖预训练知识）")
+    parser.add_argument("--lora-r", type=int, default=8,
+                        help="LoRA rank（默认 8；r=16 干预过强，r=8 足以学补盲样本）")
+    parser.add_argument("--lora-alpha", type=int, default=16,
+                        help="LoRA alpha（默认 16，保持 alpha=2*r）")
     parser.add_argument("--max-seq-length", type=int, default=2048, help="最大序列长度")
     parser.add_argument("--save-steps", type=int, default=50, help="每 N 步保存")
     parser.add_argument("--logging-steps", type=int, default=5, help="每 N 步记录日志")
