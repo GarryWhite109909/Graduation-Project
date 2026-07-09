@@ -58,18 +58,24 @@ def build_json_verdict(rec: dict) -> str:
     缺失字段会填充安全/中性的默认值，保证 schema 完整。
     """
     has_vuln = bool(rec.get("has_vulnerability", False))
-    vuln_type = rec.get("vuln_type") or ("none" if not has_vuln else "unknown")
-    risk_level = rec.get("risk_level") or ("None" if not has_vuln else "Medium")
-    source = rec.get("source") or "N/A"
-    sink = rec.get("sink") or "N/A"
     taint_path = rec.get("taint_path") or ""
-    fix_idea = rec.get("fix_idea") or ("no fix needed" if not has_vuln else "N/A")
 
-    # 安全样本的 explanation 不能用统一模板（会导致模型学会"无脑判安全"），
-    # 必须根据 taint_path 字段生成具体的防御说明。若 taint_path 为空则用 fallback。
     if has_vuln:
+        vuln_type = rec.get("vuln_type") or "unknown"
+        risk_level = rec.get("risk_level") or "Medium"
+        source = rec.get("source") or "N/A"
+        sink = rec.get("sink") or "N/A"
+        fix_idea = rec.get("fix_idea") or "N/A"
         explanation = taint_path or f"存在 {vuln_type}，风险等级 {risk_level}。"
     else:
+        # 安全样本：严格 schema 合规，强制 vulnerability_type="none"，
+        # source/sink/fix_suggestion 填中性值，避免模型学到"安全样本也输出 CWE 类型"的错误模式
+        vuln_type = "none"
+        risk_level = "None"
+        source = "N/A"
+        sink = "N/A"
+        fix_idea = "no fix needed"
+        # explanation 必须描述具体防御措施（从 taint_path 取），不能是模板套话
         explanation = taint_path if taint_path else "代码中未发现可利用的安全漏洞。"
     verdict = {
         "has_vulnerability": has_vuln,
@@ -130,7 +136,7 @@ def main():
     in_path = Path(args.input)
     if not in_path.exists():
         print(f"错误：输入文件不存在: {in_path}", file=sys.stderr)
-        print(f"提示：请先运行 prepare_distill_corpus.py 生成 corpus，再在 IDE 中补 CoT 标注。", file=sys.stderr)
+        print(f"提示：请先运行 generate_distill_data.py 生成标注语料。", file=sys.stderr)
         sys.exit(1)
 
     if args.append:

@@ -45,19 +45,19 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from graduation_project.prompts import SYSTEM_PROMPT, build_user_prompt
+from graduation_project.prompts import SYSTEM_PROMPT_LITE as SYSTEM_PROMPT, build_user_prompt
 from graduation_project.schema import parse_verdict, normalize_has_vulnerability
 from experiments.utils import (
     load_manifest, read_sample_code, compute_detection_metrics,
     compute_repeat_metrics, save_results_json,
 )
 
-MODEL_ID = "Qwen/Qwen2.5-Coder-3B-Instruct"  # 与训练脚本一致
+MODEL_ID = "Qwen/Qwen2.5-Coder-7B-Instruct"  # 与训练脚本一致（默认 7B）
 MANIFEST_PATH = PROJECT_ROOT / "experiments/exp_04_hard_samples/samples/manifest.json"
 SAMPLES_DIR = PROJECT_ROOT / "experiments/exp_04_hard_samples/samples"
 OUTPUT_DIR = PROJECT_ROOT / "experiments/exp_06_finetune/results"
 # 默认 LoRA 输出根目录，用于 --checkpoint 简写解析
-DEFAULT_LORA_ROOT = PROJECT_ROOT / "experiments/exp_06_finetune/outputs/lora_r16_a32_e2_s42/best"
+DEFAULT_LORA_ROOT = PROJECT_ROOT / "experiments/exp_06_finetune/outputs/lora_r16_a32_e3_s42/best"
 
 
 def resolve_adapter_path(checkpoint: str | None, adapter_path: str | None) -> str | None:
@@ -74,17 +74,29 @@ def resolve_adapter_path(checkpoint: str | None, adapter_path: str | None) -> st
     return None
 
 
-def load_model(mode: str, adapter_path: str | None, quantize_4bit: bool):
+def load_model(mode: str, adapter_path: str | None, quantize_4bit: bool, model_id: str = MODEL_ID):
     """加载模型 + tokenizer。"""
-    print(f"加载 tokenizer: {MODEL_ID}")
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, trust_remote_code=True)
+    print(f"加载 tokenizer: {model_id}")
+    tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
     dtype = torch.float16
-    print(f"加载模型: {MODEL_ID} (mode={mode})")
+    bnb_config = None
+    if quantize_4bit:
+        from transformers import BitsAndBytesConfig
+        bnb_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=torch.float16,
+            bnb_4bit_use_double_quant=True,
+        )
+        print(f"启用 4bit NF4 量化推理")
+
+    print(f"加载模型: {model_id} (mode={mode}, {'4bit' if bnb_config else 'fp16'})")
     model = AutoModelForCausalLM.from_pretrained(
-        MODEL_ID,
+        model_id,
+        quantization_config=bnb_config,
         device_map={"": 0},
         trust_remote_code=True,
         torch_dtype=dtype,
@@ -269,7 +281,12 @@ def main():
                         help="LoRA adapter 路径（finetuned 模式必填，与 --checkpoint 二选一）")
     parser.add_argument("--checkpoint", type=str, default=None,
                         help="checkpoint 简写：checkpoint-36 / checkpoint-45 / final（自动解析路径）")
-    parser.add_argument("--quantize-4bit", action="store_true", help="用 4bit 量化加载（省显存）")
+    parser.add_argument("--quantize-4bit", action="store_true", default=True,
+                        help="用 4bit 量化加载（默认启用，7B 需要；--no-4bit 禁用）")
+    parser.add_argument("--no-4bit", action="store_false", dest="quantize_4bit",
+                        help="禁用 4bit 量化，用 fp16（3B 模型可用）")
+    parser.add_argument("--model-id", type=str, default=MODEL_ID,
+                        help=f"基座模型 ID（默认 {MODEL_ID}）")
     parser.add_argument("--limit", type=int, default=0, help="只评估前 N 个样本（0=全部）")
     parser.add_argument("--manifest-path", type=str, default=None,
                         help="指定测试集 manifest 路径（默认 exp_04_hard_samples，可改为 CVE-fix）")
@@ -316,7 +333,7 @@ def main():
     print(f"测试样本: {len(records)} 段")
 
     # 加载模型
-    model, tokenizer = load_model(args.mode, adapter_path, args.quantize_4bit)
+    model, tokenizer = load_model(args.mode, adapter_path, args.quantize_4bit, args.model_id)
 
     # 多种子评估
     all_runs = []
@@ -364,7 +381,7 @@ def main():
         out_file,
         {
             "experiment": "exp_06_finetune_eval",
-            "model": f"qwen2.5-coder-3b-instruct-{args.mode}",
+            "model": f"{args.model_id}-{args.mode}",
             "checkpoint": args.checkpoint or (args.adapter_path or ""),
             "started_at": time.strftime("%Y-%m-%d %H:%M:%S"),
             "decoding": {"temperature": args.temperature, "do_sample": do_sample, "seeds": seed_list},

@@ -37,7 +37,10 @@ ENV/
 ~/.ollama/
 
 # ===== RAG 向量数据库（本地持久化，体积大且无需入库） =====
-data/
+# 注意：训练数据（experiments/exp_06_finetune/data/*.jsonl）需要入库以保证复现性，
+#       所以只排除 RAG 向量库目录，不排除 exp_06 的训练数据
+experiments/exp_03_rag_knowledge/knowledge_data/chroma_db/
+experiments/exp_03_rag_knowledge/data/
 
 # ===== 实验产物：保留 results.json，但排除临时调试文件 =====
 experiments/**/debug_*.json

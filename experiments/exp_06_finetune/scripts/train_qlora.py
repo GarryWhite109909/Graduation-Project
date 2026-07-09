@@ -1,23 +1,27 @@
 """
-LoRA 微调脚本 —— 在 Qwen2.5-Coder-3B-Instruct 上做指令蒸馏。
+QLoRA 微调脚本 —— 支持 Qwen2.5-Coder-7B-Instruct（4bit）或 3B（fp16）。
 
-数据：experiments/exp_06_finetune/data/train_chatml.jsonl（119 条 ChatML 样本）
-基座：Qwen/Qwen2.5-Coder-3B-Instruct
-方法：fp16 LoRA（r=16, alpha=32）+ 梯度检查点
+数据：experiments/exp_06_finetune/data/train_chatml_v2.jsonl（760 条 ChatML 样本）
+基座：Qwen/Qwen2.5-Coder-7B-Instruct（默认，4bit QLoRA）
+      Qwen/Qwen2.5-Coder-3B-Instruct（--model-id 指定，fp16 LoRA）
+方法：4bit NF4 量化 + LoRA（r=16, alpha=32）+ 梯度检查点
 硬件：AMD Radeon RX 9060 XT 16GB + ROCm 7.2
+      7B 4bit 实测：加载 6GB，LoRA 挂载 10.9GB，前向+反向峰值 11.0GB（余量 6GB）
 
-P0 改造（glm 建议）：
-  - 从训练集分 15% 作 dev，按 dev loss 选 best checkpoint（避免过拟合到 epoch 3）
+防过拟合措施：
+  - 从训练集分 15% 作 dev，按 dev loss 选 best checkpoint
   - EarlyStoppingCallback：dev loss 连续 patience 轮不降则停
   - load_best_model_at_end=True：训练结束自动回滚到 best checkpoint
+  - 推荐 epochs=3, lr=1e-4
 
 用法（在 AI conda 环境中运行，需 GPU 访问）：
-  /home/zane/miniconda3/envs/AI/bin/python train_qlora.py \
-      --epochs 5 --batch-size 1 --grad-accum 8 --lr 2e-4 \
-      --dev-ratio 0.15 --early-stopping-patience 2
+  # 7B 4bit QLoRA（默认）
+  HF_HUB_OFFLINE=1 /home/zane/miniconda3/envs/AI/bin/python train_qlora.py \
+      --epochs 3 --batch-size 1 --grad-accum 8 --lr 1e-4
 
-注：7B fp16 在 16GB VRAM 上 OOM，bitsandbytes 4bit 在 ROCm 上段错误，
-    故选用 3B 基座（约 6GB），训练时约 10-12GB，15.9GB 够用。
+  # 3B fp16（用 --no-4bit + --model-id 切换）
+  HF_HUB_OFFLINE=1 /home/zane/miniconda3/envs/AI/bin/python train_qlora.py \
+      --model-id Qwen/Qwen2.5-Coder-3B-Instruct --no-4bit
 """
 
 import argparse
@@ -48,7 +52,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DATA_FILE = PROJECT_ROOT / "experiments/exp_06_finetune/data/train_chatml_v2.jsonl"
 OUTPUT_DIR = PROJECT_ROOT / "experiments/exp_06_finetune/outputs"
 LOG_DIR = PROJECT_ROOT / "experiments/exp_06_finetune/logs"
-MODEL_ID = "Qwen/Qwen2.5-Coder-3B-Instruct"  # 7B 在 16GB VRAM 上 OOM，换 3B
+MODEL_ID = "Qwen/Qwen2.5-Coder-7B-Instruct"  # 默认 7B，4bit QLoRA 实测可行
 
 
 def load_chatml_dataset(path: Path) -> Dataset:
@@ -117,10 +121,12 @@ def main():
     parser.add_argument("--logging-steps", type=int, default=5, help="每 N 步记录日志")
     parser.add_argument("--warmup-ratio", type=float, default=0.05, help="warmup 比例")
     parser.add_argument("--seed", type=int, default=42, help="随机种子")
-    parser.add_argument("--use-4bit", action="store_true", help="启用 4bit 量化（ROCm 上易崩）")
+    parser.add_argument("--model-id", type=str, default=MODEL_ID,
+                        help=f"基座模型 ID（默认 {MODEL_ID}）")
+    parser.add_argument("--no-4bit", action="store_true",
+                        help="禁用 4bit 量化，用 fp16（3B 模型可用；7B fp16 在 16GB 上 OOM）")
     parser.add_argument("--data-file", type=str, default=None,
-                        help="训练数据 jsonl 路径（默认 data/train_chatml.jsonl）；"
-                             "可指定 augmented_train_chatml.jsonl 用增强后数据训练")
+                        help="训练数据 jsonl 路径（默认 data/train_chatml_v2.jsonl）")
     # P0 改造：验证集 + early stopping
     parser.add_argument("--dev-ratio", type=float, default=0.15,
                         help="验证集比例（默认 0.15，即 15%% 作 dev）")
@@ -132,6 +138,8 @@ def main():
 
     # 解析数据文件路径
     data_file = Path(args.data_file) if args.data_file else DATA_FILE
+    model_id = args.model_id
+    use_4bit = not args.no_4bit
 
     # 检查 GPU
     if not torch.cuda.is_available():
@@ -156,21 +164,21 @@ def main():
     train_dataset, dev_dataset = split_train_dev(full_dataset, args.dev_ratio, seed=42)
 
     # 加载 tokenizer
-    print(f"加载 tokenizer: {MODEL_ID}")
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, trust_remote_code=True)
+    print(f"加载 tokenizer: {model_id}")
+    tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
     # 加载模型（4bit 或 fp16）
-    bnb_config = try_4bit_quant(args.use_4bit)
-    print(f"加载模型: {MODEL_ID} ({'4bit' if bnb_config else 'fp16'})")
+    bnb_config = try_4bit_quant(use_4bit)
+    print(f"加载模型: {model_id} ({'4bit' if bnb_config else 'fp16'})")
     model = AutoModelForCausalLM.from_pretrained(
-        MODEL_ID,
+        model_id,
         quantization_config=bnb_config,
         device_map={"": 0},  # ROCm 上 "auto" 易段错误，强制单 GPU
         trust_remote_code=True,
         torch_dtype=torch.float16,
-        attn_implementation="eager",  # ROCm 上 eager 更稳定
+        attn_implementation="sdpa",  # sdpa 比 eager 省显存（避免 OOM），ROCm 上已验证可用
     )
     model.config.use_cache = False  # 训练时关闭 KV cache
 
@@ -212,8 +220,8 @@ def main():
         logging_steps=args.logging_steps,
         save_steps=args.save_steps,
         save_total_limit=3,
-        bf16=False,  # RDNA4 不支持 bf16，用 fp16
-        fp16=True,
+        bf16=False,  # RDNA4 不支持 bf16
+        fp16=bnb_config is None,  # 4bit 模式下禁用 fp16 GradScaler（与 BFloat16 梯度冲突）
         gradient_checkpointing=True,
         gradient_checkpointing_kwargs={"use_reentrant": False},
         optim="paged_adamw_8bit" if bnb_config is not None else "adamw_torch",
@@ -292,7 +300,7 @@ def main():
             {
                 "args": vars(args),
                 "metrics": metrics,
-                "model": MODEL_ID,
+                "model": model_id,
                 "quantization": "4bit" if bnb_config else "fp16",
                 "train_samples": len(train_dataset),
                 "dev_samples": len(dev_dataset),
