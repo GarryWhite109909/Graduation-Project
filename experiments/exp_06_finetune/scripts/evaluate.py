@@ -29,6 +29,7 @@ P0 改造（glm 建议）：
 import argparse
 import json
 import os
+import re
 import statistics
 import sys
 import time
@@ -52,12 +53,117 @@ from experiments.utils import (
     compute_repeat_metrics, save_results_json,
 )
 
+# Ollama 后端（延迟导入，仅 --ollama-model 时使用）
+_ollama_client = None
+
 MODEL_ID = "Qwen/Qwen2.5-Coder-7B-Instruct"  # 与训练脚本一致（默认 7B）
 MANIFEST_PATH = PROJECT_ROOT / "experiments/exp_04_hard_samples/samples/manifest.json"
 SAMPLES_DIR = PROJECT_ROOT / "experiments/exp_04_hard_samples/samples"
 OUTPUT_DIR = PROJECT_ROOT / "experiments/exp_06_finetune/results"
 # 默认 LoRA 输出根目录，用于 --checkpoint 简写解析
 DEFAULT_LORA_ROOT = PROJECT_ROOT / "experiments/exp_06_finetune/outputs/lora_r16_a32_e3_s42/best"
+
+
+# ---------------------------------------------------------------------------
+# Self-Verification 后处理（P2-7）
+# ---------------------------------------------------------------------------
+# 动机：typical_19 出现"推理对结论错"的结论漂移——CoT 识别出 random.choices
+# 是伪随机，JSON 却标 has_vulnerability=false 并捏造"已用 secrets"。仅靠
+# SYSTEM_PROMPT_LITE 的一致性约束（P0-1）是软约束，模型可能仍不一致。
+# Self-Verification 在首轮生成后追加一轮校验，让模型自检 CoT→JSON 一致性。
+#
+# 成本：增加一轮推理（~15s/样本），可选启用（--self-verify）。
+SELF_VERIFY_PROMPT = (
+    "请对你上面的回答进行自检：\n"
+    "1. 你的分析过程（CoT）中识别了哪些风险？\n"
+    "2. JSON 结论中的 has_vulnerability 是否与 CoT 推理结论一致？\n"
+    "   - 若 CoT 识别出风险（如“弱随机”“不安全”“存在漏洞”），JSON 不得标 false；\n"
+    "   - 若 CoT 未识别出风险，JSON 不得标 true。\n"
+    "3. 如果不一致，请修正 JSON 结论。\n"
+    "4. 如果一致，请原样输出 JSON 结论。\n"
+    "请只输出最终的 JSON 对象（用 ```json 包裹），不需要重复分析过程。"
+)
+
+
+# ---------------------------------------------------------------------------
+# 严格评估：校验 vulnerability_type + CWE（P0-2）
+# ---------------------------------------------------------------------------
+# 动机：当前评估只看 has_vulnerability 布尔值，不校验漏洞类型和 CWE。
+# 部分样本"蒙对了方向但分析错误"（如 Spring4Shell 标成 CWE-89 SSTI），
+# 严格指标把这些"水份 TP"降级为 strict_FN，暴露模型真实能力。
+_CWE_PATTERN = re.compile(r'(CWE-\d+)', re.IGNORECASE)
+
+
+def extract_cwe(vulnerability_type: str) -> str:
+    """从 vulnerability_type 字符串中提取 CWE 编号。
+
+    >>> extract_cwe("CWE-89 SQL注入")
+    'CWE-89'
+    >>> extract_cwe("none")
+    ''
+    >>> extract_cwe("CWE-79 XSS")
+    'CWE-79'
+    """
+    if not vulnerability_type:
+        return ""
+    m = _CWE_PATTERN.search(vulnerability_type)
+    return m.group(1).upper() if m else ""
+
+
+def cwe_matches(model_cwe: str, expected_cwe: str) -> bool:
+    """检查模型输出的 CWE 是否与预期匹配。
+
+    预期为 "N/A" 或空时（安全样本），不参与 CWE 匹配，返回 True。
+    支持分号分隔的多 CWE 预期值（如 "CWE-434; CWE-22"），匹配任一即可。
+    """
+    if not expected_cwe or expected_cwe.upper() == "N/A":
+        return True
+    if not model_cwe:
+        return False
+    expected_cwes = [c.strip().upper() for c in expected_cwe.split(";") if c.strip()]
+    return model_cwe in expected_cwes
+
+
+def compute_strict_metrics(results: list[dict]) -> dict:
+    """计算严格指标：has_vulnerability 正确 AND CWE 匹配才算 strict_TP。
+
+    安全样本（expected_present=False）的 TN/FP 不受 CWE 校验影响，
+    严格指标只影响漏洞样本的 TP/FN 划分。
+    """
+    strict_tp = 0
+    cwe_mismatch = 0  # has_vulnerability 判对但 CWE 标错
+
+    for r in results:
+        exp = r.get("expected_present")
+        pred = r.get("predicted")
+        if exp is None or pred is None:
+            continue
+        if exp and pred:
+            # 漏洞样本且模型也判 True → 检查 CWE
+            model_vt = r.get("model_vulnerability_type", "")
+            expected_cwe = r.get("expected_cwe", "")
+            model_cwe = extract_cwe(model_vt)
+            if cwe_matches(model_cwe, expected_cwe):
+                strict_tp += 1
+            else:
+                cwe_mismatch += 1
+
+    loose = compute_detection_metrics(results)
+    vuln_total = loose["vuln_total"]
+    valid = loose["valid"]
+    tn = loose["tn"]
+
+    strict_fn = vuln_total - strict_tp
+    strict_recall = strict_tp / vuln_total if vuln_total else None
+    strict_accuracy = (strict_tp + tn) / valid if valid else None
+
+    return {
+        "strict_tp": strict_tp,
+        "strict_fn": strict_fn,
+        "cwe_mismatch": cwe_mismatch,
+        "strict_recall": round(strict_recall, 4) if strict_recall is not None else None,
+        "strict_accuracy": round(strict_accuracy, 4) if strict_accuracy is not None else None,
+    }
 
 
 def resolve_adapter_path(checkpoint: str | None, adapter_path: str | None) -> str | None:
@@ -149,12 +255,55 @@ def generate_response(
     return response
 
 
+def generate_response_ollama(
+    messages,
+    max_new_tokens=1024,
+    temperature=0.0,
+    num_ctx=16384,
+    num_gpu=None,
+) -> str:
+    """用 Ollama 后端生成回复（接口与 generate_response 对齐）。
+
+    用于评估本地 Ollama 模型（如 qwen3-coder:30b），
+    无需 HuggingFace transformers 加载，支持 CPU+GPU 混合推理。
+    """
+    global _ollama_client
+    if _ollama_client is None:
+        raise RuntimeError("OllamaClient 未初始化")
+
+    # 从 messages 中提取 system 和 user prompt
+    system_prompt = ""
+    user_prompt = ""
+    for msg in messages:
+        if msg["role"] == "system":
+            system_prompt = msg["content"]
+        elif msg["role"] == "user":
+            user_prompt = msg["content"]
+
+    result = _ollama_client.generate(
+        prompt=user_prompt,
+        system_prompt=system_prompt,
+        temperature=temperature,
+        max_tokens=max_new_tokens,
+        num_ctx=num_ctx,
+        num_gpu=num_gpu,
+        keep_alive=300,  # 评估期间常驻 5 分钟（空闲超时自动释放）
+    )
+    if result.get("error"):
+        raise RuntimeError(f"Ollama error: {result['error']}")
+    return result.get("text", "")
+
+
 def evaluate(model, tokenizer, samples, manifest_records,
-             temperature=0.0, do_sample=False, run_seed=0, samples_dir=None):
+             temperature=0.0, do_sample=False, run_seed=0, samples_dir=None,
+             self_verify=False, ollama_num_gpu=None, ollama_num_ctx=16384):
     """在样本集上评估，返回结果列表。
 
     P0 改造：接受 temperature / do_sample / run_seed 参数。
     run_seed 用于在多种子评估时设置 torch 随机种子（仅对 do_sample=True 有效）。
+
+    P2-7 改造：self_verify=True 时，首轮生成后追加一轮校验，让模型自检
+    CoT→JSON 一致性。能检测 typical_19 那种结论漂移（推理对结论错）。
     """
     if do_sample and run_seed:
         torch.manual_seed(run_seed)
@@ -190,19 +339,67 @@ def evaluate(model, tokenizer, samples, manifest_records,
 
         # 推理
         t0 = time.time()
+        elapsed = 0.0  # 初始化，避免异常时 UnboundLocalError
+        verify_output = None  # P2-7: self-verify 第二轮输出
+        verdict_corrected = False  # P2-7: 标记结论是否被修正
         try:
-            raw_output = generate_response(
-                model, tokenizer, messages,
-                temperature=temperature, do_sample=do_sample,
-            )
-            elapsed = time.time() - t0
+            if _ollama_client is not None:
+                raw_output = generate_response_ollama(
+                    messages,
+                    temperature=temperature,
+                    num_ctx=ollama_num_ctx,
+                    num_gpu=ollama_num_gpu,
+                )
+            else:
+                raw_output = generate_response(
+                    model, tokenizer, messages,
+                    temperature=temperature, do_sample=do_sample,
+                )
             verdict = parse_verdict(raw_output)
             predicted = normalize_has_vulnerability(verdict.get("has_vulnerability") if verdict else None)
+            model_vulnerability_type = verdict.get("vulnerability_type", "") if verdict else ""
+            elapsed = time.time() - t0
+
+            # P2-7: Self-Verification 后处理
+            if self_verify and verdict is not None:
+                verify_messages = messages + [
+                    {"role": "assistant", "content": raw_output},
+                    {"role": "user", "content": SELF_VERIFY_PROMPT},
+                ]
+                if _ollama_client is not None:
+                    verify_output = generate_response_ollama(
+                        verify_messages,
+                        max_new_tokens=512,
+                        temperature=temperature,
+                        num_ctx=ollama_num_ctx,
+                        num_gpu=ollama_num_gpu,
+                    )
+                else:
+                    verify_output = generate_response(
+                        model, tokenizer, verify_messages,
+                        max_new_tokens=512,  # 校验只需输出 JSON，不需要长 CoT
+                        temperature=temperature, do_sample=do_sample,
+                    )
+                corrected_verdict = parse_verdict(verify_output)
+                if corrected_verdict is not None:
+                    corrected_predicted = normalize_has_vulnerability(
+                        corrected_verdict.get("has_vulnerability"))
+                    # 如果校验后的结论与原始不同，说明模型自检发现了不一致
+                    if corrected_predicted is not None and corrected_predicted != predicted:
+                        verdict_corrected = True
+                        predicted = corrected_predicted
+                        model_vulnerability_type = corrected_verdict.get("vulnerability_type", "")
+                    elif corrected_predicted is not None:
+                        # 结论一致，但可能修正了 vulnerability_type
+                        if corrected_verdict.get("vulnerability_type", "") != model_vulnerability_type:
+                            model_vulnerability_type = corrected_verdict.get("vulnerability_type", "")
+                            verdict_corrected = True
         except Exception as e:
             elapsed = time.time() - t0
             raw_output = f"ERROR: {e}"
             verdict = None
             predicted = None
+            model_vulnerability_type = ""
 
         # 判定
         if predicted is None:
@@ -220,6 +417,7 @@ def evaluate(model, tokenizer, samples, manifest_records,
             "expected_present": expected_present,
             "model_has_vulnerability": predicted,  # 与 utils.compute_detection_metrics 默认字段对齐
             "predicted": predicted,  # 保留兼容字段
+            "model_vulnerability_type": model_vulnerability_type,  # P0-2: 严格评估用
             "outcome": outcome,
             "expected_vulnerability": rec.get("expected_vulnerability", ""),
             "expected_cwe": rec.get("expected_cwe", ""),
@@ -227,9 +425,12 @@ def evaluate(model, tokenizer, samples, manifest_records,
             "elapsed_seconds": round(elapsed, 2),  # 与 utils 期望字段对齐
             "elapsed": round(elapsed, 2),
             "run_seed": run_seed,  # 标记本次评估的种子（多种子聚合用）
+            "verify_output": verify_output,  # P2-7: self-verify 第二轮输出
+            "verdict_corrected": verdict_corrected,  # P2-7: 结论是否被修正
         }
+        corrected_tag = " [corrected]" if verdict_corrected else ""
         results.append(result)
-        print(f"[{i+1}/{len(manifest_records)}] {filename} → {outcome} ({elapsed:.1f}s)", flush=True)
+        print(f"[{i+1}/{len(manifest_records)}] {filename} → {outcome}{corrected_tag} ({elapsed:.1f}s)", flush=True)
 
     return results
 
@@ -299,6 +500,17 @@ def main():
                         help="启用采样（默认 False 确定性；启用时需 temperature>0）")
     parser.add_argument("--seeds", type=int, default=1,
                         help="跑 N 个种子取均值±标准差（默认 1；>1 时自动启用 do_sample）")
+    # P2-7: Self-Verification 后处理
+    parser.add_argument("--self-verify", action="store_true",
+                        help="启用 Self-Verification 后处理：首轮生成后追加一轮校验，"
+                             "让模型自检 CoT→JSON 一致性（增加 ~15s/样本，能检测结论漂移）")
+    # Ollama 后端
+    parser.add_argument("--ollama-model", type=str, default=None,
+                        help="用 Ollama 后端评估（如 qwen3-coder:30b），跳过 HF 模型加载")
+    parser.add_argument("--num-gpu", type=int, default=None,
+                        help="Ollama GPU offload 层数（大模型 20b+ 需部分 offload；None=自动）")
+    parser.add_argument("--num-ctx", type=int, default=16384,
+                        help="Ollama 上下文窗口 token 数（默认 16384）")
     args = parser.parse_args()
 
     # 解析 adapter 路径
@@ -318,8 +530,9 @@ def main():
             args.temperature = 0.1  # 多种子需要采样，默认 0.1
         print(f"多种子评估({args.seeds})：自动启用 do_sample, temperature={args.temperature}")
 
-    # 检查 GPU
-    if not torch.cuda.is_available():
+    # 检查 GPU（Ollama 后端不需要）
+    use_ollama = args.ollama_model is not None
+    if not use_ollama and not torch.cuda.is_available():
         print("错误：未检测到 GPU。请在真实终端运行（非 IDE 沙箱）。")
         sys.exit(1)
 
@@ -333,18 +546,33 @@ def main():
     print(f"测试样本: {len(records)} 段")
 
     # 加载模型
-    model, tokenizer = load_model(args.mode, adapter_path, args.quantize_4bit, args.model_id)
+    if use_ollama:
+        global _ollama_client
+        from graduation_project.llm_client import OllamaClient
+        _ollama_client = OllamaClient(model=args.ollama_model)
+        if not _ollama_client.check_connection():
+            print(f"错误：无法连接 Ollama（localhost:11434），请先运行 ollama serve")
+            sys.exit(1)
+        print(f"Ollama 后端: {args.ollama_model} (num_gpu={args.num_gpu}, num_ctx={args.num_ctx})")
+        model, tokenizer = None, None
+    else:
+        model, tokenizer = load_model(args.mode, adapter_path, args.quantize_4bit, args.model_id)
 
     # 多种子评估
     all_runs = []
     seed_list = [42 + i * 1000 for i in range(args.seeds)]  # 42, 1042, 2042 ...
-    print(f"\n开始评估（mode={args.mode}, seeds={seed_list}, do_sample={do_sample}, temp={args.temperature}）...")
+    if args.self_verify:
+        print("已启用 Self-Verification 后处理（每样本增加一轮校验）")
+    print(f"\n开始评估（mode={args.mode}, seeds={seed_list}, do_sample={do_sample}, temp={args.temperature}, self_verify={args.self_verify}）...")
     for run_idx, seed in enumerate(seed_list):
         print(f"\n===== Run {run_idx+1}/{args.seeds} (seed={seed}) =====")
         run_results = evaluate(
             model, tokenizer, None, records,
             temperature=args.temperature, do_sample=do_sample, run_seed=seed,
             samples_dir=samples_dir,
+            self_verify=args.self_verify,
+            ollama_num_gpu=args.num_gpu,
+            ollama_num_ctx=args.num_ctx,
         )
         all_runs.append(run_results)
 
@@ -354,6 +582,14 @@ def main():
     print("\n=== 单次指标（run 1, seed={}）===".format(seed_list[0]))
     for k, v in metrics.items():
         print(f"  {k}: {v}")
+
+    # P0-2: 严格指标（校验 vulnerability_type + CWE）
+    strict_metrics = compute_strict_metrics(representative_results)
+    print("\n=== 严格指标（has_vulnerability + CWE 匹配）===")
+    print(f"  strict_tp: {strict_metrics['strict_tp']}  (loose TP={metrics['tp']})")
+    print(f"  cwe_mismatch: {strict_metrics['cwe_mismatch']}  (判对方向但 CWE 标错)")
+    print(f"  strict_recall: {strict_metrics['strict_recall']}  (loose recall={metrics['recall']})")
+    print(f"  strict_accuracy: {strict_metrics['strict_accuracy']}  (loose accuracy={metrics['accuracy']})")
 
     # 多种子聚合
     multi_summary = None
@@ -371,7 +607,9 @@ def main():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     ts = time.strftime("%Y%m%d_%H%M%S")
     tag = args.mode
-    if args.mode == "finetuned":
+    if args.ollama_model:
+        tag = f"ollama_{args.ollama_model.replace(':', '_')}"
+    elif args.mode == "finetuned":
         ck_tag = args.checkpoint or "custom"
         tag = f"finetuned_{ck_tag}"
     if args.seeds > 1:
@@ -381,17 +619,25 @@ def main():
         out_file,
         {
             "experiment": "exp_06_finetune_eval",
-            "model": f"{args.model_id}-{args.mode}",
+            "model": f"{args.ollama_model or args.model_id}-{args.mode}",
             "checkpoint": args.checkpoint or (args.adapter_path or ""),
+            "ollama_model": args.ollama_model,
             "started_at": time.strftime("%Y-%m-%d %H:%M:%S"),
             "decoding": {"temperature": args.temperature, "do_sample": do_sample, "seeds": seed_list},
             "samples": representative_results,
             "all_runs": all_runs if args.seeds > 1 else None,
             "metrics": metrics,
+            "strict_metrics": strict_metrics,
             "multiseed_summary": multi_summary,
         },
     )
     print(f"\n结果已保存: {out_file}")
+
+    # 卸载 Ollama 模型，释放 GPU 显存
+    if _ollama_client is not None:
+        print("正在卸载 Ollama 模型...")
+        _ollama_client.unload_model()
+        print("Ollama 模型已卸载，GPU 显存已释放")
 
     # 打印混淆矩阵（基于第一个 run）
     tp = sum(1 for r in representative_results if r["outcome"] == "TP")
@@ -400,6 +646,13 @@ def main():
     tn = sum(1 for r in representative_results if r["outcome"] == "TN")
     pf = sum(1 for r in representative_results if r["outcome"] == "parse_fail")
     print(f"\n混淆矩阵(run1): TP={tp} FP={fp} FN={fn} TN={tn} (parse_fail={pf})")
+    print(f"严格混淆矩阵:   strict_TP={strict_metrics['strict_tp']} strict_FN={strict_metrics['strict_fn']} "
+          f"(CWE 不匹配={strict_metrics['cwe_mismatch']})")
+
+    # P2-7: Self-Verification 修正统计
+    if args.self_verify:
+        corrected_count = sum(1 for r in representative_results if r.get("verdict_corrected"))
+        print(f"\nSelf-Verification 修正: {corrected_count}/{len(representative_results)} 个样本的结论被修正")
 
 
 if __name__ == "__main__":

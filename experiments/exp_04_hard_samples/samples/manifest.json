@@ -380,14 +380,14 @@
       "language": "Python",
       "category": "cross_file_helper",
       "difficulty": "hard",
-      "expected_present": false,
-      "expected_vulnerability": "无（单独看 helper 文件，无外部 source；本文件是配套 sink 的工具函数）",
-      "expected_cwe": "N/A",
-      "expected_risk_level": "None",
-      "source": "函数参数 filename",
+      "expected_present": true,
+      "expected_vulnerability": "路径穿越：helper 函数未对 filename 做路径校验，os.path.join 无法阻止 ../ 逃逸 base_dir",
+      "expected_cwe": "CWE-22",
+      "expected_risk_level": "High",
+      "source": "函数参数 filename（调用方可能传入污染数据）",
       "sink": "open(filepath)",
-      "taint_path": "filename → os.path.join → open(filepath)（漏洞由调用方传入污染数据触发）",
-      "fix_idea": "建议在 helper 内部对 filename 做路径校验，避免污染数据穿越"
+      "taint_path": "filename → os.path.join(base_dir, filename) → open(filepath)（无前缀校验，../ 可逃逸）",
+      "fix_idea": "在 helper 内部对最终绝对路径做前缀校验：os.path.abspath(filepath).startswith(os.path.abspath(base_dir))"
     },
     {
       "file": "hard_crossfile_02_sink.py",

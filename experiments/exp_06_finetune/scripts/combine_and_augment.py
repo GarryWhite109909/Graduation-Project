@@ -51,6 +51,11 @@ SUPPLEMENT_LONGTAIL_FILE = DATA_DIR / "supplement_longtail_cwe.jsonl"
 SUPPLEMENT_CRYPTO_NOISE_FILE = DATA_DIR / "supplement_crypto_noise.jsonl"
 SUPPLEMENT_LONGFILE_DEFENSE_FILE = DATA_DIR / "supplement_longfile_defense.jsonl"
 SUPPLEMENT_7B_WEAKNESS_FILE = DATA_DIR / "supplement_7b_weakness.jsonl"
+SUPPLEMENT_BLINDSPOT_FILE = DATA_DIR / "supplement_blindspot_cwe.jsonl"
+SUPPLEMENT_CWE_ATTR_SSTI_FILE = DATA_DIR / "supplement_cwe_attribution_ssti.jsonl"
+SUPPLEMENT_CWE_ATTR_NOSQL_FILE = DATA_DIR / "supplement_cwe_attribution_nosql.jsonl"
+SUPPLEMENT_CWE_ATTR_SPEL_FILE = DATA_DIR / "supplement_cwe_attribution_spel.jsonl"
+SUPPLEMENT_CCOT_CONTRASTIVE_FILE = DATA_DIR / "supplement_ccot_contrastive.jsonl"
 OUTPUT_FILE = DATA_DIR / "train_chatml_v2.jsonl"
 
 
@@ -313,6 +318,49 @@ def main():
                     supplement_samples.append(json.loads(line))
                     w7_count += 1
         print(f"    7B 薄弱点 补充 {w7_count} 条，supplement 总计: {len(supplement_samples)} 条")
+
+    # 3.10 读取盲区 CWE 补充样本（日志注入/弱随机数/弱密码学，补齐分类法盲区）
+    if SUPPLEMENT_BLINDSPOT_FILE.exists():
+        print(f"\n[3.10] 读取 {SUPPLEMENT_BLINDSPOT_FILE.name}...")
+        bs_count = 0
+        with open(SUPPLEMENT_BLINDSPOT_FILE, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    supplement_samples.append(json.loads(line))
+                    bs_count += 1
+        print(f"    盲区 CWE 补充 {bs_count} 条，supplement 总计: {len(supplement_samples)} 条")
+
+    # 3.11 读取 CWE 归因补充样本（SSTI/NoSQL/SpEL，教模型区分 CWE 编号）
+    for cwe_attr_file, label in [
+        (SUPPLEMENT_CWE_ATTR_SSTI_FILE, "CWE-94 SSTI"),
+        (SUPPLEMENT_CWE_ATTR_NOSQL_FILE, "CWE-643 NoSQL"),
+        (SUPPLEMENT_CWE_ATTR_SPEL_FILE, "CWE-917 SpEL"),
+    ]:
+        if cwe_attr_file.exists():
+            print(f"\n[3.11] 读取 {cwe_attr_file.name}...")
+            attr_count = 0
+            with open(cwe_attr_file, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        supplement_samples.append(json.loads(line))
+                        attr_count += 1
+            print(f"    {label} 归因补充 {attr_count} 条，supplement 总计: {len(supplement_samples)} 条")
+
+    # 3.12 读取 CCoT 对比样本（shell=True 偏见 / SSTI 概念混淆 / 结论漂移）
+    if SUPPLEMENT_CCOT_CONTRASTIVE_FILE.exists():
+        print(f"\n[3.12] 读取 {SUPPLEMENT_CCOT_CONTRASTIVE_FILE.name}...")
+        ccot_count = 0
+        with open(SUPPLEMENT_CCOT_CONTRASTIVE_FILE, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    supplement_samples.append(json.loads(line))
+                    ccot_count += 1
+        print(f"    CCoT 对比样本 {ccot_count} 条，supplement 总计: {len(supplement_samples)} 条")
+    else:
+        print(f"\n[3.12] CCoT 对比样本文件不存在: {SUPPLEMENT_CCOT_CONTRASTIVE_FILE}（跳过）")
 
     # 4. 合并
     print(f"\n[4] 合并所有数据...")

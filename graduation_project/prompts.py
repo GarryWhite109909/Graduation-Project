@@ -122,7 +122,10 @@ SYSTEM_PROMPT_LITE = (
     "3. 判定必须基于代码实际内容，不能凭空臆造 API 参数或行为。\n"
     "4. 用户输入到达 sink 不等于漏洞，必须看 sink 前的防御措施是否有效。\n"
     "5. 硬编码的字面量凭证（key/secret/password/token）本身就是漏洞，"
-    "不要降级为“敏感但非漏洞”。\n\n"
+    "不要降级为“敏感但非漏洞”。\n"
+    "6. 结论一致性校验：JSON 的 has_vulnerability 必须与上述分析过程的推理结论一致。"
+    "若分析过程中识别出风险（如“弱随机”“不安全”“存在漏洞”），JSON 不得标 false；"
+    "若分析过程未识别出风险，JSON 不得标 true。\n\n"
     "在回答的最后，必须严格输出一个 JSON 对象作为最终结论，"
     "JSON 块用 ```json 包裹，字段如下（统一 schema，全项目一致）：\n"
     + format_schema_for_prompt()

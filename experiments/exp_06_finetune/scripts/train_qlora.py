@@ -139,6 +139,8 @@ def main():
                         help="EarlyStopping 耐心值：dev loss 连续 N 轮不降则停（默认 2）")
     parser.add_argument("--no-early-stopping", action="store_true",
                         help="禁用 early stopping（仍会分 dev 集评估，但不提前停）")
+    parser.add_argument("--output-suffix", type=str, default="",
+                        help="输出目录后缀（如 _7b），避免不同基座模型覆盖同名目录")
     args = parser.parse_args()
 
     # 解析数据文件路径
@@ -210,7 +212,7 @@ def main():
     model.print_trainable_parameters()
 
     # SFT 配置（P0 改造：加 eval + load_best）
-    output_dir = OUTPUT_DIR / f"lora_r{args.lora_r}_a{args.lora_alpha}_e{args.epochs}_s{args.seed}"
+    output_dir = OUTPUT_DIR / f"lora_r{args.lora_r}_a{args.lora_alpha}_e{args.epochs}_s{args.seed}{args.output_suffix}"
     output_dir.mkdir(parents=True, exist_ok=True)
     LOG_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -244,6 +246,10 @@ def main():
         metric_for_best_model="eval_loss",  # 按 dev loss 选 best
         greater_is_better=False,  # loss 越小越好
         save_strategy="epoch",  # 与 eval 对齐，每 epoch 存
+        # OOM 修复：dev 评估 batch_size 降到 1 + 累积 16 步，与训练一致
+        per_device_eval_batch_size=1,
+        eval_accumulation_steps=16,
+        dataloader_pin_memory=False,  # 省一点 CPU→GPU 拷贝开销
     )
 
     # EarlyStoppingCallback
@@ -299,7 +305,7 @@ def main():
                 print(f"  epoch={entry.get('epoch', '?'):.2f}  eval_loss={entry['eval_loss']:.4f}")
 
     # 保存训练日志
-    log_file = LOG_DIR / f"train_log_r{args.lora_r}_e{args.epochs}_s{args.seed}.json"
+    log_file = LOG_DIR / f"train_log_r{args.lora_r}_e{args.epochs}_s{args.seed}{args.output_suffix}.json"
     with open(log_file, "w") as f:
         json.dump(
             {

@@ -28,7 +28,7 @@ echo "==> 5. 更新 apt 缓存"
 sudo apt-get update
 
 echo "==> 6. 安装 ROCm 7.2.4（元包 rocm 包含运行时与开发库）"
-sudo apt-get install -y rocm
+sudo apt-get install -y --allow-downgrades rocm
 
 echo "==> 7. 将当前用户加入 render/video 组（使用 GPU 需要）"
 sudo usermod -a -G render,video "$USER"

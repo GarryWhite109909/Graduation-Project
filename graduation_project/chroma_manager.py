@@ -11,8 +11,8 @@ from typing import List, Dict, Optional
 
 
 # 默认 embedding 模型（sentence-transformers 格式）
-DEFAULT_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
-DEFAULT_EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
+DEFAULT_EMBEDDING_MODEL = "BAAI/bge-small-en-v1.5"
+DEFAULT_EMBEDDING_MODEL_NAME = "bge-small-en-v1.5"
 
 
 def _set_offline_mode() -> None:
