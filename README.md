@@ -142,7 +142,7 @@ Graduation-Project/
 ### ✅ 已完成：阶段三 — RAG 漏洞知识库增强（2026-06-29）
 
 - 知识库初版 34 条（覆盖 14 类漏洞），阶段四扩容至 72 条（覆盖 39 类 CWE，含安全模式识别条目防误报）
-- ChromaDB 持久化 + all-MiniLM-L6-v2 embedding；`build_knowledge.py` 改用 upsert 幂等写入
+- ChromaDB 持久化 + bge-small-en-v1.5 embedding；`build_knowledge.py` 改用 upsert 幂等写入
 - `run_rag_experiment.py` 批量对比纯 LLM vs RAG+LLM
 - **当前默认主模型结果（qwen2.5-coder:7b）**：RAG+LLM 召回率 100%、误报率 0% (0/2)、准确率 100%；RAG 上下文未对 qwen7b 产生负面影响
 - **历史对照结果**：deepseek-coder-v2:16b 在 RAG+LLM 下召回率 100%、误报率 100%（2/2）、准确率 85.7%；RAG 知识库未能纠正其安全模式知识盲区
@@ -349,12 +349,12 @@ ollama serve   # 若未启动
 
 > **环境约定**：所有实验脚本（尤其 exp\_03 / exp\_04 RAG 相关）依赖 `chromadb`、`sentence-transformers` 等包，这些只在 `graproj` conda 环境中安装。请在运行任何实验前激活该环境，否则会出现 `ModuleNotFoundError`。
 >
-> **离线运行约定**：`graduation_project/chroma_manager.py` 已强制离线模式（`HF_HUB_OFFLINE=1` / `TRANSFORMERS_OFFLINE=1`），运行时不会从 HuggingFace 下载 embedding 模型。首次使用前请确保 `all-MiniLM-L6-v2` 已缓存到本地：
+> **离线运行约定**：`graduation_project/chroma_manager.py` 已强制离线模式（`HF_HUB_OFFLINE=1` / `TRANSFORMERS_OFFLINE=1`），运行时不会从 HuggingFace 下载 embedding 模型。首次使用前请确保 `bge-small-en-v1.5` 已缓存到本地：
 >
 > ```bash
-> # 在有网络的环境执行一次即可
-> python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')"
-> # 默认缓存到 ~/.cache/huggingface/hub/models--sentence-transformers--all-MiniLM-L6-v2
+> # 在有网络的环境执行一次即可（国内可用 HF 镜像: HF_ENDPOINT=https://hf-mirror.com）
+> python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('BAAI/bge-small-en-v1.5')"
+> # 默认缓存到 ~/.cache/huggingface/hub/models--BAAI--bge-small-en-v1.5
 > ```
 >
 > 若缓存路径非默认，可设置 `export CHROMA_EMBEDDING_MODEL_PATH=/path/to/local/model`。

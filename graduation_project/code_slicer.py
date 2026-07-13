@@ -19,8 +19,24 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
 
-from tree_sitter import Node
-from tree_sitter_languages import get_parser
+import tree_sitter_python as tspython
+import tree_sitter_javascript as tsjs
+import tree_sitter_java as tsjava
+import tree_sitter_php as tsphp
+import tree_sitter_typescript as tsts
+from tree_sitter import Language, Node, Parser
+
+
+# ---------------------------------------------------------------------------
+# tree-sitter 语言对象注册表（各官方语言包，tree-sitter 0.25+ API）
+# ---------------------------------------------------------------------------
+_TS_LANGUAGE_OBJECTS = {
+    "python": Language(tspython.language()),
+    "javascript": Language(tsjs.language()),
+    "java": Language(tsjava.language()),
+    "php": Language(tsphp.language_php()),
+    "typescript": Language(tsts.language_typescript()),
+}
 
 
 # ---------------------------------------------------------------------------
@@ -120,7 +136,7 @@ class CodeSlicer:
             return self._full_file_result(code, language, filename, total_lines)
 
         try:
-            parser = get_parser(ts_lang)
+            parser = Parser(_TS_LANGUAGE_OBJECTS[ts_lang])
             tree = parser.parse(code.encode("utf-8"))
         except Exception:
             # 解析失败 → 退化为整文件
