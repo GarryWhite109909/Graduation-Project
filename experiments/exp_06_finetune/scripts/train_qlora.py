@@ -38,6 +38,37 @@ os.environ.setdefault("CUDA_VISIBLE_DEVICES", "0")
 os.environ.setdefault("HIP_VISIBLE_DEVICES", "0")
 
 import torch
+
+# TunableOp 启用（PyTorch 2.11+ 三种模式：recording / tuning / deploy）
+# 参考 docs/方法.md §12.1：TunableOp 离线调优可带来 ~15% 端到端加速
+# 工作流：
+#   1. Recording: PYTORCH_TUNABLEOP_RECORD_UNTUNED=1 + PYTORCH_TUNABLEOP_TUNING=0
+#      → 跑训练时把所有 GEMM shape 写入 cwd/tunableop_untuned0.csv（atexit 时 flush）
+#   2. Offline Tuning: 用 torch.cuda.tunable.tune_gemm_in_file() 调优 untuned csv
+#      → 输出 tuned csv（包含每个 GEMM 的最优 kernel）
+#   3. Deploy: PYTORCH_TUNABLEOP_FILE_NAME=tuned.csv + PYTORCH_TUNABLEOP_TUNING=0
+#      → 训练时自动读 tuned csv 用最优 kernel
+if os.environ.get("PYTORCH_TUNABLEOP_ENABLED", "0") == "1":
+    try:
+        t = torch.cuda.tunable
+        t.enable(True)  # 总开关（替换默认 GEMM 调度为 TunableOp）
+        # recording 模式：记录未调优的 GEMM shape 到 untuned csv
+        if os.environ.get("PYTORCH_TUNABLEOP_RECORD_UNTUNED", "0") == "1":
+            t.record_untuned_enable(True)
+            t.tuning_enable(False)  # 不调优，只记录
+        else:
+            # deploy 模式：读取已有 tuned csv 用最优 kernel
+            t.tuning_enable(False)
+            tuned_csv = os.environ.get("PYTORCH_TUNABLEOP_FILE_NAME")
+            if tuned_csv:
+                t.set_filename(tuned_csv)
+        print(f"TunableOp 已启用: enabled={t.is_enabled()} "
+              f"tuning={t.tuning_is_enabled()} "
+              f"record_untuned={t.record_untuned_is_enabled()} "
+              f"file={t.get_filename()}")
+    except Exception as e:
+        print(f"⚠️ TunableOp 启用失败: {e}")
+
 from datasets import Dataset
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from transformers import (
@@ -121,6 +152,13 @@ def main():
                         help="LoRA rank（默认 8；r=16 干预过强，r=8 足以学补盲样本）")
     parser.add_argument("--lora-alpha", type=int, default=16,
                         help="LoRA alpha（默认 16，保持 alpha=2*r）")
+    parser.add_argument("--lora-dropout", type=float, default=0.1,
+                        help="LoRA dropout（默认 0.1；高容量 r=32+ 建议降到 0.05）")
+    parser.add_argument("--use-rslora", action="store_true",
+                        help="启用 rsLoRA（缩放因子 1/r → 1/√r，高 rank 更稳定，零额外成本）")
+    parser.add_argument("--use-dora", action="store_true",
+                        help="启用 DoRA（权重分解为 magnitude+direction，PEFT 0.19+ 支持；"
+                             "注意：DoRA + 4bit QLoRA 在 ROCm 上需单独验证兼容性）")
     parser.add_argument("--max-seq-length", type=int, default=2048, help="最大序列长度")
     parser.add_argument("--save-steps", type=int, default=50, help="每 N 步保存")
     parser.add_argument("--logging-steps", type=int, default=5, help="每 N 步记录日志")
@@ -141,6 +179,9 @@ def main():
                         help="禁用 early stopping（仍会分 dev 集评估，但不提前停）")
     parser.add_argument("--output-suffix", type=str, default="",
                         help="输出目录后缀（如 _7b），避免不同基座模型覆盖同名目录")
+    parser.add_argument("--max-steps", type=int, default=-1,
+                        help="最大训练步数（默认 -1 不启用；>0 时覆盖 epochs，"
+                             "用于 TunableOp recording 等短跑场景）")
     args = parser.parse_args()
 
     # 解析数据文件路径
@@ -197,24 +238,40 @@ def main():
         model.enable_input_require_grads()
 
     # LoRA 配置
+    # P0 优化：支持 rsLoRA（1/√r 缩放，高 rank 更稳定）和 DoRA（magnitude+direction 分解）
+    # 参考 docs/方法.md §8.1：rsLoRA + DoRA 是零额外成本的 PEFT 升级
     lora_config = LoraConfig(
         r=args.lora_r,
         lora_alpha=args.lora_alpha,
-        lora_dropout=0.1,  # 增加 dropout 防止过拟合
+        lora_dropout=args.lora_dropout,
         bias="none",
         task_type="CAUSAL_LM",
+        use_rslora=args.use_rslora,  # rsLoRA：缩放因子 1/r → 1/√r
+        use_dora=args.use_dora,      # DoRA：权重分解为 magnitude + direction
         target_modules=[
             "q_proj", "k_proj", "v_proj", "o_proj",
             "gate_proj", "up_proj", "down_proj",
         ],
     )
+    peft_tags = []
+    if args.use_rslora:
+        peft_tags.append("rslora")
+    if args.use_dora:
+        peft_tags.append("dora")
+    peft_tag = ("_" + "_".join(peft_tags)) if peft_tags else ""
+    print(f"LoRA 配置: r={args.lora_r} alpha={args.lora_alpha} dropout={args.lora_dropout}"
+          f" rslora={args.use_rslora} dora={args.use_dora}")
     model = get_peft_model(model, lora_config)
     model.print_trainable_parameters()
 
     # SFT 配置（P0 改造：加 eval + load_best）
-    output_dir = OUTPUT_DIR / f"lora_r{args.lora_r}_a{args.lora_alpha}_e{args.epochs}_s{args.seed}{args.output_suffix}"
+    output_dir = OUTPUT_DIR / f"lora_r{args.lora_r}_a{args.lora_alpha}_e{args.epochs}_lr{args.lr:g}_s{args.seed}{peft_tag}{args.output_suffix}"
     output_dir.mkdir(parents=True, exist_ok=True)
     LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+    # max_steps > 0 时（TunableOp recording 等短跑场景）禁用 eval/save/load_best，
+    # 否则 load_best_model_at_end 会因无 checkpoint 报错
+    short_run = args.max_steps > 0
 
     sft_config = SFTConfig(
         output_dir=str(output_dir),
@@ -227,6 +284,7 @@ def main():
         logging_steps=args.logging_steps,
         save_steps=args.save_steps,
         save_total_limit=3,
+        max_steps=args.max_steps,  # >0 时覆盖 epochs（用于 TunableOp recording 短跑）
         bf16=False,  # RDNA4 不支持 bf16
         fp16=bnb_config is None,  # 4bit 模式下禁用 fp16 GradScaler（与 BFloat16 梯度冲突）
         gradient_checkpointing=True,
@@ -239,13 +297,13 @@ def main():
         assistant_only_loss=True,  # 只对 assistant 部分计算 loss
         report_to="none",
         logging_dir=str(LOG_DIR),
-        # P0 改造：验证集评估 + best checkpoint
-        eval_strategy="epoch",  # 每 epoch 评估 dev
+        # P0 改造：验证集评估 + best checkpoint（短跑模式下禁用）
+        eval_strategy="no" if short_run else "epoch",  # 每 epoch 评估 dev
         eval_steps=None,  # epoch 级别评估，不需 steps
-        load_best_model_at_end=True,  # 训练结束回滚到 best checkpoint
+        load_best_model_at_end=not short_run,  # 训练结束回滚到 best checkpoint
         metric_for_best_model="eval_loss",  # 按 dev loss 选 best
         greater_is_better=False,  # loss 越小越好
-        save_strategy="epoch",  # 与 eval 对齐，每 epoch 存
+        save_strategy="no" if short_run else "epoch",  # 与 eval 对齐，每 epoch 存
         # OOM 修复：dev 评估 batch_size 降到 1 + 累积 16 步，与训练一致
         per_device_eval_batch_size=1,
         eval_accumulation_steps=16,
@@ -254,14 +312,17 @@ def main():
 
     # EarlyStoppingCallback
     callbacks = []
-    if not args.no_early_stopping:
+    if not args.no_early_stopping and not short_run:
         callbacks.append(EarlyStoppingCallback(
             early_stopping_patience=args.early_stopping_patience,
             early_stopping_threshold=0.001,  # dev loss 降幅 < 0.001 视为无改善
         ))
         print(f"启用 EarlyStopping：patience={args.early_stopping_patience}, threshold=0.001")
     else:
-        print("禁用 EarlyStopping（仍会评估 dev 并存 best checkpoint）")
+        if short_run:
+            print("禁用 EarlyStopping（短跑模式 max_steps>0，无 eval）")
+        else:
+            print("禁用 EarlyStopping（仍会评估 dev 并存 best checkpoint）")
 
     # Trainer
     trainer = SFTTrainer(
@@ -278,6 +339,14 @@ def main():
     print(f"train={len(train_dataset)} dev={len(dev_dataset)}")
     print(f"输出目录: {output_dir}")
     train_result = trainer.train()
+
+    # 短跑模式（TunableOp recording 等）不保存模型，直接结束
+    if short_run:
+        print(f"\n✅ 短跑模式完成（max_steps={args.max_steps}），不保存模型")
+        print(f"   训练指标:")
+        for k, v in train_result.metrics.items():
+            print(f"   {k}: {v}")
+        return
 
     # 保存 best 模型（load_best_model_at_end=True 已把 best 加载回 model）
     best_dir = output_dir / "best"
@@ -304,8 +373,8 @@ def main():
             if "eval_loss" in entry:
                 print(f"  epoch={entry.get('epoch', '?'):.2f}  eval_loss={entry['eval_loss']:.4f}")
 
-    # 保存训练日志
-    log_file = LOG_DIR / f"train_log_r{args.lora_r}_e{args.epochs}_s{args.seed}{args.output_suffix}.json"
+    # 保存训练日志（文件名含 lr + peft 标识，避免 sweep 各组互相覆盖）
+    log_file = LOG_DIR / f"train_log_r{args.lora_r}_e{args.epochs}_lr{args.lr:g}_s{args.seed}{peft_tag}{args.output_suffix}.json"
     with open(log_file, "w") as f:
         json.dump(
             {
