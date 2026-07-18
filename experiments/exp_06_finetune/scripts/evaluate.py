@@ -296,7 +296,8 @@ def generate_response_ollama(
 
 def evaluate(model, tokenizer, samples, manifest_records,
              temperature=0.0, do_sample=False, run_seed=0, samples_dir=None,
-             self_verify=False, ollama_num_gpu=None, ollama_num_ctx=16384):
+             self_verify=False, ollama_num_gpu=None, ollama_num_ctx=16384,
+             rag_cm=None, rag_collection="vulnerability_knowledge", rag_top_k=3):
     """在样本集上评估，返回结果列表。
 
     P0 改造：接受 temperature / do_sample / run_seed 参数。
@@ -304,6 +305,10 @@ def evaluate(model, tokenizer, samples, manifest_records,
 
     P2-7 改造：self_verify=True 时，首轮生成后追加一轮校验，让模型自检
     CoT→JSON 一致性。能检测 typical_19 那种结论漂移（推理对结论错）。
+
+    RAG 改造（docs/方法.md §3 L1）：rag_cm 传入时，每个样本的代码作为 query
+    检索 Chroma 知识库，返回 Top-K 条 CWE 规则注入 prompt。
+    解决 Phase 1 发现的 33/87 CWE 错标问题。
     """
     if do_sample and run_seed:
         torch.manual_seed(run_seed)
@@ -330,8 +335,28 @@ def evaluate(model, tokenizer, samples, manifest_records,
             if input_code:
                 code = f"# 配套输入层文件 {input_file}\n{input_code}\n\n# 当前 sink 文件\n{code}"
 
+        # RAG 检索（参考 docs/方法.md §3 L1）
+        rag_context = None
+        rag_retrieval = None
+        if rag_cm is not None:
+            try:
+                # 复用项目已有的 build_rag_context 工具函数
+                from experiments.utils import build_rag_context as _build_rag
+                rag_context, rag_retrieval = _build_rag(
+                    query_code=code,
+                    cm=rag_cm,
+                    collection_name=rag_collection,
+                    top_k=rag_top_k,
+                )
+            except Exception as e:
+                print(f"  ⚠️ RAG 检索失败: {e}")
+                rag_context = None
+
         # 构造消息
-        user_prompt = build_user_prompt(code=code, language=language, filename=filename)
+        user_prompt = build_user_prompt(
+            code=code, language=language, filename=filename,
+            rag_context=rag_context,
+        )
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_prompt},
@@ -427,6 +452,7 @@ def evaluate(model, tokenizer, samples, manifest_records,
             "run_seed": run_seed,  # 标记本次评估的种子（多种子聚合用）
             "verify_output": verify_output,  # P2-7: self-verify 第二轮输出
             "verdict_corrected": verdict_corrected,  # P2-7: 结论是否被修正
+            "rag_retrieval": rag_retrieval,  # RAG 检索记录（每条知识的 cwe/distance/safe_pattern）
         }
         corrected_tag = " [corrected]" if verdict_corrected else ""
         results.append(result)
@@ -511,6 +537,14 @@ def main():
                         help="Ollama GPU offload 层数（大模型 20b+ 需部分 offload；None=自动）")
     parser.add_argument("--num-ctx", type=int, default=16384,
                         help="Ollama 上下文窗口 token 数（默认 16384）")
+    # RAG 检索增强（参考 docs/方法.md §3 L1）
+    parser.add_argument("--rag", action="store_true",
+                        help="启用 RAG 检索：从 vulnerability_knowledge 知识库检索 Top-3 相关条目注入 prompt。"
+                             "解决 Phase 1 发现的 CWE 错标问题（33/87 样本判对方向但 CWE 标错）")
+    parser.add_argument("--rag-top-k", type=int, default=3,
+                        help="RAG 检索 Top-K 条知识（默认 3）")
+    parser.add_argument("--rag-collection", type=str, default="vulnerability_knowledge",
+                        help="Chroma 知识库 collection 名（默认 vulnerability_knowledge，72 条 CWE 规则）")
     args = parser.parse_args()
 
     # 解析 adapter 路径
@@ -563,7 +597,21 @@ def main():
     seed_list = [42 + i * 1000 for i in range(args.seeds)]  # 42, 1042, 2042 ...
     if args.self_verify:
         print("已启用 Self-Verification 后处理（每样本增加一轮校验）")
-    print(f"\n开始评估（mode={args.mode}, seeds={seed_list}, do_sample={do_sample}, temp={args.temperature}, self_verify={args.self_verify}）...")
+
+    # RAG 初始化
+    rag_cm = None
+    if args.rag:
+        try:
+            from graduation_project.chroma_manager import ChromaManager
+            rag_cm = ChromaManager()
+            # 验证 collection 存在
+            col = rag_cm.client.get_collection(args.rag_collection)
+            print(f"已启用 RAG 检索: collection={args.rag_collection}, total={col.count()}, top_k={args.rag_top_k}")
+        except Exception as e:
+            print(f"⚠️ RAG 初始化失败，降级为无 RAG 模式: {e}")
+            rag_cm = None
+
+    print(f"\n开始评估（mode={args.mode}, seeds={seed_list}, do_sample={do_sample}, temp={args.temperature}, self_verify={args.self_verify}, rag={rag_cm is not None}）...")
     for run_idx, seed in enumerate(seed_list):
         print(f"\n===== Run {run_idx+1}/{args.seeds} (seed={seed}) =====")
         run_results = evaluate(
@@ -573,6 +621,9 @@ def main():
             self_verify=args.self_verify,
             ollama_num_gpu=args.num_gpu,
             ollama_num_ctx=args.num_ctx,
+            rag_cm=rag_cm,
+            rag_collection=args.rag_collection,
+            rag_top_k=args.rag_top_k,
         )
         all_runs.append(run_results)
 
