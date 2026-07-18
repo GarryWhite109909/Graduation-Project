@@ -42,12 +42,20 @@ ENV/
 experiments/exp_03_rag_knowledge/knowledge_data/chroma_db/
 experiments/exp_03_rag_knowledge/data/
 
-# ===== 实验产物：保留 results.json，但排除临时调试文件 =====
+# ===== 实验产物：保留 results.json 与 best/ 元数据，但排除临时调试文件 =====
 experiments/**/debug_*.json
 experiments/**/*.tmp
 experiments/**/_draft*
 # 旧版本实验结果备份（含答案泄露/旧模型版本）
 experiments/**/results.*-with-*.json
+# 训练中间 checkpoint（断点续训用，体积大；保留 best/ 即可复现评估）
+experiments/**/outputs/**/checkpoint-*/
+# HF datasets / transformers 运行时缓存
+**/.cache/
+# TunableOp 离线调优中间产物（保留 tuned.csv 与 untuned0.csv）
+experiments/**/configs/tunableop_tuned_partial*.csv
+experiments/**/configs/tunableop_record.log
+experiments/**/configs/tunableop_tune.log
 
 # ===== 敏感信息 =====
 .env

@@ -41,27 +41,36 @@
 
 ## 三、项目结构
 
+> 提示：大模型权重（`*.safetensors`/`*.gguf`）、`__pycache__/`、`*.log`、`outputs/`（除 `best/` 与 README 外的中间 checkpoint）以及 `data/chroma_db/` 均已通过 `.gitignore` 排除，详见各目录下的 README 与下方注释。
+
 ```
 Graduation-Project/
 ├── README.md                              # 本文档
-├── .gitignore
+├── .gitignore                             # 排除大模型/缓存/日志/中间 checkpoint
 ├── pyproject.toml                         # 项目元数据 + 依赖声明（支持 pip install -e .）
 ├── requirements.txt                       # 锁版本依赖清单
 ├── TODO.md                                # 代码审查问题清单（处理进度跟踪）
-├── 规划.md                                 # 项目阶段规划与进度
+├── 规划.md                                 # 项目阶段规划与进度（唯一进度源）
 ├── docs/                                  # 设计文档与改进建议
 │   ├── _archive/                          #   历史建议归档
 │   │   ├── glm的建议_20260628.md          #     GLM 给出的改进路线建议
 │   │   └── kimi的建议_20260628.md         #     Kimi 给出的智能体分工建议
-│   ├── 临时提示词_下一步计划.md            # 八大修复建议与执行方案
-│   ├── 必须手动学习的地方.md              # 手工任务详细操作指南（唯一来源）
-│   └── 过程.md                            # 实验过程记录
+│   ├── 方法.md                            #   训练方法体系（风格微调 vs 知识注入、KnItLM、DPO 等）
+│   ├── 改进.md                            #   实验结果分析与改进记录（r8_e1 / Phase 1 sweep / Phase 2 / Phase 3）
+│   ├── 过程.md                            #   实验过程记录
+│   ├── 必须手动学习的地方.md              #   手工任务详细操作指南（唯一来源）
+│   ├── 临时提示词_下一步计划.md            #   八大修复建议与执行方案（已归档，保留作历史索引）
+│   ├── wenti.md                           #   临时问题分析笔记（lora_r16_a32_e5_s42 数据来源排查）
+│   ├── glm的建议.md                       #   GLM 后续优化建议（P0/P1 优先级清单）
+│   ├── install_rocm_7.2.4.sh              #   ROCm 7.2.4 安装脚本
+│   └── revert_rocm_to_ubuntu.sh           #   ROCm 回滚到 Ubuntu 仓库版本脚本
 ├── graduation_project/                    # 核心代码库（pip install -e . 后可全局 import）
 │   ├── __init__.py
 │   ├── schema.py                          # 统一输出 schema（VERDICT_SCHEMA 唯一来源 + 解析函数）
 │   ├── prompts.py                         # 统一 Prompt 模板（SYSTEM_PROMPT + build_user_prompt）
 │   ├── llm_client.py                      # Ollama LLM 客户端（支持 RAG 增强）
-│   └── chroma_manager.py                  # Chroma 向量数据库管理器（add / upsert / query）
+│   ├── chroma_manager.py                  # Chroma 向量数据库管理器（add / upsert / query）
+│   └── code_slicer.py                     # AST 代码切片器（tree-sitter，长文件按函数/块切分）
 ├── experiments/                           # 实验目录（按阶段编号）
 │   ├── utils.py                           #   实验公共工具（manifest 加载 / 指标统计 / 结果落盘）
 │   ├── exp_01_basic_scan/                 # 阶段一：LLM 漏洞检测能力摸底
@@ -92,23 +101,79 @@ Graduation-Project/
 │   │       ├── knowledge.json             #   漏洞知识条目（手工编写，72 条，覆盖 39 类 CWE）
 │   │       ├── build_knowledge.py         #   从 JSON 加载 → upsert 入库 Chroma（幂等可重复运行）
 │   │       └── test_rag.py                #   单样本快速验证脚本（正式实验用 run_rag_experiment.py）
-│   └── exp_04_hard_samples/               #   阶段四：难样本压力测试 + 消融实验
-│       ├── samples/                       #   87 段扩展样本（v2/v3，典型 36 + 安全 18 + 难 27 + 噪音 6）
-│       │   ├── manifest.json              #     12 列 ground truth 标注
-│       │   ├── typical_*.py/php/js         #     典型漏洞样本
-│       │   ├── safe_*.py                  #     安全对照样本
-│       │   ├── hard_bypass_*.py            #     绕过式过滤难样本
-│       │   ├── hard_crossfile_*_{input,sink}.py  # 跨文件污点流难样本
-│       │   ├── hard_cve_*.py              #     真实 CVE 片段难样本
-│       │   ├── hard_longfile_*.py         #     长文件隐藏漏洞难样本
-│       │   ├── hard_owasp_*.py            #     OWASP/DVWA 风格难样本
-│       │   └── noise_*.py                 #     混淆/噪音样本
-│       ├── run_experiment.py              #   P1-4：纯 LLM 重复实验 + 置信区间（--repeat N）
-│       ├── run_rag_experiment.py           #   P1-5/P2-8：RAG 消融对照（--mode）+ Top-K（--top-k）
-│       ├── run_ablation_and_topk.sh        #   顺序跑 4 组消融 + 3 个 Top-K 的驱动脚本
-│       ├── generate_report.py             #   从 results/ 汇总生成 exp_04_report.md
-│       ├── exp_04_report.md               #   实验报告（P1-4 + P1-5 + P2-8 综合分析）
-│       └── results/                       #   所有实验结果 JSON + 运行日志
+│   ├── exp_04_hard_samples/               # 阶段四：难样本压力测试 + 消融实验 + 多模型对比
+│   │   ├── samples/                       #   87 段扩展样本（v2/v3，典型 36 + 安全 18 + 难 27 + 噪音 6）
+│   │   │   ├── manifest.json              #     12 列 ground truth 标注
+│   │   │   ├── typical_*.py/php/js         #     典型漏洞样本
+│   │   │   ├── safe_*.py                  #     安全对照样本
+│   │   │   ├── hard_bypass_*.py            #     绕过式过滤难样本
+│   │   │   ├── hard_crossfile_*_{input,sink}.py  # 跨文件污点流难样本
+│   │   │   ├── hard_cve_*.py              #     真实 CVE 片段难样本
+│   │   │   ├── hard_longfile_*.py         #     长文件隐藏漏洞难样本
+│   │   │   ├── hard_owasp_*.py            #     OWASP/DVWA 风格难样本
+│   │   │   └── noise_*.py                 #     混淆/噪音样本
+│   │   ├── run_experiment.py              #   P1-4：纯 LLM 重复实验 + 置信区间（--repeat N）
+│   │   ├── run_rag_experiment.py          #   P1-5/P2-8：RAG 消融对照（--mode）+ Top-K（--top-k）
+│   │   ├── run_v3_qwen7b_all.sh           #   v3 qwen7b 顺序跑 4 组消融 + 3 个 Top-K 的驱动脚本
+│   │   ├── run_v3_multi_model.sh          #   v3 多模型横向对比驱动脚本（6 模型 × 87 段）
+│   │   ├── rerun_fix_samples.py           #   结果审查修复重跑脚本
+│   │   ├── generate_report.py             #   从 results/ 汇总生成 exp_04_report.md
+│   │   ├── exp_04_report.md               #   实验报告（P1-4 + P1-5 + P2-8 + 多模型对比综合分析）
+│   │   └── results/                       #   所有实验结果 JSON（含 _archive 历史版本）
+│   ├── exp_05_prompt_ablation/            # 阶段四-3 后续：Prompt 工程消融对比
+│   │   ├── run_ablation.py                #   零样本 / Few-shot / 思维链 / 安全模式白名单 对比
+│   │   ├── exp_05_report.md               #   实验报告
+│   │   └── results/                       #   消融实验结果 JSON
+│   └── exp_06_finetune/                   # 阶段五：网络安全专用模型训练与蒸馏
+│       ├── data/                          #   训练数据（入库以保证复现性）
+│       │   ├── train_chatml.jsonl         #     build_dataset.py 产出的 222 条手写样本
+│       │   ├── train_chatml_v2.jsonl      #     combine_and_augment.py 合并的 622 条最终训练集
+│       │   ├── cpt_corpus.jsonl           #     Phase 3 KnItLM CPT 语料（CVE/CWE/OWASP）
+│       │   ├── distill_corpus_annotated_v2.jsonl  # 教师模型 CoT 蒸馏 400 条
+│       │   ├── dpo_merged.jsonl           #     DPO 训练集（v1+v3 合并去重 196 条）
+│       │   └── supplement_*.jsonl         #     各类对抗性补充样本（CCoT / 弱点 / 长尾 CWE 等）
+│       ├── configs/                       #   TunableOp 离线调优产物（RDNA4 加速）
+│       │   ├── tunableop_untuned0.csv     #     Step 1：录制所有 GEMM shape
+│       │   └── tunableop_tuned.csv        #     Step 2：调优后的最优 kernel 选择表（训练自动加载）
+│       ├── scripts/                       #   训练 / 评估 / 数据生成脚本
+│       │   ├── train_qlora.py             #     QLoRA SFT 主训练脚本（Phase 1/2 通用）
+│       │   ├── train_knitlm_cpt.py        #     Phase 3 KnItLM CPT 训练脚本
+│       │   ├── train_dpo.py               #     DPO 训练脚本
+│       │   ├── train_prompt_distillation.py #   Phase 4 Prompt 蒸馏训练脚本
+│       │   ├── evaluate.py                #     评估脚本（支持 best/checkpoint-N/final）
+│       │   ├── merge_lora_to_instruct.py  #     把 LoRA adapter 合并到 Instruct 基座
+│       │   ├── build_dataset.py           #     手写样本 → train_chatml.jsonl
+│       │   ├── combine_and_augment.py     #     合并蒸馏 + 手写 + 补充样本 → train_chatml_v2.jsonl
+│       │   ├── generate_distill_data.py   #     教师模型 CoT 蒸馏数据生成
+│       │   ├── prepare_cpt_corpus.py      #     Phase 3 CPT 语料构建
+│       │   ├── compare_phase1_sweep.py    #     Phase 1 lr × rsLoRA 网格搜索对比
+│       │   ├── compare_phase2.py          #     Phase 2 r=32 + rsLoRA + e=2 对比
+│       │   ├── compare_phase3.py          #     Phase 3 KnItLM 评估对比
+│       │   ├── tunableop_offline_tune.sh  #     TunableOp 离线调优三步流程
+│       │   ├── run_phase1_sweep.sh        #     Phase 1 sweep 驱动脚本
+│       │   ├── run_phase2_sft.sh          #     Phase 2 SFT 驱动脚本
+│       │   ├── run_knitlm_cpt.sh          #     Phase 3 KnItLM 三阶段一键脚本（CPT → Merge → Eval）
+│       │   └── run_phase4_prompt_distillation.sh  # Phase 4 Prompt 蒸馏驱动脚本
+│       ├── outputs/                       #   训练产物（不入库；仅保留 best/，中间 checkpoint 已清理）
+│       │   ├── knitlm_merged_7b_instruct/ #     Phase 3 合并后的 KnItLM 7B 模型（fp16，~15GB）
+│       │   ├── knitlm_cpt_r64_a128_e1.0_lr2e-05_rslora/best/  # Phase 3 CPT LoRA adapter
+│       │   ├── lora_r32_a64_e2_lr1e-05_s42_rslora_phase2_*/best/  # Phase 2 best LoRA
+│       │   ├── lora_r8_a16_e1_lr{1e-5,5e-5,1e-4}_*_7b/best/  # Phase 1 sweep 各配置 best
+│       │   ├── lora_r16_a32_e3_s42/best/  #     初版 3B LoRA（参考用）
+│       │   └── dpo_r8_a16_e1_beta0.1_s42/best/  # DPO 实验 best adapter
+│       ├── results/                       #   评估结果 JSON + 对比摘要
+│       │   ├── exp_06_eval.phase1_*.json  #     Phase 1 sweep 各配置 87 段评估结果
+│       │   ├── exp_06_eval.phase2_*.json  #     Phase 2 评估结果
+│       │   ├── exp_06_eval.knitlm_merged.*.json  # Phase 3 KnItLM 评估结果
+│       │   ├── hard_samples_*.json        #     分 CWE 类型的硬样本细分结果
+│       │   ├── phase1_sweep_summary.md    #     Phase 1 sweep 汇总表
+│       │   ├── phase2_summary.md          #     Phase 2 汇总表
+│       │   └── compare_4way_*.md          #     4-way 对比报告（3B vs 7B / baseline vs finetuned）
+│       ├── testset_cve_fix/               #   CVE-fix 独立测试集（30 个 Go 项目，需 GITHUB_TOKEN）
+│       │   ├── cve_fix_00{01..30}.go      #     30 段 CVE 修复前后代码片段
+│       │   ├── manifest.json              #     测试集清单
+│       │   └── manifest_eval.json         #     评估用清单
+│       └── logs/                          #   训练日志（不入库；train_log_*.json 含 dev_loss 曲线，compare_*.py 依赖）
 └── data/                                  # 本地持久化数据（不入库，见 .gitignore；首次运行 build_knowledge.py 后自动生成）
     └── chroma_db/                         #   Chroma 向量数据库
 ```
