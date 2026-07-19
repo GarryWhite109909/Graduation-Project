@@ -18,6 +18,13 @@
 
 **核心卖点**：传统工具是"模式匹配"，本系统是"语义理解"。
 
+**摘要**：
+
+- **已完成**：在本地 7B 开源模型上验证了零样本代码漏洞检测的可行性；RAG 知识库与 Prompt 工程能提升判定质量，但很快遇到能力天花板。
+- **关键突破**：通过 **KnItLM 继续预训练** 将网络安全领域知识注入 7B 模型，严格召回率（recall）提升 23 个百分点、误报率（FPR）下降 7.7 个百分点，证明“知识注入”优于单纯增大 LoRA 容量。
+- **进行中**：以 qwen3-coder:30b 为 teacher、KnItLM 为 student 进行 **Prompt Distillation**，修复 CPT 引入的过度泛化副作用。
+- **待完成**：DPO 边界校准评估、错题增强闭环、前后端工程化。
+
 ***
 
 ## 二、实验环境
@@ -128,11 +135,11 @@ Graduation-Project/
 │   │   ├── generate_report.py             #   从 results/ 汇总生成 exp_04_report.md
 │   │   ├── exp_04_report.md               #   实验报告（P1-4 + P1-5 + P2-8 + 多模型对比综合分析）
 │   │   └── results/                       #   所有实验结果 JSON（含 _archive 历史版本）
-│   ├── exp_05_prompt_ablation/            # 阶段四-3 后续：Prompt 工程消融对比
+│   ├── exp_05_prompt_ablation/            # 阶段五：Prompt 工程消融对比
 │   │   ├── run_ablation.py                #   零样本 / Few-shot / 思维链 / 安全模式白名单 对比
 │   │   ├── exp_05_report.md               #   实验报告
 │   │   └── results/                       #   消融实验结果 JSON
-│   └── exp_06_finetune/                   # 阶段五：网络安全专用模型训练与蒸馏
+│   └── exp_06_finetune/                   # 阶段六：网络安全专用模型训练与蒸馏
 │       ├── data/                          #   训练数据（入库以保证复现性）
 │       │   ├── train_chatml.jsonl         #     build_dataset.py 产出的 222 条手写样本
 │       │   ├── train_chatml_v2.jsonl      #     combine_and_augment.py 合并的 622 条最终训练集
@@ -190,7 +197,7 @@ Graduation-Project/
 
 ## 四、当前进度
 
-> 详细进度清单与未完成事项见 [规划.md](规划.md) §三/§四。以下仅列各阶段关键结果。
+> **总体状态**：零样本推理基线（exp_01~05）已全部完成；训练主线（exp_06）中，Phase 1~3 已完成，Phase 3 取得关键突破（KnItLM CPT）。Phase 4（Prompt Distillation，qwen3-coder:30b → KnItLM student）正在台式机训练；Phase 5（DPO）已训练、待评估；Phase 6（错题增强闭环）待启动。详细进度与未完成事项见 [规划.md](规划.md) §三/§四。
 
 ### ✅ 阶段一：LLM 漏洞检测能力摸底（exp_01，2026-06-28）
 
@@ -213,7 +220,14 @@ Graduation-Project/
 - 6 模型横向对比：gemma4:12b/26b 最优（准确率 94.3%），deepseek 误报率最高（44.4%）
 - 详见 [exp_04_report.md](experiments/exp_04_hard_samples/exp_04_report.md)
 
-### 🔄 阶段五：网络安全专用模型训练（exp_06，进行中）
+### ✅ 阶段五：Prompt 工程消融（exp_05，2026-07-06）
+
+- 对比零样本 / Few-shot / 思维链（CoT）/ 安全模式白名单 四种 Prompt 策略
+- CoT 在 recall 上表现最优（95%），但各策略在 FPR、稳定性上各有取舍
+- 结论：Prompt 工程能提升判定质量，但无法替代模型层面的领域知识注入
+- 详见 [exp_05_report.md](experiments/exp_05_prompt_ablation/exp_05_report.md)
+
+### 🔄 阶段六：网络安全专用模型训练（exp_06 Phase 1~6，进行中）
 
 - **Phase 1 sweep**：lr 调优反恶化 FPR（lr=1e-4+rsLoRA 最低 dev_loss 但 FPR +11.5pp）
 - **Phase 2 r=32 失败**：LoRA 增容致 FPR +19.2pp，CWE 错标数未变——LoRA 增容 ≠ 知识注入
@@ -225,7 +239,7 @@ Graduation-Project/
 
 ## 五、研究主线与实验体系
 
-> 本项目不是简单的"用 LLM 跑一遍样本"，而是一条从**零样本推理**到**专用模型训练**的完整研究链。§四 已给出阶段结果，本节说明这些实验之间的逻辑关系、方法演进与论文定位。
+> 本项目不是简单"用 LLM 跑一遍样本"，而是一条从**零样本推理**到**领域知识注入**再到**推理分布校准**的完整研究链。§四 已给出各阶段结果，本节说明实验之间的逻辑关系、方法演进与论文定位。
 
 ### 主线一：零样本与增强推理（exp_01 ~ exp_05）
 
@@ -239,7 +253,7 @@ Graduation-Project/
 | exp_04 | 难样本压力测试与消融 | v3 87 段样本（修复答案泄露后）上纯 LLM accuracy=78.2%；RAG 消融显示知识相关性价值有限，模型基座已掌握典型模式 | 能力边界 |
 | exp_05 | Prompt 工程消融 | CoT 召回 95% 为最优单一策略；零样本 / Few-shot / 安全白名单各有适用场景 | 工程优化 |
 
-### 主线二：网络安全专用模型（exp_06 Phase 1~5/6）
+### 主线二：网络安全专用模型（exp_06 Phase 1~6）
 
 当零样本能力触顶后，转入训练主线，目标是**在 7B 规模上通过高效微调注入漏洞推理能力**，并保持本地可部署。
 
@@ -263,7 +277,7 @@ Graduation-Project/
 3. **知识注入**（KnItLM CPT）：在 base 模型上注入 CVE/CWE/OWASP 领域语言模式，再 merge 到 Instruct，既保留对话能力又获得漏洞领域先验。
 4. **分布校准**（Prompt Distillation / DPO）：用强 teacher 和偏好对修复 CPT 的过度泛化副作用。
 
-### 📌 答辩核心论点
+### 📌 核心论点与论文定位
 
 #### 1. 速度 vs 质量的权衡论证
 
@@ -617,8 +631,8 @@ CI = [center - margin, center + margin]
 
 ## 十、约定与备注
 
-- 先不搭前后端框架，需求会在实验后明确。
-- 所有实验过程和 Prompt 迭代都保留，后续写论文直接可用。
+- 本阶段聚焦核心算法验证与专用模型训练，前后端工程化框架待实验完成后再明确需求并启动。
+- 所有实验过程、Prompt 迭代与训练日志均已保留，作为后续论文撰写的原始依据。
 - 模型名称需与 Ollama 中实际可用的模型名一致。
 - **显存管理约定**：每次实验脚本跑完必须主动从显存卸载模型（Ollama `keep_alive=0`），多模型场景下避免爆显存。`run_experiment.py` 默认在末尾卸载，如需保留加 `--keep-loaded`。
 - 大模型文件（`.gguf` / `.bin` / `.safetensors` 等）绝不入库，见 `.gitignore`。
