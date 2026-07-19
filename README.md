@@ -1,6 +1,6 @@
 # 基于大语言模型的代码安全分析系统
 
-> 本地部署的开源大语言模型（当前默认主模型为 Qwen2.5-Coder 7B，DeepSeek-Coder-V2-Lite 16B 等保留为对照）驱动的代码漏洞检测系统，对比传统基于规则的静态分析工具，验证 LLM 在代码安全审计中的语义理解优势。
+> 本地部署的开源大语言模型驱动的代码漏洞检测系统，对比传统基于规则的静态分析工具，验证 LLM 在代码安全审计中的语义理解优势。exp_01~05 以 `qwen2.5-coder:7b` 为推理基座做多模型对比与 prompt 消融；exp_06 起切换至训练主线，以 Qwen2.5-Coder-7B-Base + KnItLM CPT（LoRA r=64）为 student、Qwen3-Coder:30b 为 Phase 4 Prompt Distillation teacher。
 
 ***
 
@@ -22,20 +22,29 @@
 
 ## 二、实验环境
 
-| 项目     | 配置                                                                                          |
-| ------ | ------------------------------------------------------------------------------------------- |
-| CPU    | AMD Ryzen 5 9600X × 12                                                                      |
-| 内存     | 32 GB                                                                                       |
-| 显卡     | AMD Radeon RX 9060 XT                                                                       |
-| 操作系统   | Ubuntu 26.04 LTS（内核 7.0.0-15-generic）                                                       |
-| 桌面环境   | GNOME 50 / Wayland                                                                          |
-| 本地 LLM | Ollama                                                                                      |
-| 主模型    | `qwen2.5-coder:7b`（当前默认主模型，典型样本无需后处理即可 100% 准确率）                                            |
-| 对照模型   | `deepseek-coder-v2:16b` / `qwen2.5-coder:14b` / `gemma4:12b` / `gemma4:26b` / `gpt-oss:20b` |
+| 项目 | 配置 |
+| --- | --- |
+| CPU | AMD Ryzen 5 9600X × 12 |
+| 内存 | 32 GB |
+| 显卡 | AMD Radeon RX 9060 XT 16 GB |
+| 操作系统 | Ubuntu 26.04 LTS（内核 7.0.0-15-generic） |
+| 桌面环境 | GNOME 50 / Wayland |
+| GPU 驱动 / 计算栈 | ROCm 7.2.4 + PyTorch 2.11.0+rocm7.2 |
+| Python 环境 | miniconda `graproj`（Python 3.11） |
+| 本地 LLM 服务 | Ollama |
 
-> 注：模型文件不入库（见 `.gitignore`），默认主模型需通过 `ollama pull qwen2.5-coder:7b` 自行下载。
-> 默认主模型于 2026-06-30 最终从 `deepseek-coder-v2:16b` 切换为 `qwen2.5-coder:7b`：exp\_01 平均耗时从 deepseek 的 9.63s 降至约 7.7s，且无需安全模式后处理即可在典型样本上达到 100% 准确率。`deepseek-coder-v2:16b` 保留作为对照模型。
-> 以上为台式机配置（实验运行环境）；本人笔记本仅用于代码编辑，跑不动模型推理。
+### 模型清单
+
+| 角色 | 模型 | 阶段 |
+| --- | --- | --- |
+| 推理基座 | `qwen2.5-coder:7b` | exp_01 ~ exp_05 |
+| 训练 student | Qwen2.5-Coder-7B-Base → KnItLM CPT (r=64) → merge 到 Instruct | exp_06 Phase 1-3 |
+| PD teacher | `qwen3-coder:30b`（MoE，Ollama 后端提供 logits） | exp_06 Phase 4 |
+| 对照模型 | `deepseek-coder-v2:16b` / `qwen2.5-coder:14b` / `gemma4:12b` / `gemma4:26b` / `gpt-oss:20b` | exp_04 多模型对比 |
+
+> 完整环境清单（Embedding 模型、向量库版本、传统工具版本等）见 [规划.md](规划.md) §二；训练与推理全链路技术栈见 §六。
+>
+> 注：模型权重不入库（见 `.gitignore`）。推理基座需 `ollama pull qwen2.5-coder:7b`；训练基座从 HuggingFace 拉取。以上为台式机实验环境，笔记本仅用于代码编辑与文档审查。
 
 ***
 
@@ -54,14 +63,13 @@ Graduation-Project/
 ├── docs/                                  # 设计文档与改进建议
 │   ├── _archive/                          #   历史建议归档
 │   │   ├── glm的建议_20260628.md          #     GLM 给出的改进路线建议
-│   │   └── kimi的建议_20260628.md         #     Kimi 给出的智能体分工建议
+│   │   ├── kimi的建议_20260628.md         #     Kimi 给出的智能体分工建议
+│   │   ├── 临时提示词_下一步计划_20260706.md #   exp_01~03 时代八大修复建议（已归档）
+│   │   └── wenti_20260719.md              #   r16_e5 时代问题分析笔记（历史快照）
 │   ├── 方法.md                            #   训练方法体系（风格微调 vs 知识注入、KnItLM、DPO 等）
-│   ├── 改进.md                            #   实验结果分析与改进记录（r8_e1 / Phase 1 sweep / Phase 2 / Phase 3）
-│   ├── 过程.md                            #   实验过程记录
+│   ├── 改进.md                            #   实验结果分析与改进记录（§0 Phase 1-3 总结 / §1-5 r8_e1 诊断）
+│   ├── 过程.md                            #   实验过程记录（exp_01 ~ Phase 4 时间线）
 │   ├── 必须手动学习的地方.md              #   手工任务详细操作指南（唯一来源）
-│   ├── 临时提示词_下一步计划.md            #   八大修复建议与执行方案（已归档，保留作历史索引）
-│   ├── wenti.md                           #   临时问题分析笔记（lora_r16_a32_e5_s42 数据来源排查）
-│   ├── glm的建议.md                       #   GLM 后续优化建议（P0/P1 优先级清单）
 │   ├── install_rocm_7.2.4.sh              #   ROCm 7.2.4 安装脚本
 │   └── revert_rocm_to_ubuntu.sh           #   ROCm 回滚到 Ubuntu 仓库版本脚本
 ├── graduation_project/                    # 核心代码库（pip install -e . 后可全局 import）
@@ -182,212 +190,210 @@ Graduation-Project/
 
 ## 四、当前进度
 
-### ✅ 已完成：阶段一 — LLM 漏洞检测能力摸底（2026-06-28，默认主模型最终切换为 qwen2.5-coder:7b）
+> 详细进度清单与未完成事项见 [规划.md](规划.md) §三/§四。以下仅列各阶段关键结果。
 
-- 14 段样本：6 类典型漏洞 × 2 + 2 安全对照，覆盖 Python / PHP / JavaScript / Java 4 种语言
-- 统一结构化 Prompt（角色设定 → 分析范围 → JSON 结论协议）
-- 批量测试脚本 `run_experiment.py`：调用 Ollama API、增量落盘、自动卸载显存
-- **当前默认主模型结果（qwen2.5-coder:7b）**：召回率 100% (12/12)、误报率 0% (0/2)、准确率 100%（14/14），平均约 7.7s/样本；无需安全模式后处理
-- **历史对照结果**：deepseek-coder-v2:16b 召回率 100%、误报率 100%（2/2）、准确率 85.7%，经安全模式后处理可提升至 100%；qwen2.5-coder:14b 准确率 92.9%（1 处误报）
-- **关键发现**：qwen7b 在典型样本上能力达标且无需后处理；deepseek 速度快但存在安全模式知识盲区，已降级为对照模型（其安全样本优化专项已失败，放弃作为安全专用模型基座）
+### ✅ 阶段一：LLM 漏洞检测能力摸底（exp_01，2026-06-28）
 
-详见 [experiments/exp\_01\_basic\_scan/exp\_01\_report.md](experiments/exp_01_basic_scan/exp_01_report.md)（历史报告为 qwen2.5-coder:14b 数据，当前默认主模型结果见 `results/results.qwen2.5-coder-7b.json`）。
+- **qwen2.5-coder:7b**：14 段典型样本召回率 100%、误报率 0%、准确率 100%，平均 7.65s/样本
+- 详见 [exp_01_report.md](experiments/exp_01_basic_scan/exp_01_report.md)
 
-> ⚠️ **结果局限性**：样本为"教科书式"典型漏洞，高准确率仅证明能力下限；真实工程代码（混淆、跨文件、CVE 变体）难度更高，需结合 exp\_04 难样本集评估。
+### ✅ 阶段二：传统工具对比基线（exp_02，2026-06-29）
 
-### ✅ 已完成：阶段二 — 传统工具对比基线（2026-06-29）
+- path_traversal_01.py 由 LLM 唯一检出，体现语义理解对模式匹配的优势；完整耗时与准确率对比见 §五 答辩核心论点 1
+- 详见 [exp_02_report.md](experiments/exp_02_baseline_tools/exp_02_report.md)
 
-- Bandit 1.9.4 + Semgrep 1.168.0 调用脚本 `run_baseline.py`，复用 exp\_01 的 14 段样本
-- 输出与 exp\_01 统一的 JSON 格式，自动适配 conda/venv 环境的 PATH
-- **结果（基于当前默认主模型 qwen2.5-coder:7b）**：RAG+LLM 准确率 100% vs 纯 LLM 100% vs Bandit 75.0%（Python 样本） vs Semgrep 78.6%；qwen7b 在典型样本上无需 RAG 即可达到 100% 准确率
-- 关键论据：path\_traversal\_01.py LLM 唯一检出；RAG+LLM 在召回率上优于传统工具；qwen7b 已能解决 deepseek 的安全样本误报问题
+### ✅ 阶段三：RAG 知识库增强（exp_03，2026-06-29）
 
-详见 [experiments/exp\_02\_baseline\_tools/exp\_02\_report.md](experiments/exp_02_baseline_tools/exp_02_report.md)。
+- 知识库 39→72 条，覆盖 39 类 CWE；qwen7b 在 RAG+LLM 下准确率 100%
+- 详见 [exp_03_report.md](experiments/exp_03_rag_knowledge/exp_03_report.md)
 
-### ✅ 已完成：阶段三 — RAG 漏洞知识库增强（2026-06-29）
+### ✅ 阶段四：难样本压力测试 + 多模型对比（exp_04 v3，2026-07-05）
 
-- 知识库初版 34 条（覆盖 14 类漏洞），阶段四扩容至 72 条（覆盖 39 类 CWE，含安全模式识别条目防误报）
-- ChromaDB 持久化 + bge-small-en-v1.5 embedding；`build_knowledge.py` 改用 upsert 幂等写入
-- `run_rag_experiment.py` 批量对比纯 LLM vs RAG+LLM
-- **当前默认主模型结果（qwen2.5-coder:7b）**：RAG+LLM 召回率 100%、误报率 0% (0/2)、准确率 100%；RAG 上下文未对 qwen7b 产生负面影响
-- **历史对照结果**：deepseek-coder-v2:16b 在 RAG+LLM 下召回率 100%、误报率 100%（2/2）、准确率 85.7%；RAG 知识库未能纠正其安全模式知识盲区
-- 关键论据：检索知识与模型最终判定之间仍存在鸿沟；对 qwen7b 而言当前 RAG 更多是可解释性增强，对 deepseek 则需要 Prompt / RAG / 后处理 / 微调联合优化
+- v3 修复后 87 段样本（答案泄露已修复），qwen7b 纯 LLM 多数表决 recall=83.3%、FPR=33.3%、accuracy=78.2%
+- 6 模型横向对比：gemma4:12b/26b 最优（准确率 94.3%），deepseek 误报率最高（44.4%）
+- 详见 [exp_04_report.md](experiments/exp_04_hard_samples/exp_04_report.md)
 
-详见 [experiments/exp\_03\_rag\_knowledge/exp\_03\_report.md](experiments/exp_03_rag_knowledge/exp_03_report.md)。
+### 🔄 阶段五：网络安全专用模型训练（exp_06，进行中）
 
-### ✅ 已完成：阶段四-1 — 实验严谨性修复与难样本集构建（2026-06-29 / 2026-07-03 v2 扩容 / 2026-07-05 v3 修复）
-
-针对 exp\_01\~03 评估中发现的实验设计问题（详见 [docs/过程.md](docs/过程.md)），完成 4 项关键修复：
-
-- **P0-1 样本答案泄露修复**：删除 14 段样本中所有 `# 期望/漏洞/安全/样本` 注释，ground truth 仅保留在 manifest.json。用 `gemma4:12b` 重跑三个实验，准确率仍为 100%，证明模型不靠注释作弊。后续默认主模型最终切换为 `qwen2.5-coder:7b`
-- **P0-2 样本集扩充**：在 `experiments/exp_04_hard_samples/samples/` 下分两阶段扩至 **87 段 v3 修复后样本**：
-  - v1（42 段，2026-06-29）：典型 12 + 安全 8 + 难 16 + 噪音 6
-  - v2（87 段，2026-07-03）：CWE 覆盖从 11 类扩至 34 类，新增 Java 7 段、CSRF/SSTI/JWT/IDOR 等 23 类漏洞，安全对照扩至 18 段
-  - v3（87 段，2026-07-05）：删除 47 个文件泄露答案的 docstring/注释；修正 `typical_29_integer_overflow` 为 Java 版本；重命名 2 个误导性 CVE 文件名（`hard_cve_02_python_log_injection.py`、`hard_cve_04_ssrf_urllib.py`）
-  - 每段附带 12 列 ground truth（file/language/category/difficulty/expected\_present/expected\_vulnerability/expected\_cwe/expected\_risk\_level/source/sink/taint\_path/fix\_idea）
-- **P1-3 Schema 统一**：`graduation_project/schema.py` 的 `VERDICT_SCHEMA` 为 7 字段版本；安全样本 `risk_level` 填 `N/A`，`source/sink` 填 `None`；新增 DeepSeek 风格畸形 JSON 容错（连续字符串值合并）+ markdown 列表格式兜底解析
-- **P1-7 耗时统计增强**：报告新增中位数耗时与异常值说明（当前默认主模型 qwen2.5-coder:7b 在 exp\_01 平均约 7.7s；deepseek-coder-v2:16b 平均 9.63s；qwen2.5-coder:14b 平均 17.11s）
-
-默认主实验模型最终由 `deepseek-coder-v2:16b` 切换为 `qwen2.5-coder:7b`（dense 代码模型，exp\_01 平均约 7.7s，典型样本无需后处理即可达到 100% 准确率）。`deepseek-coder-v2:16b` 保留作为对照模型。提示：DeepSeek 安全样本优化专项已失败——该模型存在根本性安全模式知识盲区，纯 Prompt 工程与 RAG 均无法克服，后处理白名单虽能修复指标但非模型本身能力提升，维护成本高且泛化性差。**后续安全专用模型将以 qwen2.5-coder:7b 为基座进行 LoRA 微调与蒸馏**。
-
-### ✅ 已完成：阶段四-2 — 难样本压力测试 + 消融实验（v1 2026-07-01 / v2 2026-07-04 / v3 2026-07-05）
-
-在 exp\_04 难样本集（**v3 修复后 87 段**：典型 36 + 安全 18 + 难 27 + 噪音 6）上完成 3 项实验，
-详见 [experiments/exp\_04\_hard\_samples/exp\_04\_report.md](experiments/exp_04_hard_samples/exp_04_report.md)：
-
-- **P1-4 重复性与置信区间**：qwen7b，repeat=3，多数表决 recall=83.3% (95% CI [72.0%, 90.7%])、FPR=33.3%、accuracy=78.2% (95% CI [68.4%, 85.5%])
-- **P1-5 RAG 消融对照**：A(RAG+LLM) recall=91.7%/FPR=29.6% vs B(纯 LLM) 95.0%/25.9% vs C(随机) 88.3%/18.5% vs D(无关) 93.3%/25.9%。
-  **核心发现**：v3 修复答案泄露后，RAG 未带来准确率/召回率提升，模型基座已掌握典型漏洞模式；RAG 价值更多体现在可解释性与知识可扩展性。
-- **P2-8 Top-K 对比**：K=5 为最优平衡点（recall=95.0%、FPR=25.9%、accuracy=88.5%），K=10 因噪声引入 FPR 升至 29.6%。
-
-### ✅ 已完成：阶段四-3 — 多模型横向对比（exp_04 v3，2026-07-05/06 完成）
-
-在 87 段 v3 修复后样本上对比 6 个模型零样本能力（纯 LLM 模式，repeat=1），并经结果审查修复（3 个真值错误样本 + 1 个解析错误已修复重跑）。
-
-| 模型 | TP | TN | FP | FN | 准确率 | 召回率 | 误报率 |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| qwen2.5-coder:7b | 53 | 21 | 6 | 7 | 85.1% | 88.3% | 22.2% |
-| qwen2.5-coder:14b | 55 | 21 | 6 | 5 | 87.4% | 91.7% | 22.2% |
-| **gemma4:12b** | 57 | 25 | 2 | 3 | **94.3%** | 95.0% | **7.4%** |
-| deepseek-coder-v2:16b | 57 | 15 | 12 | 3 | 82.8% | 95.0% | 44.4% |
-| gpt-oss:20b | 56 | 20 | 7 | 4 | 87.4% | 93.3% | 25.9% |
-| **gemma4:26b** | 57 | 25 | 2 | 3 | **94.3%** | 95.0% | **7.4%** |
-
-**核心结论**：gemma4:12b/26b 表现最优（准确率 94.3%、误报率 7.4%）；deepseek-coder-v2:16b 误报率最高（44.4%），印证 DeepSeek 优化专项失败结论；qwen2.5-coder:7b 召回率 88.3% 略低但体积小速度快，作为安全专用模型微调基座合理。
-
-后续阶段（以 qwen2.5-coder:7b 为基座构建网络安全专用模型，deepseek 16B 因知识盲区问题已放弃作为基座）：
-
-- Prompt 工程对比（零样本 / Few-shot / 思维链 / 安全模式白名单）
-- RAG 安全知识增强（扩充 `cmdi_safe_pattern`、`sqli_safe_pattern` 等安全模式条目）
-- AST 代码切片（tree-sitter，长文件按函数切分）
-- LoRA/QLoRA 微调 qwen2.5-coder:7b → 网络安全专用模型
+- **Phase 1 sweep**：lr 调优反恶化 FPR（lr=1e-4+rsLoRA 最低 dev_loss 但 FPR +11.5pp）
+- **Phase 2 r=32 失败**：LoRA 增容致 FPR +19.2pp，CWE 错标数未变——LoRA 增容 ≠ 知识注入
+- **Phase 3 KnItLM 突破**：CPT 路线严格 recall +23pp、FPR -7.7pp、CWE 错标 -16（但发现参数化查询幻觉副作用）
+- **Phase 4 Prompt Distillation 进行中**：qwen3-coder:30b teacher → KnItLM student，α=0.5, T=2.0
+- 详见 [改进.md](docs/改进.md) §0 与 [过程.md](docs/过程.md) 7-17~19 段
 
 ***
 
-## 五、路线图
+## 五、研究主线与实验体系
 
-> 整合自 [docs/\_archive/glm的建议\_20260628.md](docs/_archive/glm的建议_20260628.md)，按"必做 / 创新点 / 加分项"三级划分。
+> 本项目不是简单的"用 LLM 跑一遍样本"，而是一条从**零样本推理**到**专用模型训练**的完整研究链。§四 已给出阶段结果，本节说明这些实验之间的逻辑关系、方法演进与论文定位。
 
-### 🔥 必做（毕设立足点）
+### 主线一：零样本与增强推理（exp_01 ~ exp_05）
 
-| 任务                                   | 对应实验    | 状态                |
-| ------------------------------------ | ------- | ----------------- |
-| 传统工具对比基线（Bandit / Semgrep）           | exp\_02 | ✅ 完成              |
-| 真实代码测试（CVE PoC / OWASP WebGoat 等难样本） | exp\_04 | ✅ 已完成（v3 修复后 87 段，P1-4/P1-5/P2-8 全部完成） |
+验证"本地开源 LLM 能否在不做任何训练的情况下完成代码安全审计"，并逐步探索增强手段。
 
-### 💡 创新点（论文核心价值）
+| 实验 | 核心问题 | 关键结论 | 论文定位 |
+| --- | --- | --- | --- |
+| exp_01 | 典型漏洞检出下限 | qwen2.5-coder:7b 在 14 段典型样本上 recall/FPR/accuracy 均达 100%，证明基座能力足够 | 能力基线 |
+| exp_02 | 与传统工具（Bandit / Semgrep）的对比 | LLM 在 path_traversal 等语义依赖场景显著优于规则工具；但单样本耗时更高 | 差异化价值 |
+| exp_03 | RAG 知识库能否提升判定质量 | 72 条 CWE/OWASP 知识 + Chroma 检索，典型样本准确率保持 100%，难样本上提供可解释依据 | 知识增强 |
+| exp_04 | 难样本压力测试与消融 | v3 87 段样本（修复答案泄露后）上纯 LLM accuracy=78.2%；RAG 消融显示知识相关性价值有限，模型基座已掌握典型模式 | 能力边界 |
+| exp_05 | Prompt 工程消融 | CoT 召回 95% 为最优单一策略；零样本 / Few-shot / 安全白名单各有适用场景 | 工程优化 |
 
-| 任务                                                                                       | 对应实验    | 状态    |
-| ---------------------------------------------------------------------------------------- | ------- | ----- |
-| RAG 漏洞知识库（OWASP/CWE/CVE → Chroma，检索注入 Prompt）                                            | exp\_03 | ✅ 完成  |
-| AST 代码切片（tree-sitter，长文件按函数/块切分，解决注意力衰减）                                                 | exp\_04 | ⏳ 待开始 |
-| DeepSeek 安全样本优化（Prompt 工程 / RAG 安全知识 / 后处理白名单，已失败并放弃；改用 qwen2.5-coder:7b 为安全专用模型基座）                                            | exp\_05 | ❌ 失败并放弃 |
-| 多模型对比（deepseek-coder-v2:16b / qwen2.5-coder:14b / gemma4:12b / gemma4:26b / gpt-oss:20b） | exp\_04 | ✅ 已完成（v3，2026-07-05/06，含结果审查修复） |
+### 主线二：网络安全专用模型（exp_06 Phase 1~5/6）
 
-### ⭐ 加分项（提升完成度）
+当零样本能力触顶后，转入训练主线，目标是**在 7B 规模上通过高效微调注入漏洞推理能力**，并保持本地可部署。
 
-| 任务                                       | 对应实验    | 状态    |
-| ---------------------------------------- | ------- | ----- |
-| 污点流分析（Source→Sink 跨函数追踪）                 | exp\_06 | ⏳ 待开始 |
-| 修复建议质量评分（生成代码能否编译/通过测试）                  | -       | ⏳ 待开始 |
-| Prompt 工程对比（零样本 / Few-shot / 思维链）        | -       | ⏳ 待开始 |
-| 工程化系统（Web 界面 + 报告导出 PDF/Markdown + 批量扫描） | -       | ⏳ 待开始 |
+| Phase | 方法 | 假设 | 结果 | 方法论意义 |
+| --- | --- | --- | --- | --- |
+| Phase 1 | QLoRA SFT lr × rsLoRA sweep | 提高 lr / rank 能改善注入效果 | lr=1e-4+rsLoRA dev_loss 最低，但 FPR +11.5pp；lr=1e-5 baseline 综合最优 | 7B 高基座上 lr 是过拟合旋钮，不是性能旋钮 |
+| Phase 2 | r=32 + rsLoRA + e=2 | 增大 LoRA 容量可学更多知识 | 严格 recall 仅 +1.6pp，FPR +19.2pp，CWE 错标数不变 | **LoRA 增容 ≠ 知识注入**（论文关键证据） |
+| Phase 3 | **KnItLM CPT** | 在 base 模型上做继续预训练，再 merge 到 Instruct | 严格 recall 41%→64%（+23pp），FPR 11.5%→3.8%（-7.7pp），CWE 错标 32→16 | **真正的知识注入突破** |
+| Phase 4 | **Prompt Distillation** | 用强 teacher（qwen3-coder:30b）蒸馏修复 CPT 副作用 | 🔄 进行中（α=0.5, T=2.0, r=32） | 修复参数化查询幻觉，校准推理分布 |
+| Phase 5 | DPO 边界校准 | 用偏好对降低 FPR | 已训练（25 步完成），待评估 | 对齐人类审计偏好 |
+| Phase 6 | Hard sample mining | 错题增强闭环 | 待启动 | 修复 missing feature 类回归 |
 
-### 阶段总览
+> Phase 1-3 详细数据见 [docs/改进.md](docs/改进.md) §0；方法体系见 [docs/方法.md](docs/方法.md)。
 
-| 阶段               | 目标                                                 | 状态     |
-| ---------------- | -------------------------------------------------- | ------ |
-| 一、模型能力摸底         | 验证 LLM 在典型漏洞上的下限能力                                 | ✅ 完成   |
-| 二、传统工具对比基线       | 明确 LLM 相对传统工具的改进点                                  | ✅ 完成   |
-| 三、RAG 知识增强       | 引入向量库，对比有/无 RAG 的检出率                               | ✅ 完成   |
-| 四、难样本压力测试 + 消融实验 | 验证 LLM/RAG/传统工具在绕过/CVE/长文件等难样本上的表现（含多模型横向对比）       | ✅ 已完成（v3 + 多模型对比 + 结果审查修复） |
-| 五、网络安全专用模型训练与蒸馏  | 以 qwen2.5-coder:7b 为基座，用安全/漏洞数据做 LoRA/QLoRA 微调与蒸馏（deepseek 16B 已放弃作为基座） | ⏳ 待开始  |
-| 六、系统设计与开发        | MVP：代码上传 → LLM 分析 → 结果展示；批量扫描、报告导出                 | ⏳ 待开始  |
-| 七、论文与答辩          | 整理实验数据、撰写论文、答辩演示                                   | ⏳ 待开始  |
+### 方法论演进：从"风格微调"到"知识注入"
 
-### 📌 答辩核心论点（整合自 [docs/\_archive/kimi的建议\_20260628.md](docs/_archive/kimi的建议_20260628.md)）
+本项目在训练主线上完成了一次关键认知升级：
 
-> 以下三点是答辩时容易被问、且当前路线图未覆盖的论证维度，作为论文写作与答辩准备的素材。
+1. **风格微调**（r=8 LoRA SFT）：只能调整输出格式，对 7B 强基座而言是轻量校准。
+2. **容量迷信**（r=32 + 高 lr）：增大容量并不能自动带来知识，反而引入过拟合。
+3. **知识注入**（KnItLM CPT）：在 base 模型上注入 CVE/CWE/OWASP 领域语言模式，再 merge 到 Instruct，既保留对话能力又获得漏洞领域先验。
+4. **分布校准**（Prompt Distillation / DPO）：用强 teacher 和偏好对修复 CPT 的过度泛化副作用。
+
+### 📌 答辩核心论点
 
 #### 1. 速度 vs 质量的权衡论证
 
-LLM 单样本耗时约 7.7s（qwen2.5-coder:7b），比 Bandit（\~0.5s）慢约 15 倍，但传统工具只输出"漏洞类型 + 规则号"，人工理解每个漏洞仍需 \~30 分钟；LLM 直接给出自然语言解释 + 修复代码，把人工审计时间降到 \~5 分钟。
+LLM 单样本推理耗时高于传统工具，但输出包含自然语言解释与可执行修复代码，可把人工审计理解时间从"逐条核对告警"降到"阅读一段解释"。**核心论点**：将 LLM 定位为"增强审计"工具而非"替代"，衡量整体效率时应计入人工理解成本。
 
-**核心论点**：LLM 慢 15 倍，但整体效率（含人工理解成本）显著提升——定位为"增强审计"而非"替代"。
-当前默认主模型 qwen2.5-coder:7b 在典型样本上无需后处理即可达到 100% 准确率；在 v3 修复后 87 段难样本上 RAG K=5 达到 recall=95.0%、accuracy=88.5%，纯 LLM recall=95.0%、accuracy=88.4%（v3 上 RAG 主要提供可解释性而非准确率提升）。
-后续通过专用模型训练（LoRA/QLoRA）进一步提升泛化能力。
-
-| 指标      | Bandit           | Semgrep    | LLM (qwen2.5-coder:7b) |
-| ------- | ---------------- | ---------- | ---------------------- |
-| 单样本耗时   | \~0.5s           | \~2s       | \~7.7s                 |
-| 人工理解时间  | \~30 分钟/漏洞       | \~30 分钟/漏洞 | \~5 分钟/漏洞              |
-| 修复代码生成  | ❌                | ❌          | ✅                      |
-| 典型样本准确率 | 75.0%（Python 样本） | 78.6%      | 100%（纯 LLM / RAG+LLM） |
-| 难样本准确率 | - | - | 88.5%（RAG K=5 v3 多数表决）/ 78.2%（纯 LLM v3 多数表决） |
-
-> 数据来自 exp\_01 / exp\_02 / exp\_03 实测结果。
+| 指标 | Bandit | Semgrep | LLM (qwen2.5-coder:7b) |
+| --- | --- | --- | --- |
+| 单样本耗时 | ~0.5s | ~2s | ~7.65s |
+| 人工理解时间 | ~30 分钟/漏洞 | ~30 分钟/漏洞 | ~5 分钟/漏洞 |
+| 修复代码生成 | ❌ | ❌ | ✅ |
+| 典型样本准确率 | 75.0%（8 个 Python 样本） | 78.6%（14 个全语言样本） | 100%（14 个全语言样本） |
+| 难样本准确率（P1-5 单次口径） | - | - | 88.5%（RAG K=5）/ 88.5%（纯 LLM） |
+| 难样本准确率（P1-4 多数表决） | - | - | 78.2%（纯 LLM，repeat=3） |
 
 #### 2. 配置门槛的应对
 
-答辩必被问"LLM 这么吃资源，普通团队怎么用"。应对方向：
+| 优化方向 | 方案 | 论文定位 |
+| --- | --- | --- |
+| 模型轻量化 | qwen2.5-coder:7b 主审（7B dense，约 4-5GB），多模型作为对照 | 降低门槛论证 |
+| 专用模型 | KnItLM CPT + Prompt Distillation → 网络安全专用 7B 模型 | 核心创新点 |
+| 批处理 | vLLM 一次分析多文件 | 摊薄加载时间 |
+| 混合架构 | 传统工具先筛，LLM 只审可疑文件 | 工程化优化 |
+| 训练效率 | QLoRA + rsLoRA + AOTRITON + TunableOp，16 GB 可训 7B | 可行性论证 |
 
-| 优化方向  | 方案                                                                                                | 论文定位   |
-| ----- | ------------------------------------------------------------------------------------------------- | ------ |
-| 模型轻量化 | qwen2.5-coder:7b 主审（7B dense，约 4-5GB），deepseek-coder-v2:16b / qwen2.5-coder:14b / gemma4:26b 作为对照 | 降低门槛论证 |
-| 专用模型  | LoRA/QLoRA 微调 qwen7b / deepseek → 网络安全专用模型                                                        | 核心创新点  |
-| 批处理   | vLLM 一次分析多文件                                                                                      | 摊薄加载时间 |
-| 混合架构  | 传统工具先筛，LLM 只审可疑文件                                                                                 | 工程化优化  |
-| 云端部署  | 实验室集中部署，多人共享                                                                                      | 后续扩展   |
+#### 3. 答辩核心故事线
 
-**核心论点**：定位为面向具备 GPU 资源团队的辅助审计工具，是增强而非替代。
-
-#### 3. 答辩核心故事线（一段话）
-
-> "传统静态分析工具在 CI/CD 流水线中表现优秀，但面对复杂业务逻辑、绕过式过滤、跨函数污点等场景时力不从心。本系统利用本地部署的大语言模型，通过 RAG 知识库增强和语义级代码理解，在保证检出率的同时，生成可执行的修复代码和自然语言解释，将人工审计时间从 30 分钟缩短到 5 分钟。实验表明，在典型漏洞上 LLM 不弱于传统工具，在难样本上显著优于传统工具，证明了 LLM 在代码安全审计中的差异化价值。"
+> 传统静态分析工具在 CI/CD 流水线中表现优秀，但面对复杂业务逻辑、绕过式过滤、跨函数污点等场景时力不从心。本系统利用本地部署的开源大语言模型，通过 RAG 知识库增强、AST 代码切片与语义级代码理解建立基线；进一步通过 KnItLM 继续预训练将网络安全领域知识注入 7B 模型，再用 Prompt Distillation 校准推理分布。实验表明，在典型漏洞上 LLM 不弱于传统工具，在难样本上通过专用模型训练可显著缩小与更大模型的差距，并生成可执行的修复代码与自然语言解释，将人工审计时间从 30 分钟缩短到 5 分钟，证明了 LLM 在代码安全审计中的差异化价值。
 
 ***
 
-## 六、技术栈规划
+## 六、技术架构与全栈
 
-### 核心分析引擎
+> 本节描述从数据到模型、从训练到推理、从评估到工程化的完整技术链路。硬件与模型清单见 §二，详细方法论文档见 [docs/方法.md](docs/方法.md)。
 
-- **本地 LLM 推理**：Ollama（已用）/ vLLM（后期高性能部署）/ llama.cpp
-- **默认主模型**：qwen2.5-coder:7b（当前默认，典型样本无需后处理即可 100% 准确率）
-- **对照/基座模型**：deepseek-coder-v2:16b / qwen2.5-coder:14b / gemma4:12b / gemma4:26b / gpt-oss:20b
-- **RAG 检索增强**：LangChain / LlamaIndex
-- **向量数据库**：Chroma（已用）/ Milvus / Qdrant
-- **代码解析**：tree-sitter / Python `ast` 模块
-
-### 系统服务层
-
-- **后端**：FastAPI 或 Spring Boot
-- 任务调度 / 文件预处理 / 结果聚合
-
-### 前端展示层
-
-- **前端**：Vue.js 或 React
-- 代码上传 / 分析结果 / 漏洞详情 / 修复建议
-
-### 系统架构草图
+### 6.1 全链路数据流
 
 ```
-┌─────────────────────────────────────────┐
-│           前端界面 (Vue.js/React)        │
-│    代码上传 | 分析结果 | 漏洞详情 | 修复建议  │
-└─────────────────────────────────────────┘
-                    ↓
-┌─────────────────────────────────────────┐
-│           后端服务 (FastAPI/Spring Boot)   │
-│    任务调度 | 文件预处理 | 结果聚合      │
-└─────────────────────────────────────────┘
-                    ↓
-┌─────────────────────────────────────────┐
-│         核心分析引擎 (Python)             │
-│  ┌─────────┐  ┌─────────┐  ┌────────┐ │
-│  │ AST解析   │  │ RAG检索  │  │ LLM推理 │ │
-│  │ 代码切片  │  │ 漏洞知识库│  │ qwen2.5-coder:7b │ │
-│  └─────────┘  └─────────┘  └────────┘ │
-└─────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│  数据层                                                              │
+│  CVE/CWE/OWASP 语料  +  手写/蒸馏/增强 823 条 CoT 样本  +  87 段测试样本   │
+└─────────────────────────────────────────────────────────────────────┘
+                                  ↓
+┌─────────────────────────────────────────────────────────────────────┐
+│  训练层（exp_06）                                                     │
+│  Qwen2.5-Coder-7B-Base ──KnItLM CPT──► merge ──► Qwen2.5-Coder-7B-Instruct │
+│                                           │                         │
+│                              Prompt Distillation (qwen3-coder:30b)   │
+│                                           │                         │
+│                              DPO 边界校准（偏好对）                       │
+└─────────────────────────────────────────────────────────────────────┘
+                                  ↓
+┌─────────────────────────────────────────────────────────────────────┐
+│  推理层（exp_01~05）                                                   │
+│  源代码 ──► AST 切片 ──► RAG 检索 CWE 知识 ──► LLM 推理 ──► 结构化 verdict │
+└─────────────────────────────────────────────────────────────────────┘
+                                  ↓
+┌─────────────────────────────────────────────────────────────────────┐
+│  评估层                                                              │
+│  严格指标（CWE 对齐） / 多数表决 / Wilson 置信区间 / 错题闭环               │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### 6.2 训练层：高效参数微调与知识注入
+
+| 层级 | 技术 | 作用 | 项目落地 |
+| --- | --- | --- | --- |
+| 量化 | bitsandbytes 4-bit NF4 + double quant | 7B 模型在 16 GB 显存可训 | `train_qlora.py` / `train_knitlm_cpt.py` |
+| LoRA 优化 | **rsLoRA**（缩放因子 1/√r）、**DoRA**（magnitude+direction 分解） | 高 rank 训练稳定、效果优于标准 LoRA | Phase 1 sweep 已验证 rsLoRA 有效 |
+| 知识注入 | **KnItLM**：base 模型 CPT + LoRA → merge 到 Instruct | 注入漏洞领域知识，不破坏指令遵循 | Phase 3 核心突破 |
+| 蒸馏 | **Prompt Distillation**：KL(teacher ‖ student)，ollama/transformers 双后端 | 用 qwen3-coder:30b teacher 校准 student 推理分布 | Phase 4 进行中 |
+| 对齐 | **DPO**（Direct Preference Optimization） | 用偏好对降低 FPR、校准判断边界 | Phase 5 待评估 |
+| 加速 | **AOTRITON** attention、TunableOp 离线调优 | ROCm/RDNA4 上训练 step time -58% | `run_phase1_sweep.sh` / `tunableop_offline_tune.sh` |
+| 数据工程 | CoT 蒸馏、CCoT 对比样本、数据增强、错题闭环 | 把标签→反推改为推理→标签 | `generate_distill_data.py` / `supplement_*.py` |
+
+### 6.3 推理层：语义理解增强
+
+| 模块 | 技术 | 说明 |
+| --- | --- | --- |
+| 代码预处理 | tree-sitter + Python `ast` | 长文件按函数/块切片，缓解注意力衰减 |
+| 知识检索 | ChromaDB + `all-MiniLM-L6-v2` / `bge-small-en-v1.5` | 72 条 CWE/OWASP 知识，Top-K 注入 prompt |
+| LLM 服务 | Ollama（本地推理）、vLLM/llama.cpp（后续扩展） | 支持多模型横向对比与 teacher logits 预计算 |
+| Prompt 协议 | SYSTEM_PROMPT + 7 字段 JSON schema | 统一输出格式，支持 CoT / 安全白名单 / 自校验 |
+
+### 6.4 评估层
+
+| 能力 | 实现 |
+| --- | --- |
+| 指标口径 | 单次口径 + 多数表决口径；严格 recall（CWE 对齐）+ 宽松 recall |
+| 置信区间 | Wilson score interval（比例接近 0/1 时更稳定） |
+| 消融对照 | RAG / pure / random / irrelevant 四组对照 |
+| 错误分析 | 分 CWE 类型统计、幻觉率、CWE 错标数、source/sink 真实性校验 |
+| 错题闭环 | `extract_phase3_errors.py` 等脚本支持 Phase N vs Phase N+1 回归追踪 |
+
+### 6.5 工程化层（后续扩展）
+
+| 方向 | 候选方案 | 状态 |
+| --- | --- | --- |
+| 后端服务 | FastAPI / Spring Boot | 待启动 |
+| 前端界面 | Vue.js / React | 待启动 |
+| 批量扫描 | 任务队列 + 文件级并行 | 待启动 |
+| 报告导出 | PDF / Markdown | 待启动 |
+| 污点流分析 | Source→Sink 跨函数追踪 | 待启动 |
+| 修复建议验证 | 生成代码编译/测试通过率 | 待启动 |
+
+### 6.6 系统架构草图（运行时）
+
+```
+┌─────────────────────────────────────────────┐
+│  用户界面（Vue.js / React，规划中）             │
+│  代码上传 │ 分析结果 │ 漏洞详情 │ 修复建议      │
+└─────────────────────────────────────────────┘
+                      ↓
+┌─────────────────────────────────────────────┐
+│  后端服务（FastAPI / Spring Boot，规划中）      │
+│  任务调度 │ 文件预处理 │ 结果聚合             │
+└─────────────────────────────────────────────┘
+                      ↓
+┌─────────────────────────────────────────────┐
+│  核心分析引擎（Python）                        │
+│  ┌─────────┐  ┌─────────┐  ┌─────────────┐ │
+│  │ AST 切片  │  │ RAG 检索  │  │ LLM 推理     │ │
+│  │ tree-sitter│  │ Chroma   │  │ qwen2.5-coder│ │
+│  └─────────┘  └─────────┘  └─────────────┘ │
+└─────────────────────────────────────────────┘
+                      ↓
+┌─────────────────────────────────────────────┐
+│  训练与评估流水线（exp_06）                    │
+│  KnItLM CPT → Prompt Distillation → DPO     │
+│  evaluate.py / compare_phase*.py            │
+└─────────────────────────────────────────────┘
 ```
 
 ***
@@ -522,6 +528,22 @@ python3 generate_report.py
 - **aiohttp CVE-2024-23334 路径穿越 PoC** (exploit-db.com)：路径穿越绕过样本参考
 
 > 每段 CVE 样本文件头部的注释中标注了对应的 CVE 编号与原始漏洞描述，便于追溯。
+
+### 训练与微调方法（exp_06）
+
+本项目在训练主线上借鉴并落地了以下近期 PEFT / 知识注入 / 显存优化方法：
+
+| 方法 | 核心思想 | 本项目用途 | 来源 |
+| --- | --- | --- | --- |
+| **rsLoRA** | LoRA 缩放因子从 `1/r` 改为 `1/√r`，高 rank 更稳定 | Phase 1 sweep 验证有效 | Hayou et al. 2024 |
+| **DoRA** | 权重分解为 magnitude + direction | Phase 1 兼容性验证 | Liu et al., ICLR 2024 |
+| **KnItLM** | base 模型 CPT + LoRA → merge 到 Instruct，注入领域知识不破坏对话能力 | Phase 3 核心突破 | ICLR 2026 投稿 |
+| **Prompt Distillation** | 用 teacher 的 token 分布（logits）蒸馏 student | Phase 4 修复 CPT 副作用 | TMLR 2025 |
+| **DPO** | 直接偏好优化，用偏好对校准模型 | Phase 5 边界校准 | Rafailov et al. 2023 |
+| **GaLore** | 梯度低秩投影，全参数微调显存接近 LoRA | Phase 7 兜底备选 | Zhao et al., arXiv:2403.07404 |
+| **AOTRITON / TunableOp** | ROCm 上的 Triton Flash Attention 与 GEMM 离线调优 | RDNA4 训练加速 | AMD / PyTorch 官方博客 |
+
+> 更系统的文献梳理与适用性分析见 [docs/方法.md](docs/方法.md) §8 与 §10。
 
 ***
 

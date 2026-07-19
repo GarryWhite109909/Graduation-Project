@@ -69,9 +69,15 @@
 
 ## 优先级建议
 
+> 截至 2026-07-19。Phase 1-4 训练流程进度详见 [docs/改进.md](docs/改进.md) §0 与 [docs/过程.md](docs/过程.md) 7-17~19 段。
+
 | 优先级 | 项目 | 原因 |
 | --- | --- | --- |
 | 高 | **exp_04 v3 重跑**（修复答案泄露后） | ✅ 已完成（2026-07-05）：P1-4/P1-5/P2-8 全部用 v3 修复后样本重跑完成。v3 结果：纯 LLM 多数表决 accuracy=78.2%、recall=83.3%、FPR=33.3%；RAG K=5 accuracy=88.5%、recall=95.0%。RAG 未带来额外提升，模型基座已掌握典型漏洞模式。 |
 | 高 | 完成 exp_04 难样本实验验证（P1-4 / P1-5 / P2-8） | ✅ v3 已完成（2026-07-05）。详见 `experiments/exp_04_hard_samples/exp_04_report.md`。 |
 | 高 | DeepSeek 安全样本优化专项 | ❌ 已失败（2026-06-30）：Prompt 工程、RAG 安全知识增强、后处理白名单三轮尝试均无法从根本上解决 deepseek 16B 的知识盲区问题；最终指标靠 safe_override 外部规则覆盖，非模型能力提升。放弃 deepseek 作为安全专用模型基座，改用 qwen2.5-coder:7b。 |
 | 中 | 结果文件按时间戳命名 | ✅ 已完成（2026-07-01）：exp_01/03/04 均已接入 default_results_path，文件名包含模型名 + 参数标签 + 时间戳 |
+| 高 | **Phase 1-4 训练流程** | 🔄 进行中（2026-07-17~19）：Phase 1 sweep/Phase 2 r=32 已完成（失败结论：LoRA 增容 ≠ 知识注入）；Phase 3 KnItLM 突破（recall +23pp / FPR -7.7pp，但发现参数化查询幻觉副作用）；Phase 4 Prompt Distillation 进行中（qwen3-coder:30b teacher，目标修复幻觉） |
+| 高 | Phase 4 完成后：FPR 守门 + 多种子评估 + Phase 3 vs Phase 4 错题对比 | ⏳ 待 Phase 4 eval 回传后立即执行（笔记本侧 `compare_phase4.py` + `extract_phase3_errors.py` 改造版 + `run_phase4_multiseed.sh` 已就绪） |
+| 中 | Phase 5 DPO（视 Phase 4 结果决定是否上） | ⏳ 待定：硬件约束（ROCm 7.2.4 升级以解决 DPO 死机问题） |
+| 中 | Phase 6 hard sample mining 闭环 | ⏳ 待定：用 Phase 4 best 模型跑 eval → 找错题 → teacher 重生成 CoT → 加权采样重训 |
