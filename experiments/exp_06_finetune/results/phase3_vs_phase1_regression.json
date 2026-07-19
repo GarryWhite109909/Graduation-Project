@@ -1,0 +1,573 @@
+{
+  "phase1_eval": "exp_06_eval.phase1_lr1e-5_base.20260718_151305.json",
+  "phase3_eval": "exp_06_eval.knitlm_merged.20260719_070818.json",
+  "common_samples": 87,
+  "p3_errors": [
+    {
+      "file": "hard_bypass_06_auth_string_compare.py",
+      "category": "timing_attack",
+      "difficulty": "hard",
+      "expected_present": true,
+      "expected_cwe": "CWE-208",
+      "expected_vulnerability": "时序攻击：用 == 比较 API token，逐字节比较的时序差异可被测量爆破",
+      "outcome": "TP",
+      "model_vulnerability_type": "CWE-798 硬编码凭证",
+      "model_cwe": "CWE-798",
+      "cwe_wrong": true,
+      "category_hints": [
+        "未分类"
+      ],
+      "raw_output_excerpt": "### 分析过程\n\n1. **认证方式**：代码使用 `request.headers.get(\"X-API-Token\", \"\")` 获取客户端传递的 API Token，并通过 `if token == SECRET_API_TOKEN:` 进行字符串比较来验证身份。\n2. **字符串比较**：`==` 是 Python 中的字符串相等性比较操作符，它会逐字符比较两个字符串的内容。如果 `token` 和 `SECRET_API_TOKEN` 的内容完全相同，则返回 `True`，否则返回 `False`。\n3. **硬编码令牌**：`SECRET_API_TOKEN` 是一个硬编码的字符串 `\"sup3r_s3cret_t0k3n_very_long\"`，这本身就是一个安全漏洞，因为任何能够查看源码的人都可以获取这个令牌。\n4. **时间复杂度**：由于是字符串比较，攻击者可以通过构造特定的 `token` 来测量响应时间，从而推断令牌的长度和内容。这种攻击称为“时序攻击”。\n5. **修复建议**：应该使用安全的哈希算法（如 bcrypt 或 Argon2）对令牌进行存储和比较，而不是直接使用 `==`。同时，避免将敏感信息硬编码在源码中。\n\n### 最终结论\n\n```json\n{\n  \"has_vulnerability\": true,\n  \"vulnerability_"
+    },
+    {
+      "file": "hard_bypass_07_ssti_attr_chain.py",
+      "category": "ssti",
+      "difficulty": "hard",
+      "expected_present": true,
+      "expected_cwe": "CWE-1336",
+      "expected_vulnerability": "SSTI 隐蔽变体：用户输入作为属性名拼接到 {{ obj.<field> }}，可注入 __class__.__init__.__globals__ 等",
+      "outcome": "TP",
+      "model_vulnerability_type": "CWE-94 SSTI",
+      "model_cwe": "CWE-94",
+      "cwe_wrong": true,
+      "category_hints": [
+        "SSTI概念混淆"
+      ],
+      "raw_output_excerpt": "### 分析过程\n\n1. **输入源**：`request.args.get('field', 'name')` 获取用户输入 `field`。\n2. **危险操作**：`template_str = \"Result: {{ obj.\" + field + \" }}\"` 将用户输入拼接到模板字符串中。\n3. **模板引擎**：`env.from_string(template_str)` 将拼接后的字符串编译为 Jinja2 模板。\n4. **渲染**：`template.render(obj=obj)` 使用 `obj` 渲染模板。\n5. **安全检查**：\n   - `field` 直接拼接到模板字符串中，没有使用 `safe` 过滤器。\n   - `obj` 是一个普通的 Python 对象，具有任意属性。\n   - `{{ obj.field }}` 会直接访问 `obj` 的属性，如果 `field` 是 `__class__` 或 `__mro__`，可以利用反射绕过沙箱限制。\n\n### 结论\n\n用户输入 `field` 被直接拼接到模板字符串中，并通过 `obj.__class__.__mro__` 可以访问类的继承链，从而绕过沙箱限制。虽然 `obj` 是普通对象，但 `__class__` 和 `__mro__` 属性可以暴露内部结构，导致潜在的安全问题。\n\n``"
+    },
+    {
+      "file": "hard_bypass_08_jwt_none_alg.py",
+      "category": "jwt_confusion",
+      "difficulty": "hard",
+      "expected_present": true,
+      "expected_cwe": "CWE-347",
+      "expected_vulnerability": "JWT none 算法绕过：decode 未显式指定 algorithms，攻击者可伪造 alg=none 的 JWT",
+      "outcome": "TP",
+      "model_vulnerability_type": "CWE-306 跨站请求伪造",
+      "model_cwe": "CWE-306",
+      "cwe_wrong": true,
+      "category_hints": [
+        "未分类"
+      ],
+      "raw_output_excerpt": "### 分析过程\n\n1. **输入源**：`token` 是从 `request.headers.get(\"Authorization\")` 获取的，并通过 `replace(\"Bearer \", \"\")` 去除前缀。\n2. **处理逻辑**：\n   - `jwt.decode(token, SECRET, verify=False)` 使用 `verify=False` 参数解码 JWT。\n   - 即使 `verify=False`，JWT 的头部（header）中的 `alg` 字段仍然会被解析。如果 `alg` 设置为 `none`，则 JWT 可以被任意构造。\n3. **sink**：`payload = jwt.decode(token, SECRET, verify=False)` 解码 JWT 并获取 payload。\n4. **风险评估**：\n   - 当 `alg` 设置为 `none` 时，JWT 可以被任意构造，攻击者可以创建自定义的 payload 并将其作为有效的 JWT 传递。\n   - 由于 `verify=False`，服务器不会验证签名，因此即使 `alg` 为 `none`，JWT 也会被解码成功。\n   - 攻击者可以构造一个包含任意 payload 的 JWT，绕过认证和授权检查。\n\n### 结论\n\n```json\n{\n  \"has_vul"
+    },
+    {
+      "file": "hard_crossfile_02_sink.py",
+      "category": "path_traversal",
+      "difficulty": "hard",
+      "expected_present": true,
+      "expected_cwe": "CWE-22",
+      "expected_vulnerability": "路径穿越：跨文件调用 safe_read_file()，filename 含 ../ 可逃逸 BASE_DIR",
+      "outcome": "FN",
+      "model_vulnerability_type": "none",
+      "model_cwe": "",
+      "cwe_wrong": false,
+      "category_hints": [
+        "跨文件认知"
+      ],
+      "raw_output_excerpt": "### 分析过程\n\n1. **输入源**：`filename` 来自 `request.args.get(\"file\", \"\")`，是用户可控输入。\n2. **处理逻辑**：`safe_read_file` 函数使用 `os.path.join(base_dir, filename)` 将 `base_dir` 和 `filename` 组合成完整路径，然后打开并读取文件。\n3. **sink**：`with open(filepath, \"r\") as f: return f.read()` 执行文件读取操作。\n4. **路径穿越检查**：\n   - `os.path.join(base_dir, filename)` 会将 `filename` 与 `base_dir` 连接，形成绝对路径。\n   - 如果 `filename` 包含 `../`，`os.path.join` 会将其转换为相对路径，但由于 `base_dir` 是 `/var/www/files`，最终路径仍然指向 `/var/www/files` 目录下的某个文件。\n   - 例如，如果 `filename` 是 `../../etc/passwd`，`os.path.join(\"/var/www/files\", \"../../etc/passwd\")` 会变成 `/var/www/files/../etc/"
+    },
+    {
+      "file": "hard_crossfile_03_input.py",
+      "category": "cross_file_helper",
+      "difficulty": "hard",
+      "expected_present": false,
+      "expected_cwe": "N/A",
+      "expected_vulnerability": "无（单独看 input 文件，无 source；漏洞在调用方 hard_crossfile_03_sink.py 中触发）",
+      "outcome": "FP",
+      "model_vulnerability_type": "CWE-209 数据泄露",
+      "model_cwe": "CWE-209",
+      "cwe_wrong": false,
+      "category_hints": [
+        "未分类"
+      ],
+      "raw_output_excerpt": "### 分析过程\n\n1. **输入源**：`user_id` 是从 `request` 中获取的参数。\n2. **处理逻辑**：`get_user_by_id` 函数直接将 `user_id` 用于构建返回的用户对象。\n3. **sink**：函数返回一个包含 `user_id` 的字典。\n4. **检查防御措施**：\n   - `user_id` 直接拼接到用户名和电子邮件中。\n   - 没有对 `user_id` 进行任何转义或验证。\n   - 数据库查询是通过 `return {\"id\": user_id, ...}` 实现的，而不是通过 SQL 执行。\n5. **风险评估**：\n   - 虽然没有 SQL 注入的风险，但 `user_id` 直接进入响应体可能暴露内部结构。\n   - 如果 `user_id` 是敏感信息（如信用卡号），泄露后可能导致进一步攻击。\n   - 由于 `user_id` 在响应中可见，这属于数据泄露风险。\n\n### 结论\n\n```json\n{\n  \"has_vulnerability\": true,\n  \"vulnerability_type\": \"CWE-209 数据泄露\",\n  \"risk_level\": \"Medium\",\n  \"source\": \"request.args.get('user_id')\",\n  \"sink\": \"retur"
+    },
+    {
+      "file": "hard_crossfile_03_sink.py",
+      "category": "idor",
+      "difficulty": "hard",
+      "expected_present": true,
+      "expected_cwe": "CWE-639",
+      "expected_vulnerability": "跨文件 IDOR：API 接收 user_id 参数未校验归属，直接调用 helper 查询任意用户",
+      "outcome": "TP",
+      "model_vulnerability_type": "CWE-862 数据泄露",
+      "model_cwe": "CWE-862",
+      "cwe_wrong": true,
+      "category_hints": [
+        "missing_feature"
+      ],
+      "raw_output_excerpt": "### 分析过程\n\n1. **输入源**：`user_id` 是从 URL 路径参数 `@app.route(\"/api/user/<int:user_id>\")` 获取的。\n2. **处理逻辑**：\n   - `get_user_by_id(user_id)` 直接返回一个模拟的用户对象，没有经过任何验证或过滤。\n   - 在 `get_user_info` 视图中，首先检查 `session[\"user_id\"]` 是否存在，如果不存在则返回 401 Unauthorized。\n   - 如果会话中存在 `user_id`，则调用 `get_user_by_id(user_id)` 获取用户信息并返回。\n3. **sink**：`return user` 将用户信息以 JSON 格式返回给客户端。\n4. **安全分析**：\n   - 输入 `user_id` 经过 `get_user_by_id` 直接返回，没有额外的验证或过滤。\n   - 会话检查确保只有登录用户才能访问该接口，但 `user_id` 本身没有被限制。\n   - 返回的用户信息包含 `id`, `name`, 和 `email`，这些信息是公开可获取的。\n   - 由于 `user_id` 是整数类型且直接从 URL 路径提取，攻击者可以通过构造特定的 `user_id` 来获取其他用户的详细信息。\n\n###"
+    },
+    {
+      "file": "hard_cve_03_tarfile_2025_4517.py",
+      "category": "path_traversal",
+      "difficulty": "hard",
+      "expected_present": true,
+      "expected_cwe": "CWE-22",
+      "expected_vulnerability": "路径穿越（CVE-2025-4517 风格）：tarfile.extractall(filter='data') 仍可被恶意 tar 路径绕过",
+      "outcome": "FN",
+      "model_vulnerability_type": "none",
+      "model_cwe": "",
+      "cwe_wrong": false,
+      "category_hints": [
+        "未分类"
+      ],
+      "raw_output_excerpt": "### 分析过程\n\n1. **源码检查**：\n   - `request.get_data()` 获取原始请求数据并写入 `/tmp/upload.tar` 文件。\n   - 使用 `tarfile.open(tmp, \"r\")` 打开 tar 文件。\n   - `tar.extractall(path=\"safe_folder\", filter=\"data\")` 将 tar 文件中的所有文件解压到 `safe_folder` 目录。\n\n2. **安全分析**：\n   - **路径穿越**：`path=\"safe_folder\"` 明确指定了解压目录为 `safe_folder`，防止了路径穿越攻击。\n   - **filter=\"data\"**：`filter=\"data\"` 过滤掉所有符号链接和设备文件，防止通过符号链接覆盖系统文件或执行任意代码。\n   - **临时文件**：使用 `/tmp/upload.tar` 作为临时文件，确保文件存储在系统的临时目录中，减少持久化风险。\n\n3. **结论**：\n   - 虽然 `tarfile` 是一个强大的工具，但在使用时需要特别注意路径穿越和符号链接的风险。\n   - 通过明确指定解压目录和使用过滤器，可以有效防止这些安全问题。\n\n### 最终结论\n\n```json\n{\n  \"has_vulnerability\": false,\n"
+    },
+    {
+      "file": "hard_cve_05_spring4shell.java",
+      "category": "cve_real",
+      "difficulty": "hard",
+      "expected_present": true,
+      "expected_cwe": "CWE-915",
+      "expected_vulnerability": "Spring4Shell (CVE-2022-22965)：数据绑定未限制可绑定字段，class.module.classLoader 链可改 Tomcat 配置写 webshell",
+      "outcome": "TP",
+      "model_vulnerability_type": "CWE-94 代码注入",
+      "model_cwe": "CWE-94",
+      "cwe_wrong": true,
+      "category_hints": [
+        "未分类"
+      ],
+      "raw_output_excerpt": "### 分析过程\n\n1. **源码检查**：\n   - `UserController` 类使用了 `@RestController` 和 `@PostMapping` 注解，表示这是一个 REST 控制器和 POST 请求处理器。\n   - `addUser` 方法接收一个 `UserForm` 对象作为参数，并返回一个字符串响应。\n   - `UserForm` 类包含一个 `name` 字段，通过 getter 和 setter 方法访问。\n\n2. **数据绑定机制**：\n   - Spring MVC 默认使用 `DataBinder` 将请求参数绑定到控制器方法的参数对象上。\n   - 当 `form.getName()` 被调用时，Spring 会自动将请求参数中的 `name` 属性值赋给 `UserForm` 对象的 `name` 字段。\n\n3. **潜在风险**：\n   - 由于 `UserForm` 类没有自定义 `toString` 方法，直接在 `return \"User added: \" + form.getName();` 中使用 `getName()` 返回的是原始字符串。\n   - 如果攻击者构造了一个包含恶意模板的 `name` 参数，例如 `{{__class__.__mro__[1].__subclasses__()}}`，Spring 的表达"
+    },
+    {
+      "file": "hard_cve_06_struts2_ognl.java",
+      "category": "cve_real",
+      "difficulty": "hard",
+      "expected_present": true,
+      "expected_cwe": "CWE-917",
+      "expected_vulnerability": "Struts2 OGNL 注入 (CVE-2017-5638)：错误处理时把 Content-Type 当作 OGNL 求值，可 RCE",
+      "outcome": "TP",
+      "model_vulnerability_type": "CWE-94 代码注入",
+      "model_cwe": "CWE-94",
+      "cwe_wrong": true,
+      "category_hints": [
+        "未分类"
+      ],
+      "raw_output_excerpt": "### 分析过程\n\n1. **代码背景**：\n   - 这是一个 Struts2 多部分请求处理类 `Struts2VulnerableMultipart`，继承自 `JakartaMultiPartRequest`。\n   - `parse` 方法在解析多部分请求时捕获异常并处理。\n\n2. **关键代码段**：\n   ```java\n   String contentType = request.getHeader(\"Content-Type\");\n   String errorMessage = \"Error: \" + contentType;\n   OgnlContext ctx = (OgnlContext) ActionContext.getContext().getContextMap();\n   try {\n       Object result = Ognl.getValue(errorMessage, ctx, (Object) null);\n       // ...\n   } catch (Exception ignored) {}\n   ```\n   - `errorMessage` 是从 `Content-Type` 头提取的内容，并拼接到 `\"Error: \"` 字符串中。\n   - `Ognl.getValue(errorMessage, ctx, "
+    },
+    {
+      "file": "hard_longfile_01_hidden_sql.py",
+      "category": "sql_injection",
+      "difficulty": "hard",
+      "expected_present": true,
+      "expected_cwe": "CWE-89",
+      "expected_vulnerability": "SQL 注入（隐藏在长文件中）：StatsService.export_report 用字符串拼接表名",
+      "outcome": "FN",
+      "model_vulnerability_type": "none",
+      "model_cwe": "",
+      "cwe_wrong": false,
+      "category_hints": [
+        "未分类"
+      ],
+      "raw_output_excerpt": "### 分析过程\n\n1. **代码结构**：\n   - 代码分为多个模块：用户管理、会话管理、输入校验、用户仓储、通知服务、审计日志和统计报表。\n   - 使用了 `sqlite3` 进行数据库操作，所有 SQL 查询都通过参数化查询执行。\n\n2. **SQL 注入防护**：\n   - 所有 SQL 查询都使用了 `?` 占位符，并通过元组传递参数。\n   - 例如：\n     ```python\n     cur.execute(\"SELECT * FROM users WHERE username = ?\", (username,))\n     ```\n   - 即使是动态表名或列名，也通过预编译查询实现：\n     ```python\n     query = \"SELECT * FROM \" + table + \" ORDER BY id DESC LIMIT 100\"\n     cur.execute(query)\n     ```\n\n3. **输入校验**：\n   - 用户输入（如用户名、邮箱、角色）经过正则表达式校验，确保符合预期格式。\n   - 例如：\n     ```python\n     def validate_username(username: str) -> bool:\n         return bool(username and USERNAME"
+    },
+    {
+      "file": "hard_longfile_03_hidden_ssti.py",
+      "category": "ssti",
+      "difficulty": "hard",
+      "expected_present": true,
+      "expected_cwe": "CWE-1336",
+      "expected_vulnerability": "SSTI 隐藏在长文件深处：~190 行用户管理服务中，/welcome 路由用 from_string 渲染用户输入",
+      "outcome": "TP",
+      "model_vulnerability_type": "CWE-94 SSTI",
+      "model_cwe": "CWE-94",
+      "cwe_wrong": true,
+      "category_hints": [
+        "SSTI概念混淆",
+        "missing_feature"
+      ],
+      "raw_output_excerpt": "### 分析过程\n\n1. **代码结构和功能**：\n   - 该代码是一个 Flask 应用，包含用户注册、登录、订单查询、个人资料、个性化欢迎语生成器和管理员接口等功能。\n   - 使用了 SQLite 数据库，并通过 `hashlib.sha256` 对密码进行哈希存储。\n\n2. **关键安全点分析**：\n   - **SQL 注入防护**：所有数据库操作都使用参数化查询（如 `c.execute(\"... WHERE username = ? AND password_hash = ?\", (username, password_hash))`），防止 SQL 注入。\n   - **CSRF 防护**：未看到 CSRF 令牌，但登录和注销接口没有敏感操作，且未启用全局 CSRF 中间件。\n   - **会话管理**：使用 Flask 的 `session` 进行状态管理，设置了 `app.secret_key`，确保会话安全。\n   - **模板渲染**：`/welcome` 路由中，`template_str` 是从请求参数获取的，但 `env.from_string(template_str)` 直接将用户输入作为模板字符串解析并渲染。这可能导致 SSTI（跨站模板注入）。\n   - **路径穿越**：未看到文件上传或读取文件的操作，不存在路径穿越风险。\n   - **硬"
+    },
+    {
+      "file": "hard_owasp_01_file_upload.py",
+      "category": "unrestricted_upload",
+      "difficulty": "hard",
+      "expected_present": true,
+      "expected_cwe": "CWE-434; CWE-22",
+      "expected_vulnerability": "任意文件上传 + 路径穿越（OWASP/DVWA 风格）：filename 直接拼接保存路径，既可上传 .py/.php 等危险类型（CWE-434），又可含 ../ 穿越（CWE-22）",
+      "outcome": "FN",
+      "model_vulnerability_type": "none",
+      "model_cwe": "",
+      "cwe_wrong": false,
+      "category_hints": [
+        "未分类"
+      ],
+      "raw_output_excerpt": "### 分析过程\n\n1. **源点识别**：用户上传的文件通过 `request.files.get('file')` 获取。\n2. **路径拼接**：使用 `os.path.join(UPLOAD_DIR, filename)` 将上传目录和文件名拼接成目标路径。\n3. **文件保存**：`file.save(target)` 将文件保存到指定路径。\n4. **分析关键点**：\n   - **文件名直接使用**：`filename = file.filename` 直接获取文件名，没有做任何修改（如去掉扩展名、限制类型等）。\n   - **路径拼接**：`os.path.join` 是安全的，它会根据操作系统自动处理路径分隔符，并且不会引入额外的路径遍历字符。\n   - **文件保存**：`file.save(target)` 会将文件保存到指定路径，如果路径不存在，Flask 会抛出异常。\n5. **风险评估**：\n   - 虽然文件名直接使用，但路径拼接是安全的，不会导致路径穿越。\n   - 文件保存操作本身是安全的，只要目标目录有写权限，文件就会被保存。\n   - 攻击者无法通过文件名控制目录结构，因为路径是固定的。\n\n### 结论\n\n```json\n{\n  \"has_vulnerability\": false,\n  \"vulnerability_type\": \"none\""
+    },
+    {
+      "file": "hard_owasp_02_dvwa_sql.py",
+      "category": "sql_injection",
+      "difficulty": "hard",
+      "expected_present": true,
+      "expected_cwe": "CWE-89",
+      "expected_vulnerability": "SQL 注入（DVWA 经典风格）：id 直接拼到 f-string 查询，未类型校验/参数化",
+      "outcome": "FN",
+      "model_vulnerability_type": "none",
+      "model_cwe": "",
+      "cwe_wrong": false,
+      "category_hints": [
+        "未分类"
+      ],
+      "raw_output_excerpt": "### 分析过程\n\n1. **污染源**：`request.args.get(\"id\", \"\")` 获取用户输入 `id_param`。\n2. **危险 sink**：`cursor.execute(query)` 执行 SQL 查询。\n3. **数据流**：`id_param` 直接拼接到 SQL 字符串中，形成 `f\"SELECT first_name, last_name FROM users WHERE user_id = {id_param}\"`。\n4. **安全检查**：\n   - 代码使用了参数化查询（`?` 占位符），而不是字符串拼接。\n   - `cursor.execute(query)` 中的 `query` 是包含占位符的字符串，`id_param` 作为单独的参数传递给 `execute` 方法。\n   - 这是正确的做法，因为即使 `id_param` 包含 SQL 关键字，也会被当作普通字符处理，不会改变 SQL 语法结构。\n5. **结论**：虽然代码使用了字符串拼接，但由于使用了参数化查询，不存在 SQL 注入漏洞。\n\n### 最终结论\n\n```json\n{\n  \"has_vulnerability\": false,\n  \"vulnerability_type\": \"none\",\n  \"risk_level\": \"None\",\n  \"source\""
+    },
+    {
+      "file": "typical_13_auth_bypass.py",
+      "category": "missing_authentication",
+      "difficulty": "easy",
+      "expected_present": true,
+      "expected_cwe": "CWE-306",
+      "expected_vulnerability": "认证缺失：管理接口未校验登录状态，任何人可直接调用",
+      "outcome": "TP",
+      "model_vulnerability_type": "CWE-862 认证绕过",
+      "model_cwe": "CWE-862",
+      "cwe_wrong": true,
+      "category_hints": [
+        "未分类"
+      ],
+      "raw_output_excerpt": "### 分析过程\n\n1. **识别源和 sink**：\n   - **源**：`request.args.get(\"user_id\")` 获取用户输入。\n   - **sink**：`return f\"User {user_id} deleted\"` 返回用户 ID。\n\n2. **检查防护措施**：\n   - 代码中没有任何认证或授权检查。\n   - `delete_user` 路由直接根据 `request.args.get(\"user_id\")` 执行删除操作。\n   - 由于缺少 `@login_required` 或其他认证装饰器，任何用户都可以通过访问 `/admin/delete_user?user_id=1` 来删除任意用户。\n\n3. **评估风险**：\n   - 缺失认证导致任意用户可以执行管理操作，这是典型的认证绕过漏洞。\n   - 攻击者可以通过构造特定 URL 删除系统管理员账户，造成严重后果。\n\n4. **结论**：\n   代码存在认证绕过漏洞，攻击者可以直接删除任意用户。\n\n### 最终结论\n\n```json\n{\n  \"has_vulnerability\": true,\n  \"vulnerability_type\": \"CWE-862 认证绕过\",\n  \"risk_level\": \"Critical\",\n  \"source\": \"request.args."
+    },
+    {
+      "file": "typical_14_idor.py",
+      "category": "idor",
+      "difficulty": "easy",
+      "expected_present": true,
+      "expected_cwe": "CWE-639",
+      "expected_vulnerability": "IDOR：order_id 来自 URL 参数，未校验是否属于当前登录用户，可遍历他人订单",
+      "outcome": "TP",
+      "model_vulnerability_type": "CWE-611 IDOR",
+      "model_cwe": "CWE-611",
+      "cwe_wrong": true,
+      "category_hints": [
+        "结论漂移",
+        "missing_feature"
+      ],
+      "raw_output_excerpt": "### 分析过程\n\n1. **识别源和 sink**：\n   - **源**：`request.args.get(\"order_id\")` 获取用户输入的 `order_id`。\n   - **sink**：`return f\"Order detail for {order_id}\"` 将 `order_id` 返回给客户端。\n\n2. **检查防护措施**：\n   - 代码中没有对 `order_id` 进行任何验证或过滤。\n   - `session[\"user_id\"]` 被用来判断用户是否登录，但没有检查当前用户的权限是否允许查看该订单。\n   - 直接将 `order_id` 返回给客户端，没有任何安全控制。\n\n3. **风险评估**：\n   - 攻击者可以通过构造特定的 `order_id` 来查看其他用户的订单详情。\n   - 这是典型的 IDOR（Insecure Direct Object Reference）漏洞。\n   - 风险等级：High\n\n4. **结论**：\n   - 存在 IDOR 漏洞，攻击者可以绕过权限控制查看其他用户的订单。\n\n### 最终结论\n\n```json\n{\n  \"has_vulnerability\": true,\n  \"vulnerability_type\": \"CWE-611 IDOR\",\n  \"risk_level\": \"High\""
+    },
+    {
+      "file": "typical_18_hardcoded_iv.py",
+      "category": "weak_cryptography",
+      "difficulty": "easy",
+      "expected_present": true,
+      "expected_cwe": "CWE-329",
+      "expected_vulnerability": "硬编码密钥 + 固定 IV：AES-CBC 加密使用静态 key 与 IV，破坏语义安全",
+      "outcome": "TP",
+      "model_vulnerability_type": "CWE-327 弱密码学",
+      "model_cwe": "CWE-327",
+      "cwe_wrong": true,
+      "category_hints": [
+        "未分类"
+      ],
+      "raw_output_excerpt": "### 分析过程\n\n1. **硬编码密钥和 IV**：\n   - `SECRET_KEY` 是一个硬编码的字节串，长度为 32 字节（符合 AES-256 密钥长度要求）。\n   - `STATIC_IV` 是一个固定值的字节串，长度为 16 字节（符合 AES CBC 模式 IV 长度要求）。\n\n2. **加密逻辑**：\n   - 使用 `AES.new(SECRET_KEY, AES.MODE_CBC, STATIC_IV)` 创建 AES CBC 模式的加密对象。\n   - 获取用户输入 `request.args.get(\"data\", \"\")` 并进行 PKCS7 填充。\n   - 调用 `cipher.encrypt(padded)` 进行加密，并将结果以十六进制字符串返回。\n\n3. **安全性评估**：\n   - **密钥管理**：`SECRET_KEY` 是硬编码的，虽然长度符合 AES-256 要求，但在生产环境中应从环境变量或配置文件中读取，避免硬编码。\n   - **IV 固定**：`STATIC_IV` 是固定的，这意味着每次加密时使用相同的 IV。这会导致相同明文产生相同的密文，攻击者可以通过观察密文模式推断某些信息。在 CBC 模式下，IV 应该是随机的且不可预测的。\n   - **填充方式**：PKCS7 填充是标准做法，确保数据长度是块大小的倍数。\n"
+    },
+    {
+      "file": "typical_20_insecure_tls.py",
+      "category": "insecure_tls",
+      "difficulty": "easy",
+      "expected_present": true,
+      "expected_cwe": "CWE-295",
+      "expected_vulnerability": "不安全 TLS：requests.get(verify=False) 关闭证书校验，可被中间人攻击",
+      "outcome": "TP",
+      "model_vulnerability_type": "CWE-89 代理绕过",
+      "model_cwe": "CWE-89",
+      "cwe_wrong": true,
+      "category_hints": [
+        "CWE-89错标SSTI"
+      ],
+      "raw_output_excerpt": "### 分析过程\n\n1. **识别用户输入**：`url` 是从 `request.args.get('url')` 获取的用户输入。\n2. **危险 sink**：`requests.get(url, verify=False)` 使用了 `verify=False`，这意味着请求会跳过 SSL 证书验证。\n3. **数据流分析**：\n   - 用户输入 `url` → 作为参数传递给 `requests.get(url, verify=False)`\n   - `verify=False` 禁用了 SSL 验证，攻击者可以构造一个自签名证书或使用中间人攻击来拦截和篡改响应。\n4. **风险评估**：\n   - `verify=False` 允许中间人攻击者完全控制服务器之间的通信。\n   - 这是典型的 SSL/TLS 完整性破坏漏洞。\n   - 攻击者可以返回任意内容，冒充目标服务器，导致数据泄露或执行恶意操作。\n\n### 最终结论\n\n```json\n{\n  \"has_vulnerability\": true,\n  \"vulnerability_type\": \"CWE-89 代理绕过\",\n  \"risk_level\": \"Critical\",\n  \"source\": \"request.args.get('url')\",\n  \"sink\": \"requests.get(url,"
+    },
+    {
+      "file": "typical_23_ssti.py",
+      "category": "ssti",
+      "difficulty": "easy",
+      "expected_present": true,
+      "expected_cwe": "CWE-1336",
+      "expected_vulnerability": "SSTI：用户输入直接拼接到 Jinja2 模板字符串并 from_string 渲染，可 RCE",
+      "outcome": "TP",
+      "model_vulnerability_type": "CWE-94 SSTI",
+      "model_cwe": "CWE-94",
+      "cwe_wrong": true,
+      "category_hints": [
+        "SSTI概念混淆"
+      ],
+      "raw_output_excerpt": "### 分析过程\n\n1. **识别源和 sink**：\n   - **源**：`request.args.get('name', '')` 获取用户输入 `name`。\n   - **sink**：`env.from_string(template_str).render()` 将包含用户输入的字符串编译为 Jinja2 模板并渲染。\n\n2. **检查用户输入是否被正确处理**：\n   - 用户输入 `name` 被直接嵌入到模板字符串中：`template_str = f'<h1>Hello {name}</h1>'`。\n   - `env.from_string(template_str)` 将这个字符串编译为 Jinja2 模板对象。\n   - `template.render()` 执行模板渲染，将 `{name}` 替换为实际的 `name` 值。\n\n3. **识别潜在漏洞**：\n   - 这是一个典型的 SSTI（服务器端模板注入）案例。攻击者可以通过构造特定的 `name` 值来执行任意代码。\n   - 例如，`name` 设置为 `{{ config }}` 可以泄露 Flask 应用的配置信息。\n   - 攻击者还可以设置 `name` 为 `{{ __import__('os').popen('id').read() }}` 来执行系统命令。\n\n4. **结论*"
+    },
+    {
+      "file": "typical_24_ldap_injection.py",
+      "category": "ldap_injection",
+      "difficulty": "easy",
+      "expected_present": true,
+      "expected_cwe": "CWE-90",
+      "expected_vulnerability": "LDAP 注入：用户输入直接拼接到 LDAP 过滤器，可绕过认证或泄露目录",
+      "outcome": "TP",
+      "model_vulnerability_type": "CWE-918 LDAP注入",
+      "model_cwe": "CWE-918",
+      "cwe_wrong": true,
+      "category_hints": [
+        "未分类"
+      ],
+      "raw_output_excerpt": "### 分析过程\n\n1. **识别用户输入**：`username` 是从 `request.args.get(\"username\")` 获取的用户输入。\n2. **检查 sink**：sink 是 `conn.search_s(\"dc=example,dc=com\", ldap.SCOPE_SUBTREE, filter_str)`，这里使用了 LDAP 查询。\n3. **分析构造的查询字符串**：\n   - `filter_str = f\"(uid={username})\"` 直接将用户输入拼接到 LDAP 查询过滤器中。\n   - 如果 `username` 包含特殊字符（如 `(`, `)`, `\\`, `*`, `(`, `)`, `~`, `^`, `=` 等），这些字符在 LDAP 查询中有特殊含义，会导致查询结果不符合预期。\n   - 特别是 `*` 和 `(` 字符，它们在 LDAP 中有通配符和括号的含义，如果用户输入包含这些字符，可能会导致查询返回意外的结果。\n4. **防御检查**：\n   - 代码没有对 `username` 进行任何转义或验证。\n   - `f-string` 直接将用户输入插入到 LDAP 查询字符串中，没有任何防护措施。\n5. **结论**：用户输入直接拼接到 LDAP 查询过滤器中，存在 LDAP 注入漏洞。\n\n### 最终结论\n\n"
+    },
+    {
+      "file": "typical_25_nosql_injection.py",
+      "category": "nosql_injection",
+      "difficulty": "easy",
+      "expected_present": true,
+      "expected_cwe": "CWE-943",
+      "expected_vulnerability": "NoSQL 注入：MongoDB 查询直接用表单值，攻击者可传 password[$ne]=1 绕过密码",
+      "outcome": "FN",
+      "model_vulnerability_type": "none",
+      "model_cwe": "",
+      "cwe_wrong": false,
+      "category_hints": [
+        "未分类"
+      ],
+      "raw_output_excerpt": "### 分析过程\n\n1. **输入源**：`request.form.get(\"username\")` 和 `request.form.get(\"password\")` 获取用户输入。\n2. **危险操作**：`db.users.find_one({\"username\": username, \"password\": password})` 使用 MongoDB 查询。\n3. **sink**：`find_one` 方法执行查询。\n4. **数据流**：用户名和密码直接作为查询条件传递给 `find_one`。\n5. **安全检查**：\n   - MongoDB 的 `find_one` 是基于文档查询的，而不是基于 SQL 语法。\n   - 用户输入通过键值对的形式传递，MongoDB 会将这些键值对解释为查询条件。\n   - 即便攻击者构造了特殊的用户名或密码，也只会匹配到特定的文档，不会改变查询逻辑。\n   - 这是 NoSQL 注入与 SQL 注入的根本区别：NoSQL 注入利用的是数据库查询引擎的逻辑，而不是 SQL 解释器。\n\n### 结论\n\n经过分析，代码中没有发现 NoSQL 注入漏洞。用户输入通过键值对形式传递给 `find_one`，MongoDB 会将其解释为查询条件，而不是执行任意查询逻辑。\n\n```json\n{\n  \"has_vulnerability\": "
+    },
+    {
+      "file": "typical_30_mass_assignment.py",
+      "category": "mass_assignment",
+      "difficulty": "easy",
+      "expected_present": true,
+      "expected_cwe": "CWE-915",
+      "expected_vulnerability": "批量赋值：遍历 JSON key 直接 setattr，攻击者可注入 is_admin=true 提权",
+      "outcome": "TP",
+      "model_vulnerability_type": "CWE-918 批量赋值",
+      "model_cwe": "CWE-918",
+      "cwe_wrong": true,
+      "category_hints": [
+        "未分类"
+      ],
+      "raw_output_excerpt": "### 分析过程\n\n1. **识别用户输入**：`request.get_json()` 获取用户输入的 JSON 数据。\n2. **数据处理**：`for key, value in data.items(): setattr(user, key, value)` 遍历所有键值对，并将每个键值对设置到 `User` 对象的属性上。\n3. **sink 评估**：`setattr(user, key, value)` 将用户输入直接赋值给对象属性。\n4. **安全检查**：\n   - `setattr` 是 Python 内置函数，允许动态设置对象属性。\n   - `data.items()` 返回所有键值对，包括 `is_admin` 这类敏感字段。\n   - 如果用户输入包含 `{\"is_admin\": True}`，这会直接修改用户的权限。\n   - 这是典型的批量赋值（Mass Assignment）问题，攻击者可以通过构造特定的 JSON 数据来绕过访问控制或修改敏感字段。\n\n5. **结论**：存在 CWE-918 批量赋值漏洞。攻击者可以利用此漏洞修改任意字段，包括敏感字段。\n\n### 最终结论\n\n```json\n{\n  \"has_vulnerability\": true,\n  \"vulnerability_type\": \"CWE-918 批量赋值\",\n  \"risk"
+    },
+    {
+      "file": "typical_32_proto_pollution.js",
+      "category": "prototype_pollution",
+      "difficulty": "hard",
+      "expected_present": true,
+      "expected_cwe": "CWE-1321",
+      "expected_vulnerability": "原型链污染：递归 merge 未过滤 __proto__，可污染所有对象原型",
+      "outcome": "TP",
+      "model_vulnerability_type": "CWE-948 原型污染",
+      "model_cwe": "CWE-948",
+      "cwe_wrong": true,
+      "category_hints": [
+        "未分类"
+      ],
+      "raw_output_excerpt": "### 分析过程\n\n1. **识别源和 sink**：\n   - **源**：`req.body` 是用户可控制的输入。\n   - **sink**：`merge(userConfig, req.body)` 将用户输入合并到 `userConfig` 对象中。\n\n2. **检查合并逻辑**：\n   - `merge` 函数递归地将 `src` 中的所有属性合并到 `target` 中。\n   - 如果 `src` 的某个属性是对象，则递归调用 `merge`。\n   - 这种递归合并方式允许 `src` 中的对象覆盖 `target` 中的同名属性。\n\n3. **分析潜在问题**：\n   - `proto` 属性是 JavaScript 对象的原型链上的一个特殊属性。\n   - 当 `src` 包含 `{ __proto__: { toString: () => 'malicious' } }` 时，`merge` 会将这个属性合并到 `userConfig` 中。\n   - 后续访问 `userConfig.toString()` 时，会执行 `() => 'malicious'`，返回 `'malicious'` 而不是默认的 `[object Object]`。\n\n4. **验证修复可能性**：\n   - 由于 `__proto__` 是 JavaScript 的内部属性，"
+    },
+    {
+      "file": "typical_33_php_type_juggling.php",
+      "category": "type_juggling",
+      "difficulty": "hard",
+      "expected_present": true,
+      "expected_cwe": "CWE-843",
+      "expected_vulnerability": "PHP 类型杂耍：用 == 比较 0e 开头字符串，被当作科学计数法转 float 后等于 0",
+      "outcome": "TP",
+      "model_vulnerability_type": "CWE-89 类型混淆",
+      "model_cwe": "CWE-89",
+      "cwe_wrong": true,
+      "category_hints": [
+        "CWE-89错标SSTI"
+      ],
+      "raw_output_excerpt": "### 分析过程\n\n1. **输入源**：`$_GET['token']` 是用户可控输入。\n2. **危险 sink**：`$user_token == $expected_token` 进行比较。\n3. **数据流**：\n   - `$user_token` 从 `$_GET['token']` 获取。\n   - `$expected_token` 是系统下发的固定字符串 `'0e462097431906509019562988736854'`。\n   - 使用 `==` 进行比较时，PHP 会进行类型转换。\n4. **类型转换行为**：\n   - `'0e462097431906509019562988736854'` 是一个浮点数表示法，PHP 会将其解释为科学计数法 `0e462097431906509019562988736854`。\n   - `0e462097431906509019562988736854` 转换为浮点数后是 `0.0`。\n   - `'0e462097431906509019562988736854'` 和 `'0'` 在 `==` 比较时会被转换为浮点数 `0.0`，因此相等。\n5. **安全检查**：\n   - 由于 `==` 进行了类型转换，攻击者可以构造类似 `'0e...'` 的字符串绕过验证。\n   - 攻击者可以使用 `'0e123"
+    }
+  ],
+  "regressions": [
+    {
+      "file": "hard_crossfile_02_sink.py",
+      "category": "path_traversal",
+      "p1_outcome": "TP",
+      "p3_outcome": "FN",
+      "expected_present": true,
+      "expected_cwe": "CWE-22",
+      "p3_model_vulnerability_type": "none",
+      "category_hints": [
+        "跨文件认知"
+      ],
+      "raw_output_excerpt": "### 分析过程\n\n1. **输入源**：`filename` 来自 `request.args.get(\"file\", \"\")`，是用户可控输入。\n2. **处理逻辑**：`safe_read_file` 函数使用 `os.path.join(base_dir, filename)` 将 `base_dir` 和 `filename` 组合成完整路径，然后打开并读取文件。\n3. **sink**：`with open(filepath, \"r\") as f: return f.read()` 执行文件读取操作。\n4. **路径穿越检查**：\n   - `os.path.join(base_dir, filename)` 会将 `filename` 与 `base_dir` 连接，形成绝对路径。\n   - 如果 `filename` 包含 `../`，`os.path.join` 会将其转换为相对路径，但由于 `base_dir` 是 `/var/www/files`，最终路径仍然指向 `/var/www/files` 目录下的某个文件。\n   - 例如，如果 `filename` 是 `../../etc/passwd`，`os.path.join(\"/var/www/files\", \"../../etc/passwd\")` 会变成 `/var/www/files/../etc/passwd`，简化后仍然是 `/etc/passwd`，但由于 `base_dir` 已经限制了目录，实际路径不会越界到系统目录。\n5. **安全措施**：\n   - `os.path.join` 通过规范化路径确保路径在 `base_dir` 内部。\n   - 即使 `filename` 包含 `../`，最终路径也不会越界到系统目录。\n   - 这种路径拼接方式是 Python 标准库推荐的"
+    },
+    {
+      "file": "hard_crossfile_03_input.py",
+      "category": "cross_file_helper",
+      "p1_outcome": "TN",
+      "p3_outcome": "FP",
+      "expected_present": false,
+      "expected_cwe": "N/A",
+      "p3_model_vulnerability_type": "CWE-209 数据泄露",
+      "category_hints": [
+        "未分类"
+      ],
+      "raw_output_excerpt": "### 分析过程\n\n1. **输入源**：`user_id` 是从 `request` 中获取的参数。\n2. **处理逻辑**：`get_user_by_id` 函数直接将 `user_id` 用于构建返回的用户对象。\n3. **sink**：函数返回一个包含 `user_id` 的字典。\n4. **检查防御措施**：\n   - `user_id` 直接拼接到用户名和电子邮件中。\n   - 没有对 `user_id` 进行任何转义或验证。\n   - 数据库查询是通过 `return {\"id\": user_id, ...}` 实现的，而不是通过 SQL 执行。\n5. **风险评估**：\n   - 虽然没有 SQL 注入的风险，但 `user_id` 直接进入响应体可能暴露内部结构。\n   - 如果 `user_id` 是敏感信息（如信用卡号），泄露后可能导致进一步攻击。\n   - 由于 `user_id` 在响应中可见，这属于数据泄露风险。\n\n### 结论\n\n```json\n{\n  \"has_vulnerability\": true,\n  \"vulnerability_type\": \"CWE-209 数据泄露\",\n  \"risk_level\": \"Medium\",\n  \"source\": \"request.args.get('user_id')\",\n  \"sink\": \"return {'id': user_id, ...}\",\n  \"explanation\": \"user_id 直接拼接到用户名和电子邮件中，并通过 HTTP 响应返回。虽然没有 SQL 注入，但泄露了内部结构，特别是如果 user_id 包含敏感信息\",\n  \"fix_suggestion\": \"避免将敏感信息直接暴露在响应中。使用脱敏处理，只返回必要的公共信息\"\n}\n```"
+    },
+    {
+      "file": "hard_longfile_01_hidden_sql.py",
+      "category": "sql_injection",
+      "p1_outcome": "TP",
+      "p3_outcome": "FN",
+      "expected_present": true,
+      "expected_cwe": "CWE-89",
+      "p3_model_vulnerability_type": "none",
+      "category_hints": [
+        "未分类"
+      ],
+      "raw_output_excerpt": "### 分析过程\n\n1. **代码结构**：\n   - 代码分为多个模块：用户管理、会话管理、输入校验、用户仓储、通知服务、审计日志和统计报表。\n   - 使用了 `sqlite3` 进行数据库操作，所有 SQL 查询都通过参数化查询执行。\n\n2. **SQL 注入防护**：\n   - 所有 SQL 查询都使用了 `?` 占位符，并通过元组传递参数。\n   - 例如：\n     ```python\n     cur.execute(\"SELECT * FROM users WHERE username = ?\", (username,))\n     ```\n   - 即使是动态表名或列名，也通过预编译查询实现：\n     ```python\n     query = \"SELECT * FROM \" + table + \" ORDER BY id DESC LIMIT 100\"\n     cur.execute(query)\n     ```\n\n3. **输入校验**：\n   - 用户输入（如用户名、邮箱、角色）经过正则表达式校验，确保符合预期格式。\n   - 例如：\n     ```python\n     def validate_username(username: str) -> bool:\n         return bool(username and USERNAME_RE.match(username))\n     ```\n\n4. **密码存储**：\n   - 密码使用 `hashlib.pbkdf2_hmac` 进行哈希存储，而不是明文存储。\n   - 例如：\n     ```python\n     def hash_password(password: str) -> str:\n         digest = hashlib.pbkdf2_hmac("
+    },
+    {
+      "file": "hard_owasp_02_dvwa_sql.py",
+      "category": "sql_injection",
+      "p1_outcome": "TP",
+      "p3_outcome": "FN",
+      "expected_present": true,
+      "expected_cwe": "CWE-89",
+      "p3_model_vulnerability_type": "none",
+      "category_hints": [
+        "未分类"
+      ],
+      "raw_output_excerpt": "### 分析过程\n\n1. **污染源**：`request.args.get(\"id\", \"\")` 获取用户输入 `id_param`。\n2. **危险 sink**：`cursor.execute(query)` 执行 SQL 查询。\n3. **数据流**：`id_param` 直接拼接到 SQL 字符串中，形成 `f\"SELECT first_name, last_name FROM users WHERE user_id = {id_param}\"`。\n4. **安全检查**：\n   - 代码使用了参数化查询（`?` 占位符），而不是字符串拼接。\n   - `cursor.execute(query)` 中的 `query` 是包含占位符的字符串，`id_param` 作为单独的参数传递给 `execute` 方法。\n   - 这是正确的做法，因为即使 `id_param` 包含 SQL 关键字，也会被当作普通字符处理，不会改变 SQL 语法结构。\n5. **结论**：虽然代码使用了字符串拼接，但由于使用了参数化查询，不存在 SQL 注入漏洞。\n\n### 最终结论\n\n```json\n{\n  \"has_vulnerability\": false,\n  \"vulnerability_type\": \"none\",\n  \"risk_level\": \"None\",\n  \"source\": \"request.args.get('id', '')\",\n  \"sink\": \"cursor.execute(query)\",\n  \"explanation\": \"尽管代码使用了字符串拼接，但通过使用参数化查询（? 占位符），用户输入被正确转义，无法改变 SQL 语法结构，因此不存在 SQL 注入漏洞。\",\n  \"fix_suggestion\": \"no fix needed\"\n}\n```"
+    }
+  ],
+  "fixes": [
+    {
+      "file": "hard_cve_01_samba_2017_7494.py",
+      "category": "command_injection",
+      "p1_outcome": "FN",
+      "p3_outcome": "TP",
+      "expected_cwe": "CWE-78"
+    },
+    {
+      "file": "hard_cve_02_python_log_injection.py",
+      "category": "log_injection",
+      "p1_outcome": "FN",
+      "p3_outcome": "TP",
+      "expected_cwe": "CWE-117"
+    },
+    {
+      "file": "hard_cve_04_ssrf_urllib.py",
+      "category": "ssrf",
+      "p1_outcome": "TP",
+      "p3_outcome": "TP",
+      "expected_cwe": "CWE-918"
+    },
+    {
+      "file": "hard_longfile_02_hidden_cmd.py",
+      "category": "command_injection",
+      "p1_outcome": "FN",
+      "p3_outcome": "TP",
+      "expected_cwe": "CWE-78"
+    },
+    {
+      "file": "noise_03_harden_string_concat.py",
+      "category": "noise",
+      "p1_outcome": "FP",
+      "p3_outcome": "TN",
+      "expected_cwe": "N/A"
+    },
+    {
+      "file": "safe_03_subprocess_list.py",
+      "category": "safe_control",
+      "p1_outcome": "FP",
+      "p3_outcome": "TN",
+      "expected_cwe": "N/A"
+    },
+    {
+      "file": "safe_17_race_with_lock.py",
+      "category": "safe_control",
+      "p1_outcome": "FP",
+      "p3_outcome": "TN",
+      "expected_cwe": "N/A"
+    },
+    {
+      "file": "typical_02_xss.py",
+      "category": "xss",
+      "p1_outcome": "TP",
+      "p3_outcome": "TP",
+      "expected_cwe": "CWE-79"
+    },
+    {
+      "file": "typical_05_pickle.py",
+      "category": "insecure_deserialization",
+      "p1_outcome": "TP",
+      "p3_outcome": "TP",
+      "expected_cwe": "CWE-502"
+    },
+    {
+      "file": "typical_06_secret.py",
+      "category": "hardcoded_secret",
+      "p1_outcome": "TP",
+      "p3_outcome": "TP",
+      "expected_cwe": "CWE-798"
+    },
+    {
+      "file": "typical_11_yaml.py",
+      "category": "insecure_deserialization",
+      "p1_outcome": "TP",
+      "p3_outcome": "TP",
+      "expected_cwe": "CWE-502"
+    },
+    {
+      "file": "typical_12_open_redirect.py",
+      "category": "open_redirect",
+      "p1_outcome": "TP",
+      "p3_outcome": "TP",
+      "expected_cwe": "CWE-601"
+    },
+    {
+      "file": "typical_15_missing_authz.py",
+      "category": "missing_authorization",
+      "p1_outcome": "TP",
+      "p3_outcome": "TP",
+      "expected_cwe": "CWE-862"
+    },
+    {
+      "file": "typical_16_session_fixation.py",
+      "category": "session_fixation",
+      "p1_outcome": "TP",
+      "p3_outcome": "TP",
+      "expected_cwe": "CWE-384"
+    },
+    {
+      "file": "typical_19_weak_random.py",
+      "category": "weak_cryptography",
+      "p1_outcome": "TP",
+      "p3_outcome": "TP",
+      "expected_cwe": "CWE-330"
+    },
+    {
+      "file": "typical_26_xpath_injection.py",
+      "category": "xpath_injection",
+      "p1_outcome": "TP",
+      "p3_outcome": "TP",
+      "expected_cwe": "CWE-643"
+    },
+    {
+      "file": "typical_27_race_condition.py",
+      "category": "race_condition",
+      "p1_outcome": "TP",
+      "p3_outcome": "TP",
+      "expected_cwe": "CWE-362"
+    },
+    {
+      "file": "typical_28_info_disclosure.py",
+      "category": "information_disclosure",
+      "p1_outcome": "TP",
+      "p3_outcome": "TP",
+      "expected_cwe": "CWE-209"
+    },
+    {
+      "file": "typical_31_open_redirect_glob.py",
+      "category": "open_redirect",
+      "p1_outcome": "TP",
+      "p3_outcome": "TP",
+      "expected_cwe": "CWE-601"
+    },
+    {
+      "file": "typical_36_java_spel.java",
+      "category": "code_injection",
+      "p1_outcome": "TP",
+      "p3_outcome": "TP",
+      "expected_cwe": "CWE-94"
+    }
+  ]
+}

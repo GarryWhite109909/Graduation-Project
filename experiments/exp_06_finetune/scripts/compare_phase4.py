@@ -217,18 +217,64 @@ def main():
         p4 = phase4_metrics[0]
         d_strict_vs_p3 = (p4.get("strict_recall", 0) or 0) - (phase3_metrics.get("strict_recall", 0) or 0)
         d_fpr_vs_p3 = (p4.get("fpr", 0) or 0) - (phase3_metrics.get("fpr", 0) or 0)
+        d_hallu_vs_p3 = (p4.get("hallucination_rate", 0) or 0) - (phase3_metrics.get("hallucination_rate", 0) or 0)
         d_strict_vs_p1 = (p4.get("strict_recall", 0) or 0) - (base_metrics.get("strict_recall", 0) or 0)
 
-        lines.append(f"- **Phase 4 vs Phase 3**：严格 recall {d_strict_vs_p3*100:+.1f}pp, FPR {d_fpr_vs_p3*100:+.1f}pp")
+        lines.append(f"- **Phase 4 vs Phase 3**：严格 recall {d_strict_vs_p3*100:+.1f}pp, FPR {d_fpr_vs_p3*100:+.1f}pp, 幻觉率 {d_hallu_vs_p3*100:+.1f}pp")
         lines.append(f"- **Phase 4 vs Phase 1**：严格 recall {d_strict_vs_p1*100:+.1f}pp")
         lines.append("")
 
-        if d_strict_vs_p3 > 0.02:
-            lines.append("**判定**：✅ **Phase 4 Prompt Distillation 有效**：在 Phase 3 基础上进一步提升。")
-        elif d_strict_vs_p3 > 0:
-            lines.append("**判定**：⚠️ **Phase 4 有小幅提升**：蒸馏效果有限。")
+        # 多维判定（2026-07-19 修订）：
+        # 1. strict_recall 阈值 +1pp（原 +2pp 对 Phase 3 已大幅突破后的增量优化过高）
+        # 2. FPR 守门：Phase 3 已压到 3.8%，不允许反弹超过 +3pp
+        # 3. 幻觉率守门：Phase 3 已压到 29.1%，不允许反弹超过 +5pp
+        STRICT_RECALL_GAIN_THRESHOLD = 0.01
+        FPR_GUARD_THRESHOLD = 0.03
+        HALLU_GUARD_THRESHOLD = 0.05
+
+        fpr_ok = d_fpr_vs_p3 <= FPR_GUARD_THRESHOLD
+        hallu_ok = d_hallu_vs_p3 <= HALLU_GUARD_THRESHOLD
+        guards_ok = fpr_ok and hallu_ok
+        strict_gain = d_strict_vs_p3 > STRICT_RECALL_GAIN_THRESHOLD
+        strict_flat = d_strict_vs_p3 > 0
+
+        if strict_gain and guards_ok:
+            lines.append(
+                f"**判定**：✅ **Phase 4 PD 有效**：strict_recall {d_strict_vs_p3*100:+.1f}pp "
+                f"(>+{STRICT_RECALL_GAIN_THRESHOLD*100:.0f}pp 阈值)，FPR {d_fpr_vs_p3*100:+.1f}pp、"
+                f"幻觉率 {d_hallu_vs_p3*100:+.1f}pp 均守门通过。"
+            )
+        elif strict_flat and guards_ok:
+            lines.append(
+                f"**判定**：⚠️ **Phase 4 PD 小幅提升**：strict_recall {d_strict_vs_p3*100:+.1f}pp "
+                f"(<+{STRICT_RECALL_GAIN_THRESHOLD*100:.0f}pp 阈值)，FPR/幻觉率未恶化。"
+                f"建议多种子验证稳定性后再下结论。"
+            )
+        elif not guards_ok:
+            failed = []
+            if not fpr_ok:
+                failed.append(f"FPR 反弹 {d_fpr_vs_p3*100:+.1f}pp > +{FPR_GUARD_THRESHOLD*100:.0f}pp")
+            if not hallu_ok:
+                failed.append(f"幻觉率反弹 {d_hallu_vs_p3*100:+.1f}pp > +{HALLU_GUARD_THRESHOLD*100:.0f}pp")
+            lines.append(
+                f"**判定**：❌ **Phase 4 PD 精度退化**：{ '；'.join(failed) }。"
+                f"即使 strict_recall {d_strict_vs_p3*100:+.1f}pp 也不可接受——"
+                f"Phase 3 KnItLM 的精度优势被蒸馏破坏。建议：① 降低 α（0.5→0.2）减弱 KL 主导；"
+                f"② 降 lr（1e-4→5e-5）；③ 提高 T（2.0→4.0）放宽 teacher 软标签分布。"
+            )
         else:
-            lines.append("**判定**：⚠️ **Phase 4 未带来提升**：可能需要调整 α/T 或 teacher 模型。")
+            lines.append(
+                f"**判定**：⚠️ **Phase 4 PD 未带来提升**：strict_recall {d_strict_vs_p3*100:+.1f}pp，"
+                f"FPR {d_fpr_vs_p3*100:+.1f}pp。可能需要调整 α/T 或换 teacher 模型。"
+            )
+        lines.append("")
+        lines.append(
+            f"> **判定标准**（2026-07-19 修订）：strict_recall 阈值 +{STRICT_RECALL_GAIN_THRESHOLD*100:.0f}pp "
+            f"（原 +2pp 对 Phase 3 已大幅突破后的增量优化过高），"
+            f"FPR 守门 ≤+{FPR_GUARD_THRESHOLD*100:.0f}pp（Phase 3 已压到 3.8%，不允许反弹太多），"
+            f"幻觉率守门 ≤+{HALLU_GUARD_THRESHOLD*100:.0f}pp（Phase 3 已压到 29.1%）。"
+            f"三维中任一不过即视为退化。"
+        )
         lines.append("")
 
     OUTPUT_MD.write_text("\n".join(lines))
