@@ -2,8 +2,8 @@
 exp_01_basic_scan - 批量漏洞检测摸底测试脚本
 
 读取 samples/manifest.json 中登记的代码样本，依次调用本地 Ollama API
-（默认模型 qwen2.5-coder:7b）进行漏洞分析，将每次推理的原始输出、耗时、解析
-后的判定结果统一写入 results/results.json，便于后续人工复核与统计。
+进行漏洞分析，将每次推理的原始输出、耗时、解析后的判定结果统一写入
+results/exp_01_basic_scan.<model>.<timestamp>.json，便于后续人工复核与统计。
 
 用法:
     python run_experiment.py                          # 使用默认配置运行全部样本
