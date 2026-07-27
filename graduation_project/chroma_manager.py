@@ -112,16 +112,11 @@ class ChromaManager:
     
     def create_collection(self, name: str, description: str = "") -> chromadb.Collection:
         """创建集合（如果不存在则获取）"""
-        try:
-            collection = self.client.get_collection(name=name)
-            print(f"[ChromaManager] 获取已有集合: {name}")
-        except Exception:
-            collection = self.client.create_collection(
-                name=name,
-                metadata={"description": description},
-                embedding_function=self.embedding_fn
-            )
-            print(f"[ChromaManager] 创建新集合: {name}")
+        collection = self.client.get_or_create_collection(
+            name=name,
+            metadata={"description": description},
+            embedding_function=self.embedding_fn,
+        )
         return collection
     
     def add_documents(

@@ -214,6 +214,8 @@ _VULN_SIGNATURE_PATTERNS = [
     re.compile(r"ObjectInputStream"),                      # Java 反序列化
     re.compile(r"open\s*\(\s*[^)]*\+"),                    # open(... + 用户输入 拼接路径
     re.compile(r"innerHTML\s*=\s*[^;]*\+"),                # innerHTML 拼接用户输入
+    re.compile(r"execute\s*\(\s*['\"][^'\"]*['\"]\s*%"),      # execute("..." % ...) % 格式化拼接 SQL
+    re.compile(r"execute\s*\(\s*['\"][^'\"]*['\"]\s*\.format"), # execute("...".format(...)) 拼接 SQL
 ]
 
 # 安全模式 1：参数化查询（占位符 + 参数元组/dict）

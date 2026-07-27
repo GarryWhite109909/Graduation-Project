@@ -15,8 +15,8 @@
   5. 不与 exp_04 测试集代码重复
 
 用法：
-  cd /home/zane/文档/code/毕业设计
-  PYTHONPATH=. /home/zane/miniconda3/envs/AI/bin/python \
+  cd <project_root>
+  PYTHONPATH=. python3 \
       experiments/exp_06_finetune/scripts/supplement_hard_samples.py
 """
 
@@ -28,7 +28,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from graduation_project.prompts import SYSTEM_PROMPT, build_user_prompt
+from graduation_project.prompts import SYSTEM_PROMPT_LITE, build_user_prompt
 
 OUTPUT_FILE = PROJECT_ROOT / "experiments/exp_06_finetune/data/supplement_chatml.jsonl"
 
@@ -48,7 +48,7 @@ def add(code, language, filename, has_vulnerability, vuln_type, risk_level,
         "source": source,
         "sink": sink,
         "taint_path": taint_path,
-        "fix_idea": fix_idea,
+        "fix_idea": fix_idea,  # 注意：其他 supplement 脚本用 fix_suggestion，合并时需对齐
         "cot_analysis": cot_analysis,
     })
 
@@ -1000,11 +1000,11 @@ def upload():
     return {'status': 'uploaded'}
 """,
     "python", "supplement_noise_upload_validation.py",
-    False, "none", "None",
+    True, "CWE-22 路径穿越", "High",
     "request.files.get('file') 上传文件",
     "file.save(...)",
-    "文件大小校验 + 扩展名白名单校验",
-    "no fix needed",
+    "file.filename 直接拼接到保存路径，攻击者可用 ../ 穿越目录写入任意位置",
+    "使用 werkzeug.utils.secure_filename 规范化文件名后再拼接保存路径",
     """分析过程：
 1. 输入可控性：上传文件的内容和文件名都由用户控制。
 2. sink 评估：file.save 保存文件到服务器。
@@ -1644,21 +1644,20 @@ def calculate():
 """,
     "python",
     "supplement_integer_overflow.py",
-    True,
-    "CWE-190 整数溢出",
-    "Medium",
+    False,
+    "none",
+    "None",
     "int(data.get('quantity')) 和 int(data.get('unit_price'))",
     "quantity * unit_price 算术运算",
-    "两个用户可控整数相乘，结果可能溢出 Python 整数边界（在 C 扩展或固定宽度整数场景下）",
-    "使用 Decimal 或对运算结果做范围检查，确保不超出预期范围",
+    "Python 中整数不会溢出，整数运算结果自动扩展为任意精度，不存在该漏洞",
+    "no fix needed",
     """分析过程：
 1. 运算识别：quantity 和 unit_price 从用户输入转为整数后直接相乘。
-2. 范围检查：代码只检查 total < 0（检测负数结果），但没有检查 total 是否超出业务合理范围。
-   在 Python 中整数不会溢出，但如果此值传入 C 扩展、数据库固定宽度整数字段、
-   或序列化为 32 位整数，就可能发生溢出。
-3. 溢出可能：quantity=2^31, unit_price=2 时，total=2^32，在 32 位系统中会溢出回绕。
-4. 后果：溢出可能导致金额计算错误、绕过支付校验、或缓冲区大小计算错误。
-5. 结论：存在整数溢出风险，特别是在与固定宽度整数系统交互时。"""
+2. 语言语义：Python 中整数不会溢出，整数运算结果自动扩展为任意精度。
+3. 范围检查：代码已检查 total < 0 拒绝负数结果，避免业务异常。
+4. 溢出可能：虽然此值若传入 C 扩展或固定宽度整数字段可能溢出，但本代码片段
+   仅在 Python 内做算术运算并返回 JSON，不存在固定宽度整数场景。
+5. 结论：Python 中整数不会溢出，不存在该漏洞。"""
 )
 
 
@@ -1669,6 +1668,7 @@ def calculate():
 def build_json_verdict(sample):
     """构造 JSON 结论块。"""
     has_vuln = sample["has_vulnerability"]
+    # 注意：taint_path 字段在此处承载 explanation 文本，与 schema 文档描述的"数据流路径"语义不同
     taint_path = sample.get("taint_path", "")
     verdict = {
         "has_vulnerability": has_vuln,
@@ -1693,7 +1693,7 @@ def build_messages(sample):
     assistant_content = f"{sample['cot_analysis']}\n\n{json_block}"
     return {
         "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": SYSTEM_PROMPT_LITE},
             {"role": "user", "content": user_content},
             {"role": "assistant", "content": assistant_content},
         ]

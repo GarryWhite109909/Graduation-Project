@@ -14,8 +14,8 @@
   6. 输出新的 annotated jsonl，替换 build_cot() 模板生成的 cot_analysis
 
 用法：
-  cd /home/zane/文档/code/毕业设计
-  PYTHONPATH=. /home/zane/miniconda3/envs/AI/bin/python \
+  cd <project_root>
+  PYTHONPATH=. python3 \
       experiments/exp_06_finetune/scripts/regenerate_cot_with_teacher.py
 
   # 指定其他教师模型
@@ -74,6 +74,20 @@ def call_ollama(teacher: str, system_prompt: str, user_prompt: str,
     return data.get("message", {}).get("content", "")
 
 
+def unload_ollama_model(teacher: str, timeout: int = 30) -> None:
+    """卸载 Ollama 模型，释放 GPU 显存。
+
+    通过发送 keep_alive=0 的空请求让 Ollama 卸载模型。
+    """
+    import requests
+    payload = {
+        "model": teacher,
+        "keep_alive": "0",
+    }
+    resp = requests.post(f"{OLLAMA_URL}/api/generate", json=payload, timeout=timeout)
+    resp.raise_for_status()
+
+
 def extract_cot_and_verdict(raw_output: str) -> tuple[str, dict | None]:
     """从教师回复中分离 CoT 分析文本和 JSON 结论。
 
@@ -105,7 +119,8 @@ def extract_cot_and_verdict(raw_output: str) -> tuple[str, dict | None]:
         return raw_output, None
 
 
-def process_sample(rec: dict, teacher: str, idx: int, total: int) -> dict:
+def process_sample(rec: dict, teacher: str, idx: int, total: int,
+                   temperature: float = 0.3) -> dict:
     """处理单条样本：用教师模型生成 CoT，与标注标签交叉校验。"""
     code = rec["code"]
     language = rec.get("language", "python")
@@ -114,9 +129,9 @@ def process_sample(rec: dict, teacher: str, idx: int, total: int) -> dict:
 
     user_prompt = build_user_prompt(code=code, language=language, filename=filename)
 
-    # 调用教师模型（temperature=0.3 增加多样性，不像模板那样千篇一律）
+    # 调用教师模型（temperature 由 CLI 参数传入，增加多样性，不像模板那样千篇一律）
     try:
-        raw_output = call_ollama(teacher, SYSTEM_PROMPT, user_prompt, temperature=0.3)
+        raw_output = call_ollama(teacher, SYSTEM_PROMPT, user_prompt, temperature=temperature)
     except Exception as e:
         print(f"  [{idx+1}/{total}] {filename}: 教师调用失败 {e}，保留原始 CoT")
         return rec  # 失败则保留原始数据
@@ -134,15 +149,15 @@ def process_sample(rec: dict, teacher: str, idx: int, total: int) -> dict:
             teacher_verdict.get("has_vulnerability")
         )
 
+    conflict_note = None
     if teacher_vuln is not None and teacher_vuln != expected_vuln:
         # 冲突：教师判安全但标注是漏洞，或教师判漏洞但标注是安全
         # 保留人工标注标签（更可信），但采用教师的分析文本
-        # 在 CoT 末尾追加标注修正，保持一致性
+        # 将修正写入独立字段而非拼接到 CoT 末尾，避免污染 CoT
         conflict_note = (
-            f"\n\n（注：经人工复核，最终判定为 {'存在' if expected_vuln else '不存在'}"
-            f"漏洞，与教师模型初步判断不同。）"
+            f"经人工复核，最终判定为 {'存在' if expected_vuln else '不存在'}"
+            f"漏洞，与教师模型初步判断不同。"
         )
-        cot_text = cot_text + conflict_note
         print(f"  [{idx+1}/{total}] {filename}: 教师结论与标注冲突（教师={teacher_vuln}），"
               f"保留标注={expected_vuln}，采用教师分析+修正注")
     else:
@@ -151,6 +166,8 @@ def process_sample(rec: dict, teacher: str, idx: int, total: int) -> dict:
     # 更新记录
     new_rec = dict(rec)
     new_rec["cot_analysis"] = cot_text
+    if conflict_note:
+        new_rec["correction_note"] = conflict_note  # 人工修正注记，独立于 CoT
 
     # 如果教师提供了更丰富的字段，也更新（但保留标注标签作为 ground truth）
     if teacher_verdict and teacher_vuln == expected_vuln:
@@ -231,7 +248,8 @@ def main():
                 continue
 
             # 调用教师模型
-            result = process_sample(rec, args.teacher, i, len(samples))
+            result = process_sample(rec, args.teacher, i, len(samples),
+                                    temperature=args.temperature)
             output_samples.append(result)
             processed += 1
 
@@ -266,6 +284,13 @@ def main():
     safe_expls = [s.get("taint_path", "") for s in safe_samples]
     unique_expls = len(set(safe_expls))
     print(f"安全样本 explanation 多样性: {unique_expls}/{len(safe_samples)} 条唯一")
+
+    # 卸载 Ollama 模型（避免 GPU 显存占用）
+    try:
+        unload_ollama_model(args.teacher)
+        print("已卸载 Ollama 教师模型")
+    except Exception as e:
+        print(f"⚠️ 卸载模型失败: {e}")
 
 
 if __name__ == "__main__":

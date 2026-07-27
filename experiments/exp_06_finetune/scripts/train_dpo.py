@@ -1,7 +1,7 @@
 """
 DPO（Direct Preference Optimization）训练脚本 —— 在 SFT 模型基础上减少偏见。
 
-设计依据：docs/改进.md 第三节方案 A
+设计依据：docs/_archive/改进_历史分析_20260710.md 第三节方案 A
   BiasDPO（2024, arXiv:2407.13928）已证明 DPO 能有效减少 LLM 偏见。
   DPO 的损失函数直接最大化 chosen（正确判断）的概率、最小化 rejected
   （错误判断）的概率，比 SFT 更直接地"惩罚"偏见。
@@ -34,7 +34,7 @@ DPO（Direct Preference Optimization）训练脚本 —— 在 SFT 模型基础�
 用法（在 AI conda 环境中运行，需 GPU）：
   # 先确保 SFT adapter 已训练完成
   # 然后在 SFT 模型基础上做 DPO
-  HF_HUB_OFFLINE=1 /home/zane/miniconda3/envs/AI/bin/python train_dpo.py \
+  HF_HUB_OFFLINE=1 python3 train_dpo.py \
       --sft-adapter experiments/exp_06_finetune/outputs/lora_r8_a16_e1_s42/best \
       --epochs 1 --beta 0.1 --lr 5e-7
 """
@@ -73,13 +73,13 @@ from trl import DPOConfig, DPOTrainer
 # GPU 同时驱动显示器，必须留出显示缓冲区，否则 VRAM 溢出会导致花屏/系统挂死。
 # 8bit 模式下 OOM 是优雅错误（不挂死 GPU），可以用更高比例。
 # 4bit 模式下 bnb backward 有 ROCm bug 会挂死 GPU，已禁用。
-_VRAM_FRACTION = 0.95  # 0.95: 16.2GB PyTorch + 0.9GB 显示（基本桌面足够）
+_VRAM_FRACTION = 0.88  # 0.88: 16.2GB PyTorch + 0.9GB 显示（基本桌面足够）
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DATA_FILE = PROJECT_ROOT / "experiments/exp_06_finetune/data/dpo_preference_pairs.jsonl"
 OUTPUT_DIR = PROJECT_ROOT / "experiments/exp_06_finetune/outputs"
 LOG_DIR = PROJECT_ROOT / "experiments/exp_06_finetune/logs"
-MODEL_ID = "Qwen/Qwen2.5-Coder-7B-Instruct"  # 与 SFT 训练一致
+MODEL_ID = "Qwen/Qwen3-8B"  # 与 SFT 训练一致
 
 
 def load_dpo_dataset(path: Path) -> Dataset:
@@ -127,10 +127,10 @@ def main():
                              "1024 足够且避免 16GB VRAM 爆满导致 GPU 挂死）")
     parser.add_argument("--seed", type=int, default=42, help="随机种子")
     parser.add_argument("--model-id", type=str, default=MODEL_ID, help="基座模型 ID")
-    parser.add_argument("--no-4bit", action="store_true",
-                        help="禁用 4bit 量化，用 fp16（3B 模型可用）")
+    parser.add_argument("--no-4bit", action="store_true", default=False,
+                        help="禁用 4bit 量化（默认启用 4bit NF4，与 SFT train_qlora.py 一致；v5 SFT 已验证 4bit backward 在 RDNA4 上工作）")
     parser.add_argument("--use-8bit", action="store_true",
-                        help="使用 8bit 量化（7B 模型，绕过 4bit backward bug）")
+                        help="使用 8bit 量化（8bit 加载约 9GB，DPO 双前向在 16GB 显存上会 OOM 黑屏，不推荐）")
     parser.add_argument("--data-file", type=str, default=None,
                         help="DPO 数据 jsonl 路径（默认 data/dpo_preference_pairs.jsonl）")
     args = parser.parse_args()
@@ -171,6 +171,16 @@ def main():
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
+    # Qwen3: 禁用 thinking mode（TRL DPOTrainer 内部调用 apply_chat_template
+    # 时不传 enable_thinking 参数，Qwen3 默认 True 会破坏训练）
+    if "qwen3" in args.model_id.lower():
+        _orig_apply = tokenizer.apply_chat_template
+        def _patched_apply(*args, **kwargs):
+            kwargs.setdefault("enable_thinking", False)
+            return _orig_apply(*args, **kwargs)
+        tokenizer.apply_chat_template = _patched_apply
+        print("Qwen3: 已 patch apply_chat_template 默认 enable_thinking=False")
+
     # 量化配置：4bit / 8bit / fp16
     bnb_config = None
     if use_4bit:
@@ -190,7 +200,10 @@ def main():
     elif use_8bit:
         try:
             import bitsandbytes as bnb  # noqa: F401
-            bnb_config = BitsAndBytesConfig(load_in_8bit=True)
+            bnb_config = BitsAndBytesConfig(
+                load_in_8bit=True,
+                bnb_8bit_compute_dtype=torch.float16,
+            )
             print(f"启用 8bit 量化")
         except Exception as e:
             print(f"bitsandbytes 8bit 不可用: {e}")
@@ -234,7 +247,11 @@ def main():
     print("SFT adapter 已加载为可训练（DPO 直接微调 SFT 权重）")
 
     # DPO 配置
-    output_dir = OUTPUT_DIR / f"dpo_r{args.lora_r}_a{args.lora_alpha}_e{args.epochs}_beta{args.beta}_s{args.seed}"
+    import json as _json
+    _adapter_cfg = _json.loads((sft_adapter / "adapter_config.json").read_text())
+    _real_r = _adapter_cfg.get("r", args.lora_r)
+    _real_alpha = _adapter_cfg.get("lora_alpha", args.lora_alpha)
+    output_dir = OUTPUT_DIR / f"dpo_r{_real_r}_a{_real_alpha}_e{args.epochs}_beta{args.beta}_s{args.seed}"
     output_dir.mkdir(parents=True, exist_ok=True)
     LOG_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -253,8 +270,8 @@ def main():
         fp16=bnb_config is None,
         gradient_checkpointing=True,
         gradient_checkpointing_kwargs={"use_reentrant": False},
-        # paged_adamw_8bit：SFT 训练已验证可行，8bit 分页节省优化器状态显存
-        optim="paged_adamw_8bit" if bnb_config is not None else "adamw_torch",
+        # RDNA4 上 paged_adamw_8bit 可能造成模型状态静默损坏，统一用 adamw_torch
+        optim="adamw_torch",
         seed=args.seed,
         max_length=args.max_length,
         beta=args.beta,
@@ -325,7 +342,7 @@ def main():
                 "args": vars(args),
                 "metrics": metrics,
                 "model": args.model_id,
-                "quantization": "4bit" if bnb_config else "fp16",
+                "quantization": "4bit" if use_4bit else ("8bit" if use_8bit else "fp16"),
                 "train_samples": len(dataset),
                 "log_history": trainer.state.log_history,
             },

@@ -10,6 +10,8 @@ exp_04 报告生成器：扫描 results/ 下所有结果文件，生成 exp_04_r
 """
 
 import json
+import re
+import statistics
 import sys
 from pathlib import Path
 
@@ -42,6 +44,14 @@ def fmt_time(x, default="N/A"):
     return f"{x:.1f}s"
 
 
+def cwe_match(expected: str, actual: str) -> bool:
+    """精确匹配 CWE 编号，避免子串误命中（如 CWE-22 命中 CWE-220）。"""
+    if not expected or not actual:
+        return False
+    actual_set = set(re.findall(r'CWE-\d+', actual))
+    return expected in actual_set
+
+
 def collect_metrics_single(results_data: dict) -> dict:
     """从结果 JSON 中提取单次口径指标。
 
@@ -51,6 +61,14 @@ def collect_metrics_single(results_data: dict) -> dict:
     """
     m = results_data.get("metrics_single_run", {})
     es = m.get("elapsed_stats", {}) or {}
+    # 从原始 samples 收集所有 per-run 耗时，计算真实中位数（单次口径 elapsed_stats 无 median 字段）
+    elapsed_list = []
+    for s in results_data.get("samples", []):
+        for run in s.get("runs", []) or []:
+            e = run.get("elapsed_seconds")
+            if isinstance(e, (int, float)):
+                elapsed_list.append(e)
+    elapsed_median = statistics.median(elapsed_list) if elapsed_list else None
     return {
         "recall": m.get("recall"),
         "fpr": m.get("false_positive_rate"),
@@ -62,7 +80,7 @@ def collect_metrics_single(results_data: dict) -> dict:
         "vuln_total": m.get("vuln_total"),
         "safe_total": m.get("safe_total"),
         "elapsed_mean": es.get("avg"),
-        "elapsed_median": es.get("avg"),  # 单次口径没有中位数，用 avg 近似
+        "elapsed_median": elapsed_median,  # 从原始 records 计算真实中位数
         "elapsed_max": es.get("max"),
     }
 
@@ -111,10 +129,10 @@ def collect_topk_retrieval(results_data: dict) -> dict:
             if not retrieval:
                 continue
             type_total += 1
-            # 检查 Top-1 是否命中（按 CWE 匹配，任一 expected CWE 命中即可）
+            # 检查 Top-1 是否命中（按 CWE 精确匹配，任一 expected CWE 命中即可）
             top1 = retrieval[0] if retrieval else {}
             top1_cwe = top1.get("cwe", "") or ""
-            if any(cwe in top1_cwe for cwe in expected_cwe_list):
+            if any(cwe_match(cwe, top1_cwe) for cwe in expected_cwe_list):
                 type_hit_count += 1
             # 收集距离
             for r in retrieval:
@@ -228,7 +246,7 @@ def main() -> int:
 
     # 实验设置表中的模型从 P1-4 结果文件读取，未找到则使用默认值
     p1_4_env = p1_4.get("environment", p1_4)
-    setup_model = p1_4_env.get("model", "qwen2.5-coder:7b") if p1_4 else "qwen2.5-coder:7b"
+    setup_model = p1_4_env.get("model", "qwen3:8b") if p1_4 else "qwen3:8b"
 
     found = []
     if p1_4 and p1_4_path:
@@ -295,7 +313,7 @@ def main() -> int:
     if p1_4:
         env = p1_4.get("environment", p1_4)
         lines.append(f"**实验**：{p1_4.get('experiment', 'exp_04')}  ")
-        lines.append(f"**模型**：{env.get('model', 'qwen2.5-coder:7b')}  ")
+        lines.append(f"**模型**：{env.get('model', 'qwen3:8b')}  ")
         lines.append(f"**重复次数**：{env.get('repeat', 3)}  ")
         lines.append(f"**总运行数**：{env.get('total_runs', 'N/A')}  ")
         lines.append("")
@@ -439,6 +457,7 @@ def main() -> int:
     lines.append("")
     lines.append("| 实验 | 样本数 | 召回率 | 误报率 | 准确率 | 备注 |")
     lines.append("| --- | --- | --- | --- | --- | --- |")
+    # TODO: 此处基线为硬编码值，应从 exp_01 results 文件动态读取
     lines.append("| exp_01（14 段典型样本） | 14 | 100% | 0% | 100% | 教科书式漏洞，能力下限 |")
     if p1_4:
         m = collect_metrics_majority(p1_4)
@@ -473,6 +492,7 @@ def main() -> int:
         lines.append("")
         lines.append("### 6.2 核心结论")
         lines.append("")
+        # TODO: 以下结论为硬编码，重跑后需手动核对与上方表格的一致性
         lines.append("1. **gemma4:12b 与 gemma4:26b 表现最优**：准确率 94.3%、误报率 7.4%。12b 已足够，26b 无显著提升。")
         lines.append("2. **deepseek-coder-v2:16b 误报率最高**（44.4%）：存在幻觉式误报，印证了 DeepSeek 优化专项的失败结论。")
         lines.append("3. **qwen2.5-coder:7b 作为基座的合理性**：召回率 88.3% 略低，但体积小（4-5GB）、速度快，作为安全专用模型微调基座最合适。")

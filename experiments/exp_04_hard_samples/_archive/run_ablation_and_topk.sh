@@ -13,7 +13,7 @@ cd "$(dirname "$0")"
 mkdir -p results
 
 # 必须使用 conda env graproj 的 python3：默认 /usr/bin/python3 (3.14) 没有 chromadb
-PY=/home/zane/miniconda3/envs/graproj/bin/python3
+PY=python3
 # 强制离线模式：sentence-transformers 会尝试联网检查 embedding 模型更新，
 # 但模型已缓存本地，关闭联网可避免 "Network is unreachable" 错误
 export HF_HUB_OFFLINE=1

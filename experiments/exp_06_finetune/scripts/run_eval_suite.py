@@ -2,9 +2,9 @@
 exp_06_finetune 完整评估套件 —— 一键跑 baseline / finetuned / 多种子 / CVE-fix / bootstrap。
 
 用法：
-  cd /home/zane/文档/code/毕业设计
-  PYTHONPATH=/home/zane/文档/code/毕业设计 \
-  /home/zane/miniconda3/envs/AI/bin/python experiments/exp_06_finetune/scripts/run_eval_suite.py \
+  PYTHONPATH=. \
+
+  python3 experiments/exp_06_finetune/scripts/run_eval_suite.py \
       --adapter-dir experiments/exp_06_finetune/outputs/lora_r16_a32_e5_s42/best \
       --seeds 3
 
@@ -22,8 +22,9 @@ import sys
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-AI_PYTHON = "/home/zane/miniconda3/envs/AI/bin/python"
-GRAPROJ_PYTHON = "/home/zane/miniconda3/envs/graproj/bin/python3"
+# Python 解释器路径：优先用环境变量，回退到当前解释器
+AI_PYTHON = os.environ.get("AI_PYTHON", sys.executable)
+GRAPROJ_PYTHON = os.environ.get("GRAPROJ_PYTHON", sys.executable)
 RESULTS_DIR = PROJECT_ROOT / "experiments/exp_06_finetune/results"
 EXP04_MANIFEST = PROJECT_ROOT / "experiments/exp_04_hard_samples/samples/manifest.json"
 CVE_MANIFEST = PROJECT_ROOT / "experiments/exp_06_finetune/testset_cve_fix/manifest_eval.json"
@@ -118,7 +119,9 @@ def main():
             "--adapter-path", str(adapter_dir),
             "--seeds", str(args.seeds),
         ], f"多种子 finetuned 评估（{args.seeds} seeds）")
-        finetuned_multi = latest_result("exp_06_eval.finetuned")
+        # 优先找多种子文件，避免匹配到单种子的 finetuned_custom
+        multi = sorted(RESULTS_DIR.glob("exp_06_eval.finetuned_custom_seeds*.json"))
+        finetuned_multi = multi[-1] if multi else latest_result("exp_06_eval.finetuned_custom")
         print(f"finetuned 多种子结果: {finetuned_multi}")
 
     # ------------------------------------------------------------------

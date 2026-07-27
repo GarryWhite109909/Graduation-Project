@@ -1,5 +1,5 @@
 """
-DPO 数据合并脚本 —— 合并三个 DPO 偏好对文件为统一训练集。
+DPO 数据合并脚本 —— 合并 DPO 偏好对文件为统一训练集。
 
 Phase 5 准备工作（DPO 当前硬件死机，等 5070 Super 升级后使用）。
 对应 docs/方法.md §9 Phase 5。
@@ -8,16 +8,17 @@ Phase 5 准备工作（DPO 当前硬件死机，等 5070 Super 升级后使用�
   data/dpo_preference_pairs.jsonl       (62 条) - 原始 DPO v1
   data/dpo_preference_pairs_v3.jsonl    (98 条) - DPO v3 改进版
   data/dpo_v3_expansion.jsonl           (36 条) - v3 扩展
+  data/dpo_fp_pairs_v5.jsonl             (6 条) - Step 4 真实 FP 输出 DPO pair（v5 评估）
 
 输出：
-  data/dpo_merged.jsonl                 (196 条) - 合并 + 去重 + 打乱
+  data/dpo_merged.jsonl                 (合并 + 去重 + 打乱)
 
-去重策略：按 prompt 内容哈希去重（保留最新 v3 版本，覆盖 v1）
+去重策略：按 prompt+chosen+rejected 组合哈希去重（仅完全相同的偏好对去重，v1/v3 同 prompt 不同偏好对均保留）
 打乱策略：固定 seed=42 打乱，避免 epoch 内顺序偏差
 
 用法：
-  /home/zane/miniconda3/envs/AI/bin/python merge_dpo_data.py
-  /home/zane/miniconda3/envs/AI/bin/python merge_dpo_data.py --dry-run  # 仅统计
+  python3 merge_dpo_data.py
+  python3 merge_dpo_data.py --dry-run  # 仅统计
 """
 
 import argparse
@@ -29,20 +30,27 @@ from pathlib import Path
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
-# 三个 DPO 文件，按优先级从低到高排列（后者覆盖前者的重复 prompt）
+# DPO 文件，按优先级从低到高排列（后者覆盖前者的重复 prompt）
 DPO_FILES = [
     ("v1", DATA_DIR / "dpo_preference_pairs.jsonl"),
     ("v3", DATA_DIR / "dpo_preference_pairs_v3.jsonl"),
     ("v3_expansion", DATA_DIR / "dpo_v3_expansion.jsonl"),
+    # Step 4 新增：基于模型真实 FP 输出的 DPO pair（rejected=模型实际错误推理）
+    # 优先级最高，因为这是针对模型实际错误模式的精准反馈
+    # 2026-07-26: 从 fp_v4（v3 评估）切换到 fp_v5（v5 评估），反映当前模型的 FP 模式
+    ("fp_v5", DATA_DIR / "dpo_fp_pairs_v5.jsonl"),
 ]
 
 OUTPUT_FILE = DATA_DIR / "dpo_merged.jsonl"
 
 
-def prompt_hash(prompt: str) -> str:
-    """对 prompt 内容做哈希，用于去重。"""
-    # 去除首尾空白后哈希，避免微小差异导致重复
-    return hashlib.md5(prompt.strip().encode("utf-8")).hexdigest()
+def dedup_key(rec: dict) -> str:
+    """按 prompt + chosen + rejected 的组合 hash 去重。
+
+    仅按 prompt 去重会把 prompt 相同但 chosen/rejected 不同的偏好对错误合并为一条。
+    """
+    raw = rec.get("prompt", "") + rec.get("chosen", "") + rec.get("rejected", "")
+    return hashlib.md5(raw.encode("utf-8")).hexdigest()
 
 
 def load_jsonl(path: Path) -> list[dict]:
@@ -70,7 +78,7 @@ def main():
     print("=" * 60)
 
     # 按优先级从低到高加载，后加载的覆盖前面的重复 prompt
-    merged: dict[str, dict] = {}  # prompt_hash -> record
+    merged: dict[str, dict] = {}  # dedup_key -> record
     source_count: dict[str, int] = {}
 
     for tag, path in DPO_FILES:
@@ -89,7 +97,8 @@ def main():
             if not all(k in r for k in ("prompt", "chosen", "rejected")):
                 print(f"  ⚠️ 跳过格式异常记录（缺 prompt/chosen/rejected）", file=sys.stderr)
                 continue
-            h = prompt_hash(r["prompt"])
+            # 用 prompt+chosen+rejected 组合 hash 去重，避免把偏好对不同的样本误合并
+            h = dedup_key(r)
             if h in merged:
                 overwrite_count += 1
             else:

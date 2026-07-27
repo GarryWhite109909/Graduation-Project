@@ -1,0 +1,105 @@
+{
+  "stats": {
+    "system_updated": 832,
+    "hedge_fixed": 18,
+    "factual_fixed": 1,
+    "ollama_rewritten": 19
+  },
+  "fix_details": [
+    {
+      "line": 6,
+      "type": "hedge",
+      "count": 4
+    },
+    {
+      "line": 8,
+      "type": "factual",
+      "changed": true
+    },
+    {
+      "line": 20,
+      "type": "hedge",
+      "count": 1
+    },
+    {
+      "line": 23,
+      "type": "hedge",
+      "count": 1
+    },
+    {
+      "line": 26,
+      "type": "hedge",
+      "count": 2
+    },
+    {
+      "line": 28,
+      "type": "hedge",
+      "count": 3
+    },
+    {
+      "line": 36,
+      "type": "hedge",
+      "count": 1
+    },
+    {
+      "line": 43,
+      "type": "hedge",
+      "count": 1
+    },
+    {
+      "line": 45,
+      "type": "hedge",
+      "count": 1
+    },
+    {
+      "line": 47,
+      "type": "hedge",
+      "count": 1
+    },
+    {
+      "line": 49,
+      "type": "hedge",
+      "count": 1
+    },
+    {
+      "line": 51,
+      "type": "hedge",
+      "count": 1
+    },
+    {
+      "line": 59,
+      "type": "hedge",
+      "count": 1
+    },
+    {
+      "line": 71,
+      "type": "hedge",
+      "count": 2
+    },
+    {
+      "line": 131,
+      "type": "hedge",
+      "count": 1
+    },
+    {
+      "line": 133,
+      "type": "hedge",
+      "count": 1
+    },
+    {
+      "line": 163,
+      "type": "hedge",
+      "count": 1
+    },
+    {
+      "line": 169,
+      "type": "hedge",
+      "count": 1
+    },
+    {
+      "line": 189,
+      "type": "hedge",
+      "count": 1
+    }
+  ]
+}

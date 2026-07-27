@@ -24,12 +24,12 @@ Phase 6 - Hard sample 提取脚本 —— 从 evaluate.py 输出中提取错题�
   3. 合并回 train_chatml_v2.jsonl 重训
 
 用法：
-  /home/zane/miniconda3/envs/AI/bin/python extract_hard_samples.py \\
+  python3 extract_hard_samples.py \\
       --eval-json results/exp_06_eval.phase1_lr1e-4_rslora.{ts}.json \\
       --source-tag lr1e-4_rslora
 
   # 批量处理所有 phase1 评估结果
-  /home/zane/miniconda3/envs/AI/bin/python extract_hard_samples.py --batch phase1
+  python3 extract_hard_samples.py --batch phase1
 """
 
 import argparse
@@ -111,7 +111,8 @@ def process_eval(eval_path: Path, source_tag: str, slow_threshold: float) -> dic
             fp_samples.append(info)
         # TP 但 CWE 标错
         elif outcome == "TP":
-            model_cwe = extract_cwe(s.get("raw_output", ""))
+            # 优先使用已保存的 model_vulnerability_type，回退到 raw_output 提取
+            model_cwe = extract_cwe(s.get("model_vulnerability_type") or s.get("raw_output", ""))
             expected_cwe = s.get("expected_cwe", "")
             if not cwe_matches(model_cwe, expected_cwe):
                 info["model_cwe"] = model_cwe
@@ -121,24 +122,33 @@ def process_eval(eval_path: Path, source_tag: str, slow_threshold: float) -> dic
         if s.get("elapsed_seconds", 0) > slow_threshold:
             slow_samples.append(info)
 
-    # 统计
+    # 统计（口径与 evaluate.py 的 compute_detection_metrics 对齐：排除 parse_fail）
     total = len(samples)
+    tp = sum(1 for s in samples if s.get("outcome") == "TP")
+    fp = len(fp_samples)
+    fn = len(fn_samples)
+    tn = sum(1 for s in samples if s.get("outcome") == "TN")
+    valid = tp + tn + fp + fn
+    vuln_total = tp + fn
+    safe_total = tn + fp
     summary = {
         "source_file": str(eval_path.relative_to(PROJECT_ROOT)),
         "source_tag": source_tag,
         "total_samples": total,
-        "TP": sum(1 for s in samples if s.get("outcome") == "TP"),
-        "FP": len(fp_samples),
-        "FN": len(fn_samples),
-        "TN": sum(1 for s in samples if s.get("outcome") == "TN"),
+        "TP": tp,
+        "FP": fp,
+        "FN": fn,
+        "TN": tn,
         "cwe_mismatch": len(cwe_mismatch_samples),
         "slow_samples": len(slow_samples),
         "slow_threshold_sec": slow_threshold,
-        "accuracy": sum(1 for s in samples if s.get("outcome") in ("TP", "TN")) / total if total else 0,
-        "recall": len([s for s in samples if s.get("outcome") == "TP"]) /
+        "accuracy": (tp + tn) / valid if valid else None,
+        # recall 分母与 evaluate.py 对齐：排除 parse_fail（tp+fn）
+        "recall": tp / vuln_total if vuln_total else None,
+        # 含 parse_fail 的召回率（保留原口径，便于对照）
+        "recall_with_parse_fail": len([s for s in samples if s.get("outcome") == "TP"]) /
                   max(1, sum(1 for s in samples if s.get("expected_present"))),
-        "fpr": len(fp_samples) /
-               max(1, sum(1 for s in samples if not s.get("expected_present"))),
+        "fpr": fp / safe_total if safe_total else None,
     }
 
     return {
@@ -186,6 +196,9 @@ def main():
             sys.exit(1)
         eval_files = [args.eval_json]
 
+    def pct(x):
+        return "N/A" if x is None else f"{x*100:.1f}%"
+
     # 处理每个文件
     all_summaries = []
     for eval_path in eval_files:
@@ -207,7 +220,7 @@ def main():
         s = result["summary"]
         print(f"  总样本: {s['total_samples']}")
         print(f"  TP={s['TP']} FP={s['FP']} FN={s['FN']} TN={s['TN']}")
-        print(f"  accuracy={s['accuracy']*100:.1f}% recall={s['recall']*100:.1f}% FPR={s['fpr']*100:.1f}%")
+        print(f"  accuracy={pct(s['accuracy'])} recall={pct(s['recall'])} FPR={pct(s['fpr'])}")
         print(f"  CWE 错配: {s['cwe_mismatch']}  慢响应(>{s['slow_threshold_sec']}s): {s['slow_samples']}")
         print(f"  FN 样本: {len(result['fn_samples'])}  FP 样本: {len(result['fp_samples'])}")
 
@@ -227,7 +240,7 @@ def main():
         print(f"{'Tag':<25} {'TP':>4} {'FP':>4} {'FN':>4} {'TN':>4} {'Acc':>6} {'Recall':>8} {'FPR':>6} {'CWE误':>5}")
         for s in all_summaries:
             print(f"{s['source_tag']:<25} {s['TP']:>4} {s['FP']:>4} {s['FN']:>4} {s['TN']:>4} "
-                  f"{s['accuracy']*100:>5.1f}% {s['recall']*100:>7.1f}% {s['fpr']*100:>5.1f}% {s['cwe_mismatch']:>5}")
+                  f"{pct(s['accuracy']):>6} {pct(s['recall']):>8} {pct(s['fpr']):>6} {s['cwe_mismatch']:>5}")
 
         # 找最差 tag（FN 最多）作为后续增强目标
         worst = max(all_summaries, key=lambda x: x["FN"])

@@ -36,6 +36,7 @@ JSON 结论块复用 build_dataset.py 的 build_json_verdict 逻辑：
 """
 
 import argparse
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -108,17 +109,23 @@ def build_messages(rec: dict) -> dict:
     }
 
 
-def validate_record(rec: dict) -> list:
-    """校验必填字段，返回缺失字段列表。
+def validate_record(rec: dict) -> tuple[bool, str | list]:
+    """校验记录格式，返回 (是否通过, 错误信息或缺失字段列表)。
 
     has_vulnerability 必须是 bool（True/False），其他字段为非空字符串。
+    额外校验 has_vulnerability 与 vuln_type 的一致性。
     """
     required_str = ["code", "language", "filename", "cot_analysis",
                     "vuln_type", "risk_level"]
     missing = [f for f in required_str if not rec.get(f)]
     if "has_vulnerability" not in rec or not isinstance(rec["has_vulnerability"], bool):
         missing.append("has_vulnerability")
-    return missing
+    if missing:
+        return False, missing
+    # 一致性校验：has_vulnerability=True 时 vuln_type 不应为 none/空
+    if rec.get("has_vulnerability") is True and rec.get("vuln_type", "none").lower() in ("none", ""):
+        return False, "has_vulnerability=True 但 vuln_type 为 none/空"
+    return True, ""
 
 
 def main():
@@ -150,8 +157,32 @@ def main():
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
+    # --append 模式下，先读取已有文件的 hash 避免重复写入
+    existing_hashes: set[str] = set()
+    if mode == "a" and out_path.exists():
+        print(f"  读取已有文件做去重: {out_path.name}")
+        with open(out_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                    # 用 messages[0].content (system prompt) + messages[1].content (user/code) 做 hash
+                    msgs = rec.get("messages", [])
+                    key_content = msgs[0].get("content", "") if len(msgs) > 0 else ""
+                    if len(msgs) > 1:
+                        key_content += msgs[1].get("content", "")
+                    existing_hashes.add(
+                        hashlib.md5(key_content.encode("utf-8")).hexdigest()
+                    )
+                except (json.JSONDecodeError, IndexError, AttributeError):
+                    continue
+        print(f"  已读取 {len(existing_hashes)} 条已有记录的 hash")
+
     total = 0
     skipped = 0
+    duplicate_skipped = 0
     with in_path.open("r", encoding="utf-8") as fin, \
          out_path.open(mode, encoding="utf-8") as fout:
         for line_no, line in enumerate(fin, 1):
@@ -165,17 +196,30 @@ def main():
                 skipped += 1
                 continue
 
-            missing = validate_record(rec)
-            if missing:
-                print(f"[行 {line_no}] 缺失字段 {missing}，跳过", file=sys.stderr)
+            ok, err = validate_record(rec)
+            if not ok:
+                print(f"[行 {line_no}] 校验失败: {err}，跳过", file=sys.stderr)
                 skipped += 1
                 continue
 
             messages = build_messages(rec)
+
+            # --append 模式下去重：检查是否已存在
+            if mode == "a":
+                msgs = messages.get("messages", [])
+                key_content = msgs[0].get("content", "") if len(msgs) > 0 else ""
+                if len(msgs) > 1:
+                    key_content += msgs[1].get("content", "")
+                rec_hash = hashlib.md5(key_content.encode("utf-8")).hexdigest()
+                if rec_hash in existing_hashes:
+                    duplicate_skipped += 1
+                    continue
+                existing_hashes.add(rec_hash)
+
             fout.write(json.dumps(messages, ensure_ascii=False) + "\n")
             total += 1
 
-    print(f"\n完成：写入 {total} 条到 {out_path}（跳过 {skipped} 条）")
+    print(f"\n完成：写入 {total} 条到 {out_path}（跳过 {skipped} 条，重复跳过 {duplicate_skipped} 条）")
     if args.append:
         print(f"主训练集 {APPEND_TARGET.name} 现可重新训练（参见 train_qlora.py）")
 

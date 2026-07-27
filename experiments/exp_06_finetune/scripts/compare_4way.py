@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import re
 import sys
@@ -21,16 +22,39 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from graduation_project.schema import parse_verdict, normalize_has_vulnerability
 
 # ---------------------------------------------------------------------------
-# 文件配置（最新版本）
+# 文件配置（自动发现最新版本，可用命令行参数覆盖）
 # ---------------------------------------------------------------------------
 RESULTS_DIR = PROJECT_ROOT / "experiments/exp_06_finetune/results"
 
-FILES = {
-    "7b_base": RESULTS_DIR / "exp_06_eval.baseline.20260709_144644.json",
-    "7b_ft":   RESULTS_DIR / "exp_06_eval.finetuned_custom.20260711_050855.json",
-    "3b_base": RESULTS_DIR / "exp_06_eval.baseline.20260709_041420.json",
-    "3b_ft":   RESULTS_DIR / "exp_06_eval.finetuned_custom.20260711_031127.json",
+# 各文件的 glob 模式（用于自动发现最新）
+FILE_GLOBS = {
+    "7b_base": "exp_06_eval.baseline.*.json",
+    "7b_ft":   "exp_06_eval.finetuned_custom.*.json",
+    "3b_base": "exp_06_eval.baseline.*.json",
+    "3b_ft":   "exp_06_eval.finetuned_custom.*.json",
 }
+
+
+def latest_file(pattern: str) -> Path | None:
+    """按 glob 模式自动发现最新的结果文件（按文件名排序取最后一条）。"""
+    files = sorted(RESULTS_DIR.glob(pattern))
+    return files[-1] if files else None
+
+
+# 默认文件（自动发现最新，baseline 同模式时需用命令行参数区分 7B/3B）
+FILES = {
+    "7b_base": latest_file(FILE_GLOBS["7b_base"]),
+    "7b_ft":   latest_file(FILE_GLOBS["7b_ft"]),
+    "3b_base": latest_file(FILE_GLOBS["3b_base"]),
+    "3b_ft":   latest_file(FILE_GLOBS["3b_ft"]),
+}
+
+# 校验 7B/3B 不能解析到同一文件（自动发现模式下 baseline/finetuned glob 相同）
+for _a, _b in [("7b_base", "3b_base"), ("7b_ft", "3b_ft")]:
+    if FILES[_a] is not None and FILES[_a] == FILES[_b]:
+        print(f"错误：{_a} 和 {_b} 自动发现到同一文件 {FILES[_a]}。"
+              f"请用命令行参数显式指定不同的 7B/3B 文件。", file=sys.stderr)
+        sys.exit(1)
 
 LABELS = {
     "7b_base": "7B base",
@@ -121,6 +145,8 @@ def compute_metrics(samples: list[dict]) -> dict:
     tn = sum(1 for s in samples if s.get("outcome") == "TN")
     fp = sum(1 for s in samples if s.get("outcome") == "FP")
     fn = sum(1 for s in samples if s.get("outcome") == "FN")
+    pf = sum(1 for s in samples if s.get("outcome") == "parse_fail")
+    valid = tp + tn + fp + fn
 
     cwe_mismatch = 0
     for s in samples:
@@ -140,7 +166,7 @@ def compute_metrics(samples: list[dict]) -> dict:
     safe_total = tn + fp
     recall = tp / vuln_total if vuln_total else None
     fpr = fp / safe_total if safe_total else None
-    accuracy = (tp + tn) / total if total else None
+    accuracy = (tp + tn) / valid if valid else None
     strict_tp = tp - cwe_mismatch
     strict_recall = strict_tp / vuln_total if vuln_total else None
 
@@ -177,7 +203,7 @@ def render_combined_summary(metrics: dict) -> str:
     lines.append("# 4 组对比综合汇总\n")
     lines.append("## 模型文件\n")
     for key, path in FILES.items():
-        lines.append(f"- **{LABELS[key]}**: `{path.name}`")
+        lines.append(f"- **{LABELS[key]}**: `{path.name if path else '未找到'}`")
     lines.append("")
 
     # ---- 总览矩阵 ----
@@ -298,14 +324,6 @@ def render_detail(a_data: dict, b_data: dict, title: str) -> str:
             else:
                 groups["both_right_diff_cwe"].append(f)
 
-    titles = {
-        "both_wrong": f"A. 两模型都错（{len(groups['both_wrong'])}）",
-        "a_wrong_b_right": f"B. {LABELS.get('a','A')}错→{LABELS.get('b','B')}对（{len(groups['a_wrong_b_right'])}）",
-        "a_right_b_wrong": f"C. {LABELS.get('a','A')}对→{LABELS.get('b','B')}错（{len(groups['a_right_b_wrong'])}）",
-        "both_right_diff_cwe": f"D. 都对但CWE有差异（{len(groups['both_right_diff_cwe'])}）",
-        "both_right_same": f"E. 完全一致（{len(groups['both_right_same'])}）",
-    }
-
     # 动态设置标签
     a_label = a_data.get("label", "A")
     b_label = b_data.get("label", "B")
@@ -353,10 +371,27 @@ def render_detail(a_data: dict, b_data: dict, title: str) -> str:
 
 
 def main():
+    parser = argparse.ArgumentParser(description="4 组对比：7B/3B base vs ft")
+    parser.add_argument("--7b-base", type=Path, default=None, help="7B baseline eval JSON")
+    parser.add_argument("--7b-ft", type=Path, default=None, help="7B finetuned eval JSON")
+    parser.add_argument("--3b-base", type=Path, default=None, help="3B baseline eval JSON")
+    parser.add_argument("--3b-ft", type=Path, default=None, help="3B finetuned eval JSON")
+    args = parser.parse_args()
+
+    # 命令行参数覆盖默认的自动发现结果
+    if args.__dict__["7b_base"]:
+        FILES["7b_base"] = args.__dict__["7b_base"]
+    if args.__dict__["7b_ft"]:
+        FILES["7b_ft"] = args.__dict__["7b_ft"]
+    if args.__dict__["3b_base"]:
+        FILES["3b_base"] = args.__dict__["3b_base"]
+    if args.__dict__["3b_ft"]:
+        FILES["3b_ft"] = args.__dict__["3b_ft"]
+
     # 加载全部 4 个文件
     data = {}
     for key, path in FILES.items():
-        if not path.exists():
+        if path is None or not path.exists():
             print(f"警告: {path} 不存在，跳过 {key}")
             continue
         d = json.loads(path.read_text(encoding="utf-8"))
@@ -366,7 +401,7 @@ def main():
 
     if len(data) < 4:
         print(f"错误: 需要 4 个文件，只找到 {len(data)} 个")
-        return
+        sys.exit(1)
 
     metrics = {k: compute_metrics(d["samples"]) for k, d in data.items()}
 

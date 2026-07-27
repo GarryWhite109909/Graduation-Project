@@ -1,0 +1,1027 @@
+{
+  "total_samples": 823,
+  "fixed_samples": 36,
+  "fixes_by_rule": {
+    "rule1_nosql": 7,
+    "rule2_ssti": 22,
+    "rule3_eval": 7,
+    "rule4_cot_consistency": 17
+  },
+  "fixed_details": [
+    {
+      "line": 27,
+      "filename": "vuln_eval.py",
+      "old_cwe": "CWE-94 代码注入",
+      "new_cwe": "CWE-95 eval注入",
+      "rule": "rule3_eval"
+    },
+    {
+      "line": 35,
+      "filename": "vuln_ssti.py",
+      "old_cwe": "CWE-94 代码注入",
+      "new_cwe": "CWE-1336 SSTI",
+      "rule": "rule2_ssti"
+    },
+    {
+      "line": 109,
+      "filename": "vuln_crossfile_sink.py",
+      "old_cwe": "CWE-94 代码注入",
+      "new_cwe": "CWE-95 eval注入",
+      "rule": "rule3_eval"
+    },
+    {
+      "line": 209,
+      "filename": "noise_comment_validated_lie.py",
+      "old_cwe": "CWE-94 代码注入",
+      "new_cwe": "CWE-95 eval注入",
+      "rule": "rule3_eval"
+    },
+    {
+      "line": 391,
+      "filename": "distill_169.php",
+      "old_cwe": "CWE-94 代码注入",
+      "new_cwe": "CWE-95 eval注入",
+      "rule": "rule3_eval"
+    },
+    {
+      "line": 395,
+      "filename": "distill_173.js",
+      "old_cwe": "CWE-94 代码注入",
+      "new_cwe": "CWE-95 eval注入",
+      "rule": "rule3_eval"
+    },
+    {
+      "line": 398,
+      "filename": "distill_176.java",
+      "old_cwe": "CWE-94 代码注入",
+      "new_cwe": "CWE-95 eval注入",
+      "rule": "rule3_eval"
+    },
+    {
+      "line": 402,
+      "filename": "distill_180.py",
+      "old_cwe": "CWE-94 代码注入",
+      "new_cwe": "CWE-1336 SSTI",
+      "rule": "rule2_ssti"
+    },
+    {
+      "line": 404,
+      "filename": "distill_182.py",
+      "old_cwe": "CWE-94 代码注入",
+      "new_cwe": "CWE-95 eval注入",
+      "rule": "rule3_eval"
+    },
+    {
+      "line": 565,
+      "filename": "distill_343.py",
+      "old_cwe": "CWE-94 代码注入",
+      "new_cwe": "CWE-1336 SSTI",
+      "rule": "rule2_ssti"
+    },
+    {
+      "line": 623,
+      "filename": "supplement_longfile_ssti.py",
+      "old_cwe": "CWE-94 代码注入",
+      "new_cwe": "CWE-1336 SSTI",
+      "rule": "rule2_ssti"
+    },
+    {
+      "line": 677,
+      "filename": "lt_ssti_jinja2.py",
+      "old_cwe": "CWE-94 代码注入",
+      "new_cwe": "CWE-1336 SSTI",
+      "rule": "rule2_ssti"
+    },
+    {
+      "line": 678,
+      "filename": "lt_ssti_django.py",
+      "old_cwe": "CWE-94 代码注入",
+      "new_cwe": "CWE-1336 SSTI",
+      "rule": "rule2_ssti"
+    },
+    {
+      "line": 679,
+      "filename": "lt_ssti_nodejs_ejs.js",
+      "old_cwe": "CWE-94 代码注入",
+      "new_cwe": "CWE-1336 SSTI",
+      "rule": "rule2_ssti"
+    },
+    {
+      "line": 733,
+      "filename": "longfile_webapp_ssti.py",
+      "old_cwe": "CWE-94 代码注入",
+      "new_cwe": "CWE-1336 SSTI",
+      "rule": "rule2_ssti"
+    },
+    {
+      "line": 771,
+      "filename": "ssti_01_flask_render_string.py",
+      "old_cwe": "CWE-94 代码注入",
+      "new_cwe": "CWE-1336 SSTI",
+      "rule": "rule2_ssti"
+    },
+    {
+      "line": 771,
+      "filename": "ssti_01_flask_render_string.py",
+      "old_cwe": "CWE-94",
+      "new_cwe": "CWE-1336",
+      "rule": "rule4_cot_consistency"
+    },
+    {
+      "line": 772,
+      "filename": "ssti_02_jinja2_from_string.py",
+      "old_cwe": "CWE-94 代码注入",
+      "new_cwe": "CWE-1336 SSTI",
+      "rule": "rule2_ssti"
+    },
+    {
+      "line": 772,
+      "filename": "ssti_02_jinja2_from_string.py",
+      "old_cwe": "CWE-94",
+      "new_cwe": "CWE-1336",
+      "rule": "rule4_cot_consistency"
+    },
+    {
+      "line": 773,
+      "filename": "ssti_03_jinja2_template.py",
+      "old_cwe": "CWE-94 代码注入",
+      "new_cwe": "CWE-1336 SSTI",
+      "rule": "rule2_ssti"
+    },
+    {
+      "line": 773,
+      "filename": "ssti_03_jinja2_template.py",
+      "old_cwe": "CWE-94",
+      "new_cwe": "CWE-1336",
+      "rule": "rule4_cot_consistency"
+    },
+    {
+      "line": 774,
+      "filename": "ssti_04_mako_template.py",
+      "old_cwe": "CWE-94 代码注入",
+      "new_cwe": "CWE-1336 SSTI",
+      "rule": "rule2_ssti"
+    },
+    {
+      "line": 774,
+      "filename": "ssti_04_mako_template.py",
+      "old_cwe": "CWE-94",
+      "new_cwe": "CWE-1336",
+      "rule": "rule4_cot_consistency"
+    },
+    {
+      "line": 775,
+      "filename": "ssti_05_django_template.py",
+      "old_cwe": "CWE-94 代码注入",
+      "new_cwe": "CWE-1336 SSTI",
+      "rule": "rule2_ssti"
+    },
+    {
+      "line": 775,
+      "filename": "ssti_05_django_template.py",
+      "old_cwe": "CWE-94",
+      "new_cwe": "CWE-1336",
+      "rule": "rule4_cot_consistency"
+    },
+    {
+      "line": 776,
+      "filename": "ssti_06_ejs_render.js",
+      "old_cwe": "CWE-94 代码注入",
+      "new_cwe": "CWE-1336 SSTI",
+      "rule": "rule2_ssti"
+    },
+    {
+      "line": 776,
+      "filename": "ssti_06_ejs_render.js",
+      "old_cwe": "CWE-94",
+      "new_cwe": "CWE-1336",
+      "rule": "rule4_cot_consistency"
+    },
+    {
+      "line": 777,
+      "filename": "ssti_07_pug_compile.js",
+      "old_cwe": "CWE-94 代码注入",
+      "new_cwe": "CWE-1336 SSTI",
+      "rule": "rule2_ssti"
+    },
+    {
+      "line": 777,
+      "filename": "ssti_07_pug_compile.js",
+      "old_cwe": "CWE-94",
+      "new_cwe": "CWE-1336",
+      "rule": "rule4_cot_consistency"
+    },
+    {
+      "line": 778,
+      "filename": "ssti_08_thymeleaf.java",
+      "old_cwe": "CWE-94 代码注入",
+      "new_cwe": "CWE-1336 SSTI",
+      "rule": "rule2_ssti"
+    },
+    {
+      "line": 778,
+      "filename": "ssti_08_thymeleaf.java",
+      "old_cwe": "CWE-94",
+      "new_cwe": "CWE-1336",
+      "rule": "rule4_cot_consistency"
+    },
+    {
+      "line": 779,
+      "filename": "ssti_09_velocity.java",
+      "old_cwe": "CWE-94 代码注入",
+      "new_cwe": "CWE-1336 SSTI",
+      "rule": "rule2_ssti"
+    },
+    {
+      "line": 779,
+      "filename": "ssti_09_velocity.java",
+      "old_cwe": "CWE-94",
+      "new_cwe": "CWE-1336",
+      "rule": "rule4_cot_consistency"
+    },
+    {
+      "line": 780,
+      "filename": "ssti_10_freemarker.java",
+      "old_cwe": "CWE-94 代码注入",
+      "new_cwe": "CWE-1336 SSTI",
+      "rule": "rule2_ssti"
+    },
+    {
+      "line": 780,
+      "filename": "ssti_10_freemarker.java",
+      "old_cwe": "CWE-94",
+      "new_cwe": "CWE-1336",
+      "rule": "rule4_cot_consistency"
+    },
+    {
+      "line": 785,
+      "filename": "nosql_01_mongo_where.py",
+      "old_cwe": "CWE-643 NoSQL注入",
+      "new_cwe": "CWE-943 NoSQL注入",
+      "rule": "rule1_nosql"
+    },
+    {
+      "line": 785,
+      "filename": "nosql_01_mongo_where.py",
+      "old_cwe": "CWE-643",
+      "new_cwe": "CWE-943",
+      "rule": "rule4_cot_consistency"
+    },
+    {
+      "line": 786,
+      "filename": "nosql_02_mongo_ne.py",
+      "old_cwe": "CWE-643 NoSQL注入",
+      "new_cwe": "CWE-943 NoSQL注入",
+      "rule": "rule1_nosql"
+    },
+    {
+      "line": 786,
+      "filename": "nosql_02_mongo_ne.py",
+      "old_cwe": "CWE-643",
+      "new_cwe": "CWE-943",
+      "rule": "rule4_cot_consistency"
+    },
+    {
+      "line": 787,
+      "filename": "nosql_03_mongo_regex.py",
+      "old_cwe": "CWE-643 NoSQL注入",
+      "new_cwe": "CWE-943 NoSQL注入",
+      "rule": "rule1_nosql"
+    },
+    {
+      "line": 787,
+      "filename": "nosql_03_mongo_regex.py",
+      "old_cwe": "CWE-643",
+      "new_cwe": "CWE-943",
+      "rule": "rule4_cot_consistency"
+    },
+    {
+      "line": 788,
+      "filename": "nosql_04_pymongo_dict.py",
+      "old_cwe": "CWE-643 NoSQL注入",
+      "new_cwe": "CWE-943 NoSQL注入",
+      "rule": "rule1_nosql"
+    },
+    {
+      "line": 788,
+      "filename": "nosql_04_pymongo_dict.py",
+      "old_cwe": "CWE-643",
+      "new_cwe": "CWE-943",
+      "rule": "rule4_cot_consistency"
+    },
+    {
+      "line": 789,
+      "filename": "nosql_05_mongo_find.js",
+      "old_cwe": "CWE-643 NoSQL注入",
+      "new_cwe": "CWE-943 NoSQL注入",
+      "rule": "rule1_nosql"
+    },
+    {
+      "line": 789,
+      "filename": "nosql_05_mongo_find.js",
+      "old_cwe": "CWE-643",
+      "new_cwe": "CWE-943",
+      "rule": "rule4_cot_consistency"
+    },
+    {
+      "line": 790,
+      "filename": "nosql_06_redis_eval.py",
+      "old_cwe": "CWE-643 NoSQL注入",
+      "new_cwe": "CWE-94 代码注入",
+      "rule": "rule1_nosql"
+    },
+    {
+      "line": 790,
+      "filename": "nosql_06_redis_eval.py",
+      "old_cwe": "CWE-643",
+      "new_cwe": "CWE-94",
+      "rule": "rule4_cot_consistency"
+    },
+    {
+      "line": 791,
+      "filename": "nosql_07_mongo_aggregate.py",
+      "old_cwe": "CWE-643 NoSQL注入",
+      "new_cwe": "CWE-943 NoSQL注入",
+      "rule": "rule1_nosql"
+    },
+    {
+      "line": 791,
+      "filename": "nosql_07_mongo_aggregate.py",
+      "old_cwe": "CWE-643",
+      "new_cwe": "CWE-943",
+      "rule": "rule4_cot_consistency"
+    },
+    {
+      "line": 810,
+      "filename": "ccot_ssti_from_string_user_input.py",
+      "old_cwe": "CWE-94 代码注入",
+      "new_cwe": "CWE-1336 SSTI",
+      "rule": "rule2_ssti"
+    },
+    {
+      "line": 812,
+      "filename": "ccot_ssti_render_template_string_concat.py",
+      "old_cwe": "CWE-94 代码注入",
+      "new_cwe": "CWE-1336 SSTI",
+      "rule": "rule2_ssti"
+    },
+    {
+      "line": 814,
+      "filename": "ccot_ssti_template_concat.py",
+      "old_cwe": "CWE-94 代码注入",
+      "new_cwe": "CWE-1336 SSTI",
+      "rule": "rule2_ssti"
+    },
+    {
+      "line": 816,
+      "filename": "ccot_ssti_django_concat.py",
+      "old_cwe": "CWE-94 代码注入",
+      "new_cwe": "CWE-1336 SSTI",
+      "rule": "rule2_ssti"
+    }
+  ],
+  "template_cot_samples": [
+    {
+      "line": 3,
+      "filename": "vuln_sql_format.py",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-89 SQL注入"
+    },
+    {
+      "line": 4,
+      "filename": "vuln_sql_fstring.py",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-89 SQL注入"
+    },
+    {
+      "line": 5,
+      "filename": "vuln_java_jdbc_sql.java",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-89 SQL注入"
+    },
+    {
+      "line": 6,
+      "filename": "safe_java_prepared.java",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 7,
+      "filename": "vuln_cmd_shell.py",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-78 命令注入"
+    },
+    {
+      "line": 8,
+      "filename": "safe_cmd_list.py",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 9,
+      "filename": "vuln_cmd_js.js",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-78 命令注入"
+    },
+    {
+      "line": 10,
+      "filename": "safe_cmd_js.js",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 11,
+      "filename": "vuln_xss_fstring.py",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-79 XSS"
+    },
+    {
+      "line": 12,
+      "filename": "safe_xss_escape.py",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 13,
+      "filename": "vuln_xss_php.php",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-79 XSS"
+    },
+    {
+      "line": 14,
+      "filename": "safe_xss_php.php",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 15,
+      "filename": "vuln_path_join.py",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-22 路径穿越"
+    },
+    {
+      "line": 16,
+      "filename": "safe_path_check.py",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 17,
+      "filename": "vuln_pickle.py",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-502 不安全反序列化"
+    },
+    {
+      "line": 18,
+      "filename": "safe_json_loads.py",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 19,
+      "filename": "vuln_yaml_load.py",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-502 不安全反序列化"
+    },
+    {
+      "line": 20,
+      "filename": "safe_yaml_load.py",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 21,
+      "filename": "vuln_fastjson.java",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-502 不安全反序列化"
+    },
+    {
+      "line": 23,
+      "filename": "safe_env_credentials.py",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 25,
+      "filename": "vuln_ssrf_urllib.py",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-918 SSRF"
+    },
+    {
+      "line": 26,
+      "filename": "safe_ssrf_whitelist.py",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 27,
+      "filename": "vuln_eval.py",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-95 eval注入"
+    },
+    {
+      "line": 28,
+      "filename": "safe_literal_eval.py",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 29,
+      "filename": "vuln_open_redirect.py",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-601 开放重定向"
+    },
+    {
+      "line": 30,
+      "filename": "safe_open_redirect.py",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 32,
+      "filename": "safe_csrf_token.py",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 33,
+      "filename": "vuln_xxe.py",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-611 XXE"
+    },
+    {
+      "line": 34,
+      "filename": "safe_xxe_defused.py",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 35,
+      "filename": "vuln_ssti.py",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-1336 SSTI"
+    },
+    {
+      "line": 36,
+      "filename": "safe_ssti.py",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 38,
+      "filename": "safe_bcrypt.py",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 40,
+      "filename": "safe_secrets_token.py",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 43,
+      "filename": "safe_jwt_verify.py",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 44,
+      "filename": "vuln_tls_no_verify.py",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-295 证书验证缺失"
+    },
+    {
+      "line": 45,
+      "filename": "safe_tls_verify.py",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 47,
+      "filename": "safe_auth_required.py",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 49,
+      "filename": "safe_idor_check.py",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 51,
+      "filename": "safe_session_regen.py",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 52,
+      "filename": "vuln_ldap_injection.py",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-90 LDAP注入"
+    },
+    {
+      "line": 53,
+      "filename": "safe_ldap_escape.py",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 54,
+      "filename": "vuln_xpath_injection.py",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-643 XPath注入"
+    },
+    {
+      "line": 55,
+      "filename": "vuln_nosql_injection.py",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-943 NoSQL 注入"
+    },
+    {
+      "line": 57,
+      "filename": "safe_race_lock.py",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 59,
+      "filename": "safe_email_regex.py",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 60,
+      "filename": "vuln_redos.py",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-1333 ReDoS"
+    },
+    {
+      "line": 61,
+      "filename": "vuln_file_upload.py",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-434 任意文件上传"
+    },
+    {
+      "line": 62,
+      "filename": "safe_file_upload.py",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 64,
+      "filename": "safe_error_handle.py",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 67,
+      "filename": "safe_mass_assignment.py",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 68,
+      "filename": "vuln_proto_pollution.js",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-1321 Prototype Pollution"
+    },
+    {
+      "line": 69,
+      "filename": "vuln_php_type_juggling.php",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-843 PHP类型混淆"
+    },
+    {
+      "line": 70,
+      "filename": "vuln_spel.java",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-917 SpEL表达式注入"
+    },
+    {
+      "line": 71,
+      "filename": "safe_spel_param.java",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 73,
+      "filename": "safe_timing_compare.py",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 74,
+      "filename": "vuln_crlf.py",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-113 HTTP响应拆分"
+    },
+    {
+      "line": 75,
+      "filename": "vuln_log_injection.py",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-532 日志注入"
+    },
+    {
+      "line": 76,
+      "filename": "vuln_zip_bomb.py",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-400 资源耗尽"
+    },
+    {
+      "line": 77,
+      "filename": "vuln_unbounded_alloc.py",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-770 资源耗尽"
+    },
+    {
+      "line": 78,
+      "filename": "vuln_plaintext_smtp.py",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-319 明文传输"
+    },
+    {
+      "line": 79,
+      "filename": "vuln_sql_blacklist_bypass.py",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-89 SQL注入"
+    },
+    {
+      "line": 80,
+      "filename": "vuln_cmd_strip_bypass.py",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-78 命令注入"
+    },
+    {
+      "line": 81,
+      "filename": "vuln_xss_blacklist_bypass.py",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-79 XSS"
+    },
+    {
+      "line": 82,
+      "filename": "vuln_path_regex_bypass.py",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-22 路径穿越"
+    },
+    {
+      "line": 83,
+      "filename": "vuln_cve_log4j.java",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-917 JNDI注入"
+    },
+    {
+      "line": 84,
+      "filename": "vuln_cve_tarfile.py",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-22 路径穿越"
+    },
+    {
+      "line": 85,
+      "filename": "vuln_cve_spring4shell.java",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-915 批量赋值"
+    },
+    {
+      "line": 86,
+      "filename": "vuln_longfile_hidden_sql.py",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-89 SQL注入"
+    },
+    {
+      "line": 87,
+      "filename": "vuln_go_sql.go",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-89 SQL注入"
+    },
+    {
+      "line": 88,
+      "filename": "vuln_c_path.c",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-22 路径穿越"
+    },
+    {
+      "line": 95,
+      "filename": "vuln_sql_dynamic_table.py",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-89 SQL注入"
+    },
+    {
+      "line": 97,
+      "filename": "vuln_os_system.py",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-78 命令注入"
+    },
+    {
+      "line": 98,
+      "filename": "vuln_pexpect_injection.py",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-78 命令注入"
+    },
+    {
+      "line": 99,
+      "filename": "vuln_env_injection.py",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-78 命令注入"
+    },
+    {
+      "line": 100,
+      "filename": "vuln_dom_xss.js",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-79 XSS"
+    },
+    {
+      "line": 101,
+      "filename": "vuln_stored_xss.py",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-79 XSS"
+    },
+    {
+      "line": 103,
+      "filename": "vuln_path_windows.py",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-22 路径穿越"
+    },
+    {
+      "line": 106,
+      "filename": "vuln_java_deser.java",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-502 不安全反序列化"
+    },
+    {
+      "line": 107,
+      "filename": "vuln_php_unserialize.php",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-502 不安全反序列化"
+    },
+    {
+      "line": 111,
+      "filename": "noise_decorator_cmd.py",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-78 命令注入"
+    },
+    {
+      "line": 112,
+      "filename": "vuln_sql_percent_format.py",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-89 SQL注入"
+    },
+    {
+      "line": 116,
+      "filename": "vuln_cve_curl_socks5.py",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-122 堆溢出"
+    },
+    {
+      "line": 117,
+      "filename": "vuln_longfile_hidden_cmd.py",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-78 命令注入"
+    },
+    {
+      "line": 118,
+      "filename": "vuln_ruby_sql.rb",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-89 SQL注入"
+    },
+    {
+      "line": 119,
+      "filename": "vuln_c_timing_strcmp.c",
+      "is_vuln": true,
+      "vulnerability_type": "CWE-208 时序攻击"
+    },
+    {
+      "line": 130,
+      "filename": "safe_csrf_flask_wtf.py",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 131,
+      "filename": "safe_csrf_django_protect.py",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 132,
+      "filename": "safe_csrf_spring_filter.java",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 133,
+      "filename": "safe_csrf_express_csurf.js",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 134,
+      "filename": "safe_csrf_double_submit.py",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 135,
+      "filename": "safe_csrf_laravel_blade.php",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 144,
+      "filename": "safe_idor_ownership.py",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 151,
+      "filename": "safe_auth_login_required.py",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 156,
+      "filename": "safe_authz_django_perm.py",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 157,
+      "filename": "safe_authz_spring_preauth.java",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 163,
+      "filename": "safe_session_django_cycle.py",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 169,
+      "filename": "safe_session_cookie_age.py",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 170,
+      "filename": "safe_session_dual_timeout.py",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 171,
+      "filename": "safe_session_express_maxage.js",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 188,
+      "filename": "safe_secret_dotenv.py",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 189,
+      "filename": "safe_secret_aws_sm.py",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 190,
+      "filename": "safe_secret_spring_value.java",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 191,
+      "filename": "safe_secret_k8s.py",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 203,
+      "filename": "safe_intovf_builtin.c",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 204,
+      "filename": "safe_intovf_safemath.java",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 205,
+      "filename": "safe_intovf_assert.py",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    },
+    {
+      "line": 206,
+      "filename": "safe_intovf_bigint.py",
+      "is_vuln": false,
+      "vulnerability_type": "none"
+    }
+  ]
+}

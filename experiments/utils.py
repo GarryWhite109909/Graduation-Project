@@ -90,18 +90,23 @@ def build_rag_context(
     """
     results = cm.query(collection_name, query_code, n_results=top_k)
 
+    ids = results.get("ids", [])
+    documents = results.get("documents", [])
+    distances = results.get("distances", [])
+    metadatas = results.get("metadatas", [])
+
     retrieval_records = []
     context_parts = []
     for i, (doc, dist, meta) in enumerate(zip(
-        results["documents"],
-        results["distances"],
-        results["metadatas"],
+        documents,
+        distances,
+        metadatas,
     )):
         is_safe = bool(meta.get("safe_pattern", False))
         tag = "安全模式" if is_safe else "危险模式"
         retrieval_records.append({
             "rank": i + 1,
-            "id": results["ids"][i] if i < len(results.get("ids", [])) else None,
+            "id": ids[i] if i < len(ids) else None,
             "type": meta.get("type"),
             "cwe": meta.get("cwe"),
             "distance": round(dist, 4),
@@ -400,12 +405,13 @@ def compute_repeat_metrics(records: list[dict]) -> dict:
     fpr = fp / safe_total if safe_total else None
     accuracy = (tp + tn) / valid if valid else None
 
+    # 直接从 records 收集所有 per-run 耗时，避免用均值重建导致 median/std/p95 失真
     all_elapsed = []
-    for s in per_sample:
-        es = s["elapsed_stats"]
-        # 用 mean 重新展开（无法精确还原，但总量级足够）
-        if es["count"] and es["mean"]:
-            all_elapsed.extend([es["mean"]] * es["count"])
+    for runs in by_file.values():
+        for r in runs:
+            e = r.get("elapsed_seconds")
+            if isinstance(e, (int, float)):
+                all_elapsed.append(e)
 
     return {
         "total_samples": len(per_sample),

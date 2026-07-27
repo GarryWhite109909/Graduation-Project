@@ -68,7 +68,7 @@ _CLASS_NODE_TYPES = {"class_declaration", "class_definition"}
 
 # 顶层声明/导入节点 type（保留为上下文头）
 _TOPLEVEL_KEEP_TYPES = {
-    "python": {"import_statement", "import_from_statement", "expression_statement", "assignment", "decorated_definition"},
+    "python": {"import_statement", "import_from_statement", "expression_statement", "assignment"},
     "javascript": {"import_statement", "export_statement", "lexical_declaration", "variable_declaration"},
     "typescript": {"import_statement", "export_statement", "lexical_declaration", "variable_declaration"},
     "java": {"import_declaration", "package_declaration", "field_declaration"},
@@ -129,7 +129,7 @@ class CodeSlicer:
             SliceResult，chunks 至少含 1 个切片
         """
         ts_lang = _LANGUAGE_MAP.get((language or "").lower())
-        total_lines = code.count("\n") + (0 if code.endswith("\n") else 1)
+        total_lines = 0 if not code else code.count("\n") + (0 if code.endswith("\n") else 1)
 
         # 不支持的语言或文件太短 → 整文件单 chunk
         if not ts_lang or total_lines < self.min_lines:
@@ -260,6 +260,16 @@ class CodeSlicer:
         header_parts: list[str] = []
         for child in root.children:
             t = child.type
+            if t == "decorated_definition":
+                # 装饰器定义：保留装饰器文本，内部定义走各自分支
+                inner = next((c for c in child.children if c.type in class_types), None)
+                if inner is not None:
+                    skeleton = self._class_skeleton(inner, code, ts_lang)
+                    if skeleton:
+                        dec_text = code[child.start_byte:inner.start_byte]
+                        header_parts.append(dec_text + skeleton)
+                # 装饰器函数：跳过（函数体由切片负责）
+                continue
             if t in func_types:
                 continue  # 函数定义不进 header（切片本身）
             if t in class_types:

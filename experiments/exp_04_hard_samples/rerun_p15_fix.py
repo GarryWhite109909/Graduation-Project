@@ -88,6 +88,7 @@ REPARSE_SAMPLE = "safe_06_csp_header.py"
 # 需要重跑的样本（D 组，输出截断）
 RERUN_SAMPLE = "typical_33_php_type_juggling.php"
 
+# 注：此脚本用于重跑 P1-5 原结果，保持原模型；新模型重跑需手动修改
 MODEL = "qwen2.5-coder:7b"
 
 
@@ -274,6 +275,9 @@ def main() -> int:
                 s["agreement_rate"] = round(
                     max(true_count, len(valid) - true_count) / len(valid), 4
                 )
+            else:
+                s["majority_verdict"] = None
+                s["agreement_rate"] = None
             break
 
     recompute_metrics(d_results)

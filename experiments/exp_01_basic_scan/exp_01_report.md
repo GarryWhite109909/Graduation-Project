@@ -1,11 +1,28 @@
 # 实验 01 报告：qwen2.5-coder:7b 漏洞检测能力摸底
 
+> 📋 **一句话结论**：`qwen2.5-coder:7b` 在 14 段典型漏洞样本上达到 **recall=100%、FPR=0%、accuracy=100%**，验证了本地开源 LLM 作为代码安全审计引擎的基础能力下限可靠。
+>
+> | 关键指标 | 数值 |
+> | --- | --- |
+> | 测试样本 | 14 段（12 漏洞 + 2 安全） |
+> | 召回率 | **100.0%**（12/12） |
+> | 误报率 | **0.0%**（0/2） |
+> | 准确率 | **100.0%**（14/14） |
+> | 平均耗时 | **7.65s/样本** |
+>
+> **核心发现**：
+> 1. 6 类典型漏洞全部正确识别且 CWE 分类 100% 准确，安全样本零误报。
+> 2. qwen7b 无需安全模式后处理即可达标，在安全写法识别上优于 qwen14b。
+> 3. 平均耗时仅 7.65s，速度约为 qwen14b 的 45%，具备系统落地可行性。
+>
+> **论文对应章节**：第 4 章（零样本推理基线）
+
 > **2026-06-30 最终更新**：默认主模型已最终切换为 `qwen2.5-coder:7b`。
 > - qwen7b 在 14 段典型样本上达到 **recall=100%、FPR=0%、accuracy=100%**，且 **无需 safe_override 后处理**。
 > - 相比 qwen2.5-coder:14b（准确率 92.9%，safe_02 误报），qwen7b 在安全模式识别上更可靠。
 > - 平均耗时 7.65s/样本，约为 qwen14b（17.11s）的 **45%**。
 >
-> 历史数据备份：`results/results.qwen2.5-coder-7b.json`（当前）、`results/results.gemma4-12b.final.json`。
+> 历史数据备份：`results/results.qwen2.5-coder-7b.20260630.json`（当前）、`results/results.qwen2.5-coder-7b.json`（同内容副本）、`results/results.gemma4-12b.final.json`。
 
 ## 一、实验目的
 
@@ -125,7 +142,7 @@
 3. **传统工具对比基线**：用同一批样本跑 Bandit / Semgrep，对比检出率、误报率、耗时，明确 LLM 相对传统工具的改进点（语义理解 vs 模式匹配）。
 4. **Prompt 迭代**：设计 2-3 套不同风格的 Prompt（零样本 / 思维链 / Few-shot），对比哪一种在"难样本"上表现更好。
 5. **长文件测试**：测试 500+ 行的真实文件，观察上下文窗口与注意力衰减对检出率的影响。
-6. **结果文件**：[results/results.json](results/results.json) 保留了 14 次推理的完整原始输出，后续写论文可直接引用为实验素材。
+6. **结果文件**：[results/results.qwen2.5-coder-7b.20260630.json](results/results.qwen2.5-coder-7b.20260630.json) 保留了 14 次推理的完整原始输出，后续写论文可直接引用为实验素材。
 
 ## 八、复现方式
 
@@ -137,4 +154,4 @@ python3 run_experiment.py --limit 3             # 只跑前 3 个（快速调试
 python3 run_experiment.py --model deepseek-coder-v2:16b  # 切换对照模型
 ```
 
-结果将写入 `results/results.json`，每跑完一个样本即增量落盘，中途可断点查看。
+结果将写入 `results/results.qwen2.5-coder-7b.20260630.json`，每跑完一个样本即增量落盘，中途可断点查看。

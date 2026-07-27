@@ -135,8 +135,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="exp_04 难样本压力测试（纯 LLM，含重复实验）")
     parser.add_argument("--host", default="http://localhost:11434",
                         help="Ollama 服务地址（默认 http://localhost:11434）")
-    parser.add_argument("--model", default="qwen2.5-coder:7b",
-                        help="Ollama 模型名（默认 qwen2.5-coder:7b）")
+    parser.add_argument("--model", default="qwen3:8b",
+                        help="Ollama 模型名（默认 qwen3:8b）")
     parser.add_argument("--temperature", type=float, default=0.1,
                         help="采样温度（默认 0.1）")
     parser.add_argument("--limit", type=int, default=0,
@@ -209,8 +209,10 @@ def main() -> int:
         import json as _json
         results = _json.loads(results_path.read_text(encoding="utf-8"))
         existing_samples = results.get("samples", [])
+        current_files = {s["file"] for s in samples}
         finished = sum(1 for s in existing_samples
-                       if s.get("majority_verdict") is not None)
+                       if s.get("majority_verdict") is not None
+                       and s.get("file") in current_files)
         pending = total - finished
         print(f"[信息] --resume: 已完成 {finished}/{total}，待重跑 {pending} 个样本")
         results["samples"] = existing_samples

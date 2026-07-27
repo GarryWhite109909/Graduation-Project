@@ -59,18 +59,18 @@ VALID_MODES = ("rag", "pure", "random", "irrelevant")
 # 等长无关文本（D 组）：与漏洞完全无关但长度与典型 RAG 上下文相近
 # 内容为 Python 数据结构教程片段，刻意选与安全审计无关的话题
 # ---------------------------------------------------------------------------
-IRRELEVANT_TEXT_BLOCK = """【参考资料 1】（数据结构 / 链表）
+IRRELEVANT_TEXT_BLOCK = """【知识 1】（数据结构 / 链表）
 链表是一种线性数据结构，其中的元素通过指针连接。与数组不同，链表的元素在内存中不必连续存储。
 单链表每个节点包含数据域和指向下一个节点的指针域。插入和删除操作在已知位置时为 O(1)，
 但随机访问需要 O(n)。Python 中可手动实现 ListNode 类。
 
-【参考资料 2】（算法 / 二分查找）
+【知识 2】（算法 / 二分查找）
 二分查找要求数组已排序，时间复杂度 O(log n)。基本思路：取中间元素与目标比较，
 若目标更小则在左半部分递归，更大则在右半部分递归。注意边界处理：
 - 左闭右开 [lo, hi) 写法：循环条件 lo < hi，中点 mid = (lo + hi) // 2
 - 左闭右闭 [lo, hi] 写法：循环条件 lo <= hi，更新 hi = mid - 1 / lo = mid + 1
 
-【参考资料 3】（设计模式 / 工厂方法）
+【知识 3】（设计模式 / 工厂方法）
 工厂方法模式定义一个创建对象的接口，让子类决定实例化哪个类。
 优点：客户端不需要知道具体类名，只需知道工厂；新增产品类型时无需修改现有工厂代码。
 示例：ShapeFactory.get_shape("circle") 返回 Circle 实例。"""
@@ -112,18 +112,23 @@ def build_random_context(cm: ChromaManager, top_k: int, rng: random_lib.Random) 
     return "\n\n".join(context_parts), retrieval_records
 
 
-def build_irrelevant_context(target_chars: int = 1500) -> tuple[str, list[dict]]:
+def build_irrelevant_context(target_length: int = 1500) -> tuple[str, list[dict]]:
     """D 组：注入与漏洞无关但长度相近的说明文字。
 
-    把 IRRELEVANT_TEXT_BLOCK 重复到目标长度，模拟 RAG 上下文的体积
+    把 IRRELEVANT_TEXT_BLOCK 按目标长度截断或循环填充，模拟 RAG 上下文的体积
     但内容上完全无关，用于隔离"prompt 变长"的影响。
+
+    target_length 应与 A 组 RAG 上下文长度一致，以保证控制变量成立。
     """
-    block = IRRELEVANT_TEXT_BLOCK
-    repeats = max(1, target_chars // len(block) + 1)
-    text = (block + "\n\n").replace("【参考资料", "【参考资料")  # placeholder
-    text = (block + "\n\n") * repeats
-    # 截断到目标长度
-    text = text[:target_chars]
+    text = IRRELEVANT_TEXT_BLOCK
+    # 按目标长度截断或循环填充
+    if len(text) >= target_length:
+        text = text[:target_length]
+    else:
+        # 不足时循环填充
+        while len(text) < target_length:
+            text += "\n" + IRRELEVANT_TEXT_BLOCK
+        text = text[:target_length]
     retrieval_records = [{
         "rank": 1,
         "id": "irrelevant_text",
@@ -153,7 +158,8 @@ def build_context_for_mode(
     if mode == "random":
         return build_random_context(cm, top_k=top_k, rng=rng)
     if mode == "irrelevant":
-        return build_irrelevant_context(target_chars=1500)
+        # 默认 1500 字符；重跑时应传入 A 组 RAG 实际上下文长度以保证控制变量
+        return build_irrelevant_context(target_length=1500)
     raise ValueError(f"unknown mode: {mode}")
 
 
@@ -165,7 +171,7 @@ def main() -> int:
     parser.add_argument("--mode", choices=VALID_MODES, default="rag",
                         help="消融组：rag(A) / pure(B) / random(C) / irrelevant(D)")
     parser.add_argument("--host", default="http://localhost:11434")
-    parser.add_argument("--model", default="qwen2.5-coder:7b")
+    parser.add_argument("--model", default="qwen3:8b")
     parser.add_argument("--temperature", type=float, default=0.1)
     parser.add_argument("--limit", type=int, default=0,
                         help="只跑前 N 个样本，0 表示全部")
