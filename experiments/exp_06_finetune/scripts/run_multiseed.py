@@ -8,7 +8,7 @@
   4. 生成 bootstrap 显著性检验所需的两方结果文件（baseline vs finetuned）
 
 用法（在 AI conda 环境中运行）：
-  /home/zane/miniconda3/envs/AI/bin/python run_multiseed.py --seeds 3 --epochs 5
+  python3 run_multiseed.py --seeds 3 --epochs 5
 
 注意：本脚本通过 subprocess 调用 train_qlora.py 与 evaluate.py，
      不会重复加载模型，每个子进程独立运行后退出释放显存。
@@ -127,7 +127,7 @@ def main():
     parser = argparse.ArgumentParser(description="多种子训练 + 评估编排")
     parser.add_argument("--seeds", type=int, default=3, help="种子数（默认 3）")
     parser.add_argument("--epochs", type=int, default=5, help="每轮训练 epoch 数")
-    parser.add_argument("--lr", type=float, default=2e-4)
+    parser.add_argument("--lr", type=float, default=1e-5)
     parser.add_argument("--lora-r", type=int, default=16)
     parser.add_argument("--lora-alpha", type=int, default=32)
     parser.add_argument("--dev-ratio", type=float, default=0.15)
@@ -147,7 +147,7 @@ def main():
     adapter_paths = []
     for seed in seed_list:
         if args.skip_train:
-            adapter_path = str(OUTPUT_DIR / f"lora_r{args.lora_r}_a{args.lora_alpha}_e{args.epochs}_s{seed}/best")
+            adapter_path = str(OUTPUT_DIR / f"lora_r{args.lora_r}_a{args.lora_alpha}_e{args.epochs}_lr{args.lr:g}_s{seed}/best")
             print(f"跳过训练 seed={seed}，使用已有: {adapter_path}")
         else:
             ok = run_train(seed, args.epochs, args.lr, args.lora_r, args.lora_alpha,
@@ -155,7 +155,7 @@ def main():
             if not ok:
                 print(f"训练 seed={seed} 失败，跳过")
                 continue
-        adapter_path = str(OUTPUT_DIR / f"lora_r{args.lora_r}_a{args.lora_alpha}_e{args.epochs}_s{seed}/best")
+        adapter_path = str(OUTPUT_DIR / f"lora_r{args.lora_r}_a{args.lora_alpha}_e{args.epochs}_lr{args.lr:g}_s{seed}/best")
         adapter_paths.append((seed, adapter_path))
 
     # 2. 评估每个种子的 best checkpoint
@@ -206,7 +206,7 @@ def main():
     # 6. 提示跑显著性检验
     if baseline_result_file and finetuned_result_files:
         print(f"\n跑 bootstrap 显著性检验：")
-        print(f"  /home/zane/miniconda3/envs/graproj/bin/python3 {SCRIPTS_DIR / 'bootstrap_significance.py'} \\")
+        print(f"  python3 {SCRIPTS_DIR / 'bootstrap_significance.py'} \\")
         print(f"    --baseline {baseline_result_file} \\")
         print(f"    --finetuned {finetuned_result_files[0]}")
         print(f"  （或对所有种子分别跑）")

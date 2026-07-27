@@ -2,8 +2,9 @@
 Bootstrap 显著性检验 —— 比较基线 vs 微调的检测指标差异是否显著。
 
 输入：两个 evaluate.py 产生的 JSON 结果文件（--baseline / --finetuned）。
-方法：配对 Bootstrap 重采样（同一测试集，按样本配对），N=10000 次。
-  - 每次有放回抽取 N 个样本（N=测试样本数）
+方法：配对 Block Bootstrap 重采样（同一测试集，按 file 配对），N=10000 次。
+  - 多种子结果按 file 分组，每个 file 跨所有 seed 的样本作为一个块
+  - 每次以 file 为单位有放回抽取 N 个块（N=file 数），块内所有 seed 样本一起抽出
   - 计算两组在本次重采样下的 recall / accuracy / fpr
   - 累计差值分布
 输出：
@@ -15,7 +16,7 @@ Bootstrap 显著性检验 —— 比较基线 vs 微调的检测指标差异是�
       --baseline results/exp_06_eval.baseline.20260707_120000.json \
       --finetuned results/exp_06_eval.finetuned_final.20260707_130000.json
 
-  # 多种子聚合结果：默认取 all_runs 展开后所有 (sample, seed) 对作配对
+  # 多种子聚合结果：按 file 分组作 block bootstrap（file 跨 seed 整体重采样）
   python bootstrap_significance.py \
       --baseline results/exp_06_eval.baseline_seeds3.*.json \
       --finetuned results/exp_06_eval.finetuned_final_seeds3.*.json \
@@ -29,23 +30,35 @@ import sys
 from pathlib import Path
 
 
-def load_samples(path: Path) -> list[dict]:
-    """从 evaluate.py 的结果文件加载样本列表。
+def load_samples(path: Path) -> list[list[dict]]:
+    """从 evaluate.py 的结果文件加载样本，按 file 分组（块）。
 
     优先使用 all_runs（多种子），否则退回 samples（单种子）。
-    每条样本带 run_seed 字段，便于配对。
+    返回 list[list[dict]]：每个 file 一个块，块内为该 file 在所有 seed 的样本。
+    block bootstrap 以 file 为重采样单元，避免把 (file, seed) 当独立观测。
     """
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
 
+    flat = []
     if data.get("all_runs"):
-        # 多种子：展平所有 (sample, seed) 对
-        flat = []
+        # 多种子：收集所有 (sample, seed) 对
         for run in data["all_runs"]:
             for s in run:
                 flat.append(s)
-        return flat
-    return data.get("samples", [])
+    else:
+        flat = data.get("samples", [])
+
+    # 按 file 分组（保持首次出现顺序）
+    blocks: list[list[dict]] = []
+    index: dict = {}
+    for s in flat:
+        fname = s.get("file")
+        if fname not in index:
+            index[fname] = len(blocks)
+            blocks.append([])
+        blocks[index[fname]].append(s)
+    return blocks
 
 
 def compute_metrics(samples: list[dict]) -> dict:
@@ -73,15 +86,16 @@ def compute_metrics(samples: list[dict]) -> dict:
 
 
 def bootstrap_paired(
-    baseline_samples: list[dict],
-    finetuned_samples: list[dict],
+    baseline_samples: list[list[dict]],
+    finetuned_samples: list[list[dict]],
     n_bootstrap: int,
     seed: int = 42,
 ) -> dict:
-    """配对 Bootstrap：以样本为重采样单元，比较两组指标差。
+    """配对 Block Bootstrap：以 file 为重采样单元，比较两组指标差。
 
-    要求两组样本数量相等且顺序对应（同一测试集）。若为多种子结果，
-    则按 (file, run_seed) 配对；若不匹配则报错。
+    每个 file 跨所有 seed 的样本作为一个块整体重采样（块内所有 seed 样本一起
+    抽出），避免 (file, seed) 被当作独立观测而高估有效样本量。
+    要求两组 file 集合一致且顺序对应（同一测试集）。
 
     返回各指标的差值分布统计：
       {
@@ -99,23 +113,22 @@ def bootstrap_paired(
     n = len(baseline_samples)
     if n != len(finetuned_samples):
         raise ValueError(
-            f"样本数不匹配：baseline={n}, finetuned={len(finetuned_samples)}。"
+            f"file 块数不匹配：baseline={n}, finetuned={len(finetuned_samples)}。"
             "请确保两个评估文件使用同一测试集且种子一致。"
         )
 
-    # 配对索引（按 file + run_seed 匹配，确保对应同一观测）
-    base_key = [(s["file"], s.get("run_seed", 0)) for s in baseline_samples]
-    fine_key = [(s["file"], s.get("run_seed", 0)) for s in finetuned_samples]
-    if base_key != fine_key:
-        # 尝试按 file 配对（单种子场景 run_seed 不同无所谓）
-        base_files = [s["file"] for s in baseline_samples]
-        fine_files = [s["file"] for s in finetuned_samples]
-        if base_files == fine_files:
-            # 配对正确，继续
-            pass
+    # 按 file 配对（块以 file 为单位）
+    base_files = [blk[0].get("file") for blk in baseline_samples if blk]
+    fine_files = [blk[0].get("file") for blk in finetuned_samples if blk]
+    if base_files != fine_files:
+        if sorted(base_files) == sorted(fine_files):
+            # file 集合一致但顺序不同，按 file 排序后配对
+            print("⚠️ 警告：baseline 和 finetuned 的 file 顺序不一致，按 file 排序后配对")
+            baseline_samples = sorted(baseline_samples, key=lambda b: b[0].get("file", ""))
+            finetuned_samples = sorted(finetuned_samples, key=lambda b: b[0].get("file", ""))
         else:
             raise ValueError(
-                "样本顺序/集合不匹配，无法配对。请确保两组评估跑的是同一测试集。\n"
+                "file 集合不匹配，无法按 file 配对。请确保两组评估跑的是同一测试集。\n"
                 f"baseline 前 5: {base_files[:5]}\n"
                 f"finetuned 前 5: {fine_files[:5]}"
             )
@@ -124,13 +137,16 @@ def bootstrap_paired(
     metrics_list = ["recall", "accuracy", "fpr"]
     diff_dist = {m: [] for m in metrics_list}
 
-    base_m = compute_metrics(baseline_samples)
-    fine_m = compute_metrics(finetuned_samples)
+    base_flat = [s for blk in baseline_samples for s in blk]
+    fine_flat = [s for blk in finetuned_samples for s in blk]
+    base_m = compute_metrics(base_flat)
+    fine_m = compute_metrics(fine_flat)
 
     for _ in range(n_bootstrap):
+        # 以 file 为单位有放回重采样，块内所有 seed 样本一起抽出
         idx = [rng.randrange(n) for _ in range(n)]
-        b_sub = [baseline_samples[i] for i in idx]
-        f_sub = [finetuned_samples[i] for i in idx]
+        b_sub = [s for i in idx for s in baseline_samples[i]]
+        f_sub = [s for i in idx for s in finetuned_samples[i]]
         b_metrics = compute_metrics(b_sub)
         f_metrics = compute_metrics(f_sub)
         for m in metrics_list:
@@ -216,10 +232,10 @@ def main():
 
     print(f"加载基线样本: {baseline_path}")
     baseline_samples = load_samples(baseline_path)
-    print(f"  样本数: {len(baseline_samples)}")
+    print(f"  样本数: {sum(len(b) for b in baseline_samples)}（{len(baseline_samples)} files）")
     print(f"加载微调样本: {finetuned_path}")
     finetuned_samples = load_samples(finetuned_path)
-    print(f"  样本数: {len(finetuned_samples)}")
+    print(f"  样本数: {sum(len(b) for b in finetuned_samples)}（{len(finetuned_samples)} files）")
 
     print(f"\n开始 Bootstrap 检验（n={args.n_bootstrap}, seed={args.seed}）...")
     summary = bootstrap_paired(
@@ -271,10 +287,10 @@ def main():
                 "finetuned_file": str(finetuned_path),
                 "n_bootstrap": args.n_bootstrap,
                 "seed": args.seed,
-                "baseline_n_samples": len(baseline_samples),
-                "finetuned_n_samples": len(finetuned_samples),
-                "baseline_metrics": compute_metrics(baseline_samples),
-                "finetuned_metrics": compute_metrics(finetuned_samples),
+                "baseline_n_samples": sum(len(b) for b in baseline_samples),
+                "finetuned_n_samples": sum(len(b) for b in finetuned_samples),
+                "baseline_metrics": compute_metrics([s for b in baseline_samples for s in b]),
+                "finetuned_metrics": compute_metrics([s for b in finetuned_samples for s in b]),
                 "bootstrap_summary": summary,
             }, f, indent=2, ensure_ascii=False)
         print(f"\n结果已保存: {out_path}")

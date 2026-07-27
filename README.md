@@ -1,10 +1,60 @@
 # 基于大语言模型的代码安全分析系统
 
-> 本地部署的开源大语言模型驱动的代码漏洞检测系统，对比传统基于规则的静态分析工具，验证 LLM 在代码安全审计中的语义理解优势。exp_01~05 以 `qwen2.5-coder:7b` 为推理基座做多模型对比与 prompt 消融；exp_06 起切换至训练主线，以 Qwen2.5-Coder-7B-Base + KnItLM CPT（LoRA r=64）为 student、Qwen3-Coder:30b 为 Phase 4 Prompt Distillation teacher。
+> 本地部署的开源大语言模型驱动的代码漏洞检测系统，对比传统基于规则的静态分析工具，验证 LLM 在代码安全审计中的语义理解优势。
+
+[![最佳模型](https://img.shields.io/badge/最佳模型-SFT%20v5-blue)](experiments/exp_06_finetune/results/EXPERIMENT_LEDGER.md)
+[![基座](https://img.shields.io/badge/基座-Qwen3--8B--Instruct-green)](docs/方法.md)
+[![状态](https://img.shields.io/badge/状态-P3%20DPO%20本地不可行，方向待决策-orange)](规划.md)
+[![License](https://img.shields.io/badge/License-MIT-lightgrey)]()
+
+## 目录
+
+- [核心结果](#核心结果)
+- [当前状态与待决策](#当前状态与待决策)
+- [项目简介](#项目简介)
+- [实验环境](#实验环境)
+- [项目结构](#项目结构)
+- [当前进度](#当前进度)
+- [研究主线与实验体系](#研究主线与实验体系)
+- [技术架构与全栈](#技术架构与全栈)
+- [复现方式](#复现方式)
+- [参考资源](#参考资源)
+- [评估方法学](#评估方法学)
 
 ***
 
-## 一、项目简介
+## 核心结果
+
+当前最佳模型 **SFT v5**（Qwen3-8B-Instruct + 4bit QLoRA，r=8，rsLoRA）在本地 16GB AMD GPU 上训练完成。
+
+| 测试集 | 样本数 | recall | FPR | accuracy | strict_recall |
+|---|---|---|---|---|---|
+| 合成集（87 段） | 87 | **1.000** | 0.231 | 0.931 | **0.590** |
+| CVE-fix 真实集 | 7 | **0.571** | - | 0.571 | 0.143 |
+
+与 Qwen3-8B 零样本基线对比，SFT v5 将 **strict_recall 从 0.459 提升到 0.590（+13.1pp）**，同时将 **CVE-fix recall 从 0.375 提升到 0.571（+19.6pp）**，且合成集 recall 保持 1.000。
+
+```text
+strict_recall:  baseline 0.459  →  v2 0.623  →  v3 0.541  →  v4*(泄漏)  →  v5 0.590  →  v6 0.557
+CVE-fix recall: baseline 0.375  →  v2 0.625  →  v3 0.500  →  v4*(泄漏)  →  v5 0.571  →  v6 0.429
+```
+> \* v4 因训练-测试泄漏被废弃，不作为可信数据点。完整台账见 [EXPERIMENT_LEDGER.md](experiments/exp_06_finetune/results/EXPERIMENT_LEDGER.md)。
+
+***
+
+## 当前状态与待决策
+
+> **截至 2026-07-27**：exp_01~05 零样本基线已完成；exp_06 完成 P0 parse_fail 修复、P1 CVE-fix 真实集校准、P2 SFT 迭代；**P3 DPO 在本地 16GB GPU 上不可行**（8bit OOM、4bit 梯度失效）。
+
+| 选项 | 描述 | 风险/成本 |
+|---|---|---|
+| A. 云 GPU 跑 DPO | 使用已准备的 `dpo_merged.jsonl`（104 条）在 24GB+ GPU 上训练 | 需云实例或换卡 |
+| B. 单个 FP micro-finetune | 针对 6 个 FP 中的某一个做极小学习率/短 epoch 微调 | 可能再次负迁移 |
+| C. 停止微调，进入系统开发 | 以 v5 为最终模型，开发前后端与报告功能 | FPR 0.231 仍较高 |
+
+***
+
+## 项目简介
 
 利用本地部署的开源大语言模型对源代码进行安全审计，目标是构建一个相比传统静态分析工具（Bandit / Semgrep / CodeQL）具备以下优势的系统：
 
@@ -18,16 +68,9 @@
 
 **核心卖点**：传统工具是"模式匹配"，本系统是"语义理解"。
 
-**摘要**：
-
-- **已完成**：在本地 7B 开源模型上验证了零样本代码漏洞检测的可行性；RAG 知识库与 Prompt 工程能提升判定质量，但很快遇到能力天花板。
-- **关键突破**：通过 **KnItLM 继续预训练** 将网络安全领域知识注入 7B 模型，严格召回率（recall）提升 23 个百分点、误报率（FPR）下降 7.7 个百分点，证明“知识注入”优于单纯增大 LoRA 容量。
-- **进行中**：以 qwen3-coder:30b 为 teacher、KnItLM 为 student 进行 **Prompt Distillation**，修复 CPT 引入的过度泛化副作用。
-- **待完成**：DPO 边界校准评估、错题增强闭环、前后端工程化。
-
 ***
 
-## 二、实验环境
+## 实验环境
 
 | 项目 | 配置 |
 | --- | --- |
@@ -45,19 +88,23 @@
 | 角色 | 模型 | 阶段 |
 | --- | --- | --- |
 | 推理基座 | `qwen2.5-coder:7b` | exp_01 ~ exp_05 |
-| 训练 student | Qwen2.5-Coder-7B-Base → KnItLM CPT (r=64) → merge 到 Instruct | exp_06 Phase 1-3 |
-| PD teacher | `qwen3-coder:30b`（MoE，Ollama 后端提供 logits） | exp_06 Phase 4 |
+| 训练 student(当前) | `Qwen/Qwen3-8B` + 4bit QLoRA (r=8, rsLoRA) | exp_06 P2 SFT v5 |
+| 训练 student(历史) | Qwen2.5-Coder-7B-Base → KnItLM CPT (r=64) → merge 到 Instruct | exp_06 Phase 1-3(已归档) |
+| PD teacher(已暂缓) | `qwen3-coder:30b`（MoE） | exp_06 Phase 4(已归档) |
 | 对照模型 | `deepseek-coder-v2:16b` / `qwen2.5-coder:14b` / `gemma4:12b` / `gemma4:26b` / `gpt-oss:20b` | exp_04 多模型对比 |
 
-> 完整环境清单（Embedding 模型、向量库版本、传统工具版本等）见 [规划.md](规划.md) §二；训练与推理全链路技术栈见 §六。
+> 完整环境清单（Embedding 模型、向量库版本、传统工具版本等）见 [规划.md](规划.md) "实验环境"小节；训练与推理全链路技术栈见本文"技术架构与全栈"小节。
 >
 > 注：模型权重不入库（见 `.gitignore`）。推理基座需 `ollama pull qwen2.5-coder:7b`；训练基座从 HuggingFace 拉取。以上为台式机实验环境，笔记本仅用于代码编辑与文档审查。
 
 ***
 
-## 三、项目结构
+## 项目结构
 
-> 提示：大模型权重（`*.safetensors`/`*.gguf`）、`__pycache__/`、`*.log`、`outputs/`（除 `best/` 与 README 外的中间 checkpoint）以及 `data/chroma_db/` 均已通过 `.gitignore` 排除，详见各目录下的 README 与下方注释。
+> 提示：大模型权重（`*.safetensors`/`*.gguf`）、`__pycache__/`、`*.log`、`outputs/` 中间 checkpoint 以及 `data/chroma_db/` 均已通过 [`.gitignore`](.gitignore) 排除。核心模块为 `graduation_project/`，实验按 `exp_01~06` 分阶段存放。
+
+<details>
+<summary>点击展开完整项目结构</summary>
 
 ```
 Graduation-Project/
@@ -72,11 +119,21 @@ Graduation-Project/
 │   │   ├── glm的建议_20260628.md          #     GLM 给出的改进路线建议
 │   │   ├── kimi的建议_20260628.md         #     Kimi 给出的智能体分工建议
 │   │   ├── 临时提示词_下一步计划_20260706.md #   exp_01~03 时代八大修复建议（已归档）
-│   │   └── wenti_20260719.md              #   r16_e5 时代问题分析笔记（历史快照）
-│   ├── 方法.md                            #   训练方法体系（风格微调 vs 知识注入、KnItLM、DPO 等）
-│   ├── 改进.md                            #   实验结果分析与改进记录（§0 Phase 1-3 总结 / §1-5 r8_e1 诊断）
-│   ├── 过程.md                            #   实验过程记录（exp_01 ~ Phase 4 时间线）
-│   ├── 必须手动学习的地方.md              #   手工任务详细操作指南（唯一来源）
+│   │   ├── wenti_20260719.md              #     r16_e5 时代问题分析笔记（历史快照）
+│   │   ├── 方法_20260719_qwen25.md        #     Qwen2.5 时代训练方法体系（已归档）
+│   │   ├── cpt_建议_20260719.md           #     CPT 数据策略建议（已归档）
+│   │   ├── 改进_历史分析_20260710.md      #     r8_e1 训练问题分析（已归档）
+│   │   ├── 脚本审查遗留问题_20260722.md   #     全脚本审查遗留项（已归档）
+│   │   ├── 对话_内部备忘.md               #     AI 对话过程记录（内部）
+│   │   └── 必须手动学习的地方_内部备忘.md #     手工操作备忘（内部）
+│   ├── 项目进展摘要.md                    #   面向导师/评审的一页纸进展摘要 ⭐
+│   ├── 方法.md                            #   训练方法体系（QLoRA SFT、rsLoRA、DPO 尝试、评估指标）
+│   ├── 过程.md                            #   实验过程记录（exp_01 ~ exp_06 时间线）
+│   ├── 论文/                              #   毕业论文章节草稿
+│   │   ├── 大纲.md                        #     论文结构与各章节数据映射
+│   │   ├── 第1章_绪论.md                  #     研究背景、问题、贡献
+│   │   └── 第5章_训练主线.md              #     exp_06 P0-P3 核心实验与结果
+├── tools/                                 # 环境工具脚本（ROCm 安装/回滚等）
 │   ├── install_rocm_7.2.4.sh              #   ROCm 7.2.4 安装脚本
 │   └── revert_rocm_to_ubuntu.sh           #   ROCm 回滚到 Ubuntu 仓库版本脚本
 ├── graduation_project/                    # 核心代码库（pip install -e . 后可全局 import）
@@ -87,6 +144,7 @@ Graduation-Project/
 │   ├── chroma_manager.py                  # Chroma 向量数据库管理器（add / upsert / query）
 │   └── code_slicer.py                     # AST 代码切片器（tree-sitter，长文件按函数/块切分）
 ├── experiments/                           # 实验目录（按阶段编号）
+│   ├── exp_01~05_summary.md               #   零样本推理基线五实验核心结论串讲 ⭐
 │   ├── utils.py                           #   实验公共工具（manifest 加载 / 指标统计 / 结果落盘）
 │   ├── exp_01_basic_scan/                 # 阶段一：LLM 漏洞检测能力摸底
 │   │   ├── run_experiment.py              #   批量测试脚本（调 Ollama API + 增量落盘 + 自动卸载显存）
@@ -101,8 +159,9 @@ Graduation-Project/
 │   │   │   ├── insecure_deserialization_01.py / 02.java
 │   │   │   ├── safe_01_parameterized_query.py
 │   │   │   └── safe_02_subprocess_list.py
-│   │   └── results/
-│   │       └── results.json               #   14 次推理的完整原始输出
+│   │       └── results/
+│   │           ├── results.qwen2.5-coder-7b.20260630.json   # 14 次推理的完整原始输出（带时间戳）
+│   │           └── results.qwen2.5-coder-7b.json            # 同上内容副本
 │   ├── exp_02_baseline_tools/             # 阶段二：传统工具对比基线
 │   │   ├── run_baseline.py                #   Bandit + Semgrep 批量调用脚本
 │   │   ├── exp_02_report.md               #   实验报告（含 LLM vs 传统工具横向对比）
@@ -139,65 +198,69 @@ Graduation-Project/
 │   │   ├── run_ablation.py                #   零样本 / Few-shot / 思维链 / 安全模式白名单 对比
 │   │   ├── exp_05_report.md               #   实验报告
 │   │   └── results/                       #   消融实验结果 JSON
-│   └── exp_06_finetune/                   # 阶段六：网络安全专用模型训练与蒸馏
+│   └── exp_06_finetune/                   # 阶段六：网络安全专用模型训练(Qwen3-8B 路线)
 │       ├── data/                          #   训练数据（入库以保证复现性）
-│       │   ├── train_chatml.jsonl         #     build_dataset.py 产出的 222 条手写样本
-│       │   ├── train_chatml_v2.jsonl      #     combine_and_augment.py 合并的 622 条最终训练集
-│       │   ├── cpt_corpus.jsonl           #     Phase 3 KnItLM CPT 语料（CVE/CWE/OWASP）
-│       │   ├── distill_corpus_annotated_v2.jsonl  # 教师模型 CoT 蒸馏 400 条
-│       │   ├── dpo_merged.jsonl           #     DPO 训练集（v1+v3 合并去重 196 条）
-│       │   └── supplement_*.jsonl         #     各类对抗性补充样本（CCoT / 弱点 / 长尾 CWE 等）
+│       │   ├── README.md                  #     数据字典：每个 jsonl 的状态与生成方式
+│       │   ├── train_chatml_v5_clean.jsonl#     当前最佳 SFT 训练集（749 条）
+│       │   ├── train_chatml_v6_hard_neg.jsonl   # v6 hard-negative 失败尝试（已归档）
+│       │   ├── dpo_merged.jsonl           #     DPO 训练集（104 条，本地未使用）
+│       │   ├── dpo_fp_pairs_v5.jsonl      #     基于 v5 FP 构造的 DPO pair（6 条）
+│       │   ├── distill_corpus_annotated_v2.jsonl  # 教师 CoT 蒸馏 400 条（历史资产）
+│       │   ├── _archive_cpt/              #     CPT 路线已归档数据
+│       │   ├── _archive_supplement/       #     Phase 3 supplement 已归档
+│       │   └── supplement_*.jsonl         #     各类对抗性补充样本（历史资产）
 │       ├── configs/                       #   TunableOp 离线调优产物（RDNA4 加速）
 │       │   ├── tunableop_untuned0.csv     #     Step 1：录制所有 GEMM shape
 │       │   └── tunableop_tuned.csv        #     Step 2：调优后的最优 kernel 选择表（训练自动加载）
 │       ├── scripts/                       #   训练 / 评估 / 数据生成脚本
-│       │   ├── train_qlora.py             #     QLoRA SFT 主训练脚本（Phase 1/2 通用）
-│       │   ├── train_knitlm_cpt.py        #     Phase 3 KnItLM CPT 训练脚本
-│       │   ├── train_dpo.py               #     DPO 训练脚本
-│       │   ├── train_prompt_distillation.py #   Phase 4 Prompt 蒸馏训练脚本
+│       │   ├── train_qlora.py             #     QLoRA SFT 主训练脚本
+│       │   ├── train_dpo.py               #     DPO 训练脚本（本地不可行）
 │       │   ├── evaluate.py                #     评估脚本（支持 best/checkpoint-N/final）
-│       │   ├── merge_lora_to_instruct.py  #     把 LoRA adapter 合并到 Instruct 基座
 │       │   ├── build_dataset.py           #     手写样本 → train_chatml.jsonl
-│       │   ├── combine_and_augment.py     #     合并蒸馏 + 手写 + 补充样本 → train_chatml_v2.jsonl
+│       │   ├── combine_and_augment.py     #     合并蒸馏 + 手写 + 补充样本
 │       │   ├── generate_distill_data.py   #     教师模型 CoT 蒸馏数据生成
-│       │   ├── prepare_cpt_corpus.py      #     Phase 3 CPT 语料构建
-│       │   ├── compare_phase1_sweep.py    #     Phase 1 lr × rsLoRA 网格搜索对比
-│       │   ├── compare_phase2.py          #     Phase 2 r=32 + rsLoRA + e=2 对比
-│       │   ├── compare_phase3.py          #     Phase 3 KnItLM 评估对比
-│       │   ├── tunableop_offline_tune.sh  #     TunableOp 离线调优三步流程
-│       │   ├── run_phase1_sweep.sh        #     Phase 1 sweep 驱动脚本
-│       │   ├── run_phase2_sft.sh          #     Phase 2 SFT 驱动脚本
-│       │   ├── run_knitlm_cpt.sh          #     Phase 3 KnItLM 三阶段一键脚本（CPT → Merge → Eval）
-│       │   └── run_phase4_prompt_distillation.sh  # Phase 4 Prompt 蒸馏驱动脚本
+│       │   ├── generate_fp_dpo_pairs.py   #     从评估结果提取 FP DPO pair
+│       │   ├── merge_dpo_data.py          #     合并多版 DPO 数据
+│       │   ├── build_v6_hard_negative.py  #     构建 v6 hard-negative 数据
+│       │   ├── audit_leakage_precise.py   #     训练-测试泄漏审计
+│       │   ├── compare_results.py         #     多评估结果对比
+│       │   ├── prepare_cve_fix_testset.py #     CVE-fix 真实集抓取
+│       │   └── run_eval_suite.py          #     评估流水线驱动
 │       ├── outputs/                       #   训练产物（不入库；仅保留 best/，中间 checkpoint 已清理）
-│       │   ├── knitlm_merged_7b_instruct/ #     Phase 3 合并后的 KnItLM 7B 模型（fp16，~15GB）
-│       │   ├── knitlm_cpt_r64_a128_e1.0_lr2e-05_rslora/best/  # Phase 3 CPT LoRA adapter
-│       │   ├── lora_r32_a64_e2_lr1e-05_s42_rslora_phase2_*/best/  # Phase 2 best LoRA
-│       │   ├── lora_r8_a16_e1_lr{1e-5,5e-5,1e-4}_*_7b/best/  # Phase 1 sweep 各配置 best
-│       │   ├── lora_r16_a32_e3_s42/best/  #     初版 3B LoRA（参考用）
-│       │   └── dpo_r8_a16_e1_beta0.1_s42/best/  # DPO 实验 best adapter
-│       ├── results/                       #   评估结果 JSON + 对比摘要
-│       │   ├── exp_06_eval.phase1_*.json  #     Phase 1 sweep 各配置 87 段评估结果
-│       │   ├── exp_06_eval.phase2_*.json  #     Phase 2 评估结果
-│       │   ├── exp_06_eval.knitlm_merged.*.json  # Phase 3 KnItLM 评估结果
-│       │   ├── hard_samples_*.json        #     分 CWE 类型的硬样本细分结果
-│       │   ├── phase1_sweep_summary.md    #     Phase 1 sweep 汇总表
-│       │   ├── phase2_summary.md          #     Phase 2 汇总表
-│       │   └── compare_4way_*.md          #     4-way 对比报告（3B vs 7B / baseline vs finetuned）
-│       ├── testset_cve_fix/               #   CVE-fix 独立测试集（30 个 Go 项目，需 GITHUB_TOKEN）
-│       │   ├── cve_fix_00{01..30}.go      #     30 段 CVE 修复前后代码片段
-│       │   ├── manifest.json              #     测试集清单
-│       │   └── manifest_eval.json         #     评估用清单
-│       └── logs/                          #   训练日志（不入库；train_log_*.json 含 dev_loss 曲线，compare_*.py 依赖）
+│       │   ├── lora_r8_a16_e3_lr0.0001_s42_rslora_v5/best/  # 当前最佳 SFT adapter
+│       │   ├── lora_r8_a16_e3_lr0.0001_s42_rsloraqwen3_8b_sft_p2_v3/best/  # v3 adapter
+│       │   ├── lora_r8_a16_e3_lr0.0001_s42_rsloraqwen3_8b_sft_p2_v4/best/  # v4（泄漏，历史）
+│       │   ├── _archive_v6_hard_neg_failed/  # v6 失败归档
+│       │   ├── _archive_dpo_failed_4bit_grad_zero/  # DPO 失败归档
+│       │   ├── _archive_qwen25_7b/        #     Qwen2.5 时代所有 adapter
+│       │   └── knitlm_cpt_r64_a128_e1.0_lr2e-05_rslora/best/  # Phase 3 CPT（历史）
+│       ├── results/                       #   评估结果 JSON + 实验台账
+│       │   ├── EXPERIMENT_LEDGER.md       #     实验台账（每次评估必登）
+│       │   ├── baseline/                  #     Qwen3-8B 零样本基线与参考模型
+│       │   ├── v2/                        #     SFT v2 评估结果
+│       │   ├── v3/                        #     SFT v3 评估结果
+│       │   ├── v4_failed/                 #     SFT v4（已废弃，训练-测试泄漏）
+│       │   ├── v5/                        #     SFT v5 当前最佳
+│       │   ├── v6_failed/                 #     SFT v6 hard-negative（已归档）
+│       │   ├── phase1_sweep_summary.md    #     Phase 1 sweep 汇总表（历史）
+│       │   ├── phase2_summary.md          #     Phase 2 汇总表（历史）
+│       │   ├── phase3_summary.md          #     Phase 3 汇总表（历史）
+│       │   └── _archive_qwen25/           #     Qwen2.5 时代所有评估结果
+│       ├── testset_cve_fix/               #   CVE-fix 独立测试集（真实 commit，需 GITHUB_TOKEN）
+│       │   ├── cve_fix_000*.py/js/java    #     修复前代码片段
+│       │   └── manifest.json              #     测试集清单
+│       └── logs/                          #   训练日志（不入库；train_log_*.json 含 dev_loss 曲线）
 └── data/                                  # 本地持久化数据（不入库，见 .gitignore；首次运行 build_knowledge.py 后自动生成）
     └── chroma_db/                         #   Chroma 向量数据库
 ```
 
+</details>
+
 ***
 
-## 四、当前进度
+## 当前进度
 
-> **总体状态**：零样本推理基线（exp_01~05）已全部完成；训练主线（exp_06）中，Phase 1~3 已完成，Phase 3 取得关键突破（KnItLM CPT）。Phase 4（Prompt Distillation，qwen3-coder:30b → KnItLM student）正在台式机训练；Phase 5（DPO）已训练、待评估；Phase 6（错题增强闭环）待启动。详细进度与未完成事项见 [规划.md](规划.md) §三/§四。
+> **总体状态**：零样本推理基线（exp_01~05）已全部完成；训练主线（exp_06）中，2026-07-22 切换至 Qwen3-8B 后完成 P0 parse_fail 修复、P1 CVE-fix 真实集校准、P2 SFT 数据迭代（v2→v6）。当前最佳模型为 **SFT v5**（合成集 recall 1.000 / FPR 0.231 / strict_recall 0.590；CVE-fix recall 0.571 / strict_recall 0.143）。P3 DPO 在本地 16GB GPU 上不可行（8bit OOM、4bit 梯度失效），v6 hard-negative SFT 失败已归档。后续待决策：云 GPU 跑 DPO、单个 FP micro-finetune、或停止微调进入系统开发。详细进度见 [规划.md](规划.md) "已完成事项"/"当前待办"与 [EXPERIMENT_LEDGER.md](experiments/exp_06_finetune/results/EXPERIMENT_LEDGER.md)。
 
 ### ✅ 阶段一：LLM 漏洞检测能力摸底（exp_01，2026-06-28）
 
@@ -206,7 +269,7 @@ Graduation-Project/
 
 ### ✅ 阶段二：传统工具对比基线（exp_02，2026-06-29）
 
-- path_traversal_01.py 由 LLM 唯一检出，体现语义理解对模式匹配的优势；完整耗时与准确率对比见 §五 答辩核心论点 1
+- path_traversal_01.py 由 LLM 唯一检出，体现语义理解对模式匹配的优势；完整耗时与准确率对比见"研究主线与实验体系"小节中的"核心论点与论文定位"
 - 详见 [exp_02_report.md](experiments/exp_02_baseline_tools/exp_02_report.md)
 
 ### ✅ 阶段三：RAG 知识库增强（exp_03，2026-06-29）
@@ -227,19 +290,19 @@ Graduation-Project/
 - 结论：Prompt 工程能提升判定质量，但无法替代模型层面的领域知识注入
 - 详见 [exp_05_report.md](experiments/exp_05_prompt_ablation/exp_05_report.md)
 
-### 🔄 阶段六：网络安全专用模型训练（exp_06 Phase 1~6，进行中）
+### ✅ 阶段六：网络安全专用模型训练（exp_06 P0-P3，Qwen3-8B 路线，2026-07-27）
 
-- **Phase 1 sweep**：lr 调优反恶化 FPR（lr=1e-4+rsLoRA 最低 dev_loss 但 FPR +11.5pp）
-- **Phase 2 r=32 失败**：LoRA 增容致 FPR +19.2pp，CWE 错标数未变——LoRA 增容 ≠ 知识注入
-- **Phase 3 KnItLM 突破**：CPT 路线严格 recall +23pp、FPR -7.7pp、CWE 错标 -16（但发现参数化查询幻觉副作用）
-- **Phase 4 Prompt Distillation 进行中**：qwen3-coder:30b teacher → KnItLM student，α=0.5, T=2.0
-- 详见 [改进.md](docs/改进.md) §0 与 [过程.md](docs/过程.md) 7-17~19 段
+- **P0 parse_fail 修复**：max_tokens 1024→2048，parse_fail 18/87 → 0/87，新锚点 recall 0.967 / FPR 0.269 / strict_recall 0.459。
+- **P1 CVE-fix 真实集校准**：8 样本真实 CVE-fix baseline recall 0.375，确认合成集虚高 59.2pp。
+- **P2 SFT 迭代**：v2/v3/v4/v5/v6 五版迭代；v4 因测试集泄漏被废弃；v6 hard-negative 负迁移被归档；**v5 为当前最佳**（recall 1.000 / FPR 0.231 / strict_recall 0.590；CVE-fix recall 0.571 / strict_recall 0.143）。
+- **P3 DPO 本地不可行**：8bit OOM、4bit 梯度失效；`dpo_merged.jsonl` / `dpo_fp_pairs_v5.jsonl` 保留待云 GPU 复用。
+- 详见 [规划.md](规划.md) §三/§四、[EXPERIMENT_LEDGER.md](experiments/exp_06_finetune/results/EXPERIMENT_LEDGER.md) 与 [docs/论文/第5章_训练主线.md](docs/论文/第5章_训练主线.md)
 
 ***
 
-## 五、研究主线与实验体系
+## 研究主线与实验体系
 
-> 本项目不是简单"用 LLM 跑一遍样本"，而是一条从**零样本推理**到**领域知识注入**再到**推理分布校准**的完整研究链。§四 已给出各阶段结果，本节说明实验之间的逻辑关系、方法演进与论文定位。
+> 本项目不是简单"用 LLM 跑一遍样本"，而是一条从**零样本推理**到**领域知识注入**再到**推理分布校准**的完整研究链。"当前进度"已给出各阶段结果，本节说明实验之间的逻辑关系、方法演进与论文定位。
 
 ### 主线一：零样本与增强推理（exp_01 ~ exp_05）
 
@@ -253,29 +316,40 @@ Graduation-Project/
 | exp_04 | 难样本压力测试与消融 | v3 87 段样本（修复答案泄露后）上纯 LLM accuracy=78.2%；RAG 消融显示知识相关性价值有限，模型基座已掌握典型模式 | 能力边界 |
 | exp_05 | Prompt 工程消融 | CoT 召回 95% 为最优单一策略；零样本 / Few-shot / 安全白名单各有适用场景 | 工程优化 |
 
-### 主线二：网络安全专用模型（exp_06 Phase 1~6）
+### 主线二：网络安全专用模型（exp_06，Qwen3-8B 路线）
 
-当零样本能力触顶后，转入训练主线，目标是**在 7B 规模上通过高效微调注入漏洞推理能力**，并保持本地可部署。
+当零样本能力触顶后，转入训练主线。2026-07-22 将基座从 Qwen2.5-Coder-7B 切换为 Qwen3-8B，目标是**在 8B 规模上通过高效微调提升 CWE 归因能力**，并保持本地可部署。
 
-| Phase | 方法 | 假设 | 结果 | 方法论意义 |
+| 阶段 | 方法 | 核心变更 | 结果 | 方法论意义 |
 | --- | --- | --- | --- | --- |
-| Phase 1 | QLoRA SFT lr × rsLoRA sweep | 提高 lr / rank 能改善注入效果 | lr=1e-4+rsLoRA dev_loss 最低，但 FPR +11.5pp；lr=1e-5 baseline 综合最优 | 7B 高基座上 lr 是过拟合旋钮，不是性能旋钮 |
-| Phase 2 | r=32 + rsLoRA + e=2 | 增大 LoRA 容量可学更多知识 | 严格 recall 仅 +1.6pp，FPR +19.2pp，CWE 错标数不变 | **LoRA 增容 ≠ 知识注入**（论文关键证据） |
-| Phase 3 | **KnItLM CPT** | 在 base 模型上做继续预训练，再 merge 到 Instruct | 严格 recall 41%→64%（+23pp），FPR 11.5%→3.8%（-7.7pp），CWE 错标 32→16 | **真正的知识注入突破** |
-| Phase 4 | **Prompt Distillation** | 用强 teacher（qwen3-coder:30b）蒸馏修复 CPT 副作用 | 🔄 进行中（α=0.5, T=2.0, r=32） | 修复参数化查询幻觉，校准推理分布 |
-| Phase 5 | DPO 边界校准 | 用偏好对降低 FPR | 已训练（25 步完成），待评估 | 对齐人类审计偏好 |
-| Phase 6 | Hard sample mining | 错题增强闭环 | 待启动 | 修复 missing feature 类回归 |
+| P0 | parse_fail 修复 | max_tokens 1024→2048 | parse_fail 18/87 → 0/87；暴露真实 FPR 27% / strict_recall 46% | 评估基础设施必须先修，否则指标被蒙蔽 |
+| P1 | CVE-fix 真实集 | NVD-by-CWE 抓取 8 真实 CVE-fix | 合成集 recall 0.967 vs CVE-fix recall 0.375，虚高 59.2pp | 合成集不能替代真实 CVE 泛化评估 |
+| P2 v2 | QLoRA SFT | 复用 Qwen2.5 时代 823 条数据 | strict_recall 0.459→0.623；CVE-fix recall 0.375→0.625 | 旧数据兼容 Qwen3，但 CWE 归因仍弱 |
+| P2 v3 | SFT + CWE 统一 + CoT 重写 | 36 条 CWE 统一 + 107 条 CoT 重写 + 9 条 LDAP | 合成集 recall 0.984 / FPR 0.192；CVE-fix recall 回退 0.500 | CoT 清单化对真实 CVE 隐蔽模式更钝 |
+| P2 v4 | SFT + 反清单式 prompt | 数据流推理导向 prompt + 7 条 CWE-441 | 指标看似改善，但存在训练-测试泄漏 | **数据可信度比指标绝对值更重要** |
+| **P2 v5** | **SFT + 泄漏清洗** | 删除 100 条泄漏/近泄漏样本 + 10 条弱密码学 | **recall 1.000 / FPR 0.231 / strict_recall 0.590；CVE-fix recall 0.571** | **首个可信评估基线** |
+| P2 v6 | hard-negative SFT | v5 + 6 个 FP 正确拒绝 CoT | FPR↓ 但 recall 和 CVE-fix 泛化受损 | 简单 hard-negative 得不偿失 |
+| P3 | DPO | `dpo_merged.jsonl` 104 条偏好对 | 本地 16GB GPU 不可行（8bit OOM、4bit 梯度失效） | 消费级 GPU 硬件约束 |
 
-> Phase 1-3 详细数据见 [docs/改进.md](docs/改进.md) §0；方法体系见 [docs/方法.md](docs/方法.md)。
+> 详细数据见 [EXPERIMENT_LEDGER.md](experiments/exp_06_finetune/results/EXPERIMENT_LEDGER.md)；方法体系见 [docs/方法.md](docs/方法.md) 与 [docs/论文/第5章_训练主线.md](docs/论文/第5章_训练主线.md)。
 
-### 方法论演进：从"风格微调"到"知识注入"
+**SFT 训练趋势（v2~v6）**
+
+![SFT v2~v6 训练与验证 loss 趋势](experiments/exp_06_finetune/results/figures/sft_v2_v6_loss_trends.png)
+
+![SFT 各版本关键指标趋势](experiments/exp_06_finetune/results/figures/sft_v2_v6_metric_trends.png)
+
+> 左图：v4/v5/v6 首步 loss 依次降低，反映数据与模型对齐度改善；v5 在 epoch2 取得最低 eval_loss。右图：v5 在合成集 recall 达 1.000，v6 因 hard-negative 引入导致 CVE-fix recall 明显回退。数据来源：`experiments/exp_06_finetune/logs/` 与 [EXPERIMENT_LEDGER.md](experiments/exp_06_finetune/results/EXPERIMENT_LEDGER.md)。
+
+### 方法论演进：从"风格微调"到"数据可信度优先"
 
 本项目在训练主线上完成了一次关键认知升级：
 
-1. **风格微调**（r=8 LoRA SFT）：只能调整输出格式，对 7B 强基座而言是轻量校准。
-2. **容量迷信**（r=32 + 高 lr）：增大容量并不能自动带来知识，反而引入过拟合。
-3. **知识注入**（KnItLM CPT）：在 base 模型上注入 CVE/CWE/OWASP 领域语言模式，再 merge 到 Instruct，既保留对话能力又获得漏洞领域先验。
-4. **分布校准**（Prompt Distillation / DPO）：用强 teacher 和偏好对修复 CPT 的过度泛化副作用。
+1. **风格微调**（r=8 LoRA SFT）：只能调整输出格式，对强基座而言是轻量校准；Qwen3-8B 上可提升 strict_recall 但无法显著降 FPR。
+2. **容量迷信**（r=32 + 高 lr）：增大容量并不能自动带来知识，反而引入过拟合（Qwen2.5 时代 Phase 2 已证伪）。
+3. **知识注入尝试**（KnItLM CPT，Qwen2.5 时代）：base 模型 CPT 可注入领域知识，但会引发参数化查询幻觉等副作用；Qwen3-8B 切换后已暂缓。
+4. **数据可信度优先**（Qwen3-8B SFT）：v4 因训练-测试泄漏产生漂亮但不可信的指标；v5 清洗后指标更可信，也更能指导后续决策。
+5. **偏好优化受限**（DPO）：理论上可降 FPR，但本地 16GB GPU 无法承载 8B DPO 双前向，需在更大显存或云实例上验证。
 
 ### 📌 核心论点与论文定位
 
@@ -297,46 +371,45 @@ LLM 单样本推理耗时高于传统工具，但输出包含自然语言解释�
 | 优化方向 | 方案 | 论文定位 |
 | --- | --- | --- |
 | 模型轻量化 | qwen2.5-coder:7b 主审（7B dense，约 4-5GB），多模型作为对照 | 降低门槛论证 |
-| 专用模型 | KnItLM CPT + Prompt Distillation → 网络安全专用 7B 模型 | 核心创新点 |
+| 专用模型 | Qwen3-8B + QLoRA SFT 迭代 → 网络安全专用 8B 模型 | 核心创新点 |
 | 批处理 | vLLM 一次分析多文件 | 摊薄加载时间 |
 | 混合架构 | 传统工具先筛，LLM 只审可疑文件 | 工程化优化 |
-| 训练效率 | QLoRA + rsLoRA + AOTRITON + TunableOp，16 GB 可训 7B | 可行性论证 |
+| 训练效率 | QLoRA + rsLoRA + AOTRITON，16 GB 可训 8B | 可行性论证 |
 
 #### 3. 答辩核心故事线
 
-> 传统静态分析工具在 CI/CD 流水线中表现优秀，但面对复杂业务逻辑、绕过式过滤、跨函数污点等场景时力不从心。本系统利用本地部署的开源大语言模型，通过 RAG 知识库增强、AST 代码切片与语义级代码理解建立基线；进一步通过 KnItLM 继续预训练将网络安全领域知识注入 7B 模型，再用 Prompt Distillation 校准推理分布。实验表明，在典型漏洞上 LLM 不弱于传统工具，在难样本上通过专用模型训练可显著缩小与更大模型的差距，并生成可执行的修复代码与自然语言解释，将人工审计时间从 30 分钟缩短到 5 分钟，证明了 LLM 在代码安全审计中的差异化价值。
+> 传统静态分析工具在 CI/CD 流水线中表现优秀，但面对复杂业务逻辑、绕过式过滤、跨函数污点等场景时力不从心。本系统利用本地部署的开源大语言模型，通过 RAG 知识库增强、AST 代码切片与语义级代码理解建立基线；进一步于 2026-07-22 切换至 Qwen3-8B，通过 QLoRA 监督微调迭代优化 CWE 归因能力（strict_recall 0.459→0.590），并尝试用 DPO 降低误报率。受本地 16GB GPU 硬件约束，DPO 不可行，最终确定 SFT v5 为最佳模型。实验表明，在典型漏洞上 LLM 不弱于传统工具，在难样本上通过专用模型训练可提升真实 CVE 泛化能力（recall 0.375→0.571），并生成可执行的修复代码与自然语言解释，证明了 LLM 在代码安全审计中的差异化价值，也揭示了消费级 GPU 上偏好优化的硬件边界。
 
 ***
 
-## 六、技术架构与全栈
+## 技术架构与全栈
 
-> 本节描述从数据到模型、从训练到推理、从评估到工程化的完整技术链路。硬件与模型清单见 §二，详细方法论文档见 [docs/方法.md](docs/方法.md)。
+> 本节描述从数据到模型、从训练到推理、从评估到工程化的完整技术链路。硬件与模型清单见"实验环境"，详细方法论文档见 [docs/方法.md](docs/方法.md)。
 
 ### 6.1 全链路数据流
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │  数据层                                                              │
-│  CVE/CWE/OWASP 语料  +  手写/蒸馏/增强 823 条 CoT 样本  +  87 段测试样本   │
+│  CVE/CWE/OWASP 知识  +  手写/蒸馏/增强 CoT 样本  +  87 段合成测试集        │
+│  + 真实 CVE-fix held-out 测试集 + DPO 偏好对（待云 GPU 复用）              │
 └─────────────────────────────────────────────────────────────────────┘
                                   ↓
 ┌─────────────────────────────────────────────────────────────────────┐
-│  训练层（exp_06）                                                     │
-│  Qwen2.5-Coder-7B-Base ──KnItLM CPT──► merge ──► Qwen2.5-Coder-7B-Instruct │
+│  训练层（exp_06，Qwen3-8B 路线）                                       │
+│  Qwen3-8B-Instruct ──► 4bit QLoRA SFT(v5 数据) ──► best adapter        │
 │                                           │                         │
-│                              Prompt Distillation (qwen3-coder:30b)   │
-│                                           │                         │
-│                              DPO 边界校准（偏好对）                       │
+│                              DPO（本地 16GB 不可行，数据保留）            │
 └─────────────────────────────────────────────────────────────────────┘
                                   ↓
 ┌─────────────────────────────────────────────────────────────────────┐
-│  推理层（exp_01~05）                                                   │
+│  推理层（exp_01~05 + exp_06 评估）                                      │
 │  源代码 ──► AST 切片 ──► RAG 检索 CWE 知识 ──► LLM 推理 ──► 结构化 verdict │
 └─────────────────────────────────────────────────────────────────────┘
                                   ↓
 ┌─────────────────────────────────────────────────────────────────────┐
 │  评估层                                                              │
-│  严格指标（CWE 对齐） / 多数表决 / Wilson 置信区间 / 错题闭环               │
+│  严格指标（CWE 对齐） / 合成集 + CVE-fix 真实集 / 错题闭环                │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -344,13 +417,12 @@ LLM 单样本推理耗时高于传统工具，但输出包含自然语言解释�
 
 | 层级 | 技术 | 作用 | 项目落地 |
 | --- | --- | --- | --- |
-| 量化 | bitsandbytes 4-bit NF4 + double quant | 7B 模型在 16 GB 显存可训 | `train_qlora.py` / `train_knitlm_cpt.py` |
-| LoRA 优化 | **rsLoRA**（缩放因子 1/√r）、**DoRA**（magnitude+direction 分解） | 高 rank 训练稳定、效果优于标准 LoRA | Phase 1 sweep 已验证 rsLoRA 有效 |
-| 知识注入 | **KnItLM**：base 模型 CPT + LoRA → merge 到 Instruct | 注入漏洞领域知识，不破坏指令遵循 | Phase 3 核心突破 |
-| 蒸馏 | **Prompt Distillation**：KL(teacher ‖ student)，ollama/transformers 双后端 | 用 qwen3-coder:30b teacher 校准 student 推理分布 | Phase 4 进行中 |
-| 对齐 | **DPO**（Direct Preference Optimization） | 用偏好对降低 FPR、校准判断边界 | Phase 5 待评估 |
-| 加速 | **AOTRITON** attention、TunableOp 离线调优 | ROCm/RDNA4 上训练 step time -58% | `run_phase1_sweep.sh` / `tunableop_offline_tune.sh` |
-| 数据工程 | CoT 蒸馏、CCoT 对比样本、数据增强、错题闭环 | 把标签→反推改为推理→标签 | `generate_distill_data.py` / `supplement_*.py` |
+| 量化 | bitsandbytes 4-bit NF4 + double quant | 8B 模型在 16 GB 显存可训 SFT | `train_qlora.py` |
+| LoRA 优化 | **rsLoRA**（缩放因子 1/√r） | 高 rank 训练稳定、效果优于标准 LoRA | v5 SFT 使用 r=8, alpha=16 |
+| 监督微调 | **QLoRA SFT**：Qwen3-8B + LoRA(r=8, rsLoRA) | 提升 CWE 归因与真实 CVE 泛化 | `train_qlora.py` + `train_chatml_v5_clean.jsonl` |
+| 对齐(尝试) | **DPO**（Direct Preference Optimization） | 用偏好对降低 FPR、校准判断边界 | `train_dpo.py` + `dpo_merged.jsonl`（本地不可行） |
+| 加速 | **AOTRITON** attention、TunableOp 离线调优 | ROCm/RDNA4 上训练加速 | `TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1` |
+| 数据工程 | CoT 蒸馏、数据增强、泄漏审计、错题闭环 | 保证训练数据质量与可信度 | `build_dataset.py` / `audit_leakage_precise.py` / `generate_fp_dpo_pairs.py` |
 
 ### 6.3 推理层：语义理解增强
 
@@ -405,14 +477,14 @@ LLM 单样本推理耗时高于传统工具，但输出包含自然语言解释�
                       ↓
 ┌─────────────────────────────────────────────┐
 │  训练与评估流水线（exp_06）                    │
-│  KnItLM CPT → Prompt Distillation → DPO     │
-│  evaluate.py / compare_phase*.py            │
+│  Qwen3-8B QLoRA SFT → DPO(云 GPU 待验证)     │
+│  evaluate.py / compare_results.py           │
 └─────────────────────────────────────────────┘
 ```
 
 ***
 
-## 七、复现方式
+## 复现方式
 
 ### 环境准备（所有实验的前置步骤，只需执行一次）
 
@@ -455,7 +527,7 @@ python3 run_experiment.py --model deepseek-coder-v2:16b --temperature 0.1   # �
 python3 run_experiment.py --keep-loaded         # 跑完保留模型在显存（默认卸载）
 ```
 
-结果写入 `results/results.json`，每跑完一个样本即增量落盘，中途可断点查看。
+结果默认写入 `results/exp_01_basic_scan.<model>.<timestamp>.json`，每跑完一个样本即增量落盘，中途可断点查看。历史主结果见 `results/results.qwen2.5-coder-7b.20260630.json`。
 
 ### 跑第二阶段实验（exp\_02，传统工具对比基线）
 
@@ -519,7 +591,7 @@ python3 generate_report.py
 
 ***
 
-## 八、参考资源
+## 参考资源
 
 ### 工具与平台
 
@@ -549,19 +621,18 @@ python3 generate_report.py
 
 | 方法 | 核心思想 | 本项目用途 | 来源 |
 | --- | --- | --- | --- |
-| **rsLoRA** | LoRA 缩放因子从 `1/r` 改为 `1/√r`，高 rank 更稳定 | Phase 1 sweep 验证有效 | Hayou et al. 2024 |
-| **DoRA** | 权重分解为 magnitude + direction | Phase 1 兼容性验证 | Liu et al., ICLR 2024 |
-| **KnItLM** | base 模型 CPT + LoRA → merge 到 Instruct，注入领域知识不破坏对话能力 | Phase 3 核心突破 | ICLR 2026 投稿 |
-| **Prompt Distillation** | 用 teacher 的 token 分布（logits）蒸馏 student | Phase 4 修复 CPT 副作用 | TMLR 2025 |
-| **DPO** | 直接偏好优化，用偏好对校准模型 | Phase 5 边界校准 | Rafailov et al. 2023 |
-| **GaLore** | 梯度低秩投影，全参数微调显存接近 LoRA | Phase 7 兜底备选 | Zhao et al., arXiv:2403.07404 |
+| **rsLoRA** | LoRA 缩放因子从 `1/r` 改为 `1/√r`，高 rank 更稳定 | v5 SFT 使用 r=8, alpha=16 | Hayou et al. 2024 |
+| **QLoRA** | 4bit 量化 + LoRA，大模型在消费级 GPU 可训 | Qwen3-8B SFT 训练 | Dettmers et al. 2023 |
+| **DPO** | 直接偏好优化，用偏好对校准模型 | 尝试降低 FPR（本地 16GB 不可行，数据保留） | Rafailov et al. 2023 |
 | **AOTRITON / TunableOp** | ROCm 上的 Triton Flash Attention 与 GEMM 离线调优 | RDNA4 训练加速 | AMD / PyTorch 官方博客 |
+| **KnItLM** (历史) | base 模型 CPT + LoRA → merge 到 Instruct | Qwen2.5 时代 Phase 3 核心突破，已归档 | ICLR 2026 投稿 |
+| **Prompt Distillation** (历史) | 用 teacher 的 token 分布蒸馏 student | Qwen2.5 时代 Phase 4，已归档 | TMLR 2025 |
 
 > 更系统的文献梳理与适用性分析见 [docs/方法.md](docs/方法.md) §8 与 §10。
 
 ***
 
-## 九、评估方法学
+## 评估方法学
 
 为保证实验结果在论文/答辩中可被复现与质疑，本项目的指标定义、置信区间、口径选择都遵循以下规则。
 
@@ -629,7 +700,7 @@ CI = [center - margin, center + margin]
 
 ***
 
-## 十、约定与备注
+## 约定与备注
 
 - 本阶段聚焦核心算法验证与专用模型训练，前后端工程化框架待实验完成后再明确需求并启动。
 - 所有实验过程、Prompt 迭代与训练日志均已保留，作为后续论文撰写的原始依据。

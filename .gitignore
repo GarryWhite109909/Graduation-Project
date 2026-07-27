@@ -23,6 +23,9 @@ ENV/
 *~
 .DS_Store
 
+# AI IDE 内部记录
+.trae/
+
 # ===== Jupyter =====
 .ipynb_checkpoints/
 
@@ -36,11 +39,18 @@ ENV/
 # Ollama 本地模型缓存
 ~/.ollama/
 
-# ===== RAG 向量数据库（本地持久化，体积大且无需入库） =====
+# RAG 向量数据库（本地持久化，体积大且无需入库） =====
 # 注意：训练数据（experiments/exp_06_finetune/data/*.jsonl）需要入库以保证复现性，
 #       所以只排除 RAG 向量库目录，不排除 exp_06 的训练数据
 experiments/exp_03_rag_knowledge/knowledge_data/chroma_db/
 experiments/exp_03_rag_knowledge/data/
+data/chroma_db/
+*.sqlite3
+*.db
+
+# 暂缓/历史大体积缓存数据（Prompt Distillation 教师 logits、旧版损坏测试集）
+experiments/exp_06_finetune/data/_archive_pd_logits/
+experiments/exp_06_finetune/testset_cve_fix.broken_*/
 
 # ===== 实验产物：保留 results.json 与 best/ 元数据，但排除临时调试文件 =====
 experiments/**/debug_*.json
@@ -50,6 +60,13 @@ experiments/**/_draft*
 experiments/**/results.*-with-*.json
 # 训练中间 checkpoint（断点续训用，体积大；保留 best/ 即可复现评估）
 experiments/**/outputs/**/checkpoint-*/
+# 历史失败/暂缓训练产物归档（体积大，仅本地保留）
+experiments/**/outputs/_archive_*/
+# 每个 checkpoint 自动生成的 README（best/ 的已保留）
+experiments/**/outputs/**/README.md
+!experiments/**/outputs/**/best/README.md
+# tokenizer 是 base 模型权重的组成部分，体积大且可从 HuggingFace 重新获取
+experiments/**/outputs/**/tokenizer.json
 # HF datasets / transformers 运行时缓存
 **/.cache/
 # TunableOp 离线调优中间产物（保留 tuned.csv 与 untuned0.csv）

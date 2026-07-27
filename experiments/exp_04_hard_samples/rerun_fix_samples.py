@@ -249,6 +249,9 @@ def main() -> int:
                         s["agreement_rate"] = round(
                             max(true_count, len(valid) - true_count) / len(valid), 4
                         )
+                    else:
+                        s["majority_verdict"] = None
+                        s["agreement_rate"] = None
                     break
 
             # 增量落盘

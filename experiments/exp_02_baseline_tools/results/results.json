@@ -34,21 +34,21 @@
               "severity": "ERROR",
               "message": "Detected user input used to manually construct a SQL string. This is usually bad practice because manual construction could accidentally result in a SQL injection. An attacker could use a SQL injection to steal or modify contents of the database. Instead, use a parameterized query which is available by default in most database engines. Alternatively, consider using the Django object-relational mappers (ORM) instead of raw SQL queries.",
               "line": 14,
-              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/sql_injection_01.py"
+              "path": "../experiments/exp_01_basic_scan/samples/sql_injection_01.py"
             },
             {
               "rule_id": "python.flask.security.injection.tainted-sql-string.tainted-sql-string",
               "severity": "ERROR",
               "message": "Detected user input used to manually construct a SQL string. This is usually bad practice because manual construction could accidentally result in a SQL injection. An attacker could use a SQL injection to steal or modify contents of the database. Instead, use a parameterized query which is available by default in most database engines. Alternatively, consider using an object-relational mapper (ORM) such as SQLAlchemy which will protect your queries.",
               "line": 14,
-              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/sql_injection_01.py"
+              "path": "../experiments/exp_01_basic_scan/samples/sql_injection_01.py"
             },
             {
               "rule_id": "python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query",
               "severity": "ERROR",
               "message": "Avoiding SQL string concatenation: untrusted input concatenated with raw SQL query can result in SQL Injection. In order to execute raw query safely, prepared statement should be used. SQLAlchemy provides TextualSQL to easily used prepared statement with named parameters. For complex SQL composition, use SQL Expression Language or Schema Definition Language. In most cases, SQLAlchemy ORM will be a better option.",
               "line": 15,
-              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/sql_injection_01.py"
+              "path": "../experiments/exp_01_basic_scan/samples/sql_injection_01.py"
             }
           ],
           "findings_count": 3,
@@ -90,35 +90,35 @@
               "severity": "WARNING",
               "message": "User-controlled data from a request is passed to 'execute()'. This could lead to a SQL injection and therefore protected information could be leaked. Instead, use django's QuerySets, which are built with query parameterization and therefore not vulnerable to sql injection. For example, you could use `Entry.objects.filter(date=2006)`.",
               "line": 6,
-              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/sql_injection_02.py"
+              "path": "../experiments/exp_01_basic_scan/samples/sql_injection_02.py"
             },
             {
               "rule_id": "python.lang.security.audit.formatted-sql-query.formatted-sql-query",
               "severity": "WARNING",
               "message": "Detected possible formatted SQL query. Use parameterized queries instead.",
               "line": 8,
-              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/sql_injection_02.py"
+              "path": "../experiments/exp_01_basic_scan/samples/sql_injection_02.py"
             },
             {
               "rule_id": "python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query",
               "severity": "ERROR",
               "message": "Avoiding SQL string concatenation: untrusted input concatenated with raw SQL query can result in SQL Injection. In order to execute raw query safely, prepared statement should be used. SQLAlchemy provides TextualSQL to easily used prepared statement with named parameters. For complex SQL composition, use SQL Expression Language or Schema Definition Language. In most cases, SQLAlchemy ORM will be a better option.",
               "line": 8,
-              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/sql_injection_02.py"
+              "path": "../experiments/exp_01_basic_scan/samples/sql_injection_02.py"
             },
             {
               "rule_id": "python.django.security.injection.tainted-sql-string.tainted-sql-string",
               "severity": "ERROR",
               "message": "Detected user input used to manually construct a SQL string. This is usually bad practice because manual construction could accidentally result in a SQL injection. An attacker could use a SQL injection to steal or modify contents of the database. Instead, use a parameterized query which is available by default in most database engines. Alternatively, consider using the Django object-relational mappers (ORM) instead of raw SQL queries.",
               "line": 8,
-              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/sql_injection_02.py"
+              "path": "../experiments/exp_01_basic_scan/samples/sql_injection_02.py"
             },
             {
               "rule_id": "python.django.security.audit.xss.direct-use-of-httpresponse.direct-use-of-httpresponse",
               "severity": "WARNING",
               "message": "Detected data rendered directly to the end user via 'HttpResponse' or a similar object. This bypasses Django's built-in cross-site scripting (XSS) defenses and could result in an XSS vulnerability. Use Django's template engine to safely render HTML.",
               "line": 10,
-              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/sql_injection_02.py"
+              "path": "../experiments/exp_01_basic_scan/samples/sql_injection_02.py"
             }
           ],
           "findings_count": 5,
@@ -176,14 +176,14 @@
               "severity": "INFO",
               "message": "A CSRF middleware was not detected in your express application. Ensure you are either using one such as `csurf` or `csrf` (see rule references) and/or you are properly doing CSRF validation in your routes with a token or cookies.",
               "line": 2,
-              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/xss_02.js"
+              "path": "../experiments/exp_01_basic_scan/samples/xss_02.js"
             },
             {
               "rule_id": "javascript.express.security.injection.raw-html-format.raw-html-format",
               "severity": "WARNING",
               "message": "User data flows into the host portion of this manually-constructed HTML. This can introduce a Cross-Site-Scripting (XSS) vulnerability if this comes from user-provided input. Consider using a sanitization library such as DOMPurify to sanitize the HTML within.",
               "line": 6,
-              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/xss_02.js"
+              "path": "../experiments/exp_01_basic_scan/samples/xss_02.js"
             }
           ],
           "findings_count": 2,
@@ -233,21 +233,21 @@
               "severity": "ERROR",
               "message": "Detected user input entering a `subprocess` call unsafely. This could result in a command injection vulnerability. An attacker could use this vulnerability to execute arbitrary commands on the host, which allows them to download malware, scan sensitive data, or run any command they wish on the server. Do not let users choose the command to run. In general, prefer to use Python API versions of system commands. If you must use subprocess, use a dictionary to allowlist a set of commands.",
               "line": 10,
-              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/command_injection_01.py"
+              "path": "../experiments/exp_01_basic_scan/samples/command_injection_01.py"
             },
             {
               "rule_id": "python.lang.security.dangerous-subprocess-use.dangerous-subprocess-use",
               "severity": "ERROR",
               "message": "Detected subprocess function 'Popen' with user controlled data. A malicious actor could leverage this to perform command injection. You may consider using 'shlex.escape()'.",
               "line": 11,
-              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/command_injection_01.py"
+              "path": "../experiments/exp_01_basic_scan/samples/command_injection_01.py"
             },
             {
               "rule_id": "python.lang.security.audit.subprocess-shell-true.subprocess-shell-true",
               "severity": "ERROR",
               "message": "Found 'subprocess' function 'Popen' with 'shell=True'. This is dangerous because this call will spawn the command using a shell process. Doing so propagates current shell settings and variables, which makes it much easier for a malicious actor to execute commands. Use 'shell=False' instead.",
               "line": 12,
-              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/command_injection_01.py"
+              "path": "../experiments/exp_01_basic_scan/samples/command_injection_01.py"
             }
           ],
           "findings_count": 3,
@@ -280,14 +280,14 @@
               "severity": "INFO",
               "message": "A CSRF middleware was not detected in your express application. Ensure you are either using one such as `csurf` or `csrf` (see rule references) and/or you are properly doing CSRF validation in your routes with a token or cookies.",
               "line": 3,
-              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/command_injection_02.js"
+              "path": "../experiments/exp_01_basic_scan/samples/command_injection_02.js"
             },
             {
               "rule_id": "javascript.lang.security.detect-child-process.detect-child-process",
               "severity": "ERROR",
               "message": "Detected calls to child_process from a function argument `req`. This could lead to a command injection if the input is user controllable. Try to avoid calls to child_process, and if it is needed ensure user input is correctly sanitized or sandboxed. ",
               "line": 7,
-              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/command_injection_02.js"
+              "path": "../experiments/exp_01_basic_scan/samples/command_injection_02.js"
             }
           ],
           "findings_count": 2,
@@ -345,21 +345,21 @@
               "severity": "ERROR",
               "message": "Detected a potential path traversal. A malicious actor could control the location of this file, to include going backwards in the directory with '../'. To address this, ensure that user-controlled variables in file paths are sanitized. You may also consider using a utility method such as org.apache.commons.io.FilenameUtils.getName(...) to only retrieve the file name from the path.",
               "line": 15,
-              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/path_traversal_02.java"
+              "path": "../experiments/exp_01_basic_scan/samples/path_traversal_02.java"
             },
             {
               "rule_id": "java.lang.security.httpservlet-path-traversal.httpservlet-path-traversal",
               "severity": "ERROR",
               "message": "Detected a potential path traversal. A malicious actor could control the location of this file, to include going backwards in the directory with '../'. To address this, ensure that user-controlled variables in file paths are sanitized. You may also consider using a utility method such as org.apache.commons.io.FilenameUtils.getName(...) to only retrieve the file name from the path.",
               "line": 20,
-              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/path_traversal_02.java"
+              "path": "../experiments/exp_01_basic_scan/samples/path_traversal_02.java"
             },
             {
               "rule_id": "java.lang.security.audit.xss.no-direct-response-writer.no-direct-response-writer",
               "severity": "WARNING",
               "message": "Detected a request with potential user-input going into a OutputStream or Writer object. This bypasses any view or template environments, including HTML escaping, which may expose this application to cross-site scripting (XSS) vulnerabilities. Consider using a view technology such as JavaServer Faces (JSFs) which automatically escapes HTML views.",
               "line": 22,
-              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/path_traversal_02.java"
+              "path": "../experiments/exp_01_basic_scan/samples/path_traversal_02.java"
             }
           ],
           "findings_count": 3,
@@ -401,7 +401,7 @@
               "severity": "WARNING",
               "message": "A hard-coded credential was detected. It is not recommended to store credentials in source-code, as this risks secrets being leaked and used by either an internal or external malicious adversary. It is recommended to use environment variables to securely provide credentials or retrieve credentials from a secure vault or HSM (Hardware Security Module).",
               "line": 9,
-              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/hardcoded_secret_01.py"
+              "path": "../experiments/exp_01_basic_scan/samples/hardcoded_secret_01.py"
             }
           ],
           "findings_count": 1,
@@ -476,14 +476,14 @@
               "severity": "ERROR",
               "message": "Detected the use of an insecure deserialization library in a Flask route. These libraries are prone to code execution vulnerabilities. Ensure user data does not enter this function. To fix this, try to avoid serializing whole objects. Consider instead using a serializer such as JSON.",
               "line": 12,
-              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/insecure_deserialization_01.py"
+              "path": "../experiments/exp_01_basic_scan/samples/insecure_deserialization_01.py"
             },
             {
               "rule_id": "python.lang.security.deserialization.pickle.avoid-pickle",
               "severity": "WARNING",
               "message": "Avoid using `pickle`, which is known to lead to code execution vulnerabilities. When unpickling, the serialized data could be manipulated to run arbitrary code. Instead, consider serializing the relevant data as JSON or a similar text-based serialization format.",
               "line": 12,
-              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/insecure_deserialization_01.py"
+              "path": "../experiments/exp_01_basic_scan/samples/insecure_deserialization_01.py"
             }
           ],
           "findings_count": 2,
@@ -516,14 +516,14 @@
               "severity": "WARNING",
               "message": "Found object deserialization using ObjectInputStream. Deserializing entire Java objects is dangerous because malicious actors can create Java object streams with unintended consequences. Ensure that the objects being deserialized are not user-controlled. If this must be done, consider using HMACs to sign the data stream to make sure it is not tampered with, or consider only transmitting object fields and populating a new object.",
               "line": 15,
-              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/insecure_deserialization_02.java"
+              "path": "../experiments/exp_01_basic_scan/samples/insecure_deserialization_02.java"
             },
             {
               "rule_id": "java.lang.security.audit.xss.no-direct-response-writer.no-direct-response-writer",
               "severity": "WARNING",
               "message": "Detected a request with potential user-input going into a OutputStream or Writer object. This bypasses any view or template environments, including HTML escaping, which may expose this application to cross-site scripting (XSS) vulnerabilities. Consider using a view technology such as JavaServer Faces (JSFs) which automatically escapes HTML views.",
               "line": 17,
-              "path": "/home/zane/文档/code/毕业设计/experiments/exp_01_basic_scan/samples/insecure_deserialization_02.java"
+              "path": "../experiments/exp_01_basic_scan/samples/insecure_deserialization_02.java"
             }
           ],
           "findings_count": 2,

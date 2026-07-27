@@ -16,20 +16,19 @@
   data/augmented_train_chatml.jsonl
   （可选 --append 合并原 train_chatml.jsonl 写到同一文件）
 
-用法：
-  PYTHONPATH=/home/zane/文档/code/毕业设计 \\
-  /home/zane/miniconda3/envs/graproj/bin/python3 augment_data.py \\
+用法（从项目根目录运行）：
+  PYTHONPATH=. python3 experiments/exp_06_finetune/scripts/augment_data.py \\
       --variants 2 --append
 
   # 仅看增强统计，不写文件
-  PYTHONPATH=/home/zane/文档/code/毕业设计 \\
-  /home/zane/miniconda3/envs/graproj/bin/python3 augment_data.py --dry-run
+  PYTHONPATH=. python3 experiments/exp_06_finetune/scripts/augment_data.py --dry-run
 
 注：增强变换是文本级，保留代码语义安全性（漏洞仍漏洞，安全仍安全）。
     不做控制流改写（可能引入 bug），不做字符串内部替换（避免误伤）。
 """
 
 import argparse
+import hashlib
 import json
 import os
 import random
@@ -113,6 +112,8 @@ PROTECTED_NAMES = {
     "self", "cls", "super", "init", "str", "int", "float", "bool", "list",
     "dict", "set", "tuple", "len", "range", "print", "type", "isinstance",
     "hasattr", "getattr", "setattr", "delattr",
+    # Python 内置函数（重命名会生成 NameError 代码）
+    "input", "filter", "map", "open", "id", "format", "iter", "next",
     # Flask
     "Flask", "request", "g", "current_app", "url_for", "flash",
     # Django
@@ -147,11 +148,17 @@ def rename_in_text(text: str, mapping: dict[str, str]) -> str:
 
     用 \b 词边界正则，避免误伤子串（如 host 不应替换 hostname 中的 host）。
     字符串字面量内部也会被替换——这是有意为之：让模型学会不依赖变量名。
+
+    注意：PROTECTED_NAMES 中的名称（Python 内置如 input/filter，框架 API 等）
+    不会替换，避免生成 NameError 代码。
     """
     if not text or not mapping:
         return text
     out = text
     for src, dst in mapping.items():
+        # 跳过受保护名称（如 input/filter 是 Python 内置，重命名会破坏代码语法）
+        if src in PROTECTED_NAMES:
+            continue
         # 用 \b 确保整词匹配；大小写敏感
         pattern = r"\b" + re.escape(src) + r"\b"
         out = re.sub(pattern, dst, out)
@@ -167,8 +174,8 @@ def inject_logging(code: str, rng: random.Random) -> str:
     out = []
     inserted = False
     log_statements = [
-        '    logger.info("processing request")',
-        '    logger.debug("entering handler")',
+        '    logging.info("processing request")',
+        '    logging.debug("entering handler")',
         '    app.logger.info("request received")',
         '    logging.info("handler called")',
     ]
@@ -218,7 +225,10 @@ def augment_sample(sample: dict, variant_idx: int, base_seed: int) -> dict:
 
     返回新的 sample dict（深拷贝，不修改原样本）。
     """
-    seed = base_seed + variant_idx * 1000 + hash(sample["filename"]) % 1000
+    # 使用 md5 而非 hash() —— hash() 受 PYTHONHASHSEED 影响，不可复现
+    seed = base_seed + variant_idx * 1000 + int(
+        hashlib.md5(sample["filename"].encode()).hexdigest(), 16
+    ) % 1000
     rng = random.Random(seed)
     mapping = make_rename_map(seed)
 

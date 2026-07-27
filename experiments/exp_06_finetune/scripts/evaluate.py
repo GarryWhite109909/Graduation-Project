@@ -2,7 +2,7 @@
 微调效果评估脚本 —— 在 exp_04 87 段测试集上对比微调前后模型表现。
 
 支持两种模式：
-  --mode baseline   评估未微调的 Qwen2.5-Coder-3B-Instruct（对照组）
+  --mode baseline   评估模型在代码漏洞检测任务上的表现（当前基座：Qwen3-8B）
   --mode finetuned  评估加载了 LoRA adapter 的微调模型
 
 P0 改造（glm 建议）：
@@ -12,17 +12,17 @@ P0 改造（glm 建议）：
 
 用法（在 AI conda 环境中运行，需 GPU）：
   # 评估基座（对照组，确定性解码）
-  /home/zane/miniconda3/envs/AI/bin/python evaluate.py --mode baseline
+  python3 evaluate.py --mode baseline
 
   # 评估微调后（默认 final adapter，确定性解码）
-  /home/zane/miniconda3/envs/AI/bin/python evaluate.py --mode finetuned
+  python3 evaluate.py --mode finetuned
 
   # 对比 checkpoint-36 vs checkpoint-45 vs final，各跑 3 个种子
-  /home/zane/miniconda3/envs/AI/bin/python evaluate.py --mode finetuned \
+  python3 evaluate.py --mode finetuned \
       --checkpoint checkpoint-36 --seeds 3
-  /home/zane/miniconda3/envs/AI/bin/python evaluate.py --mode finetuned \
+  python3 evaluate.py --mode finetuned \
       --checkpoint checkpoint-45 --seeds 3
-  /home/zane/miniconda3/envs/AI/bin/python evaluate.py --mode finetuned \
+  python3 evaluate.py --mode finetuned \
       --checkpoint final --seeds 3
 """
 
@@ -55,8 +55,9 @@ from experiments.utils import (
 
 # Ollama 后端（延迟导入，仅 --ollama-model 时使用）
 _ollama_client = None
+_ollama_model_name = None  # 记录当前 Ollama 模型名，用于 Qwen3 thinking mode 检测
 
-MODEL_ID = "Qwen/Qwen2.5-Coder-7B-Instruct"  # 与训练脚本一致（默认 7B）
+MODEL_ID = "Qwen/Qwen3-8B"  # 默认 Qwen3-8B（Instruct），与训练脚本一致
 MANIFEST_PATH = PROJECT_ROOT / "experiments/exp_04_hard_samples/samples/manifest.json"
 SAMPLES_DIR = PROJECT_ROOT / "experiments/exp_04_hard_samples/samples"
 OUTPUT_DIR = PROJECT_ROOT / "experiments/exp_06_finetune/results"
@@ -153,15 +154,26 @@ def compute_strict_metrics(results: list[dict]) -> dict:
     valid = loose["valid"]
     tn = loose["tn"]
 
+    # 统计漏洞样本中 parse_fail 的数量（predicted 为 None 的漏洞样本）
+    parse_fail_count = sum(
+        1 for r in results
+        if r.get("expected_present") is True and r.get("predicted") is None
+    )
+
     strict_fn = vuln_total - strict_tp
     strict_recall = strict_tp / vuln_total if vuln_total else None
     strict_accuracy = (strict_tp + tn) / valid if valid else None
+    # 含 parse_fail 的召回率：分母加上 parse_fail 的漏洞样本，避免被人为抬高
+    vuln_total_with_parse_fail = vuln_total + parse_fail_count  # 含 parse_fail 的漏洞样本
+    strict_recall_with_parse_fail = strict_tp / vuln_total_with_parse_fail if vuln_total_with_parse_fail else None
 
     return {
         "strict_tp": strict_tp,
         "strict_fn": strict_fn,
         "cwe_mismatch": cwe_mismatch,
+        "parse_fail_count": parse_fail_count,
         "strict_recall": round(strict_recall, 4) if strict_recall is not None else None,
+        "strict_recall_with_parse_fail": round(strict_recall_with_parse_fail, 4) if strict_recall_with_parse_fail is not None else None,
         "strict_accuracy": round(strict_accuracy, 4) if strict_accuracy is not None else None,
     }
 
@@ -221,7 +233,7 @@ def load_model(mode: str, adapter_path: str | None, quantize_4bit: bool, model_i
 
 def generate_response(
     model, tokenizer, messages,
-    max_new_tokens=1024,
+    max_new_tokens=2048,
     temperature=0.0,
     do_sample=False,
 ) -> str:
@@ -230,12 +242,16 @@ def generate_response(
     P0 改造：默认 temperature=0.0, do_sample=False（确定性贪心解码），
     消除采样随机性，使评估结果可复现。多种子评估通过 --seeds 重复跑实现。
 
-    max_new_tokens=1024：与 exp_04 Ollama 实测对齐（7B 模型在部分样本上需要 500-650
-    token 才能写完分析+JSON，384 会截断 JSON 导致 parse_fail）。
+    max_new_tokens=2048：与 generate_response_ollama 对齐。Qwen3-8B 在长代码上倾向
+    写超长分析（13 项 CWE 逐个检查），1024 tokens 会截断 JSON 导致 parse_fail
+    （hard_longfile_03_hidden_ssti.py 案例：2104 字符分析还没开始 JSON）。
 
     若 do_sample=True，需配合 temperature>0 / top_p，否则回退到贪心。
     """
-    text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+    text = tokenizer.apply_chat_template(
+        messages, tokenize=False, add_generation_prompt=True,
+        enable_thinking=False,  # Qwen3: 禁用 thinking mode，直接输出 JSON
+    )
     inputs = tokenizer(text, return_tensors="pt").to(model.device)
     gen_kwargs = {
         "max_new_tokens": max_new_tokens,
@@ -257,7 +273,7 @@ def generate_response(
 
 def generate_response_ollama(
     messages,
-    max_new_tokens=1024,
+    max_new_tokens=2048,
     temperature=0.0,
     num_ctx=16384,
     num_gpu=None,
@@ -266,8 +282,15 @@ def generate_response_ollama(
 
     用于评估本地 Ollama 模型（如 qwen3-coder:30b），
     无需 HuggingFace transformers 加载，支持 CPU+GPU 混合推理。
+
+    Qwen3 thinking mode 由 OllamaClient 自动处理（chat API + think:false），
+    无需在此追加 /no_think 后缀或剥离思考块。
+
+    max_new_tokens=2048：Qwen3-8B 在长代码（如 hard_longfile_03_hidden_ssti.py
+    181 行）上倾向写超长分析（13 项 CWE 逐个检查），1024 tokens 不足以写完
+    分析+JSON，导致输出被截断无 JSON 块而 parse_fail。2048 可覆盖。
     """
-    global _ollama_client
+    global _ollama_client, _ollama_model_name
     if _ollama_client is None:
         raise RuntimeError("OllamaClient 未初始化")
 
@@ -291,10 +314,11 @@ def generate_response_ollama(
     )
     if result.get("error"):
         raise RuntimeError(f"Ollama error: {result['error']}")
+
     return result.get("text", "")
 
 
-def evaluate(model, tokenizer, samples, manifest_records,
+def evaluate(model, tokenizer, manifest_records,
              temperature=0.0, do_sample=False, run_seed=0, samples_dir=None,
              self_verify=False, ollama_num_gpu=None, ollama_num_ctx=16384,
              rag_cm=None, rag_collection="vulnerability_knowledge", rag_top_k=3):
@@ -310,7 +334,7 @@ def evaluate(model, tokenizer, samples, manifest_records,
     检索 Chroma 知识库，返回 Top-K 条 CWE 规则注入 prompt。
     解决 Phase 1 发现的 33/87 CWE 错标问题。
     """
-    if do_sample and run_seed:
+    if do_sample and run_seed is not None:
         torch.manual_seed(run_seed)
         if torch.cuda.is_available():
             torch.cuda.manual_seed_all(run_seed)
@@ -367,6 +391,7 @@ def evaluate(model, tokenizer, samples, manifest_records,
         elapsed = 0.0  # 初始化，避免异常时 UnboundLocalError
         verify_output = None  # P2-7: self-verify 第二轮输出
         verdict_corrected = False  # P2-7: 标记结论是否被修正
+        verify_parse_fail = False  # P2-7: 校验轮 JSON 解析失败标记
         try:
             if _ollama_client is not None:
                 raw_output = generate_response_ollama(
@@ -419,6 +444,9 @@ def evaluate(model, tokenizer, samples, manifest_records,
                         if corrected_verdict.get("vulnerability_type", "") != model_vulnerability_type:
                             model_vulnerability_type = corrected_verdict.get("vulnerability_type", "")
                             verdict_corrected = True
+                else:
+                    # 校验轮 JSON 解析失败，记录标记（保留原结论）
+                    verify_parse_fail = True
         except Exception as e:
             elapsed = time.time() - t0
             raw_output = f"ERROR: {e}"
@@ -452,6 +480,7 @@ def evaluate(model, tokenizer, samples, manifest_records,
             "run_seed": run_seed,  # 标记本次评估的种子（多种子聚合用）
             "verify_output": verify_output,  # P2-7: self-verify 第二轮输出
             "verdict_corrected": verdict_corrected,  # P2-7: 结论是否被修正
+            "verify_parse_fail": verify_parse_fail,  # P2-7: 校验轮 JSON 解析失败
             "rag_retrieval": rag_retrieval,  # RAG 检索记录（每条知识的 cwe/distance/safe_pattern）
         }
         corrected_tag = " [corrected]" if verdict_corrected else ""
@@ -493,11 +522,27 @@ def aggregate_multiseed(all_runs: list[list[dict]]) -> dict:
         return {"mean": round(statistics.mean(vals), 4),
                 "std": round(statistics.stdev(vals), 4)}
 
+    # 构造 mean_metrics：rate 字段取多种子均值，count 字段取 run1 的值（保持整数口径）
+    base_metrics = per_seed[0]["metrics"] if per_seed else {}
+    mean_metrics = dict(base_metrics)  # 以 run1 为基底
+    if recall_list:
+        mean_metrics["recall"] = round(statistics.mean(recall_list), 4)
+    if acc_list:
+        mean_metrics["accuracy"] = round(statistics.mean(acc_list), 4)
+    if fpr_list:
+        mean_metrics["false_positive_rate"] = round(statistics.mean(fpr_list), 4)
+    # 多种子模式下 count 字段不代表整体，置 None 避免与 rate 均值矛盾
+    for _k in ("tp", "tn", "fp", "fn", "vuln_total", "safe_total", "valid"):
+        if _k in mean_metrics:
+            mean_metrics[_k] = None
+    mean_metrics["multiseed"] = True
+
     return {
         "per_seed": per_seed,
         "mean_recall": stats(recall_list),
         "mean_accuracy": stats(acc_list),
         "mean_fpr": stats(fpr_list),
+        "mean_metrics": mean_metrics,
     }
 
 
@@ -581,13 +626,16 @@ def main():
 
     # 加载模型
     if use_ollama:
-        global _ollama_client
+        global _ollama_client, _ollama_model_name
         from graduation_project.llm_client import OllamaClient
         _ollama_client = OllamaClient(model=args.ollama_model)
+        _ollama_model_name = args.ollama_model  # 记录模型名，供 thinking mode 检测
         if not _ollama_client.check_connection():
             print(f"错误：无法连接 Ollama（localhost:11434），请先运行 ollama serve")
             sys.exit(1)
-        print(f"Ollama 后端: {args.ollama_model} (num_gpu={args.num_gpu}, num_ctx={args.num_ctx})")
+        is_qwen3 = "qwen3" in args.ollama_model.lower()
+        print(f"Ollama 后端: {args.ollama_model} (num_gpu={args.num_gpu}, num_ctx={args.num_ctx})"
+              f"{' [Qwen3: chat API + think:false]' if is_qwen3 else ''}")
         model, tokenizer = None, None
     else:
         model, tokenizer = load_model(args.mode, adapter_path, args.quantize_4bit, args.model_id)
@@ -612,63 +660,64 @@ def main():
             rag_cm = None
 
     print(f"\n开始评估（mode={args.mode}, seeds={seed_list}, do_sample={do_sample}, temp={args.temperature}, self_verify={args.self_verify}, rag={rag_cm is not None}）...")
-    for run_idx, seed in enumerate(seed_list):
-        print(f"\n===== Run {run_idx+1}/{args.seeds} (seed={seed}) =====")
-        run_results = evaluate(
-            model, tokenizer, None, records,
-            temperature=args.temperature, do_sample=do_sample, run_seed=seed,
-            samples_dir=samples_dir,
-            self_verify=args.self_verify,
-            ollama_num_gpu=args.num_gpu,
-            ollama_num_ctx=args.num_ctx,
-            rag_cm=rag_cm,
-            rag_collection=args.rag_collection,
-            rag_top_k=args.rag_top_k,
-        )
-        all_runs.append(run_results)
+    try:
+        for run_idx, seed in enumerate(seed_list):
+            print(f"\n===== Run {run_idx+1}/{args.seeds} (seed={seed}) =====")
+            run_results = evaluate(
+                model, tokenizer, records,
+                temperature=args.temperature, do_sample=do_sample, run_seed=seed,
+                samples_dir=samples_dir,
+                self_verify=args.self_verify,
+                ollama_num_gpu=args.num_gpu,
+                ollama_num_ctx=args.num_ctx,
+                rag_cm=rag_cm,
+                rag_collection=args.rag_collection,
+                rag_top_k=args.rag_top_k,
+            )
+            all_runs.append(run_results)
 
-    # 用第一个 run 的结果作为"代表"保存（单种子时就是唯一结果）
-    representative_results = all_runs[0]
-    metrics = compute_detection_metrics(representative_results)
-    print("\n=== 单次指标（run 1, seed={}）===".format(seed_list[0]))
-    for k, v in metrics.items():
-        print(f"  {k}: {v}")
+        # 用第一个 run 的结果作为"代表"保存（单种子时就是唯一结果）
+        representative_results = all_runs[0]
+        metrics = compute_detection_metrics(representative_results)
+        print("\n=== 单次指标（run 1, seed={}）===".format(seed_list[0]))
+        for k, v in metrics.items():
+            print(f"  {k}: {v}")
 
-    # P0-2: 严格指标（校验 vulnerability_type + CWE）
-    strict_metrics = compute_strict_metrics(representative_results)
-    print("\n=== 严格指标（has_vulnerability + CWE 匹配）===")
-    print(f"  strict_tp: {strict_metrics['strict_tp']}  (loose TP={metrics['tp']})")
-    print(f"  cwe_mismatch: {strict_metrics['cwe_mismatch']}  (判对方向但 CWE 标错)")
-    print(f"  strict_recall: {strict_metrics['strict_recall']}  (loose recall={metrics['recall']})")
-    print(f"  strict_accuracy: {strict_metrics['strict_accuracy']}  (loose accuracy={metrics['accuracy']})")
+        # P0-2: 严格指标（校验 vulnerability_type + CWE）
+        strict_metrics = compute_strict_metrics(representative_results)
+        print("\n=== 严格指标（has_vulnerability + CWE 匹配）===")
+        print(f"  strict_tp: {strict_metrics['strict_tp']}  (loose TP={metrics['tp']})")
+        print(f"  cwe_mismatch: {strict_metrics['cwe_mismatch']}  (判对方向但 CWE 标错)")
+        print(f"  parse_fail_count: {strict_metrics['parse_fail_count']}  (漏洞样本中解析失败数)")
+        print(f"  strict_recall: {strict_metrics['strict_recall']}  (loose recall={metrics['recall']})")
+        print(f"  strict_recall_with_parse_fail: {strict_metrics['strict_recall_with_parse_fail']}  (含 parse_fail 的召回率)")
+        print(f"  strict_accuracy: {strict_metrics['strict_accuracy']}  (loose accuracy={metrics['accuracy']})")
 
-    # 多种子聚合
-    multi_summary = None
-    if args.seeds > 1:
-        multi_summary = aggregate_multiseed(all_runs)
-        print("\n=== 多种子聚合（{} seeds）===".format(args.seeds))
-        for ps in multi_summary["per_seed"]:
-            m = ps["metrics"]
-            print(f"  seed={ps['seed']}: recall={m['recall']}, accuracy={m['accuracy']}, fpr={m['false_positive_rate']}")
-        print(f"  recall   均值±std: {multi_summary['mean_recall']}")
-        print(f"  accuracy 均值±std: {multi_summary['mean_accuracy']}")
-        print(f"  fpr      均值±std: {multi_summary['mean_fpr']}")
+        # 多种子聚合
+        multi_summary = None
+        if args.seeds > 1:
+            multi_summary = aggregate_multiseed(all_runs)
+            print("\n=== 多种子聚合（{} seeds）===".format(args.seeds))
+            for ps in multi_summary["per_seed"]:
+                m = ps["metrics"]
+                print(f"  seed={ps['seed']}: recall={m['recall']}, accuracy={m['accuracy']}, fpr={m['false_positive_rate']}")
+            print(f"  recall   均值±std: {multi_summary['mean_recall']}")
+            print(f"  accuracy 均值±std: {multi_summary['mean_accuracy']}")
+            print(f"  fpr      均值±std: {multi_summary['mean_fpr']}")
 
-    # 保存结果
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    ts = time.strftime("%Y%m%d_%H%M%S")
-    tag = args.mode
-    if args.ollama_model:
-        tag = f"ollama_{args.ollama_model.replace(':', '_')}"
-    elif args.mode == "finetuned":
-        ck_tag = args.checkpoint or "custom"
-        tag = f"finetuned_{ck_tag}"
-    if args.seeds > 1:
-        tag += f"_seeds{args.seeds}"
-    out_file = OUTPUT_DIR / f"exp_06_eval.{tag}.{ts}.json"
-    save_results_json(
-        out_file,
-        {
+        # 保存结果
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        ts = time.strftime("%Y%m%d_%H%M%S")
+        tag = args.mode
+        if args.ollama_model:
+            tag = f"ollama_{args.ollama_model.replace(':', '_')}"
+        elif args.mode == "finetuned":
+            ck_tag = args.checkpoint or "custom"
+            tag = f"finetuned_{ck_tag}"
+        if args.seeds > 1:
+            tag += f"_seeds{args.seeds}"
+        out_file = OUTPUT_DIR / f"exp_06_eval.{tag}.{ts}.json"
+        output_data = {
             "experiment": "exp_06_finetune_eval",
             "model": f"{args.ollama_model or args.model_id}-{args.mode}",
             "checkpoint": args.checkpoint or (args.adapter_path or ""),
@@ -677,18 +726,26 @@ def main():
             "decoding": {"temperature": args.temperature, "do_sample": do_sample, "seeds": seed_list},
             "samples": representative_results,
             "all_runs": all_runs if args.seeds > 1 else None,
-            "metrics": metrics,
+            "metrics": metrics,  # 来自 run1 (seed=42)
             "strict_metrics": strict_metrics,
             "multiseed_summary": multi_summary,
-        },
-    )
-    print(f"\n结果已保存: {out_file}")
-
-    # 卸载 Ollama 模型，释放 GPU 显存
-    if _ollama_client is not None:
-        print("正在卸载 Ollama 模型...")
-        _ollama_client.unload_model()
-        print("Ollama 模型已卸载，GPU 显存已释放")
+        }
+        # 多种子场景：额外保存 metrics_mean 字段（多种子均值），供下游对比脚本使用
+        if multi_summary:
+            output_data["metrics_mean"] = multi_summary.get("mean_metrics", {})
+        save_results_json(out_file, output_data)
+        print(f"\n结果已保存: {out_file}")
+    finally:
+        # 卸载 Ollama 模型，释放 GPU 显存
+        if _ollama_client is not None:
+            print("正在卸载 Ollama 模型...")
+            _ollama_client.unload_model()
+            print("Ollama 模型已卸载，GPU 显存已释放")
+        elif model is not None:
+            # HF 模型显存释放
+            del model
+            torch.cuda.empty_cache()
+            print("HF 模型已释放，GPU 显存已清空")
 
     # 打印混淆矩阵（基于第一个 run）
     tp = sum(1 for r in representative_results if r["outcome"] == "TP")

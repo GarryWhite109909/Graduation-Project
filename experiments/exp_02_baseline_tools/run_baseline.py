@@ -25,6 +25,7 @@ Bandit 额外支持 severity / confidence 过滤（避免 B404 等信息级 find
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -45,6 +46,7 @@ from experiments.utils import (
     load_manifest,
     save_results_json,
     new_results_envelope,
+    default_results_path,
     compute_detection_metrics,
     print_summary,
 )
@@ -149,15 +151,26 @@ def run_bandit(
             result["error"] = f"Bandit 输出不是合法 JSON。stderr={proc.stderr[:300]}"
             return result
 
+        # Bandit exit code：0=无告警，1=有告警，2=内部错误
+        # 同时检查 JSON 的 errors 字段（Bandit 出错但仍输出合法 JSON 的情况），
+        # 避免把"工具出错"静默当成"无漏洞"
+        if proc.returncode == 2 or parsed.get("errors"):
+            err_list = parsed.get("errors", [])
+            err_str = "; ".join(err_list) if isinstance(err_list, list) else str(err_list)
+            result["error"] = f"Bandit 内部错误（exit={proc.returncode}）: {err_str or proc.stderr[:300]}"
+            return result
+
         # 解析告警（保留原始全部 findings，同时生成过滤后的 filtered_findings）
         for issue in parsed.get("results", []):
+            cwe_link = (issue.get("issue_cwe") or {}).get("link", "")
+            cwe_match_obj = re.search(r'definitions/(\d+)\.html', cwe_link)
             finding = {
                 "rule_id": issue.get("test_id"),
                 "severity": issue.get("issue_severity"),
                 "confidence": issue.get("issue_confidence"),
                 "message": issue.get("issue_text"),
                 "line": issue.get("line_number"),
-                "cwe": (issue.get("issue_cwe") or {}).get("link"),
+                "cwe": f"CWE-{cwe_match_obj.group(1)}" if cwe_match_obj else "",
             }
             result["findings"].append(finding)
             if _bandit_finding_passes_filter(finding, min_severity, min_confidence):
@@ -266,9 +279,17 @@ def main() -> int:
         samples_source=str(SAMPLES_DIR.relative_to(SCRIPT_DIR.parent)),
     )
 
+    # 带时间戳的结果路径，避免每次运行覆盖 results.json
+    results_path = default_results_path(
+        RESULTS_DIR,
+        experiment="exp_02_baseline_tools",
+        extra_tag=".".join(tools_to_run),
+    )
+
     total = len(samples)
     print(f"[信息] 共 {total} 个样本，工具: {tools_to_run}")
     print(f"[信息] 样本目录: {SAMPLES_DIR}")
+    print(f"[信息] 结果文件: {results_path}")
 
     for idx, sample_meta in enumerate(samples, 1):
         filename = sample_meta["file"]
@@ -334,7 +355,7 @@ def main() -> int:
 
         results["samples"].append(record)
         # 每跑完一个样本立即落盘
-        save_results_json(RESULTS_DIR / "results.json", results)
+        save_results_json(results_path, results)
 
     results["finished_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
 
@@ -353,8 +374,8 @@ def main() -> int:
         metrics_per_tool[tool] = compute_detection_metrics(flat_records)
 
     results["metrics"] = metrics_per_tool
-    save_results_json(RESULTS_DIR / "results.json", results)
-    print(f"\n[完成] 结果已写入 {RESULTS_DIR / 'results.json'}")
+    save_results_json(results_path, results)
+    print(f"\n[完成] 结果已写入 {results_path}")
 
     for tool, m in metrics_per_tool.items():
         print(f"\n=== {tool} 汇总 ===")

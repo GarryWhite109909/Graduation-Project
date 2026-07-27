@@ -33,8 +33,8 @@
 
 set -e
 
-PROJECT_ROOT="/home/zane/文档/code/毕业设计"
-AI_PYTHON="/home/zane/miniconda3/envs/AI/bin/python"
+PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+AI_PYTHON="${AI_PYTHON:-python3}"
 SCRIPT_DIR="${PROJECT_ROOT}/experiments/exp_06_finetune/scripts"
 CONFIGS_DIR="${PROJECT_ROOT}/experiments/exp_06_finetune/configs"
 
@@ -81,7 +81,7 @@ if [ "${SKIP_RECORD:-0}" != "1" ]; then
     # train_qlora.py 里的 Python API 会自动处理 enable + record_untuned_enable
     cd "${CONFIGS_DIR}"
     ${AI_PYTHON} "${SCRIPT_DIR}/train_qlora.py" \
-        --model-id Qwen/Qwen2.5-Coder-7B-Instruct \
+        --model-id Qwen/Qwen3-8B \
         --epochs 1 \
         --max-steps 5 \
         --batch-size 1 \
@@ -210,4 +210,4 @@ echo "✅ TunableOp 离线调优流程结束"
 echo ""
 echo "验证（可选）：对比启用前后的 step time"
 echo "  启用前：~73-76 s/step（参考 Phase 1 sweep log）"
-echo "  启用后：预期
+echo "  启用后：预期 ~31 s/step（参考 Phase 2 log，实际因覆盖度而异）"

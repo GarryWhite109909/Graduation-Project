@@ -4,7 +4,7 @@ KnItLM Stage B：把 CPT 阶段得到的 LoRA adapter 合并到 Instruct 模型�
 对应 docs/方法.md §9 Phase 3，原理见 §8.3 KnItLM。
 
 流程：
-  1. 加载 Qwen2.5-Coder-7B-Instruct（fp16，不量化，因为合并后还要做 SFT）
+  1. 加载 Qwen3-8B（fp16，不量化，因为合并后还要做 SFT）
   2. 加载 train_knitlm_cpt.py 保存的 CPT LoRA adapter
   3. 调用 peft.merge_and_unload() 把 LoRA 权重融入基础权重
   4. 保存合并后的完整模型（fp16）
@@ -23,7 +23,7 @@ KnItLM Stage B：把 CPT 阶段得到的 LoRA adapter 合并到 Instruct 模型�
     - 包含 config.json, model-*.safetensors, tokenizer.json 等
 
 用法：
-  HF_HUB_OFFLINE=1 /home/zane/miniconda3/envs/AI/bin/python merge_lora_to_instruct.py \\
+  HF_HUB_OFFLINE=1 python3 merge_lora_to_instruct.py \\
       --cpt-adapter outputs/knitlm_cpt_r64_a128_e1_lr2e-5_rslora/best
 """
 
@@ -44,7 +44,7 @@ from peft import PeftModel
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 OUTPUT_DIR = PROJECT_ROOT / "experiments/exp_06_finetune/outputs"
 
-INSTRUCT_MODEL_ID = "Qwen/Qwen2.5-Coder-7B-Instruct"
+INSTRUCT_MODEL_ID = "Qwen/Qwen3-8B"
 
 
 def parse_args():
@@ -122,13 +122,13 @@ base_model: {args.instruct_model}
 inference: false
 ---
 
-# KnItLM-Merged Qwen2.5-Coder-7B-Instruct
+# KnItLM-Merged Qwen3-8B
 
-合并了在 Qwen2.5-Coder-7B（base）上做的 CPT LoRA adapter 的 Instruct 模型。
+合并了在 Qwen3-8B-Base 上做的 CPT LoRA adapter 的 Instruct 模型。
 
 ## 训练流程
 
-1. Stage A (CPT): 在 Qwen2.5-Coder-7B（base）上用 CPT LoRA (CPT adapter: `{args.cpt_adapter.name}`) 做继续预训练
+1. Stage A (CPT): 在 Qwen3-8B-Base 上用 CPT LoRA (CPT adapter: `{args.cpt_adapter.name}`) 做继续预训练
 2. Stage B (Merge): 把 CPT LoRA 权重合并到 Instruct 模型（本步骤）
 
 ## 后续使用
@@ -146,7 +146,7 @@ inference: false
     print(f"   模型: {output_dir}")
     print(f"   README: {readme_path}")
     print(f"\n下一步：")
-    print(f"  1. 用此合并后的模型作为 SFT 基座（替换 Qwen2.5-Coder-7B-Instruct）")
+    print(f"  1. 用此合并后的模型作为 SFT 基座（替换 Qwen3-8B）")
     print(f"  2. 修改 train_qlora.py 的 --model 参数指向 {output_dir}")
     print(f"  3. 跑常规 SFT 训练（Phase 1 sweep 在此基础上做 lr × rsLoRA 网格）")
 

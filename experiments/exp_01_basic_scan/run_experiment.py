@@ -49,8 +49,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="批量漏洞检测摸底测试")
     parser.add_argument("--host", default="http://localhost:11434",
                         help="Ollama 服务地址（默认 http://localhost:11434）")
-    parser.add_argument("--model", default="qwen2.5-coder:7b",
-                        help="Ollama 中模型名（默认 qwen2.5-coder:7b）")
+    parser.add_argument("--model", default="qwen3:8b",
+                        help="Ollama 中模型名（默认 qwen3:8b）")
     parser.add_argument("--temperature", type=float, default=0.1,
                         help="采样温度（默认 0.1，更稳定）")
     parser.add_argument("--limit", type=int, default=0,
@@ -93,6 +93,9 @@ def main() -> int:
         print(f"[信息] 启用后处理安全模式白名单兜底（safe_override=True）")
 
     client = OllamaClient(base_url=args.host, model=args.model)
+    if not client.check_connection():
+        print(f"[错误] 无法连接 Ollama（{args.host}），请先运行 ollama serve", file=sys.stderr)
+        return 1
 
     override_count = 0
     for idx, sample_meta in enumerate(samples, 1):

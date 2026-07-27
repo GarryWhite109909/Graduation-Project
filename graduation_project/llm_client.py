@@ -22,7 +22,7 @@ __all__ = [
 
 
 class OllamaClient:
-    def __init__(self, base_url: str = "http://localhost:11434", model: str = "qwen2.5-coder:7b"):
+    def __init__(self, base_url: str = "http://localhost:11434", model: str = "qwen3:8b"):
         self.base_url = base_url
         self.model = model
         self.api_generate = f"{base_url}/api/generate"
@@ -63,6 +63,16 @@ class OllamaClient:
                 return 0
         return keep_alive
 
+    @staticmethod
+    def _is_thinking_model(model: str) -> bool:
+        """判断模型是否为 thinking-capable 模型（如 Qwen3）。
+
+        Ollama 0.30+ 把这类模型的思考内容分离到 thinking 字段，
+        generate API 的 response 字段会为空。必须用 chat API + think:false 禁用。
+        """
+        name = model.lower()
+        return "qwen3" in name or "qwq" in name or "deepseek-r1" in name
+
     def generate(
         self,
         prompt: str,
@@ -74,6 +84,7 @@ class OllamaClient:
         num_ctx: int = 16384,
         num_gpu: Optional[int] = None,
         num_thread: Optional[int] = None,
+        think: Optional[bool] = None,
     ) -> Dict:
         """
         生成文本
@@ -98,6 +109,10 @@ class OllamaClient:
             num_thread: CPU 推理线程数。None 表示 Ollama 默认（通常=物理核数）。
                         大模型 CPU offload 部分受 CPU 线程数影响，DDR5 高带宽
                         场景可适当增大以充分利用内存带宽。
+            think: 是否启用 thinking mode。None 表示自动判断（thinking-capable
+                   模型默认 False，其他模型忽略）。Ollama 0.30+ 把 Qwen3 等
+                   模型的思考内容分离到 thinking 字段，generate API 的 response
+                   会为空；必须用 chat API + think:false 禁用思考块。
 
         Returns:
             {"text": str, "duration": float, "tokens": dict, "meta": dict, "error": str|None}
@@ -111,33 +126,67 @@ class OllamaClient:
         if num_thread is not None:
             options["num_thread"] = num_thread
 
-        payload = {
-            "model": self.model,
-            "prompt": prompt,
-            "stream": False,
-            "options": options,
-            "keep_alive": self._normalize_keep_alive(keep_alive),
-        }
-
-        if system_prompt:
-            payload["system"] = system_prompt
+        # thinking-capable 模型（Qwen3 等）必须用 chat API + think:false，
+        # 否则 Ollama 0.30+ 会把思考内容放进 thinking 字段，response 为空。
+        # /no_think 后缀在 generate API 上不生效（实测 Ollama 0.30.11）。
+        use_chat_api = self._is_thinking_model(self.model)
+        if think is None:
+            think = False if use_chat_api else None
 
         start_time = time.time()
 
         try:
-            resp = requests.post(self.api_generate, json=payload, timeout=timeout)
-            resp.raise_for_status()
-            data = resp.json()
+            if use_chat_api:
+                messages = []
+                if system_prompt:
+                    messages.append({"role": "system", "content": system_prompt})
+                messages.append({"role": "user", "content": prompt})
+
+                payload = {
+                    "model": self.model,
+                    "messages": messages,
+                    "stream": False,
+                    "options": options,
+                    "keep_alive": self._normalize_keep_alive(keep_alive),
+                }
+                if think is not None:
+                    payload["think"] = think
+
+                resp = requests.post(self.api_chat, json=payload, timeout=timeout)
+                resp.raise_for_status()
+                data = resp.json()
+
+                msg = data.get("message", {})
+                text = msg.get("content", "")
+            else:
+                payload = {
+                    "model": self.model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": options,
+                    "keep_alive": self._normalize_keep_alive(keep_alive),
+                }
+                if system_prompt:
+                    payload["system"] = system_prompt
+
+                resp = requests.post(self.api_generate, json=payload, timeout=timeout)
+                resp.raise_for_status()
+                data = resp.json()
+
+                text = data.get("response", "")
 
             duration = time.time() - start_time
 
+            prompt_count = data.get("prompt_eval_count") or 0
+            completion_count = data.get("eval_count") or 0
+
             return {
-                "text": data.get("response", ""),
+                "text": text,
                 "duration": duration,
                 "tokens": {
-                    "prompt": data.get("prompt_eval_count", 0),
-                    "completion": data.get("eval_count", 0),
-                    "total": data.get("prompt_eval_count", 0) + data.get("eval_count", 0),
+                    "prompt": prompt_count,
+                    "completion": completion_count,
+                    "total": prompt_count + completion_count,
                 },
                 "meta": {
                     "eval_count": data.get("eval_count"),
@@ -201,7 +250,7 @@ class OllamaClient:
 
 
 if __name__ == "__main__":
-    client = OllamaClient(model="qwen2.5-coder:7b")
+    client = OllamaClient(model="qwen3:8b")
     
     # 检查连接
     if not client.check_connection():

@@ -66,7 +66,7 @@ def category_breakdown(baseline: dict, finetuned: dict) -> dict:
         for s in samples:
             cat = s.get("category") or "unknown"
             out[cat]["total"] += 1
-            o = s["outcome"].lower()  # 归一为小写
+            o = s.get("outcome", "").lower()  # 归一为小写
             if o in ("tp", "tn", "fp", "fn"):
                 out[cat][o] += 1
             elif o == "parse_fail":
@@ -77,8 +77,9 @@ def category_breakdown(baseline: dict, finetuned: dict) -> dict:
 
 
 def render_markdown(baseline: dict, finetuned: dict, out_path: Path) -> str:
-    bl_m = baseline["metrics"]
-    ft_m = finetuned["metrics"]
+    # 优先使用多种子均值（metrics_mean），回退到单种子 metrics
+    bl_m = baseline.get("metrics_mean") or baseline.get("metrics")
+    ft_m = finetuned.get("metrics_mean") or finetuned.get("metrics")
 
     diff = per_sample_diff(baseline, finetuned)
     cats = category_breakdown(baseline, finetuned)
@@ -93,6 +94,14 @@ def render_markdown(baseline: dict, finetuned: dict, out_path: Path) -> str:
         sign = "+" if d >= 0 else ""
         return f"{sign}{d:.2f}pp"
 
+    def cnt(x):
+        return "—" if x is None else x
+
+    def cdelta(old, new):
+        if old is None or new is None:
+            return "—"
+        return f"{new-old:+d}"
+
     lines = []
     lines.append("# exp_06_finetune 微调效果对比报告\n")
     lines.append(f"- baseline 文件: `{baseline.get('source_path', '')}`")
@@ -104,16 +113,23 @@ def render_markdown(baseline: dict, finetuned: dict, out_path: Path) -> str:
     lines.append("## 1. 总体指标\n")
     lines.append("| 指标 | Baseline | Finetuned | 变化 |")
     lines.append("|------|----------|-----------|------|")
-    lines.append(f"| TP | {bl_m['tp']} | {ft_m['tp']} | {ft_m['tp']-bl_m['tp']:+d} |")
-    lines.append(f"| TN | {bl_m['tn']} | {ft_m['tn']} | {ft_m['tn']-bl_m['tn']:+d} |")
-    lines.append(f"| FP | {bl_m['fp']} | {ft_m['fp']} | {ft_m['fp']-bl_m['fp']:+d} |")
-    lines.append(f"| FN | {bl_m['fn']} | {ft_m['fn']} | {ft_m['fn']-bl_m['fn']:+d} |")
+    lines.append(f"| TP | {cnt(bl_m.get('tp'))} | {cnt(ft_m.get('tp'))} | {cdelta(bl_m.get('tp'), ft_m.get('tp'))} |")
+    lines.append(f"| TN | {cnt(bl_m.get('tn'))} | {cnt(ft_m.get('tn'))} | {cdelta(bl_m.get('tn'), ft_m.get('tn'))} |")
+    lines.append(f"| FP | {cnt(bl_m.get('fp'))} | {cnt(ft_m.get('fp'))} | {cdelta(bl_m.get('fp'), ft_m.get('fp'))} |")
+    lines.append(f"| FN | {cnt(bl_m.get('fn'))} | {cnt(ft_m.get('fn'))} | {cdelta(bl_m.get('fn'), ft_m.get('fn'))} |")
     lines.append(f"| 召回率 (recall) | {pct(bl_m['recall'])} | {pct(ft_m['recall'])} | {delta(bl_m['recall'], ft_m['recall'])} |")
     lines.append(f"| 准确率 (accuracy) | {pct(bl_m['accuracy'])} | {pct(ft_m['accuracy'])} | {delta(bl_m['accuracy'], ft_m['accuracy'])} |")
     lines.append(f"| 误报率 (FPR) | {pct(bl_m['false_positive_rate'])} | {pct(ft_m['false_positive_rate'])} | {delta(bl_m['false_positive_rate'], ft_m['false_positive_rate'])} |")
     bl_es = bl_m["elapsed_stats"]
     ft_es = ft_m["elapsed_stats"]
-    lines.append(f"| 平均耗时 | {bl_es['avg']}s | {ft_es['avg']}s | {ft_es['avg']-bl_es['avg']:+.2f}s |")
+    # avg 可能为 None，加保护避免 TypeError
+    bl_avg = bl_es.get("avg") if bl_es else None
+    ft_avg = ft_es.get("avg") if ft_es else None
+    if bl_avg is not None and ft_avg is not None:
+        elapsed_delta = f"{ft_avg-bl_avg:+.2f}s"
+    else:
+        elapsed_delta = "N/A"
+    lines.append(f"| 平均耗时 | {bl_avg}s | {ft_avg}s | {elapsed_delta} |")
     lines.append("")
 
     # 逐样本变化

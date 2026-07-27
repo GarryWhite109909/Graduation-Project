@@ -11,7 +11,7 @@ set -e
 cd "$(dirname "$0")"
 mkdir -p results
 
-PY=/home/zane/miniconda3/envs/graproj/bin/python3
+PY=python3
 export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 MODEL=qwen2.5-coder:7b

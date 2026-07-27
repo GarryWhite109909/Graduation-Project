@@ -22,8 +22,8 @@
   - system prompt 精简化：去掉规则条文，让模型从 CoT 样本中学习判断
 
 用法：
-  cd /home/zane/文档/code/毕业设计
-  PYTHONPATH=. /home/zane/miniconda3/envs/AI/bin/python \
+  cd <project_root>
+  PYTHONPATH=. python3 \
       experiments/exp_06_finetune/scripts/combine_and_augment.py
 
   # 指定使用 v1（模板版）而非 v2（教师模型版）
@@ -198,6 +198,10 @@ def normalize_sample_vtype(sample: dict) -> tuple[dict, str]:
         try:
             verdict = json.loads(inner_match.group(1))
         except json.JSONDecodeError:
+            # JSON 解析失败计数（在函数末尾统一告警）
+            normalize_sample_vtype.json_parse_errors = getattr(
+                normalize_sample_vtype, "json_parse_errors", 0
+            ) + 1
             continue
         orig_vtype = verdict.get("vulnerability_type", "")
         new_vtype = normalize_vuln_type(orig_vtype)
@@ -377,6 +381,8 @@ def main():
     print(f"\n[6] 规范化 vuln_type 命名...")
     normalize_count = 0
     vtype_changes = {}
+    # 重置 normalize_sample_vtype 的 JSON 解析错误计数
+    normalize_sample_vtype.json_parse_errors = 0
     for s in all_samples:
         s, orig_vtype = normalize_sample_vtype(s)
         if orig_vtype:
@@ -385,6 +391,10 @@ def main():
                 normalize_count += 1
                 vtype_changes[orig_vtype] = new_vtype
     print(f"    规范化 {normalize_count} 条样本的 vuln_type")
+    # JSON 解析失败告警
+    json_parse_errors = getattr(normalize_sample_vtype, "json_parse_errors", 0)
+    if json_parse_errors:
+        print(f"⚠️ 警告：{json_parse_errors} 条样本 JSON 解析失败")
     if vtype_changes:
         print(f"    映射变化（共 {len(vtype_changes)} 种）:")
         for old, new in sorted(vtype_changes.items()):
@@ -400,6 +410,9 @@ def main():
         elif '"has_vulnerability": false' in assistant_msg:
             safe += 1
     print(f"\n[7] 标签分布: 漏洞: {vuln}  安全: {safe}")
+    # 校验：vuln + safe 应等于总样本数，否则有样本既未计入 vuln 也未计入 safe
+    if vuln + safe < len(all_samples):
+        print(f"⚠️ 警告：{len(all_samples) - vuln - safe} 条样本既未计入 vuln 也未计入 safe（可能 JSON 缺失或格式异常）")
 
     # 统计 vuln_type 分布
     from collections import Counter

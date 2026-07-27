@@ -1,7 +1,7 @@
 """
 DPO 偏好对数据生成 —— 从 CCoT 对比样本转换为 DPO 格式。
 
-设计依据：docs/改进.md 第三节方案 A（DPO）
+设计依据：docs/_archive/改进_历史分析_20260710.md 第三节方案 A（DPO）
   BiasDPO（2024, arXiv:2407.13928）已证明 DPO 能有效减少 LLM 偏见。
   DPO 的损失函数直接最大化 chosen（正确判断）的概率、最小化 rejected
   （错误判断）的概率，比 SFT 更直接地"惩罚"偏见。
@@ -21,8 +21,8 @@ DPO 数据格式（TRL DPOTrainer 期望）：
 输出：experiments/exp_06_finetune/data/dpo_preference_pairs.jsonl
 
 用法：
-  cd /home/zane/文档/code/毕业设计
-  PYTHONPATH=. /home/zane/miniconda3/envs/AI/bin/python \
+  cd <project_root>
+  PYTHONPATH=. python3 \
       experiments/exp_06_finetune/scripts/generate_dpo_pairs.py
 """
 
@@ -48,6 +48,8 @@ OUTPUT_FILE = PROJECT_ROOT / "experiments/exp_06_finetune/data/dpo_preference_pa
 SAMPLES = SAMPLES_V1 + SAMPLES_V2
 
 
+# TODO: 当前所有安全样本的 rejected 完全相同（CWE-78 命令注入），
+# DPO 会学到"压制固定文本"而非"为什么错"。未来应按样本 CWE 类型生成语义相关的错误结论。
 def build_wrong_verdict(sample):
     """构造错误 JSON 结论块（has_vulnerability 取反）。
 
@@ -105,14 +107,14 @@ def build_dpo_pair(sample):
     correct_json = build_json_verdict(sample)
     chosen = (
         f"{sample['correct_reasoning']}\n\n"
-        f"### 最终结论：\n{correct_json}"
+        f"### 最终结论：\n{correct_json}<|im_end|>"
     )
 
     # rejected: 错误推理路径 + 错误 JSON
     wrong_json = build_wrong_verdict(sample)
     rejected = (
         f"{sample['incorrect_reasoning']}\n\n"
-        f"### 最终结论：\n{wrong_json}"
+        f"### 最终结论：\n{wrong_json}<|im_end|>"
     )
 
     return {
@@ -128,35 +130,48 @@ def validate(pairs):
     print("验证 DPO 偏好对")
     print("=" * 60)
 
-    assert len(pairs) >= 20, f"偏好对数应 >= 20，实际 {len(pairs)}"
+    # 注意：用 if + raise ValueError 而非 assert，避免 python -O 下失效
+    if len(pairs) < 20:
+        raise ValueError(f"偏好对数应 >= 20，实际 {len(pairs)}")
     print(f"[OK] 偏好对数: {len(pairs)}")
 
     import re
     for i, pair in enumerate(pairs):
         # 必须有 prompt / chosen / rejected
-        assert "prompt" in pair, f"对{i}: 缺少 prompt"
-        assert "chosen" in pair, f"对{i}: 缺少 chosen"
-        assert "rejected" in pair, f"对{i}: 缺少 rejected"
+        if "prompt" not in pair:
+            raise ValueError(f"对{i}: 缺少 prompt")
+        if "chosen" not in pair:
+            raise ValueError(f"对{i}: 缺少 chosen")
+        if "rejected" not in pair:
+            raise ValueError(f"对{i}: 缺少 rejected")
 
         # prompt 必须含 ChatML 标记
-        assert "<|im_start|>" in pair["prompt"], f"对{i}: prompt 缺少 ChatML 标记"
+        if "<|im_start|>" not in pair["prompt"]:
+            raise ValueError(f"对{i}: prompt 缺少 ChatML 标记")
 
         # chosen 和 rejected 必须含 JSON 块
-        assert "```json" in pair["chosen"], f"对{i}: chosen 缺少 json 块"
-        assert "```json" in pair["rejected"], f"对{i}: rejected 缺少 json 块"
+        if "```json" not in pair["chosen"]:
+            raise ValueError(f"对{i}: chosen 缺少 json 块")
+        if "```json" not in pair["rejected"]:
+            raise ValueError(f"对{i}: rejected 缺少 json 块")
 
         # chosen 和 rejected 必须不同
-        assert pair["chosen"] != pair["rejected"], f"对{i}: chosen 和 rejected 相同"
+        if pair["chosen"] == pair["rejected"]:
+            raise ValueError(f"对{i}: chosen 和 rejected 相同")
 
         # 提取 chosen 和 rejected 的 has_vulnerability，必须相反
         chosen_match = re.search(r'"has_vulnerability":\s*(true|false)', pair["chosen"], re.IGNORECASE)
         rejected_match = re.search(r'"has_vulnerability":\s*(true|false)', pair["rejected"], re.IGNORECASE)
-        assert chosen_match, f"对{i}: chosen 无法提取 has_vulnerability"
-        assert rejected_match, f"对{i}: rejected 无法提取 has_vulnerability"
+        if not chosen_match:
+            raise ValueError(f"对{i}: chosen 无法提取 has_vulnerability")
+        if not rejected_match:
+            raise ValueError(f"对{i}: rejected 无法提取 has_vulnerability")
         chosen_hv = chosen_match.group(1).lower() == "true"
         rejected_hv = rejected_match.group(1).lower() == "true"
-        assert chosen_hv != rejected_hv, \
-            f"对{i}: chosen({chosen_hv}) 和 rejected({rejected_hv}) 的 has_vulnerability 应相反"
+        if chosen_hv == rejected_hv:
+            raise ValueError(
+                f"对{i}: chosen({chosen_hv}) 和 rejected({rejected_hv}) 的 has_vulnerability 应相反"
+            )
 
     print(f"[OK] 所有 {len(pairs)} 对偏好对格式合规（chosen/rejected 结论相反）")
 

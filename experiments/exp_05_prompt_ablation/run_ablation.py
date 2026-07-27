@@ -212,8 +212,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="exp_05 Prompt 工程消融对比")
     parser.add_argument("--host", default="http://localhost:11434",
                         help="Ollama 服务地址（默认 http://localhost:11434）")
-    parser.add_argument("--model", default="qwen2.5-coder:7b",
-                        help="Ollama 模型名（默认 qwen2.5-coder:7b）")
+    parser.add_argument("--model", default="qwen3:8b",
+                        help="Ollama 模型名（默认 qwen3:8b）")
     parser.add_argument("--temperature", type=float, default=0.1,
                         help="采样温度（默认 0.1）")
     parser.add_argument("--limit", type=int, default=0,
@@ -265,6 +265,7 @@ def main() -> int:
 
     total_samples = len(samples)
     total_runs = total_samples * len(variants) * repeat
+    display_total = total_samples * len(variants)
     print(f"[信息] 共 {total_samples} 个样本 × {len(variants)} 个变体 × {repeat} 次 = {total_runs} 次推理")
     print(f"[信息] 模型 {args.model}，host {args.host}，温度 {args.temperature}")
     print(f"[信息] 变体: {variants}")
@@ -282,6 +283,7 @@ def main() -> int:
         print(f"  {v:15s}: {len(sp):5d} 字符")
 
     # --resume: 加载已有结果
+    finished_keys: set[tuple[str, str]] = set()
     if args.resume and results_path.exists():
         import json as _json
         results = _json.loads(results_path.read_text(encoding="utf-8"))
@@ -320,7 +322,7 @@ def main() -> int:
             # --resume 跳过已完成
             if args.resume and (variant, filename) in finished_keys:
                 run_idx += 1
-                print(f"[{run_idx}/{total_runs}] [{variant}] {filename} 已完成，跳过")
+                print(f"[{run_idx}/{display_total}] [{variant}] {filename} 已完成，跳过")
                 continue
             run_idx += 1
 

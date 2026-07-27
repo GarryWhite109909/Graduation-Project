@@ -8,8 +8,8 @@ GLM 教师模型 CoT 合并脚本。
   4. 输出 distill_corpus_annotated_v2.jsonl（高质量多样化 CoT 版）
 
 用法：
-  cd /home/zane/文档/code/毕业设计
-  PYTHONPATH=. /home/zane/miniconda3/envs/graproj/bin/python3 \
+  cd <project_root>
+  PYTHONPATH=. python3 \
       experiments/exp_06_finetune/scripts/apply_glm_cot.py
 
   # 查看进度（不写文件）
@@ -34,10 +34,14 @@ def load_cot_map() -> dict:
         return {}
     mapping = {}
     with open(COT_MAP_FILE, encoding="utf-8") as f:
-        for line in f:
+        for line_num, line in enumerate(f, 1):
             if line.strip():
-                d = json.loads(line)
-                mapping[d["filename"]] = d["cot_analysis"]
+                try:
+                    d = json.loads(line)
+                    mapping[d["filename"]] = d["cot_analysis"]
+                except (json.JSONDecodeError, KeyError) as e:
+                    print(f"⚠️ 跳过第 {line_num} 行: {e}")
+                    continue
     return mapping
 
 
@@ -81,6 +85,7 @@ def main():
     # 合并：用 GLM CoT 替换原始 cot_analysis
     output_samples = []
     replaced = 0
+    skipped_short = 0  # GLM CoT 过短（≤20 字符）被弃用的计数
     for rec in samples:
         new_rec = dict(rec)
         if rec["filename"] in cot_map:
@@ -88,6 +93,9 @@ def main():
             if new_cot and len(new_cot) > 20:
                 new_rec["cot_analysis"] = new_cot
                 replaced += 1
+            else:
+                # 阈值不满足：保留原始 CoT，但计入弃用计数
+                skipped_short += 1
         output_samples.append(new_rec)
 
     # 写入
@@ -96,6 +104,8 @@ def main():
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
     print(f"\n已写入: {OUTPUT_FILE}")
     print(f"替换 CoT: {replaced}/{len(output_samples)} 条")
+    if skipped_short:
+        print(f"⚠️ {skipped_short} 条 GLM CoT 因过短（≤20字符）被弃用")
 
     # 统计 CoT 多样性
     cot_texts = [s.get("cot_analysis", "") for s in output_samples]

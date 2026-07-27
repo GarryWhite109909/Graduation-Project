@@ -19,8 +19,7 @@
 #   6. （可选）多种子训练 + 评估
 #   7. （可选）CVE-fix held-out 独立测试集评估
 #
-# 用法：
-#   cd /home/zane/文档/code/毕业设计
+# 用法（从项目根目录运行）：
 #   bash experiments/exp_06_finetune/scripts/run_all.sh
 #
 # 可选标志（环境变量）：
@@ -36,25 +35,32 @@
 
 set -e
 
-PROJECT_ROOT="/home/zane/文档/code/毕业设计"
-AI_PYTHON="/home/zane/miniconda3/envs/AI/bin/python"
-GRAFROJ_PYTHON="/home/zane/miniconda3/envs/graproj/bin/python3"
-MODEL_ID="Qwen/Qwen2.5-Coder-3B-Instruct"
+PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+AI_PYTHON="${AI_PYTHON:-python3}"
+GRAFROJ_PYTHON="${GRAFROJ_PYTHON:-python3}"
+MODEL_ID="Qwen/Qwen3-8B"  # SFT/QLoRA 用 Instruct 版本（train_qlora.py 默认值）
 
-# 训练超参（默认值已根据上次 trainer_state.json 过拟合分析调整）
-EPOCHS="${EPOCHS:-3}"
-LORA_R="${LORA_R:-16}"
-LORA_ALPHA="${LORA_ALPHA:-32}"
+# 训练超参（Phase 1 最佳配置：rsLoRA r=8 + lr=1e-4 + e=1，已验证最稳）
+EPOCHS="${EPOCHS:-1}"
+LORA_R="${LORA_R:-8}"
+LORA_ALPHA="${LORA_ALPHA:-16}"
 SEED="${SEED:-42}"
 BATCH_SIZE="${BATCH_SIZE:-1}"
 GRAD_ACCUM="${GRAD_ACCUM:-8}"
 LR="${LR:-1e-4}"
+USE_RSLORA="${USE_RSLORA:-1}"
 
 # 训练数据文件（train_chatml_v2.jsonl = 222 原始 + 400 蒸馏v2 + 49 补充 + 35 长尾CWE = 706 条）
 DATA_FILE="${PROJECT_ROOT}/experiments/exp_06_finetune/data/train_chatml_v2.jsonl"
 
-# Checkpoint 路径（与 train_qlora.py 输出目录规则一致）
-ADAPTER_DIR="${PROJECT_ROOT}/experiments/exp_06_finetune/outputs/lora_r${LORA_R}_a${LORA_ALPHA}_e${EPOCHS}_s${SEED}/best"
+# Checkpoint 路径（与 train_qlora.py 输出目录规则一致，含 lr 段与 rsLoRA 标识）
+# 注意：LR 用 printf "%g" 格式化，与 train_qlora.py 的 {lr:g} 一致（1e-4 → 0.0001，1e-5 → 1e-05）
+LR_FORMATTED=$(printf "%g" "${LR}")
+PEFT_TAG=""
+if [ "${USE_RSLORA}" = "1" ]; then
+    PEFT_TAG="_rslora"
+fi
+ADAPTER_DIR="${PROJECT_ROOT}/experiments/exp_06_finetune/outputs/lora_r${LORA_R}_a${LORA_ALPHA}_e${EPOCHS}_lr${LR_FORMATTED}_s${SEED}${PEFT_TAG}/best"
 
 # 环境变量（ROCm + HF 离线）
 export HF_ENDPOINT="https://hf-mirror.com"
@@ -123,6 +129,7 @@ if [ -z "$SKIP_TRAIN" ]; then
     echo "阶段 2：单种子训练（seed=${SEED}, epochs=${EPOCHS}, lr=${LR}）"
     echo "============================================================"
     PYTHONPATH=${PROJECT_ROOT} ${AI_PYTHON} experiments/exp_06_finetune/scripts/train_qlora.py \
+        --model-id "${MODEL_ID}" \
         --epochs ${EPOCHS} \
         --batch-size ${BATCH_SIZE} \
         --grad-accum ${GRAD_ACCUM} \
@@ -133,7 +140,8 @@ if [ -z "$SKIP_TRAIN" ]; then
         --seed ${SEED} \
         --dev-ratio 0.15 \
         --early-stopping-patience 2 \
-        --data-file "${DATA_FILE}"
+        --data-file "${DATA_FILE}" \
+        --use-rslora
 else
     echo ""
     echo "阶段 2：跳过训练（SKIP_TRAIN=1）"
