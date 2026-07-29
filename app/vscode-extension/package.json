@@ -1,12 +1,22 @@
 {
   "name": "vuln-scanner",
   "displayName": "AI 漏洞扫描器",
-  "description": "基于 LLM 的代码安全审计 — 右键分析当前文件",
-  "version": "0.1.0",
+  "description": "基于 LLM 的代码安全审计 — 右键分析文件、批量扫描工作区、实时诊断标记",
+  "version": "0.2.0",
   "publisher": "graduation-project",
   "engines": { "vscode": "^1.80.0" },
   "categories": ["Security", "Other"],
-  "activationEvents": ["onCommand:vulnScanner.analyzeFile"],
+  "activationEvents": [
+    "onCommand:vulnScanner.analyzeFile",
+    "onCommand:vulnScanner.scanWorkspace",
+    "onCommand:vulnScanner.scanFolder",
+    "onLanguage:python",
+    "onLanguage:javascript",
+    "onLanguage:typescript",
+    "onLanguage:java",
+    "onLanguage:php",
+    "onLanguage:go"
+  ],
   "main": "./extension.js",
   "contributes": {
     "commands": [
@@ -14,6 +24,21 @@
         "command": "vulnScanner.analyzeFile",
         "title": "AI 漏洞扫描: 分析当前文件",
         "icon": "$(shield)"
+      },
+      {
+        "command": "vulnScanner.scanWorkspace",
+        "title": "AI 漏洞扫描: 批量扫描工作区",
+        "icon": "$(folder-library)"
+      },
+      {
+        "command": "vulnScanner.scanFolder",
+        "title": "AI 漏洞扫描: 扫描指定文件夹",
+        "icon": "$(folder)"
+      },
+      {
+        "command": "vulnScanner.clearDiagnostics",
+        "title": "AI 漏洞扫描: 清除所有诊断标记",
+        "icon": "$(clear-all)"
       }
     ],
     "menus": {
@@ -30,6 +55,19 @@
           "when": "editorFocus",
           "group": "navigation"
         }
+      ],
+      "explorer/context": [
+        {
+          "command": "vulnScanner.scanFolder",
+          "when": "explorerResourceIsFolder",
+          "group": "vulnScanner@1"
+        }
+      ],
+      "commandPalette": [
+        { "command": "vulnScanner.analyzeFile" },
+        { "command": "vulnScanner.scanWorkspace" },
+        { "command": "vulnScanner.scanFolder" },
+        { "command": "vulnScanner.clearDiagnostics" }
       ]
     },
     "configuration": {
@@ -44,6 +82,32 @@
           "type": "boolean",
           "default": false,
           "description": "是否启用 RAG 知识库增强（较慢但更准）"
+        },
+        "vulnScanner.markDiagnostics": {
+          "type": "boolean",
+          "default": true,
+          "description": "发现漏洞时在编辑器中标记诊断波浪线"
+        },
+        "vulnScanner.autoScanOnSave": {
+          "type": "boolean",
+          "default": false,
+          "description": "保存文件时自动扫描（实验性，可能影响性能）"
+        },
+        "vulnScanner.workspaceExclude": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": ["**/node_modules/**", "**/.git/**", "**/vendor/**", "**/__pycache__/**", "**/dist/**", "**/build/**"],
+          "description": "批量扫描工作区时排除的 glob 模式"
+        },
+        "vulnScanner.workspaceMaxFiles": {
+          "type": "number",
+          "default": 50,
+          "description": "批量扫描工作区时最多扫描的文件数"
+        },
+        "vulnScanner.requestTimeout": {
+          "type": "number",
+          "default": 300000,
+          "description": "单次请求超时时间（毫秒）"
         }
       }
     }
