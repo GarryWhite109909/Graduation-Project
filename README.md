@@ -486,6 +486,79 @@ LLM 单样本推理耗时高于传统工具，但输出包含自然语言解释�
 
 ## 复现方式
 
+### 模型发布与部署（给别人用）
+
+训练好的 LoRA adapter 需要合并、量化为 GGUF，并发布为 Ollama 模型，才能被 `app/` 软件系统消费。
+
+#### 1. 发布新模型（开发者/台式机执行）
+
+```bash
+# 1. 合并 LoRA → HF 格式 → GGUF Q4_K_M → Ollama 模型
+# 训练完成后，adapter 位于 outputs/lora_r8_a16_e3_lr0.0001_s42_rslora_v7/best/
+bash tools/release_model.sh \
+  --version v7 \
+  --adapter experiments/exp_06_finetune/outputs/lora_r8_a16_e3_lr0.0001_s42_rslora_v7/best \
+  --base Qwen/Qwen3-8B \
+  --ollama-name graduation-vuln-scanner:v7
+
+# 2. 推送到 Ollama Registry（可选，需要登录）
+ollama push graduation-vuln-scanner:v7
+```
+
+脚本会自动：
+- 调用 `tools/merge_lora.py` 合并 adapter 到 base 模型
+- 克隆/编译 `llama.cpp`
+- 转换为 `f16` GGUF，再量化为 `Q4_K_M`（约 4.7GB，**适配 8GB 显存**）
+- 生成 `Modelfile` 并执行 `ollama create`
+
+#### 2. 用户侧下载并应用模型
+
+**方式 A：Ollama Registry（推荐，最简单）**
+
+```bash
+# 启动器会自动检测并 pull 模型
+VULN_SCANNER_MODEL=graduation-vuln-scanner:v7 python -m app.launcher.bootstrap
+
+# 或在环境变量/启动脚本中永久设置
+export VULN_SCANNER_MODEL=graduation-vuln-scanner:v7
+bash app/launcher/start_linux_macos.sh
+```
+
+**方式 B：直接下载 GGUF（无法访问 Ollama Registry 时）**
+
+```bash
+python tools/download_model.py \
+  --source gguf \
+  --url https://github.com/<user>/<repo>/releases/download/<tag>/merged_v7-q4_k_m.gguf \
+  --model graduation-vuln-scanner:v7
+
+VULN_SCANNER_MODEL=graduation-vuln-scanner:v7 python -m app.launcher.bootstrap
+```
+
+#### 3. 8GB 显存适配说明
+
+- 默认使用 **Q4_K_M 量化**，模型权重约 **4.7GB**
+- 推理时 activations/KV cache 额外占用，建议 `num_ctx=8192`（已在 `Modelfile` 中设置）
+- 若仍报 OOM，可进一步降低 `num_ctx` 到 4096：
+  ```bash
+  echo 'PARAMETER num_ctx 4096' >> outputs/Modelfile_v7
+  ollama create graduation-vuln-scanner:v7-4k -f outputs/Modelfile_v7
+  VULN_SCANNER_MODEL=graduation-vuln-scanner:v7-4k python -m app.launcher.bootstrap
+  ```
+
+#### 4. 模型版本切换
+
+`app/` 所有入口均读取环境变量 `VULN_SCANNER_MODEL`：
+
+| 入口 | 切换方式 |
+|---|---|
+| Web 后端 | `VULN_SCANNER_MODEL=... uvicorn app.backend.main:app` |
+| 启动器 | `VULN_SCANNER_MODEL=... python -m app.launcher.bootstrap` |
+| CLI | `VULN_SCANNER_MODEL=... python -m app.launcher.vuln_scanner_cli scan file.py` |
+| VS Code 插件 | 在插件设置或启动脚本中设置环境变量 |
+
+缺省模型仍为 `graduation-vuln-scanner:v5`，发布 v7 后统一改为 v7。
+
 ### 环境准备（所有实验的前置步骤，只需执行一次）
 
 ```bash
