@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CWE 样本库</title>
+    <style id="theme-vars">
+/* Vuln Scanner UI — Cyber-security dark theme tokens */
+
+:root {
+  /* Neutral scale */
+  --vuln-bg: #0b0f17;
+  --vuln-surface: #111827;
+  --vuln-surface-2: #1f2937;
+  --vuln-ink: #e6edf3;
+  --vuln-ink-2: #8b949e;
+  --vuln-ink-3: #6e7681;
+  --vuln-line: #30363d;
+
+  /* Brand primary — tech blue */
+  --vuln-brand: #3b82f6;
+  --vuln-brand-ink: #ffffff;
+  --vuln-brand-50: #eff6ff;
+  --vuln-brand-100: #dbeafe;
+  --vuln-brand-200: #bfdbfe;
+  --vuln-brand-300: #93c5fd;
+  --vuln-brand-400: #60a5fa;
+  --vuln-brand-500: #3b82f6;
+  --vuln-brand-600: #2563eb;
+  --vuln-brand-700: #1d4ed8;
+
+  /* Semantic state colors */
+  --vuln-state-success: #22c55e;
+  --vuln-state-warning: #f59e0b;
+  --vuln-state-error: #ef4444;
+  --vuln-state-info: #58a6ff;
+
+  /* Semantic aliases required by head contract */
+  --vuln-background: var(--vuln-bg);
+  --vuln-foreground: var(--vuln-ink);
+  --vuln-card: var(--vuln-surface);
+  --vuln-card-foreground: var(--vuln-ink);
+  --vuln-popover: var(--vuln-surface-2);
+  --vuln-popover-foreground: var(--vuln-ink);
+  --vuln-primary: var(--vuln-brand);
+  --vuln-primary-foreground: var(--vuln-brand-ink);
+  --vuln-muted: var(--vuln-surface-2);
+  --vuln-muted-foreground: var(--vuln-ink-2);
+  --vuln-border: var(--vuln-line);
+  --vuln-input: var(--vuln-line);
+  --vuln-ring: var(--vuln-brand-500);
+  --vuln-radius-small: 4px;
+  --vuln-radius-medium: 8px;
+  --vuln-radius-large: 16px;
+
+  /* Spacing */
+  --vuln-s-1: 4px;
+  --vuln-s-2: 8px;
+  --vuln-s-3: 12px;
+  --vuln-s-4: 16px;
+  --vuln-s-5: 24px;
+  --vuln-s-6: 32px;
+  --vuln-s-7: 48px;
+  --vuln-s-8: 80px;
+
+  /* Typography */
+  --vuln-font-sans: Inter, "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --vuln-font-mono: "Cascadia Code", "Fira Code", Consolas, Monaco, "Courier New", monospace;
+
+  /* Shadows */
+  --vuln-shadow-1: 0 1px 2px rgba(15, 23, 42, 0.05), 0 1px 1px rgba(15, 23, 42, 0.03);
+  --vuln-shadow-2: 0 8px 24px -8px rgba(0, 0, 0, 0.35);
+  --vuln-shadow-3: 0 24px 60px -20px rgba(0, 0, 0, 0.45);
+}
+
+/* Base typography classes */
+.vuln-font-sans { font-family: var(--vuln-font-sans); }
+.vuln-font-mono { font-family: var(--vuln-font-mono); }
+
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.1/dist/index.global.js"></script>
+    <script src="https://unpkg.com/lucide@1.8.0/dist/umd/lucide.min.js"></script>
+    <style type="text/tailwindcss">
+  @theme inline {
+    --color-background: var(--vuln-background);
+    --color-foreground: var(--vuln-foreground);
+    --color-card: var(--vuln-card);
+    --color-card-foreground: var(--vuln-card-foreground);
+    --color-popover: var(--vuln-popover);
+    --color-popover-foreground: var(--vuln-popover-foreground);
+    --color-primary: var(--vuln-primary);
+    --color-primary-foreground: var(--vuln-primary-foreground);
+    --color-muted: var(--vuln-muted);
+    --color-muted-foreground: var(--vuln-muted-foreground);
+    --color-border: var(--vuln-border);
+    --color-input: var(--vuln-input);
+    --color-ring: var(--vuln-ring);
+    --radius-sm: var(--vuln-radius-small);
+    --radius-md: var(--vuln-radius-medium);
+    --radius-lg: var(--vuln-radius-large);
+  }
+  @layer base {
+    body { background: var(--vuln-background); color: var(--vuln-foreground); }
+    td, th { @apply break-words; word-break: break-all; word-break: auto-phrase; }
+    th { @apply whitespace-nowrap; }
+  }
+    </style>
+    <style id="semantic-token-fallback">
+      .bg-background { background-color: var(--vuln-background); }
+      .text-background { color: var(--vuln-background); }
+      .border-background { border-color: var(--vuln-background); }
+      .ring-background { --tw-ring-color: var(--vuln-background); }
+      .bg-foreground { background-color: var(--vuln-foreground); }
+      .text-foreground { color: var(--vuln-foreground); }
+      .border-foreground { border-color: var(--vuln-foreground); }
+      .ring-foreground { --tw-ring-color: var(--vuln-foreground); }
+      .bg-card { background-color: var(--vuln-card); }
+      .text-card { color: var(--vuln-card); }
+      .border-card { border-color: var(--vuln-card); }
+      .ring-card { --tw-ring-color: var(--vuln-card); }
+      .bg-card-foreground { background-color: var(--vuln-card-foreground); }
+      .text-card-foreground { color: var(--vuln-card-foreground); }
+      .border-card-foreground { border-color: var(--vuln-card-foreground); }
+      .ring-card-foreground { --tw-ring-color: var(--vuln-card-foreground); }
+      .bg-popover { background-color: var(--vuln-popover); }
+      .text-popover { color: var(--vuln-popover); }
+      .border-popover { border-color: var(--vuln-popover); }
+      .ring-popover { --tw-ring-color: var(--vuln-popover); }
+      .bg-popover-foreground { background-color: var(--vuln-popover-foreground); }
+      .text-popover-foreground { color: var(--vuln-popover-foreground); }
+      .border-popover-foreground { border-color: var(--vuln-popover-foreground); }
+      .ring-popover-foreground { --tw-ring-color: var(--vuln-popover-foreground); }
+      .bg-primary { background-color: var(--vuln-primary); }
+      .text-primary { color: var(--vuln-primary); }
+      .border-primary { border-color: var(--vuln-primary); }
+      .ring-primary { --tw-ring-color: var(--vuln-primary); }
+      .bg-primary-foreground { background-color: var(--vuln-primary-foreground); }
+      .text-primary-foreground { color: var(--vuln-primary-foreground); }
+      .border-primary-foreground { border-color: var(--vuln-primary-foreground); }
+      .ring-primary-foreground { --tw-ring-color: var(--vuln-primary-foreground); }
+      .bg-muted { background-color: var(--vuln-muted); }
+      .text-muted { color: var(--vuln-muted); }
+      .border-muted { border-color: var(--vuln-muted); }
+      .ring-muted { --tw-ring-color: var(--vuln-muted); }
+      .bg-muted-foreground { background-color: var(--vuln-muted-foreground); }
+      .text-muted-foreground { color: var(--vuln-muted-foreground); }
+      .border-muted-foreground { border-color: var(--vuln-muted-foreground); }
+      .ring-muted-foreground { --tw-ring-color: var(--vuln-muted-foreground); }
+      .bg-border { background-color: var(--vuln-border); }
+      .text-border { color: var(--vuln-border); }
+      .border-border { border-color: var(--vuln-border); }
+      .ring-border { --tw-ring-color: var(--vuln-border); }
+      .bg-input { background-color: var(--vuln-input); }
+      .text-input { color: var(--vuln-input); }
+      .border-input { border-color: var(--vuln-input); }
+      .ring-input { --tw-ring-color: var(--vuln-input); }
+      .bg-ring { background-color: var(--vuln-ring); }
+      .text-ring { color: var(--vuln-ring); }
+      .border-ring { border-color: var(--vuln-ring); }
+      .ring-ring { --tw-ring-color: var(--vuln-ring); }
+    </style>
+    <style>
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      [data-icon] {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        -webkit-mask-size: contain;
+        mask-size: contain;
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+        -webkit-mask-position: center;
+        mask-position: center;
+        background-color: currentColor;
+      }
+    </style>
+</head>
+<body class="min-h-screen font-sans antialiased">
+  <style id="critical-layout">
+    .cwe-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: center;
+    }
+    .cwe-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+      gap: 1.25rem;
+    }
+    @media (max-width: 640px) {
+      .cwe-grid { grid-template-columns: 1fr; }
+    }
+
+    /* === 详情弹窗 === */
+    .cwe-modal-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 60;
+      background: rgba(0, 0, 0, 0.6);
+      -webkit-backdrop-filter: blur(2px);
+      backdrop-filter: blur(2px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+    .cwe-modal-overlay.open { display: flex; }
+    .cwe-modal {
+      background: var(--vuln-surface);
+      border: 1px solid var(--vuln-line);
+      border-radius: 12px;
+      max-width: 48rem;
+      width: 100%;
+      max-height: 85vh;
+      overflow-y: auto;
+      box-shadow: var(--vuln-shadow-3);
+      animation: cwe-modal-in 0.18s ease-out;
+    }
+    @keyframes cwe-modal-in {
+      from { opacity: 0; transform: translateY(8px) scale(0.98); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    /* === 代码块 === */
+    .cwe-code-block {
+      background: var(--vuln-bg);
+      border: 1px solid var(--vuln-line);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      overflow-x: auto;
+      font-family: var(--vuln-font-mono);
+      font-size: 0.8125rem;
+      line-height: 1.6;
+      color: var(--vuln-ink);
+      white-space: pre;
+      tab-size: 2;
+    }
+    .cwe-code-block.vuln { border-left: 3px solid var(--vuln-state-error); }
+    .cwe-code-block.safe { border-left: 3px solid var(--vuln-state-success); }
+  </style>
+
+  <nav class="fixed top-0 left-0 right-0 z-50 border-b border-[var(--vuln-line)] bg-[var(--vuln-bg)]/90 backdrop-blur" aria-label="主导航">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex h-14 items-center justify-between">
+        <a href="./index.html" class="flex items-center gap-2 text-[var(--vuln-ink)] font-semibold">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true" stroke="var(--vuln-brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+            <path d="M2 17l10 5 10-5"/>
+            <path d="M2 12l10 5 10-5"/>
+          </svg>
+          <span class="text-lg tracking-tight">VulnScanner</span>
+        </a>
+        <ul class="flex items-center gap-1">
+          <li>
+            <a id="nav-dashboard" data-dom-id="nav-dashboard" href="./index.html" class="text-sm font-medium text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] transition-colors px-3 py-2 rounded-md">仪表盘</a>
+          </li>
+          <li>
+            <a id="nav-scan" data-dom-id="nav-scan" href="./scan.html" class="text-sm font-medium text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] transition-colors px-3 py-2 rounded-md">扫描工作台</a>
+          </li>
+          <li>
+            <a id="nav-cwe" data-dom-id="nav-cwe" href="./cwe.html" class="text-[var(--vuln-brand)] bg-[var(--vuln-brand)]/10 text-sm font-medium px-3 py-2 rounded-md" aria-current="page">CWE 样本库</a>
+          </li>
+          <li>
+            <a id="nav-posture" data-dom-id="nav-posture" href="./posture.html" class="text-sm font-medium text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] transition-colors px-3 py-2 rounded-md">安全态势</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <main class="pt-20 pb-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+    <header class="mb-6">
+      <h1 class="text-2xl font-semibold text-[var(--vuln-ink)] mb-1">CWE 样本库</h1>
+      <p class="text-sm text-[var(--vuln-ink-2)]">浏览常见安全弱点分类、严重等级及代码示例，辅助审计与学习。</p>
+    </header>
+
+    <section class="cwe-toolbar mb-4 p-4 bg-[var(--vuln-surface)] border border-[var(--vuln-line)] rounded-lg">
+      <div class="flex items-center gap-2 flex-1 min-w-[16rem]">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-[var(--vuln-ink-3)]">
+          <circle cx="11" cy="11" r="8"/>
+          <path d="m21 21-4.3-4.3"/>
+        </svg>
+        <input id="search-cwe" type="search" placeholder="搜索 CWE ID、名称或关键词..." aria-label="搜索 CWE" class="w-full bg-[var(--vuln-surface-2)] border border-[var(--vuln-line)] text-[var(--vuln-ink)] text-sm rounded-md px-3 py-2 placeholder:text-[var(--vuln-ink-3)] focus:outline-none focus:ring-2 focus:ring-[var(--vuln-brand)]"/>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-[var(--vuln-ink-3)]">
+          <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+        </svg>
+        <select id="filter-severity" aria-label="按严重等级筛选" class="bg-[var(--vuln-surface-2)] border border-[var(--vuln-line)] text-[var(--vuln-ink)] text-sm rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--vuln-brand)]">
+          <option value="">全部等级</option>
+          <option value="high">高危</option>
+          <option value="medium">中危</option>
+          <option value="low">低危</option>
+          <option value="info">信息</option>
+        </select>
+      </div>
+
+      <div class="flex flex-wrap gap-2" role="group" aria-label="严重等级筛选">
+        <button type="button" class="filter-chip active px-3 py-1.5 text-sm rounded-full border transition-colors" data-severity="all">全部</button>
+        <button type="button" class="filter-chip px-3 py-1.5 text-sm rounded-full border transition-colors" data-severity="high">高危</button>
+        <button type="button" class="filter-chip px-3 py-1.5 text-sm rounded-full border transition-colors" data-severity="medium">中危</button>
+        <button type="button" class="filter-chip px-3 py-1.5 text-sm rounded-full border transition-colors" data-severity="low">低危</button>
+        <button type="button" class="filter-chip px-3 py-1.5 text-sm rounded-full border transition-colors" data-severity="info">信息</button>
+      </div>
+    </section>
+
+    <div class="flex items-center justify-between mb-4 px-1">
+      <p id="cwe-stats" class="text-xs text-[var(--vuln-ink-3)]">共 0 个 CWE · 显示 0 个</p>
+      <p class="text-xs text-[var(--vuln-ink-3)]">数据驱动 · 实时筛选 · 点击卡片查看代码示例</p>
+    </div>
+
+    <section id="cwe-grid" class="cwe-grid" aria-label="CWE 卡片列表">
+      <!-- 卡片由 JS 动态渲染 -->
+    </section>
+
+    <div id="cwe-empty" class="hidden mt-8 text-center py-12 border border-dashed border-[var(--vuln-line)] rounded-lg">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" aria-hidden="true" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="mx-auto mb-3 text-[var(--vuln-ink-3)]">
+        <circle cx="11" cy="11" r="8"/>
+        <path d="m21 21-4.3-4.3"/>
+        <path d="M8 11h6"/>
+      </svg>
+      <p class="text-sm text-[var(--vuln-ink-2)]">未找到匹配的 CWE 条目，请调整搜索关键词或筛选条件。</p>
+    </div>
+
+    <div class="mt-8 flex justify-center">
+      <p id="cwe-footer-count" class="text-xs text-[var(--vuln-ink-3)]">共 0 个 CWE 条目 · 暗色赛博安全样本库</p>
+    </div>
+  </main>
+
+  <!-- 详情弹窗 -->
+  <div id="cwe-modal-overlay" class="cwe-modal-overlay" aria-hidden="true">
+    <div class="cwe-modal" role="dialog" aria-modal="true" aria-labelledby="modal-cwe-title">
+      <div class="flex items-start justify-between p-5 border-b border-[var(--vuln-line)] sticky top-0 bg-[var(--vuln-surface)] z-10 rounded-t-xl">
+        <div class="min-w-0 pr-4">
+          <div class="flex items-center gap-2 mb-2 flex-wrap">
+            <span id="modal-cwe-id" class="inline-flex items-center px-2 py-1 rounded-md bg-[var(--vuln-surface-2)] border border-[var(--vuln-line)] text-[var(--vuln-brand)] font-mono text-xs font-semibold"></span>
+            <span id="modal-cwe-sev" class="severity-badge inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"></span>
+            <span id="modal-cwe-category" class="text-xs text-[var(--vuln-ink-3)]"></span>
+          </div>
+          <h3 id="modal-cwe-title" class="text-lg font-semibold text-[var(--vuln-ink)] leading-tight"></h3>
+        </div>
+        <button id="modal-close" type="button" aria-label="关闭弹窗" class="shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-md text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] hover:bg-[var(--vuln-surface-2)] transition-colors">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 6 6 18"/>
+            <path d="m6 6 12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-5">
+        <section>
+          <h4 class="text-xs font-semibold uppercase tracking-wider text-[var(--vuln-ink-3)] mb-2">描述</h4>
+          <p id="modal-cwe-desc" class="text-sm text-[var(--vuln-ink)] leading-relaxed"></p>
+        </section>
+
+        <section>
+          <h4 class="text-xs font-semibold uppercase tracking-wider text-[var(--vuln-ink-3)] mb-2">检测要点</h4>
+          <p id="modal-cwe-detection" class="text-sm text-[var(--vuln-ink-2)] leading-relaxed"></p>
+        </section>
+
+        <section>
+          <div class="flex items-center justify-between mb-2">
+            <h4 class="text-xs font-semibold uppercase tracking-wider text-[var(--vuln-state-error)]">漏洞代码示例</h4>
+            <span id="modal-cwe-vuln-lang" class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[var(--vuln-state-error)]/10 text-[var(--vuln-state-error)] border border-[var(--vuln-state-error)]/20"></span>
+          </div>
+          <pre class="cwe-code-block vuln"><code id="modal-cwe-vuln-code"></code></pre>
+        </section>
+
+        <section>
+          <div class="flex items-center justify-between mb-2">
+            <h4 class="text-xs font-semibold uppercase tracking-wider text-[var(--vuln-state-success)]">安全代码示例</h4>
+            <span id="modal-cwe-safe-lang" class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[var(--vuln-state-success)]/10 text-[var(--vuln-state-success)] border border-[var(--vuln-state-success)]/20"></span>
+          </div>
+          <pre class="cwe-code-block safe"><code id="modal-cwe-safe-code"></code></pre>
+        </section>
+
+        <section>
+          <h4 class="text-xs font-semibold uppercase tracking-wider text-[var(--vuln-ink-3)] mb-2">修复建议</h4>
+          <p id="modal-cwe-fix" class="text-sm text-[var(--vuln-ink)] leading-relaxed"></p>
+        </section>
+
+        <section id="modal-cwe-langs-wrap" class="pt-2 border-t border-[var(--vuln-line)]">
+          <h4 class="text-xs font-semibold uppercase tracking-wider text-[var(--vuln-ink-3)] mb-2">受影响语言 / 技术栈</h4>
+          <div id="modal-cwe-langs" class="flex flex-wrap gap-2"></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      /* ---------- 工具：HTML 转义，防止 XSS ---------- */
+      function escapeHtml(str) {
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      /* ---------- 严重等级元数据 ---------- */
+      var SEVERITY_META = {
+        high:   { label: '高危', badge: 'bg-[var(--vuln-state-error)]/10 text-[var(--vuln-state-error)] border-[var(--vuln-state-error)]/20' },
+        medium: { label: '中危', badge: 'bg-[var(--vuln-state-warning)]/10 text-[var(--vuln-state-warning)] border-[var(--vuln-state-warning)]/20' },
+        low:    { label: '低危', badge: 'bg-[var(--vuln-state-success)]/10 text-[var(--vuln-state-success)] border-[var(--vuln-state-success)]/20' },
+        info:   { label: '信息', badge: 'bg-[var(--vuln-state-info)]/10 text-[var(--vuln-state-info)] border-[var(--vuln-state-info)]/20' }
+      };
+
+      /* ---------- CWE 数据 ---------- */
+      var CWE_DATA = [
+        {
+          id: 'CWE-79',
+          name: '跨站脚本攻击（XSS）',
+          severity: 'high',
+          category: '注入类',
+          languages: ['Web', 'JavaScript', 'PHP'],
+          description: '未对用户可控输入进行充分校验或转义，导致攻击者可在受害者的浏览器中注入并执行恶意脚本，窃取 Cookie 或劫持会话。',
+          detection: '检测要点：用户可控数据未经 HTML 实体编码就进入 HTML 输出；使用 innerHTML/document.write 接收外部数据；DOM 直接拼接 location.hash、document.referrer 等危险源。',
+          fix: '修复建议：对所有用户输入进行 HTML 转义（html.escape / htmlspecialchars）；使用 textContent 代替 innerHTML；实施严格的 CSP 策略；富文本使用白名单过滤库（如 DOMPurify）。',
+          vulnCode: { lang: 'javascript', code: '// 漏洞代码：直接写入 innerHTML\ndocument.getElementById("out").innerHTML =\n  location.hash.slice(1);' },
+          safeCode: { lang: 'javascript', code: '// 安全代码：使用 textContent\ndocument.getElementById("out").textContent =\n  location.hash.slice(1);' }
+        },
+        {
+          id: 'CWE-89',
+          name: 'SQL 注入',
+          severity: 'high',
+          category: '注入类',
+          languages: ['Java', 'PHP', 'Python'],
+          description: '应用程序将不可信数据直接拼接到 SQL 查询中，使攻击者能够篡改查询语义、读取或修改数据库内容，甚至执行系统命令。',
+          detection: '检测要点：SQL 语句使用字符串拼接构造；用户输入直接进入 WHERE/ORDER BY/LIMIT 子句；未使用参数化查询或 ORM 绑定参数。',
+          fix: '修复建议：使用参数化查询（PreparedStatement）；对不可信输入进行严格白名单校验；使用 ORM 框架的绑定参数接口；最小化数据库账号权限。',
+          vulnCode: { lang: 'java', code: '// 漏洞代码：字符串拼接 SQL\nString sql = "SELECT * FROM users WHERE id=" + userId;\nStatement st = conn.createStatement();\nResultSet rs = st.executeQuery(sql);' },
+          safeCode: { lang: 'java', code: '// 安全代码：使用 PreparedStatement 参数化\nPreparedStatement ps =\n  conn.prepareStatement("SELECT * FROM users WHERE id=?");\nps.setInt(1, userId);' }
+        },
+        {
+          id: 'CWE-78',
+          name: '命令注入',
+          severity: 'high',
+          category: '注入类',
+          languages: ['Python', 'Shell', 'Go'],
+          description: '程序将不可信数据拼接到操作系统命令中执行，攻击者可通过命令分隔符或元字符注入并执行任意系统命令。',
+          detection: '检测要点：调用 system/exec/popen/Shell.exec 时传入外部数据；未对输入过滤 shell 元字符（; | & $ ` 等）；使用 shell=True 执行拼接的命令字符串。',
+          fix: '修复建议：避免直接调用 shell，使用带参数数组的 exec 接口；对输入进行严格白名单校验；禁用 shell=True；使用专门的库替代命令行调用。',
+          vulnCode: { lang: 'python', code: '# 漏洞代码：shell=True 拼接外部输入\nimport subprocess\nsubprocess.call("ping -c 1 " + host, shell=True)' },
+          safeCode: { lang: 'python', code: '# 安全代码：使用参数列表，不经 shell\nimport subprocess\nsubprocess.call(["ping", "-c", "1", host])' }
+        },
+        {
+          id: 'CWE-22',
+          name: '路径遍历',
+          severity: 'high',
+          category: '文件操作类',
+          languages: ['Java', 'Go', 'Node.js'],
+          description: '程序使用外部输入构造路径时未做限制，攻击者可利用 ../ 等序列访问受限目录之外的文件或资源，导致敏感信息泄露。',
+          detection: '检测要点：用户输入直接拼接到文件路径中；未对 ../、..\\ 进行过滤或规范化；未校验最终路径是否仍在允许的根目录内。',
+          fix: '修复建议：使用 Path.normalize()/realpath 解析后校验是否在允许目录内；对输入进行白名单过滤；使用安全的文件 ID 映射代替直接路径。',
+          vulnCode: { lang: 'go', code: '// 漏洞代码：直接拼接路径\npath := filepath.Join(baseDir,\n  r.URL.Query().Get("file"))\ndata, _ := os.ReadFile(path)' },
+          safeCode: { lang: 'go', code: '// 安全代码：校验路径仍在根目录内\nfull := filepath.Join(baseDir, name)\nif !strings.HasPrefix(filepath.Clean(full),\n   filepath.Clean(baseDir)+string(os.PathSeparator)) {\n  http.Error(w, "invalid", 400)\n  return\n}\nos.ReadFile(full)' }
+        },
+        {
+          id: 'CWE-94',
+          name: '代码注入（eval/exec）',
+          severity: 'high',
+          category: '注入类',
+          languages: ['Python', 'PHP'],
+          description: '应用程序将不可信数据作为代码执行（如 eval、exec），攻击者可注入并运行任意代码，造成服务器沦陷。',
+          detection: '检测要点：eval()/exec()/Function() 接收外部输入；模板引擎未开启沙箱或自动转义；动态 import 用户控制的模块名。',
+          fix: '修复建议：严禁对不可信数据使用 eval/exec；使用 JSON.parse 替代 eval 解析数据；模板引擎开启沙箱与自动转义；使用 AST 解析而非字符串求值。',
+          vulnCode: { lang: 'python', code: '# 漏洞代码：eval 用户输入\nexpr = request.GET.get("expr")\nresult = eval(expr)' },
+          safeCode: { lang: 'python', code: '# 安全代码：使用 ast.literal_eval\nimport ast\nresult = ast.literal_eval(expr)' }
+        },
+        {
+          id: 'CWE-502',
+          name: '不安全的反序列化',
+          severity: 'high',
+          category: '数据处理类',
+          languages: ['Java', 'Python', '.NET'],
+          description: '程序反序列化来自不可信来源的数据，攻击者可构造特定对象链触发任意代码执行或拒绝服务。',
+          detection: '检测要点：ObjectInputStream.readObject / pickle.loads / BinaryFormatter 反序列化外部数据；未限制可反序列化的类白名单；使用存在 gadget 链的旧版本库。',
+          fix: '修复建议：避免反序列化不可信数据；使用 JSON 等数据格式；实现 ObjectInputFilter 类白名单（Java）；升级至不存在已知 gadget 链的库版本。',
+          vulnCode: { lang: 'java', code: '// 漏洞代码：直接反序列化外部数据\nObjectInputStream ois =\n  new ObjectInputStream(request.getInputStream());\nObject obj = ois.readObject();' },
+          safeCode: { lang: 'java', code: '// 安全代码：使用 ObjectInputFilter 白名单\nObjectInputStream ois = new ObjectInputStream(in);\nois.setObjectInputFilter(info ->\n  "java.lang.String".equals(info.serialClass())\n  ? ObjectInputFilter.Status.ALLOWED\n  : ObjectInputFilter.Status.REJECTED);' }
+        },
+        {
+          id: 'CWE-1333',
+          name: '服务端模板注入（SSTI）',
+          severity: 'high',
+          category: '注入类',
+          languages: ['Python', 'Java'],
+          description: '应用将用户输入拼接到模板表达式后由模板引擎求值，攻击者可注入模板语法实现远程代码执行。',
+          detection: '检测要点：用户输入直接拼接到模板字符串中渲染；模板引擎未启用沙箱（如 Jinja2 未启用沙箱、Freemarker 未限制 API）；render_template_string 接收外部内容。',
+          fix: '修复建议：模板与数据严格分离，用户输入只作为数据传入；模板引擎启用沙箱（SandboxedEnvironment）；禁用模板中的危险函数与 API 访问。',
+          vulnCode: { lang: 'python', code: '# 漏洞代码：拼接用户输入到模板\nfrom jinja2 import Template\ntmpl = Template("Hello " + request.args.get("name"))\nreturn tmpl.render()' },
+          safeCode: { lang: 'python', code: '# 安全代码：用户输入作为变量传入\nfrom jinja2 import Template\ntmpl = Template("Hello {{ name }}")\nreturn tmpl.render(name=request.args.get("name"))' }
+        },
+        {
+          id: 'CWE-611',
+          name: 'XML 外部实体（XXE）',
+          severity: 'high',
+          category: '数据处理类',
+          languages: ['Java', 'Python'],
+          description: 'XML 解析器处理外部实体声明，攻击者可通过构造恶意 XML 读取服务器文件、发起 SSRF 或造成拒绝服务。',
+          detection: '检测要点：DocumentBuilderFactory / XMLReader / lxml 未禁用 DTD 与外部实体；XML 接口接收上传或 SOAP 报文；使用默认配置的旧版 XML 解析器。',
+          fix: '修复建议：禁用 DTD 与外部实体（FEATURE_SECURE_PROCESSING）；使用 JSON 替代 XML；升级至默认安全的解析器版本；对 XML 输入做白名单校验。',
+          vulnCode: { lang: 'java', code: '// 漏洞代码：默认配置解析 XML\nDocumentBuilderFactory dbf =\n  DocumentBuilderFactory.newInstance();\nDocument doc = dbf.newDocumentBuilder().parse(input);' },
+          safeCode: { lang: 'java', code: '// 安全代码：禁用 DTD 与外部实体\nDocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();\ndbf.setFeature(\n  "http://apache.org/xml/features/disallow-doctype-decl", true);\ndbf.setFeature(\n  "http://xml.org/sax/features/external-general-entities", false);' }
+        },
+        {
+          id: 'CWE-918',
+          name: '服务器端请求伪造（SSRF）',
+          severity: 'medium',
+          category: '网络请求类',
+          languages: ['Node.js', 'Python', 'Java'],
+          description: '服务端未经验证即根据用户输入发起请求，可能导致内网探测、元数据接口泄露或访问受限的云服务。',
+          detection: '检测要点：HTTP 客户端请求的 URL 来自用户输入；未对目标主机/IP 做白名单或内网过滤；允许 redirect 跟随导致绕过校验；可访问云元数据接口 169.254.169.254。',
+          fix: '修复建议：对目标 URL 进行白名单校验；解析域名后校验 IP 是否为内网地址；禁用重定向跟随；限制出站协议与端口。',
+          vulnCode: { lang: 'javascript', code: '// 漏洞代码：直接请求用户输入的 URL\nconst url = req.query.url;\nfetch(url)\n  .then(r => r.text())\n  .then(t => res.send(t));' },
+          safeCode: { lang: 'javascript', code: '// 安全代码：校验目标主机为白名单\nconst u = new URL(req.query.url);\nif (!ALLOWED_HOSTS.includes(u.hostname)) {\n  res.status(400).send("blocked"); return;\n}\nfetch(u).then(r => r.text()).then(t => res.send(t));' }
+        },
+        {
+          id: 'CWE-352',
+          name: '跨站请求伪造（CSRF）',
+          severity: 'medium',
+          category: '认证类',
+          languages: ['Web', 'Java', 'Ruby'],
+          description: 'Web 应用未验证请求是否由用户自愿发起，诱导受害者在已认证状态下执行非预期的敏感操作。',
+          detection: '检测要点：状态变更接口仅依赖 Cookie 鉴权；未校验 Origin/Referer 或 CSRF Token；GET 请求执行写操作；SameSite 未设置或为 None。',
+          fix: '修复建议：在表单与请求头中携带同步 CSRF Token；校验 Origin/Referer；敏感 Cookie 设置 SameSite=Lax/Strict；写操作使用 POST/PUT/DELETE。',
+          vulnCode: { lang: 'php', code: '// 漏洞代码：仅依赖 Cookie 鉴权转账\nif (isset($_SESSION["user"])) {\n  transfer($_POST["to"], $_POST["amount"]);\n}' },
+          safeCode: { lang: 'php', code: '// 安全代码：校验 CSRF Token\nif ($_POST["csrf"] !== $_SESSION["csrf_token"])\n  die("invalid");\ntransfer($_POST["to"], $_POST["amount"]);' }
+        },
+        {
+          id: 'CWE-287',
+          name: '认证绕过',
+          severity: 'high',
+          category: '认证类',
+          languages: ['通用', 'Java', 'Python'],
+          description: '身份认证逻辑存在缺陷，攻击者无需有效凭证即可访问受保护资源或冒充其他用户。',
+          detection: '检测要点：认证逻辑使用恒真条件可被绕过（如 SQL 注入 OR 1=1）；JWT 未校验签名或 alg=none；密码比较使用非恒定时间函数；认证状态仅由前端控制。',
+          fix: '修复建议：使用成熟的认证框架与中间件；JWT 强制校验签名与算法白名单；密码比较使用恒定时间函数；服务端统一鉴权，禁止前端控制。',
+          vulnCode: { lang: 'python', code: '# 漏洞代码：JWT 允许 alg=none\ndata = jwt.decode(token,\n  options={"verify_signature": False})\nuser = data.get("user")' },
+          safeCode: { lang: 'python', code: '# 安全代码：强制校验签名与算法\ndata = jwt.decode(token, PUB_KEY,\n  algorithms=["RS256"])\nuser = data.get("user")' }
+        },
+        {
+          id: 'CWE-639',
+          name: '权限越界（IDOR）',
+          severity: 'medium',
+          category: '访问控制类',
+          languages: ['通用', 'Java', 'Node.js'],
+          description: '系统使用用户提供的标识符访问对象时未做归属校验，攻击者可通过修改 ID 访问其他用户的数据。',
+          detection: '检测要点：直接使用 URL/参数中的 ID 查询数据；未校验当前用户对该资源的访问权限；自增 ID 易被枚举；查询未关联当前用户身份。',
+          fix: '修复建议：基于当前会话身份过滤查询（WHERE owner_id = current_user）；使用不可枚举的 UUID；服务端对每次访问执行授权检查；默认拒绝，显式放行。',
+          vulnCode: { lang: 'javascript', code: '// 漏洞代码：用 URL 参数查订单，未校验归属\nconst id = req.params.id;\nconst order = await db.order.findUnique({ where: { id } });\nres.json(order);' },
+          safeCode: { lang: 'javascript', code: '// 安全代码：查询时关联当前用户\nconst id = req.params.id;\nconst order = await db.order.findFirst({\n  where: { id, userId: req.user.id }\n});\nres.json(order);' }
+        },
+        {
+          id: 'CWE-798',
+          name: '硬编码凭证',
+          severity: 'low',
+          category: '配置类',
+          languages: ['通用', 'JavaScript', 'Python'],
+          description: '源代码、配置文件或客户端资源中硬编码了密码、API 密钥或令牌，增加凭证泄露与横向移动风险。',
+          detection: '检测要点：源码中出现明文密码/密钥字符串；配置文件提交到版本库；前端代码包含 API Secret；凭证使用低熵默认值。',
+          fix: '修复建议：凭证存放在环境变量或密钥管理系统（Vault/KMS）；配置文件加入 .gitignore；使用动态密钥轮换；CI 阶段扫描硬编码凭证。',
+          vulnCode: { lang: 'javascript', code: '// 漏洞代码：硬编码 API 密钥\nconst API_KEY = "YOUR_API_KEY_HERE";\nfetch("https://api.pay.com", {\n  headers: { Authorization: "Bearer " + API_KEY }\n});' },
+          safeCode: { lang: 'javascript', code: '// 安全代码：从环境变量读取\nconst API_KEY = process.env.PAY_API_KEY;\nfetch("https://api.pay.com", {\n  headers: { Authorization: "Bearer " + API_KEY }\n});' }
+        },
+        {
+          id: 'CWE-327',
+          name: '使用弱加密算法',
+          severity: 'medium',
+          category: '加密类',
+          languages: ['通用', 'Java', 'Python'],
+          description: '系统使用了已被认为不安全的加密算法或过短的密钥长度，无法提供预期的机密性与完整性保护。',
+          detection: '检测要点：使用 MD5/SHA1 作为密码哈希；使用 DES/3DES/RC4 或 ECB 模式；RSA 密钥长度小于 2048；使用自定义加密算法。',
+          fix: '修复建议：密码使用 bcrypt/scrypt/argon2 带盐；对称加密使用 AES-256-GCM 或 ChaCha20；RSA 密钥长度至少 2048；使用标准库而非自实现算法。',
+          vulnCode: { lang: 'java', code: '// 漏洞代码：使用 MD5 校验密码\nimport java.security.MessageDigest;\nString hash = MessageDigest.getInstance("MD5")\n  .digest(password.getBytes()).toString();' },
+          safeCode: { lang: 'java', code: '// 安全代码：使用 BCrypt 带盐\nimport org.mindrot.jbcrypt.BCrypt;\nString hash = BCrypt.hashpw(\n  password, BCrypt.gensalt(12));' }
+        },
+        {
+          id: 'CWE-295',
+          name: '证书校验不当',
+          severity: 'medium',
+          category: '加密类',
+          languages: ['Python', 'Java', 'Node.js'],
+          description: '应用在建立 TLS 连接时未正确校验服务器证书，导致中间人攻击可截获或篡改通信内容。',
+          detection: '检测要点：代码中设置 verify=False / TrustAllCerts / InsecureSkipVerify；未校验证书主机名；使用默认允许所有证书的 TrustManager；忽略 SSL 错误继续连接。',
+          fix: '修复建议：使用系统默认证书校验；证书钉选（pinning）加强校验；禁止覆盖 TrustManager 为接受所有；校验证书链与主机名。',
+          vulnCode: { lang: 'python', code: '# 漏洞代码：关闭证书校验\nimport requests\nr = requests.get(url, verify=False)' },
+          safeCode: { lang: 'python', code: '# 安全代码：启用证书校验\nimport requests\nr = requests.get(url, verify=True)' }
+        },
+        {
+          id: 'CWE-384',
+          name: '会话固定',
+          severity: 'medium',
+          category: '认证类',
+          languages: ['Web', 'PHP', 'Java'],
+          description: '应用在用户登录前后未轮换会话标识符，攻击者可预先植入会话 ID 实现会话固定攻击。',
+          detection: '检测要点：登录成功后未调用 invalidate/session_regenerate；会话 ID 可由 URL 传入；登录前后会话 ID 不变；Cookie 未设置 HttpOnly/Secure。',
+          fix: '修复建议：登录成功后重新生成会话 ID；禁用 URL 会话 ID；Cookie 设置 HttpOnly、Secure、SameSite；登录后清除旧会话数据。',
+          vulnCode: { lang: 'php', code: '// 漏洞代码：登录后不重置会话 ID\nsession_start();\nif (check_password($user, $pass)) {\n  $_SESSION["user"] = $user;\n}' },
+          safeCode: { lang: 'php', code: '// 安全代码：登录后重新生成会话 ID\nsession_start();\nif (check_password($user, $pass)) {\n  session_regenerate_id(true);\n  $_SESSION["user"] = $user;\n}' }
+        }
+      ];
+
+      /* ---------- 状态 ---------- */
+      var state = { search: '', severity: 'all' };
+
+      /* ---------- DOM 引用 ---------- */
+      var $grid = document.getElementById('cwe-grid');
+      var $stats = document.getElementById('cwe-stats');
+      var $footerCount = document.getElementById('cwe-footer-count');
+      var $empty = document.getElementById('cwe-empty');
+      var $search = document.getElementById('search-cwe');
+      var $select = document.getElementById('filter-severity');
+      var $overlay = document.getElementById('cwe-modal-overlay');
+
+      /* ---------- 渲染卡片 ---------- */
+      function langSpans(langs) {
+        return langs.map(function (l) {
+          return '<span class="text-xs px-2 py-0.5 rounded bg-[var(--vuln-surface-2)] text-[var(--vuln-ink-2)] border border-[var(--vuln-line)]">' + escapeHtml(l) + '</span>';
+        }).join('');
+      }
+
+      function renderCards() {
+        var html = CWE_DATA.map(function (c) {
+          var meta = SEVERITY_META[c.severity] || SEVERITY_META.info;
+          return '' +
+            '<article class="cwe-card group bg-[var(--vuln-surface)] border border-[var(--vuln-line)] rounded-lg p-5 hover:border-[var(--vuln-brand)]/60 transition-colors" data-severity="' + escapeHtml(c.severity) + '" data-cwe-id="' + escapeHtml(c.id) + '">' +
+              '<div class="flex items-start justify-between mb-3">' +
+                '<span class="inline-flex items-center px-2 py-1 rounded-md bg-[var(--vuln-surface-2)] border border-[var(--vuln-line)] text-[var(--vuln-brand)] font-mono text-xs font-semibold">' + escapeHtml(c.id) + '</span>' +
+                '<span class="severity-badge inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ' + meta.badge + '">' + escapeHtml(meta.label) + '</span>' +
+              '</div>' +
+              '<h2 class="text-base font-semibold text-[var(--vuln-ink)] mb-2">' + escapeHtml(c.name) + '</h2>' +
+              '<p class="text-sm text-[var(--vuln-ink-2)] mb-4 leading-relaxed">' + escapeHtml(c.description) + '</p>' +
+              '<div class="flex flex-wrap gap-2 mb-4" aria-label="受影响语言">' + langSpans(c.languages) + '</div>' +
+              '<a href="#" data-cwe-id="' + escapeHtml(c.id) + '" class="view-detail inline-flex items-center gap-1 text-sm font-medium text-[var(--vuln-brand)] hover:text-[var(--vuln-brand-300)] transition-colors">' +
+                '查看详情' +
+                '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+                  '<path d="M5 12h14"/>' +
+                  '<path d="m12 5 7 7-7 7"/>' +
+                '</svg>' +
+              '</a>' +
+            '</article>';
+        }).join('');
+        $grid.innerHTML = html;
+      }
+
+      /* ---------- 筛选 ---------- */
+      function applyFilters() {
+        var search = state.search.trim().toLowerCase();
+        var sev = state.severity;
+        var cards = $grid.querySelectorAll('.cwe-card');
+        var shown = 0;
+
+        cards.forEach(function (card) {
+          var cweId = card.getAttribute('data-cwe-id') || '';
+          var cwe = null;
+          for (var i = 0; i < CWE_DATA.length; i++) {
+            if (CWE_DATA[i].id === cweId) { cwe = CWE_DATA[i]; break; }
+          }
+          var name = cwe ? cwe.name.toLowerCase() : '';
+          var desc = cwe ? cwe.description.toLowerCase() : '';
+          var category = cwe ? cwe.category.toLowerCase() : '';
+          var cardSev = card.getAttribute('data-severity') || '';
+
+          var matchSearch = !search ||
+            cweId.toLowerCase().indexOf(search) > -1 ||
+            name.indexOf(search) > -1 ||
+            desc.indexOf(search) > -1 ||
+            category.indexOf(search) > -1;
+          var matchSev = sev === 'all' || cardSev === sev;
+
+          if (matchSearch && matchSev) {
+            card.style.display = '';
+            shown++;
+          } else {
+            card.style.display = 'none';
+          }
+        });
+
+        $stats.textContent = '共 ' + CWE_DATA.length + ' 个 CWE · 显示 ' + shown + ' 个';
+        $footerCount.textContent = '共 ' + CWE_DATA.length + ' 个 CWE 条目 · 暗色赛博安全样本库';
+        $empty.style.display = shown === 0 ? '' : 'none';
+      }
+
+      /* ---------- chip 样式同步 ---------- */
+      function styleChip(chip) {
+        if (chip.classList.contains('active')) {
+          chip.style.backgroundColor = 'var(--vuln-brand)';
+          chip.style.color = 'var(--vuln-brand-ink)';
+          chip.style.borderColor = 'var(--vuln-brand)';
+        } else {
+          chip.style.backgroundColor = 'var(--vuln-surface-2)';
+          chip.style.color = 'var(--vuln-ink-2)';
+          chip.style.borderColor = 'var(--vuln-line)';
+        }
+      }
+
+      function syncChips() {
+        var chips = document.querySelectorAll('.filter-chip');
+        chips.forEach(function (chip) {
+          var active = chip.getAttribute('data-severity') === state.severity;
+          chip.classList.toggle('active', active);
+          styleChip(chip);
+        });
+      }
+
+      /* ---------- 详情弹窗 ---------- */
+      function openModal(cweId) {
+        var cwe = null;
+        for (var i = 0; i < CWE_DATA.length; i++) {
+          if (CWE_DATA[i].id === cweId) { cwe = CWE_DATA[i]; break; }
+        }
+        if (!cwe) return;
+
+        var meta = SEVERITY_META[cwe.severity] || SEVERITY_META.info;
+
+        document.getElementById('modal-cwe-id').textContent = cwe.id;
+
+        var sevEl = document.getElementById('modal-cwe-sev');
+        sevEl.textContent = meta.label;
+        sevEl.className = 'severity-badge inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ' + meta.badge;
+
+        document.getElementById('modal-cwe-category').textContent = '· ' + cwe.category;
+        document.getElementById('modal-cwe-title').textContent = cwe.name;
+        document.getElementById('modal-cwe-desc').textContent = cwe.description;
+        document.getElementById('modal-cwe-detection').textContent = cwe.detection;
+        document.getElementById('modal-cwe-fix').textContent = cwe.fix;
+
+        // 代码块通过 textContent 写入，天然防 XSS
+        document.getElementById('modal-cwe-vuln-code').textContent = cwe.vulnCode.code;
+        document.getElementById('modal-cwe-vuln-lang').textContent = cwe.vulnCode.lang;
+        document.getElementById('modal-cwe-safe-code').textContent = cwe.safeCode.code;
+        document.getElementById('modal-cwe-safe-lang').textContent = cwe.safeCode.lang;
+
+        // 受影响语言
+        var langsBox = document.getElementById('modal-cwe-langs');
+        langsBox.innerHTML = langSpans(cwe.languages);
+
+        $overlay.classList.add('open');
+        $overlay.setAttribute('aria-hidden', 'false');
+        document.body.style.overflow = 'hidden';
+      }
+
+      function closeModal() {
+        $overlay.classList.remove('open');
+        $overlay.setAttribute('aria-hidden', 'true');
+        document.body.style.overflow = '';
+      }
+
+      /* ---------- 事件绑定 ---------- */
+      // 搜索
+      $search.addEventListener('input', function (e) {
+        state.search = e.target.value;
+        applyFilters();
+      });
+
+      // 下拉筛选
+      $select.addEventListener('change', function (e) {
+        state.severity = e.target.value || 'all';
+        syncChips();
+        applyFilters();
+      });
+
+      // chip 筛选
+      var chips = document.querySelectorAll('.filter-chip');
+      chips.forEach(function (chip) {
+        chip.addEventListener('click', function () {
+          state.severity = chip.getAttribute('data-severity') || 'all';
+          $select.value = state.severity === 'all' ? '' : state.severity;
+          syncChips();
+          applyFilters();
+        });
+      });
+
+      // 卡片"查看详情"（事件委托）
+      $grid.addEventListener('click', function (e) {
+        var link = e.target.closest('.view-detail');
+        if (link) {
+          e.preventDefault();
+          openModal(link.getAttribute('data-cwe-id'));
+        }
+      });
+
+      // 弹窗关闭
+      document.getElementById('modal-close').addEventListener('click', closeModal);
+      $overlay.addEventListener('click', function (e) {
+        if (e.target === $overlay) closeModal();
+      });
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && $overlay.classList.contains('open')) {
+          closeModal();
+        }
+      });
+
+      /* ---------- 初始化 ---------- */
+      renderCards();
+      syncChips();
+      applyFilters();
+      if (window.lucide && typeof window.lucide.createIcons === 'function') {
+        try { window.lucide.createIcons(); } catch (e) {}
+      }
+    })();
+  </script>
+</body>
+</html>

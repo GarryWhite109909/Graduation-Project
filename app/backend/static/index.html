@@ -1,435 +1,463 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" class="light">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI 漏洞扫描器</title>
-<script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-<style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: -apple-system, "Microsoft YaHei", sans-serif; background: #0f1419; color: #e6e6e6; }
-#app { max-width: 1200px; margin: 0 auto; padding: 20px; }
-.header { display: flex; justify-content: space-between; align-items: center; padding: 16px 0; border-bottom: 1px solid #2a2a2a; margin-bottom: 24px; }
-.header h1 { font-size: 22px; color: #58a6ff; }
-.status { font-size: 13px; padding: 4px 12px; border-radius: 12px; }
-.status.ok { background: #1b4332; color: #40db88; }
-.status.err { background: #4a1d1d; color: #ff6b6b; }
-.tabs { display: flex; gap: 4px; margin-bottom: 20px; }
-.tab { padding: 10px 20px; cursor: pointer; border-radius: 8px 8px 0 0; background: #1a1f2e; color: #8b949e; border: 1px solid #2a2a2a; border-bottom: none; }
-.tab.active { background: #161b22; color: #58a6ff; border-color: #58a6ff; }
-.panel { background: #161b22; border: 1px solid #2a2a2a; border-radius: 0 8px 8px 8px; padding: 24px; }
-.form-group { margin-bottom: 16px; }
-.form-group label { display: block; margin-bottom: 6px; color: #8b949e; font-size: 14px; }
-input, textarea, select { width: 100%; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 10px; color: #e6e6e6; font-size: 14px; }
-textarea { min-height: 200px; font-family: "Cascadia Code", Consolas, monospace; resize: vertical; }
-input:focus, textarea:focus, select:focus { outline: none; border-color: #58a6ff; }
-.btn { padding: 10px 24px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; background: #238636; color: #fff; }
-.btn:hover { background: #2ea043; }
-.btn:disabled { background: #21262d; color: #6e7681; cursor: not-allowed; }
-.btn.secondary { background: #21262d; color: #c9d1d9; }
-.btn.secondary:hover { background: #30363d; }
-.toolbar { display: flex; gap: 8px; margin-bottom: 16px; }
-.progress { margin: 12px 0; padding: 8px; background: #0d1117; border-radius: 6px; font-size: 13px; color: #8b949e; }
-.progress-bar { height: 4px; background: #21262d; border-radius: 2px; margin-top: 6px; }
-.progress-bar-fill { height: 100%; background: #58a6ff; border-radius: 2px; transition: width 0.3s; }
-.results { margin-top: 20px; }
-.result-card { background: #0d1117; border: 1px solid #30363d; border-radius: 8px; padding: 16px; margin-bottom: 12px; }
-.result-card.vuln { border-left: 4px solid #ff6b6b; }
-.result-card.safe { border-left: 4px solid #40db88; }
-.result-card.error { border-left: 4px solid #ffa657; }
-.result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-.result-title { font-weight: 600; font-size: 15px; }
-.badge { padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; }
-.badge.critical { background: #4a1d1d; color: #ff6b6b; }
-.badge.high { background: #4a2d1d; color: #ffa657; }
-.badge.medium { background: #4a3d1d; color: #ffdb88; }
-.badge.low { background: #1d3a4a; color: #58a6ff; }
-.badge.safe { background: #1b4332; color: #40db88; }
-.result-meta { font-size: 13px; color: #8b949e; margin-bottom: 8px; }
-.result-explanation { font-size: 14px; line-height: 1.6; margin-bottom: 8px; }
-.result-fix { background: #161b22; padding: 10px; border-radius: 6px; font-size: 13px; color: #7ee787; }
-details { margin-top: 8px; }
-summary { cursor: pointer; font-size: 13px; color: #58a6ff; }
-pre { background: #0d1117; padding: 12px; border-radius: 6px; overflow-x: auto; font-size: 12px; margin-top: 8px; }
-.empty { text-align: center; padding: 40px; color: #6e7681; }
-.summary { display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
-.summary-item { background: #0d1117; padding: 12px 20px; border-radius: 8px; text-align: center; }
-.summary-item .num { font-size: 24px; font-weight: 700; }
-.summary-item .label { font-size: 12px; color: #8b949e; }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>仪表盘</title>
+    <style id="theme-vars">
+/* Vuln Scanner UI — Cyber-security dark theme tokens */
+
+:root {
+  /* Neutral scale */
+  --vuln-bg: #0b0f17;
+  --vuln-surface: #111827;
+  --vuln-surface-2: #1f2937;
+  --vuln-ink: #e6edf3;
+  --vuln-ink-2: #8b949e;
+  --vuln-ink-3: #6e7681;
+  --vuln-line: #30363d;
+
+  /* Brand primary — tech blue */
+  --vuln-brand: #3b82f6;
+  --vuln-brand-ink: #ffffff;
+  --vuln-brand-50: #eff6ff;
+  --vuln-brand-100: #dbeafe;
+  --vuln-brand-200: #bfdbfe;
+  --vuln-brand-300: #93c5fd;
+  --vuln-brand-400: #60a5fa;
+  --vuln-brand-500: #3b82f6;
+  --vuln-brand-600: #2563eb;
+  --vuln-brand-700: #1d4ed8;
+
+  /* Semantic state colors */
+  --vuln-state-success: #22c55e;
+  --vuln-state-warning: #f59e0b;
+  --vuln-state-error: #ef4444;
+  --vuln-state-info: #58a6ff;
+
+  /* Semantic aliases required by head contract */
+  --vuln-background: var(--vuln-bg);
+  --vuln-foreground: var(--vuln-ink);
+  --vuln-card: var(--vuln-surface);
+  --vuln-card-foreground: var(--vuln-ink);
+  --vuln-popover: var(--vuln-surface-2);
+  --vuln-popover-foreground: var(--vuln-ink);
+  --vuln-primary: var(--vuln-brand);
+  --vuln-primary-foreground: var(--vuln-brand-ink);
+  --vuln-muted: var(--vuln-surface-2);
+  --vuln-muted-foreground: var(--vuln-ink-2);
+  --vuln-border: var(--vuln-line);
+  --vuln-input: var(--vuln-line);
+  --vuln-ring: var(--vuln-brand-500);
+  --vuln-radius-small: 4px;
+  --vuln-radius-medium: 8px;
+  --vuln-radius-large: 16px;
+
+  /* Spacing */
+  --vuln-s-1: 4px;
+  --vuln-s-2: 8px;
+  --vuln-s-3: 12px;
+  --vuln-s-4: 16px;
+  --vuln-s-5: 24px;
+  --vuln-s-6: 32px;
+  --vuln-s-7: 48px;
+  --vuln-s-8: 80px;
+
+  /* Typography */
+  --vuln-font-sans: Inter, "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --vuln-font-mono: "Cascadia Code", "Fira Code", Consolas, Monaco, "Courier New", monospace;
+
+  /* Shadows */
+  --vuln-shadow-1: 0 1px 2px rgba(15, 23, 42, 0.05), 0 1px 1px rgba(15, 23, 42, 0.03);
+  --vuln-shadow-2: 0 8px 24px -8px rgba(0, 0, 0, 0.35);
+  --vuln-shadow-3: 0 24px 60px -20px rgba(0, 0, 0, 0.45);
+}
+
+/* Base typography classes */
+.vuln-font-sans { font-family: var(--vuln-font-sans); }
+.vuln-font-mono { font-family: var(--vuln-font-mono); }
+
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.1/dist/index.global.js"></script>
+    <script src="https://unpkg.com/lucide@1.8.0/dist/umd/lucide.min.js"></script>
+    <style type="text/tailwindcss">
+  @theme inline {
+    --color-background: var(--vuln-background);
+    --color-foreground: var(--vuln-foreground);
+    --color-card: var(--vuln-card);
+    --color-card-foreground: var(--vuln-card-foreground);
+    --color-popover: var(--vuln-popover);
+    --color-popover-foreground: var(--vuln-popover-foreground);
+    --color-primary: var(--vuln-primary);
+    --color-primary-foreground: var(--vuln-primary-foreground);
+    --color-muted: var(--vuln-muted);
+    --color-muted-foreground: var(--vuln-muted-foreground);
+    --color-border: var(--vuln-border);
+    --color-input: var(--vuln-input);
+    --color-ring: var(--vuln-ring);
+    --radius-sm: var(--vuln-radius-small);
+    --radius-md: var(--vuln-radius-medium);
+    --radius-lg: var(--vuln-radius-large);
+  }
+  @layer base {
+    body { background: var(--vuln-background); color: var(--vuln-foreground); }
+    td, th { @apply break-words; word-break: break-all; word-break: auto-phrase; }
+    th { @apply whitespace-nowrap; }
+  }
+    </style>
+    <style id="semantic-token-fallback">
+      .bg-background { background-color: var(--vuln-background); }
+      .text-background { color: var(--vuln-background); }
+      .border-background { border-color: var(--vuln-background); }
+      .ring-background { --tw-ring-color: var(--vuln-background); }
+      .bg-foreground { background-color: var(--vuln-foreground); }
+      .text-foreground { color: var(--vuln-foreground); }
+      .border-foreground { border-color: var(--vuln-foreground); }
+      .ring-foreground { --tw-ring-color: var(--vuln-foreground); }
+      .bg-card { background-color: var(--vuln-card); }
+      .text-card { color: var(--vuln-card); }
+      .border-card { border-color: var(--vuln-card); }
+      .ring-card { --tw-ring-color: var(--vuln-card); }
+      .bg-card-foreground { background-color: var(--vuln-card-foreground); }
+      .text-card-foreground { color: var(--vuln-card-foreground); }
+      .border-card-foreground { border-color: var(--vuln-card-foreground); }
+      .ring-card-foreground { --tw-ring-color: var(--vuln-card-foreground); }
+      .bg-popover { background-color: var(--vuln-popover); }
+      .text-popover { color: var(--vuln-popover); }
+      .border-popover { border-color: var(--vuln-popover); }
+      .ring-popover { --tw-ring-color: var(--vuln-popover); }
+      .bg-popover-foreground { background-color: var(--vuln-popover-foreground); }
+      .text-popover-foreground { color: var(--vuln-popover-foreground); }
+      .border-popover-foreground { border-color: var(--vuln-popover-foreground); }
+      .ring-popover-foreground { --tw-ring-color: var(--vuln-popover-foreground); }
+      .bg-primary { background-color: var(--vuln-primary); }
+      .text-primary { color: var(--vuln-primary); }
+      .border-primary { border-color: var(--vuln-primary); }
+      .ring-primary { --tw-ring-color: var(--vuln-primary); }
+      .bg-primary-foreground { background-color: var(--vuln-primary-foreground); }
+      .text-primary-foreground { color: var(--vuln-primary-foreground); }
+      .border-primary-foreground { border-color: var(--vuln-primary-foreground); }
+      .ring-primary-foreground { --tw-ring-color: var(--vuln-primary-foreground); }
+      .bg-muted { background-color: var(--vuln-muted); }
+      .text-muted { color: var(--vuln-muted); }
+      .border-muted { border-color: var(--vuln-muted); }
+      .ring-muted { --tw-ring-color: var(--vuln-muted); }
+      .bg-muted-foreground { background-color: var(--vuln-muted-foreground); }
+      .text-muted-foreground { color: var(--vuln-muted-foreground); }
+      .border-muted-foreground { border-color: var(--vuln-muted-foreground); }
+      .ring-muted-foreground { --tw-ring-color: var(--vuln-muted-foreground); }
+      .bg-border { background-color: var(--vuln-border); }
+      .text-border { color: var(--vuln-border); }
+      .border-border { border-color: var(--vuln-border); }
+      .ring-border { --tw-ring-color: var(--vuln-border); }
+      .bg-input { background-color: var(--vuln-input); }
+      .text-input { color: var(--vuln-input); }
+      .border-input { border-color: var(--vuln-input); }
+      .ring-input { --tw-ring-color: var(--vuln-input); }
+      .bg-ring { background-color: var(--vuln-ring); }
+      .text-ring { color: var(--vuln-ring); }
+      .border-ring { border-color: var(--vuln-ring); }
+      .ring-ring { --tw-ring-color: var(--vuln-ring); }
+    </style>
+    <style>
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      [data-icon] {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        -webkit-mask-size: contain;
+        mask-size: contain;
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+        -webkit-mask-position: center;
+        mask-position: center;
+        background-color: currentColor;
+      }
+    </style>
 </head>
-<body>
-<div id="app">
-  <div class="header">
-    <h1>AI 漏洞扫描器</h1>
-    <div :class="['status', health.ollama_connected ? 'ok' : 'err']">
-      {{ health.ollama_connected ? 'Ollama 已连接' : 'Ollama 未连接' }} · {{ health.model }}
+<body class="min-h-screen font-sans antialiased flex flex-col">
+<style id="critical-layout">
+  .vuln-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+  }
+  .vuln-bento {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 1rem;
+  }
+  .vuln-bento-main {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1rem;
+  }
+  @media (max-width: 1024px) {
+    .vuln-bento { grid-template-columns: 1fr; }
+    .vuln-bento-main { grid-template-columns: 1fr; }
+  }
+  .vuln-chart svg { width: 100%; height: auto; display: block; }
+</style>
+
+<nav class="fixed top-0 left-0 right-0 z-50 border-b border-[var(--vuln-line)] bg-[var(--vuln-bg)]/90 backdrop-blur" aria-label="主导航">
+  <div class="max-w-[1440px] mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
+    <div class="flex items-center gap-2">
+      <svg class="h-7 w-7 text-[var(--vuln-brand)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+      </svg>
+      <span class="text-lg font-semibold text-[var(--vuln-ink)] tracking-tight">VulnScanner</span>
     </div>
+    <ul class="flex items-center gap-1">
+      <li><a id="nav-dashboard" data-dom-id="nav-dashboard" href="./index.html" class="text-sm font-medium text-[var(--vuln-brand)] bg-[var(--vuln-brand)]/10 px-3 py-2 rounded-md" aria-current="page">仪表盘</a></li>
+      <li><a id="nav-scan" data-dom-id="nav-scan" href="./scan.html" class="text-sm font-medium text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] transition-colors px-3 py-2 rounded-md">扫描工作台</a></li>
+      <li><a id="nav-cwe" data-dom-id="nav-cwe" href="./cwe.html" class="text-sm font-medium text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] transition-colors px-3 py-2 rounded-md">CWE 样本库</a></li>
+      <li><a id="nav-posture" data-dom-id="nav-posture" href="./posture.html" class="text-sm font-medium text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] transition-colors px-3 py-2 rounded-md">安全态势</a></li>
+    </ul>
   </div>
+</nav>
 
-  <div class="tabs">
-    <div v-for="t in tabs" :key="t.id" :class="['tab', activeTab === t.id ? 'active' : '']"
-         @click="activeTab = t.id">{{ t.label }}</div>
-    <div class="tab" style="margin-left:auto" @click="activeTab = 'history'">
-      历史 ({{ history.length }})
-    </div>
-  </div>
+<main class="flex-1 pt-24 pb-12 px-4 md:px-6 max-w-[1440px] mx-auto w-full">
+  <header class="mb-6">
+    <h1 class="text-2xl font-semibold text-[var(--vuln-ink)]">仪表盘</h1>
+    <p class="text-sm text-[var(--vuln-ink-2)] mt-1">实时掌握代码安全状态与扫描趋势</p>
+  </header>
 
-  <div class="panel">
-    <!-- 代码粘贴 -->
-    <div v-show="activeTab === 'paste'">
-      <div class="form-group">
-        <label>文件名（自定义命名，会显示在历史记录中）</label>
-        <input v-model="pasteForm.filename" placeholder="例如：my_login.py">
+  <section class="vuln-kpi-grid mb-6" aria-label="核心指标">
+    <article class="rounded-xl border border-[var(--vuln-line)] bg-[var(--vuln-surface)] p-5" style="box-shadow: var(--vuln-shadow-2);">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-sm font-medium text-[var(--vuln-ink-2)]">本月扫描</span>
+        <svg class="h-5 w-5 text-[var(--vuln-brand)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+          <polyline points="22 4 12 14.01 9 11.01"/>
+        </svg>
       </div>
-      <div class="form-group">
-        <label>语言</label>
-        <select v-model="pasteForm.language">
-          <option v-for="l in languages" :key="l" :value="l">{{ l }}</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>代码</label>
-        <textarea v-model="pasteForm.code" placeholder="粘贴代码到这里..."></textarea>
-      </div>
-      <div class="toolbar">
-        <button class="btn" @click="analyzePaste" :disabled="loading || !pasteForm.code">
-          {{ loading ? '分析中...' : '分析漏洞' }}
-        </button>
-        <label class="btn secondary">
-          <input type="checkbox" v-model="pasteForm.useRag"> 启用 RAG 知识库
-        </label>
-      </div>
-    </div>
-
-    <!-- 文件上传 -->
-    <div v-show="activeTab === 'upload'">
-      <div class="form-group">
-        <label>选择文件（可多选，支持 .py/.js/.ts/.java/.php/.go/.html）</label>
-        <input type="file" multiple @change="onFileSelect" ref="fileInput">
-      </div>
-      <div class="toolbar">
-        <button class="btn" @click="batchScan" :disabled="loading || !selectedFiles.length">
-          {{ loading ? '扫描中...' : `扫描 ${selectedFiles.length} 个文件` }}
-        </button>
-        <label class="btn secondary">
-          <input type="checkbox" v-model="uploadUseRag"> 启用 RAG
-        </label>
-        <button class="btn secondary" @click="downloadReport" :disabled="!lastBatch">下载报告</button>
-      </div>
-      <div v-if="batchProgress" class="progress">
-        {{ batchProgress.scanned }} / {{ batchProgress.total }}
-        <div class="progress-bar"><div class="progress-bar-fill"
-          :style="{ width: (batchProgress.total ? batchProgress.scanned / batchProgress.total * 100 : 0) + '%' }"></div></div>
-      </div>
-    </div>
-
-    <!-- URL 抓取 -->
-    <div v-show="activeTab === 'url'">
-      <div class="form-group">
-        <label>目标网页 URL</label>
-        <input v-model="urlForm.url" placeholder="https://example.com">
-      </div>
-      <div class="toolbar">
-        <button class="btn" @click="scanUrl" :disabled="loading || !urlForm.url">
-          {{ loading ? '抓取分析中...' : '抓取并扫描' }}
-        </button>
-        <label class="btn secondary">
-          <input type="checkbox" v-model="urlForm.useRag"> 启用 RAG
-        </label>
-      </div>
-    </div>
-
-    <!-- GitHub 仓库 -->
-    <div v-show="activeTab === 'github'">
-      <div class="form-group">
-        <label>GitHub 仓库 URL</label>
-        <input v-model="ghForm.repo_url" placeholder="https://github.com/user/repo">
-      </div>
-      <div class="form-group">
-        <label>最大扫描文件数</label>
-        <input type="number" v-model.number="ghForm.max_files" min="1" max="200">
-      </div>
-      <div class="toolbar">
-        <button class="btn" @click="scanGithub" :disabled="loading || !ghForm.repo_url">
-          {{ loading ? '克隆扫描中...' : '克隆并扫描' }}
-        </button>
-        <label class="btn secondary">
-          <input type="checkbox" v-model="ghForm.useRag"> 启用 RAG
-        </label>
-      </div>
-    </div>
-
-    <!-- 结果展示 -->
-    <div class="results" v-if="results.length">
-      <div class="summary" v-if="summary">
-        <div class="summary-item"><div class="num" style="color:#58a6ff">{{ summary.scanned }}</div><div class="label">已扫描</div></div>
-        <div class="summary-item"><div class="num" style="color:#ff6b6b">{{ summary.vulnerable }}</div><div class="label">有漏洞</div></div>
-        <div class="summary-item"><div class="num" style="color:#40db88">{{ summary.safe }}</div><div class="label">安全</div></div>
-        <div class="summary-item"><div class="num" style="color:#ffa657">{{ summary.errors }}</div><div class="label">错误</div></div>
-        <div class="summary-item"><div class="num" style="color:#8b949e">{{ summary.total_duration }}s</div><div class="label">总耗时</div></div>
-      </div>
-      <div v-for="(r, i) in results" :key="i"
-           :class="['result-card', r.has_vulnerability === true ? 'vuln' : r.has_vulnerability === false ? 'safe' : 'error']">
-        <div class="result-header">
-          <div class="result-title">{{ r.filename }}</div>
-          <div>
-            <span v-if="r.has_vulnerability === true" :class="['badge', (r.risk_level||'').toLowerCase()]">{{ r.risk_level }}</span>
-            <span v-if="r.has_vulnerability === false" class="badge safe">安全</span>
-            <span v-if="r.has_vulnerability === null" class="badge low">错误</span>
-            <span style="margin-left:8px;font-size:12px;color:#6e7681">{{ r.duration }}s</span>
-          </div>
-        </div>
-        <div class="result-meta" v-if="r.has_vulnerability === true">
-          {{ r.vulnerability_type }} · 源: {{ r.source }} → 汇: {{ r.sink }}
-        </div>
-        <div class="result-explanation" v-if="r.explanation">{{ r.explanation }}</div>
-        <div class="result-fix" v-if="r.has_vulnerability === true && r.fix_suggestion">
-          <strong>修复建议：</strong>{{ r.fix_suggestion }}
-        </div>
-        <div v-if="r.error" style="color:#ff6b6b;font-size:13px">错误: {{ r.error }}</div>
-        <details v-if="r.raw_output">
-          <summary>查看模型分析过程</summary>
-          <pre>{{ r.raw_output }}</pre>
-        </details>
-      </div>
-    </div>
-    <div class="empty" v-else-if="!loading && activeTab !== 'history'">
-      选择一个入口，开始扫描
-    </div>
-
-    <!-- 历史记录 -->
-    <div v-show="activeTab === 'history'">
-      <div class="toolbar">
-        <button class="btn secondary" @click="clearHistory" :disabled="!history.length">清空历史</button>
-        <span style="font-size:13px;color:#6e7681;align-self:center">
-          存储于浏览器 localStorage，最多保留 100 条
+      <div class="flex items-baseline gap-2">
+        <span class="text-3xl font-semibold text-[var(--vuln-ink)]">1,247</span>
+        <span class="inline-flex items-center text-xs font-medium text-[var(--vuln-state-success)]">
+          <svg class="h-3 w-3 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M23 6l-9 9-5-5L1 18"/></svg>
+          +12%
         </span>
       </div>
-      <div v-if="!history.length" class="empty">暂无历史记录</div>
-      <div v-for="(r, i) in history" :key="r._id" :class="['result-card', r.has_vulnerability === true ? 'vuln' : r.has_vulnerability === false ? 'safe' : 'error']">
-        <div class="result-header">
-          <div class="result-title">{{ r.filename }}</div>
-          <div>
-            <span v-if="r.has_vulnerability === true" :class="['badge', (r.risk_level||'').toLowerCase()]">{{ r.risk_level }}</span>
-            <span v-if="r.has_vulnerability === false" class="badge safe">安全</span>
-            <span v-if="r.has_vulnerability === null" class="badge low">错误</span>
-            <span style="margin-left:8px;font-size:12px;color:#6e7681">{{ r._time }}</span>
-          </div>
-        </div>
-        <div class="result-meta" v-if="r.has_vulnerability === true">
-          {{ r.vulnerability_type }} · 源: {{ r.source }} → 汇: {{ r.sink }}
-        </div>
-        <div class="result-explanation" v-if="r.explanation">{{ r.explanation }}</div>
-        <div class="result-fix" v-if="r.has_vulnerability === true && r.fix_suggestion">
-          <strong>修复建议：</strong>{{ r.fix_suggestion }}
-        </div>
-        <details v-if="r.raw_output">
-          <summary>查看模型分析过程</summary>
-          <pre>{{ r.raw_output }}</pre>
-        </details>
+    </article>
+    <article class="rounded-xl border border-[var(--vuln-line)] bg-[var(--vuln-surface)] p-5" style="box-shadow: var(--vuln-shadow-2);">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-sm font-medium text-[var(--vuln-ink-2)]">高危漏洞</span>
+        <svg class="h-5 w-5 text-[var(--vuln-state-error)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
       </div>
+      <div class="flex items-baseline gap-2">
+        <span class="text-3xl font-semibold text-[var(--vuln-ink)]">23</span>
+        <span class="inline-flex items-center text-xs font-medium text-[var(--vuln-state-success)]">
+          <svg class="h-3 w-3 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M23 18l-9-9-5 5L1 12"/></svg>
+          -5%
+        </span>
+      </div>
+    </article>
+    <article class="rounded-xl border border-[var(--vuln-line)] bg-[var(--vuln-surface)] p-5" style="box-shadow: var(--vuln-shadow-2);">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-sm font-medium text-[var(--vuln-ink-2)]">修复率</span>
+        <svg class="h-5 w-5 text-[var(--vuln-state-success)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
+        </svg>
+      </div>
+      <div class="flex items-baseline gap-2">
+        <span class="text-3xl font-semibold text-[var(--vuln-ink)]">87%</span>
+        <span class="inline-flex items-center text-xs font-medium text-[var(--vuln-state-success)]">
+          <svg class="h-3 w-3 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M23 6l-9 9-5-5L1 18"/></svg>
+          +3%
+        </span>
+      </div>
+    </article>
+    <article class="rounded-xl border border-[var(--vuln-line)] bg-[var(--vuln-surface)] p-5" style="box-shadow: var(--vuln-shadow-2);">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-sm font-medium text-[var(--vuln-ink-2)]">平均风险分</span>
+        <svg class="h-5 w-5 text-[var(--vuln-state-warning)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>
+        </svg>
+      </div>
+      <div class="flex items-baseline gap-2">
+        <span class="text-3xl font-semibold text-[var(--vuln-ink)]">6.2</span>
+        <span class="inline-flex items-center text-xs font-medium text-[var(--vuln-state-success)]">
+          <svg class="h-3 w-3 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M23 18l-9-9-5 5L1 12"/></svg>
+          -0.4
+        </span>
+      </div>
+    </article>
+  </section>
+
+  <section class="vuln-bento" aria-label="态势与动态">
+    <div class="vuln-bento-main">
+      <article class="rounded-xl border border-[var(--vuln-line)] bg-[var(--vuln-surface)] p-5" style="box-shadow: var(--vuln-shadow-2);">
+        <h2 class="text-sm font-semibold text-[var(--vuln-ink)] mb-4">风险分布</h2>
+        <div class="vuln-chart flex items-center justify-center gap-6">
+          <svg viewBox="0 0 120 120" role="img" aria-label="风险分布 donut 图：严重 15%，高危 25%，中危 35%，低危 25%">
+            <circle cx="60" cy="60" r="50" fill="none" stroke="var(--vuln-surface-2)" stroke-width="12"/>
+            <circle cx="60" cy="60" r="50" fill="none" stroke="var(--vuln-state-error)" stroke-width="12" stroke-dasharray="47.1 267.1" stroke-dashoffset="0" transform="rotate(-90 60 60)"/>
+            <circle cx="60" cy="60" r="50" fill="none" stroke="var(--vuln-state-warning)" stroke-width="12" stroke-dasharray="78.5 235.7" stroke-dashoffset="-47.1" transform="rotate(-90 60 60)"/>
+            <circle cx="60" cy="60" r="50" fill="none" stroke="var(--vuln-state-info)" stroke-width="12" stroke-dasharray="110.0 204.2" stroke-dashoffset="-125.6" transform="rotate(-90 60 60)"/>
+            <circle cx="60" cy="60" r="50" fill="none" stroke="var(--vuln-state-success)" stroke-width="12" stroke-dasharray="78.5 235.7" stroke-dashoffset="-235.6" transform="rotate(-90 60 60)"/>
+            <text x="60" y="58" text-anchor="middle" fill="var(--vuln-ink)" font-size="14" font-weight="600">风险</text>
+            <text x="60" y="74" text-anchor="middle" fill="var(--vuln-ink-2)" font-size="10">分布</text>
+          </svg>
+          <ul class="space-y-2 text-xs" aria-hidden="true">
+            <li class="flex items-center gap-2 text-[var(--vuln-ink-2)]"><span class="inline-block w-2.5 h-2.5 rounded-full" style="background:var(--vuln-state-error)"></span>严重 15%</li>
+            <li class="flex items-center gap-2 text-[var(--vuln-ink-2)]"><span class="inline-block w-2.5 h-2.5 rounded-full" style="background:var(--vuln-state-warning)"></span>高危 25%</li>
+            <li class="flex items-center gap-2 text-[var(--vuln-ink-2)]"><span class="inline-block w-2.5 h-2.5 rounded-full" style="background:var(--vuln-state-info)"></span>中危 35%</li>
+            <li class="flex items-center gap-2 text-[var(--vuln-ink-2)]"><span class="inline-block w-2.5 h-2.5 rounded-full" style="background:var(--vuln-state-success)"></span>低危 25%</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="rounded-xl border border-[var(--vuln-line)] bg-[var(--vuln-surface)] p-5" style="box-shadow: var(--vuln-shadow-2);">
+        <h2 class="text-sm font-semibold text-[var(--vuln-ink)] mb-4">扫描趋势（近 7 日）</h2>
+        <div class="vuln-chart">
+          <svg viewBox="0 0 320 140" role="img" aria-label="近 7 日扫描次数从 128 上升至 312">
+            <defs>
+              <linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="var(--vuln-brand)" stop-opacity="0.35"/>
+                <stop offset="100%" stop-color="var(--vuln-brand)" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <line x1="32" y1="110" x2="304" y2="110" stroke="var(--vuln-line)"/>
+            <line x1="32" y1="10" x2="32" y2="110" stroke="var(--vuln-line)"/>
+            <path d="M32,96.1 L80,88.3 L128,82.0 L176,69.4 L224,59.7 L272,53.4 L320,46.9 L320,110 L32,110 Z" fill="url(#trendGradient)"/>
+            <polyline points="32,96.1 80,88.3 128,82.0 176,69.4 224,59.7 272,53.4 320,46.9" fill="none" stroke="var(--vuln-brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="32" cy="96.1" r="3" fill="var(--vuln-brand)"/>
+            <circle cx="80" cy="88.3" r="3" fill="var(--vuln-brand)"/>
+            <circle cx="128" cy="82.0" r="3" fill="var(--vuln-brand)"/>
+            <circle cx="176" cy="69.4" r="3" fill="var(--vuln-brand)"/>
+            <circle cx="224" cy="59.7" r="3" fill="var(--vuln-brand)"/>
+            <circle cx="272" cy="53.4" r="3" fill="var(--vuln-brand)"/>
+            <circle cx="320" cy="46.9" r="3" fill="var(--vuln-brand)"/>
+            <text x="32" y="128" fill="var(--vuln-ink-3)" font-size="10">07-23</text>
+            <text x="272" y="128" fill="var(--vuln-ink-3)" font-size="10">07-29</text>
+            <text x="4" y="14" fill="var(--vuln-ink-3)" font-size="10">312</text>
+            <text x="16" y="114" fill="var(--vuln-ink-3)" font-size="10">0</text>
+          </svg>
+        </div>
+      </article>
+
+      <article class="rounded-xl border border-[var(--vuln-line)] bg-[var(--vuln-surface)] p-5" style="box-shadow: var(--vuln-shadow-2);">
+        <h2 class="text-sm font-semibold text-[var(--vuln-ink)] mb-4">最近动态</h2>
+        <ol class="space-y-4">
+          <li class="flex gap-3">
+            <span class="mt-1.5 inline-flex h-2 w-2 rounded-full bg-[var(--vuln-state-error)] shrink-0"></span>
+            <div class="min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-xs font-medium px-1.5 py-0.5 rounded bg-[var(--vuln-state-error)]/10 text-[var(--vuln-state-error)]">严重</span>
+                <span class="text-xs text-[var(--vuln-ink-3)]">2 分钟前</span>
+              </div>
+              <p class="text-sm text-[var(--vuln-ink)] mt-1 truncate">在 <span class="font-mono text-[var(--vuln-ink-2)]">payment-core/src/auth.js</span> 发现 SQL 注入</p>
+            </div>
+          </li>
+          <li class="flex gap-3">
+            <span class="mt-1.5 inline-flex h-2 w-2 rounded-full bg-[var(--vuln-state-warning)] shrink-0"></span>
+            <div class="min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-xs font-medium px-1.5 py-0.5 rounded bg-[var(--vuln-state-warning)]/10 text-[var(--vuln-state-warning)]">高危</span>
+                <span class="text-xs text-[var(--vuln-ink-3)]">12 分钟前</span>
+              </div>
+              <p class="text-sm text-[var(--vuln-ink)] mt-1 truncate">在 <span class="font-mono text-[var(--vuln-ink-2)]">user-api/routes/login.js</span> 检测到硬编码密钥</p>
+            </div>
+          </li>
+          <li class="flex gap-3">
+            <span class="mt-1.5 inline-flex h-2 w-2 rounded-full bg-[var(--vuln-state-info)] shrink-0"></span>
+            <div class="min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-xs font-medium px-1.5 py-0.5 rounded bg-[var(--vuln-state-info)]/10 text-[var(--vuln-state-info)]">中危</span>
+                <span class="text-xs text-[var(--vuln-ink-3)]">35 分钟前</span>
+              </div>
+              <p class="text-sm text-[var(--vuln-ink)] mt-1 truncate">在 <span class="font-mono text-[var(--vuln-ink-2)]">admin-portal/components/Upload.vue</span> 发现不安全的文件上传</p>
+            </div>
+          </li>
+          <li class="flex gap-3">
+            <span class="mt-1.5 inline-flex h-2 w-2 rounded-full bg-[var(--vuln-state-success)] shrink-0"></span>
+            <div class="min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-xs font-medium px-1.5 py-0.5 rounded bg-[var(--vuln-state-success)]/10 text-[var(--vuln-state-success)]">低危</span>
+                <span class="text-xs text-[var(--vuln-ink-3)]">1 小时前</span>
+              </div>
+              <p class="text-sm text-[var(--vuln-ink)] mt-1 truncate">在 <span class="font-mono text-[var(--vuln-ink-2)]">ops-infra/terraform/main.tf</span> 发现日志敏感信息泄露</p>
+            </div>
+          </li>
+          <li class="flex gap-3">
+            <span class="mt-1.5 inline-flex h-2 w-2 rounded-full bg-[var(--vuln-state-info)] shrink-0"></span>
+            <div class="min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-xs font-medium px-1.5 py-0.5 rounded bg-[var(--vuln-state-info)]/10 text-[var(--vuln-state-info)]">中危</span>
+                <span class="text-xs text-[var(--vuln-ink-3)]">2 小时前</span>
+              </div>
+              <p class="text-sm text-[var(--vuln-ink)] mt-1 truncate">在 <span class="font-mono text-[var(--vuln-ink-2)]">web-store/src/cart.tsx</span> 发现反射型 XSS</p>
+            </div>
+          </li>
+          <li class="flex gap-3">
+            <span class="mt-1.5 inline-flex h-2 w-2 rounded-full bg-[var(--vuln-brand)] shrink-0"></span>
+            <div class="min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-xs font-medium px-1.5 py-0.5 rounded bg-[var(--vuln-brand)]/10 text-[var(--vuln-brand)]">信息</span>
+                <span class="text-xs text-[var(--vuln-ink-3)]">4 小时前</span>
+              </div>
+              <p class="text-sm text-[var(--vuln-ink)] mt-1 truncate"><span class="font-mono text-[var(--vuln-ink-2)]">github.com/acme/ledger</span> 依赖许可证扫描完成</p>
+            </div>
+          </li>
+        </ol>
+      </article>
     </div>
+
+    <aside class="rounded-xl border border-[var(--vuln-line)] bg-[var(--vuln-surface)] p-5" style="box-shadow: var(--vuln-shadow-2);">
+      <h2 class="text-sm font-semibold text-[var(--vuln-ink)] mb-4">快捷入口</h2>
+      <div class="grid gap-3">
+        <a id="cta-quick-paste" data-dom-id="cta-quick-paste" href="./scan.html" class="group flex items-center gap-4 rounded-lg border border-[var(--vuln-line)] bg-[var(--vuln-surface-2)] p-4 hover:border-[var(--vuln-brand)] hover:bg-[var(--vuln-brand)]/5 transition-colors">
+          <div class="flex h-10 w-10 items-center justify-center rounded-md bg-[var(--vuln-brand)]/10 text-[var(--vuln-brand)]">
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
+            </svg>
+          </div>
+          <div class="min-w-0">
+            <h3 class="text-sm font-medium text-[var(--vuln-ink)] group-hover:text-[var(--vuln-brand)]">粘贴代码分析</h3>
+            <p class="text-xs text-[var(--vuln-ink-2)] mt-0.5">直接输入源码进行 AI 检测</p>
+          </div>
+          <svg class="ml-auto h-4 w-4 text-[var(--vuln-ink-3)] group-hover:text-[var(--vuln-brand)] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+        </a>
+        <a id="cta-quick-upload" data-dom-id="cta-quick-upload" href="./scan.html" class="group flex items-center gap-4 rounded-lg border border-[var(--vuln-line)] bg-[var(--vuln-surface-2)] p-4 hover:border-[var(--vuln-brand)] hover:bg-[var(--vuln-brand)]/5 transition-colors">
+          <div class="flex h-10 w-10 items-center justify-center rounded-md bg-[var(--vuln-brand)]/10 text-[var(--vuln-brand)]">
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+          </div>
+          <div class="min-w-0">
+            <h3 class="text-sm font-medium text-[var(--vuln-ink)] group-hover:text-[var(--vuln-brand)]">上传文件扫描</h3>
+            <p class="text-xs text-[var(--vuln-ink-2)] mt-0.5">支持 ZIP、JS、Python、Java 等格式</p>
+          </div>
+          <svg class="ml-auto h-4 w-4 text-[var(--vuln-ink-3)] group-hover:text-[var(--vuln-brand)] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+        </a>
+        <a id="cta-quick-github" data-dom-id="cta-quick-github" href="./posture.html" class="group flex items-center gap-4 rounded-lg border border-[var(--vuln-line)] bg-[var(--vuln-surface-2)] p-4 hover:border-[var(--vuln-brand)] hover:bg-[var(--vuln-brand)]/5 transition-colors">
+          <div class="flex h-10 w-10 items-center justify-center rounded-md bg-[var(--vuln-brand)]/10 text-[var(--vuln-brand)]">
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/>
+            </svg>
+          </div>
+          <div class="min-w-0">
+            <h3 class="text-sm font-medium text-[var(--vuln-ink)] group-hover:text-[var(--vuln-brand)]">GitHub 仓库安全态势</h3>
+            <p class="text-xs text-[var(--vuln-ink-2)] mt-0.5">查看仓库级依赖与暴露面分析</p>
+          </div>
+          <svg class="ml-auto h-4 w-4 text-[var(--vuln-ink-3)] group-hover:text-[var(--vuln-brand)] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+        </a>
+      </div>
+    </aside>
+  </section>
+</main>
+
+<footer class="border-t border-[var(--vuln-line)] bg-[var(--vuln-bg)] py-6 mt-auto">
+  <div class="max-w-[1440px] mx-auto px-4 md:px-6 text-xs text-[var(--vuln-ink-3)] flex flex-col sm:flex-row justify-between gap-2">
+    <span>AI 漏洞扫描平台 · 数据仅用于本地安全分析</span>
+    <span>数据更新于 2026-07-29 21:30 CST</span>
   </div>
-</div>
+</footer>
 
-<script>
-const { createApp, ref, reactive, onMounted } = Vue;
-
-createApp({
-  setup() {
-    const activeTab = ref('paste');
-    const tabs = [
-      { id: 'paste', label: '代码粘贴' },
-      { id: 'upload', label: '文件上传' },
-      { id: 'url', label: 'URL 抓取' },
-      { id: 'github', label: 'GitHub 仓库' },
-    ];
-    const languages = ['python', 'javascript', 'typescript', 'java', 'php', 'go', 'html'];
-    const loading = ref(false);
-    const results = ref([]);
-    const summary = ref(null);
-    const health = reactive({ ollama_connected: false, model: '', model_available: false });
-    const lastBatch = ref(false);
-    const history = ref([]);
-
-    const HISTORY_KEY = 'vuln_scanner_history';
-    const HISTORY_MAX = 100;
-
-    function loadHistory() {
-      try {
-        const raw = localStorage.getItem(HISTORY_KEY);
-        history.value = raw ? JSON.parse(raw) : [];
-      } catch (e) { history.value = []; }
-    }
-
-    function saveToHistory(r) {
-      const item = { ...r, _id: Date.now() + '-' + Math.random().toString(36).slice(2, 8), _time: new Date().toLocaleString('zh-CN') };
-      history.value.unshift(item);
-      if (history.value.length > HISTORY_MAX) history.value = history.value.slice(0, HISTORY_MAX);
-      try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history.value)); } catch (e) { /* 配额满静默 */ }
-    }
-
-    function clearHistory() {
-      if (!confirm('确定清空所有历史记录？')) return;
-      history.value = [];
-      localStorage.removeItem(HISTORY_KEY);
-    }
-
-    const pasteForm = reactive({ filename: 'pasted_code.py', language: 'python', code: '', useRag: false });
-    const urlForm = reactive({ url: '', useRag: true });
-    const ghForm = reactive({ repo_url: '', useRag: true, max_files: 50 });
-    const selectedFiles = ref([]);
-    const uploadUseRag = ref(false);
-    const batchProgress = ref(null);
-    const fileInput = ref(null);
-
-    async function checkHealth() {
-      try {
-        const r = await fetch('/api/health');
-        Object.assign(health, await r.json());
-      } catch (e) { console.error(e); }
-    }
-
-    function addResult(r) {
-      results.value = [r, ...results.value].slice(0, 100);
-      // 单文件结果（含 has_vulnerability 字段）才入历史；批量汇总 summary 不入
-      if (r && 'has_vulnerability' in r) saveToHistory(r);
-    }
-
-    async function analyzePaste() {
-      loading.value = true;
-      results.value = [];
-      summary.value = null;
-      try {
-        const r = await fetch('/api/analyze', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            code: pasteForm.code,
-            language: pasteForm.language,
-            filename: pasteForm.filename,
-            use_rag: pasteForm.useRag || null,
-          }),
-        });
-        const data = await r.json();
-        addResult(data);
-      } catch (e) {
-        addResult({ filename: pasteForm.filename, has_vulnerability: null, error: e.message });
-      }
-      loading.value = false;
-    }
-
-    function onFileSelect(e) {
-      selectedFiles.value = Array.from(e.target.files);
-    }
-
-    async function batchScan() {
-      loading.value = true;
-      results.value = [];
-      summary.value = null;
-      batchProgress.value = { scanned: 0, total: selectedFiles.value.length };
-      const formData = new FormData();
-      for (const f of selectedFiles.value) formData.append('files', f);
-      formData.append('use_rag', uploadUseRag.value ? '1' : '0');
-
-      try {
-        const resp = await fetch('/api/batch', { method: 'POST', body: formData });
-        const reader = resp.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop();
-          for (const line of lines) {
-            if (!line.trim()) continue;
-            const msg = JSON.parse(line);
-            if (msg.type === 'progress') {
-              batchProgress.value = { scanned: msg.scanned, total: msg.total };
-              addResult(msg.result);
-            } else if (msg.type === 'done') {
-              summary.value = msg.summary;
-              lastBatch.value = true;
-            }
-          }
-        }
-      } catch (e) {
-        addResult({ filename: 'batch', has_vulnerability: null, error: e.message });
-      }
-      loading.value = false;
-    }
-
-    async function scanUrl() {
-      loading.value = true;
-      results.value = [];
-      summary.value = null;
-      try {
-        const r = await fetch('/api/url-scan', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: urlForm.url, use_rag: urlForm.useRag || null }),
-        });
-        const data = await r.json();
-        if (data.error) {
-          addResult({ filename: urlForm.url, has_vulnerability: null, error: data.error });
-        } else if (data.summary) {
-          summary.value = data.summary;
-          for (const r of data.summary.results || []) addResult(r);
-        }
-      } catch (e) {
-        addResult({ filename: urlForm.url, has_vulnerability: null, error: e.message });
-      }
-      loading.value = false;
-    }
-
-    async function scanGithub() {
-      loading.value = true;
-      results.value = [];
-      summary.value = null;
-      try {
-        const r = await fetch('/api/github-scan', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            repo_url: ghForm.repo_url,
-            use_rag: ghForm.useRag || null,
-            max_files: ghForm.max_files,
-          }),
-        });
-        const data = await r.json();
-        if (data.error) {
-          addResult({ filename: ghForm.repo_url, has_vulnerability: null, error: data.error });
-        } else if (data.summary) {
-          summary.value = data.summary;
-          for (const r of data.summary.results || []) addResult(r);
-          lastBatch.value = true;
-        }
-      } catch (e) {
-        addResult({ filename: ghForm.repo_url, has_vulnerability: null, error: e.message });
-      }
-      loading.value = false;
-    }
-
-    function downloadReport() {
-      window.open('/api/report', '_blank');
-    }
-
-    onMounted(() => {
-      checkHealth();
-      loadHistory();
-    });
-
-    return {
-      activeTab, tabs, languages, loading, results, summary, health, lastBatch,
-      pasteForm, urlForm, ghForm, selectedFiles, uploadUseRag, batchProgress, fileInput,
-      analyzePaste, onFileSelect, batchScan, scanUrl, scanGithub, downloadReport,
-      history, clearHistory,
-    };
-  }
-}).mount('#app');
-</script>
+<script>lucide.createIcons();</script>
 </body>
 </html>
