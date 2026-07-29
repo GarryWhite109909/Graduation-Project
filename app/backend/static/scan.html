@@ -273,16 +273,17 @@
             <textarea id="code-input" rows="12" class="w-full bg-[var(--vuln-bg)] border border-[var(--vuln-line)] rounded-md p-3 text-sm text-[var(--vuln-ink)] font-mono focus:outline-none focus:ring-2 focus:ring-[var(--vuln-brand)] resize-none" placeholder="function query(userInput) {&#10;  return db.exec('SELECT * FROM users WHERE id = ' + userInput);&#10;}"></textarea>
           </div>
           <div id="panel-upload" role="tabpanel" class="tab-panel hidden">
-            <div class="border-2 border-dashed border-[var(--vuln-line)] rounded-md p-8 text-center bg-[var(--vuln-bg)] hover:border-[var(--vuln-brand)]/60 transition-colors">
+            <div id="upload-dropzone" class="border-2 border-dashed border-[var(--vuln-line)] rounded-md p-8 text-center bg-[var(--vuln-bg)] hover:border-[var(--vuln-brand)]/60 transition-colors cursor-pointer">
               <svg class="w-8 h-8 mx-auto mb-2 text-[var(--vuln-ink-3)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                 <polyline points="17 8 12 3 7 8"></polyline>
                 <line x1="12" y1="3" x2="12" y2="15"></line>
               </svg>
-              <p class="text-sm text-[var(--vuln-ink-2)]">拖拽文件到此处，或点击选择</p>
-              <p class="text-xs text-[var(--vuln-ink-3)] mt-1">支持 .js、.ts、.py、.java、.go、.c</p>
-              <input type="file" class="hidden" aria-label="上传文件" />
+              <p id="upload-hint" class="text-sm text-[var(--vuln-ink-2)]">拖拽文件到此处，或点击选择</p>
+              <p class="text-xs text-[var(--vuln-ink-3)] mt-1">支持 .py、.js、.ts、.java、.php、.go 等</p>
+              <input id="upload-input" type="file" multiple class="hidden" aria-label="上传文件" />
             </div>
+            <div id="upload-file-list" class="mt-2 space-y-1 text-xs text-[var(--vuln-ink-2)]"></div>
           </div>
           <div id="panel-url" role="tabpanel" class="tab-panel hidden">
             <label for="url-input" class="block text-xs text-[var(--vuln-ink-2)] mb-2">目标站点 URL</label>
@@ -297,8 +298,11 @@
         </div>
 
         <div class="mt-4 flex items-center justify-between text-xs text-[var(--vuln-ink-2)]">
-          <span>引擎: CodeAudit v2.4</span>
-          <span>规则库: 2026-07-29</span>
+          <span id="engine-info">引擎: 检查中…</span>
+          <label class="flex items-center gap-1.5 cursor-pointer select-none">
+            <input id="rag-toggle" type="checkbox" checked class="accent-[var(--vuln-brand)] w-3.5 h-3.5" />
+            <span>RAG 增强</span>
+          </label>
         </div>
 
         <div id="scan-progress" class="mt-4 hidden">
@@ -323,183 +327,439 @@
         <div class="flex items-center justify-between mb-4">
           <div class="flex items-center gap-3">
             <h2 class="text-lg font-semibold text-[var(--vuln-ink)]">检测结果</h2>
-            <span class="text-xs text-[var(--vuln-ink-2)]">共 <strong class="text-[var(--vuln-ink)]">4</strong> 项</span>
+            <span id="result-count" class="text-xs text-[var(--vuln-ink-2)]">共 <strong class="text-[var(--vuln-ink)]">0</strong> 项</span>
           </div>
           <div class="flex flex-wrap gap-2" role="group" aria-label="严重级别筛选">
-            <button type="button" class="filter-chip active text-xs px-3 py-1.5 rounded-full border border-[var(--vuln-line)] bg-[var(--vuln-brand)]/10 text-[var(--vuln-brand)] font-medium">全部</button>
-            <button type="button" class="filter-chip text-xs px-3 py-1.5 rounded-full border border-[var(--vuln-line)] text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] hover:bg-[var(--vuln-surface-2)] transition-colors">高危</button>
-            <button type="button" class="filter-chip text-xs px-3 py-1.5 rounded-full border border-[var(--vuln-line)] text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] hover:bg-[var(--vuln-surface-2)] transition-colors">中危</button>
-            <button type="button" class="filter-chip text-xs px-3 py-1.5 rounded-full border border-[var(--vuln-line)] text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] hover:bg-[var(--vuln-surface-2)] transition-colors">低危</button>
-            <button type="button" class="filter-chip text-xs px-3 py-1.5 rounded-full border border-[var(--vuln-line)] text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] hover:bg-[var(--vuln-surface-2)] transition-colors">信息</button>
+            <button type="button" data-filter="all" class="filter-chip active text-xs px-3 py-1.5 rounded-full border border-[var(--vuln-line)] bg-[var(--vuln-brand)]/10 text-[var(--vuln-brand)] font-medium">全部</button>
+            <button type="button" data-filter="critical" class="filter-chip text-xs px-3 py-1.5 rounded-full border border-[var(--vuln-line)] text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] hover:bg-[var(--vuln-surface-2)] transition-colors">严重</button>
+            <button type="button" data-filter="high" class="filter-chip text-xs px-3 py-1.5 rounded-full border border-[var(--vuln-line)] text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] hover:bg-[var(--vuln-surface-2)] transition-colors">高危</button>
+            <button type="button" data-filter="medium" class="filter-chip text-xs px-3 py-1.5 rounded-full border border-[var(--vuln-line)] text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] hover:bg-[var(--vuln-surface-2)] transition-colors">中危</button>
+            <button type="button" data-filter="low" class="filter-chip text-xs px-3 py-1.5 rounded-full border border-[var(--vuln-line)] text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] hover:bg-[var(--vuln-surface-2)] transition-colors">低危</button>
+            <button type="button" data-filter="none" class="filter-chip text-xs px-3 py-1.5 rounded-full border border-[var(--vuln-line)] text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] hover:bg-[var(--vuln-surface-2)] transition-colors">安全</button>
           </div>
         </div>
 
         <div id="results-panel">
-          <article class="result-card">
-            <div class="flex items-start justify-between gap-4 mb-3">
-              <div class="flex items-center gap-3">
-                <span class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold bg-[var(--vuln-state-error)]/10 text-[var(--vuln-state-error)] border border-[var(--vuln-state-error)]/20">
-                  <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
-                  高危
-                </span>
-                <span class="text-xs font-mono text-[var(--vuln-ink-3)]">CWE-89</span>
-              </div>
-              <button type="button" class="toggle-code text-xs text-[var(--vuln-brand)] hover:text-[var(--vuln-brand-300)] font-medium" aria-expanded="false">展开代码</button>
-            </div>
-            <h3 class="text-base font-semibold text-[var(--vuln-ink)] mb-1">SQL 注入：动态拼接用户输入</h3>
-            <p class="text-xs text-[var(--vuln-ink-3)] mb-2 font-mono">src/controllers/UserController.js · 第 42–46 行</p>
-            <p class="text-sm text-[var(--vuln-ink-2)] mb-3">用户可控参数直接拼接到 SQL 语句中，缺少参数化查询或预编译处理，攻击者可绕过认证或拖取数据库。</p>
-            <div class="code-block hidden" role="region" aria-label="漏洞代码证据">
-function getUserById(req, res) {
-  const id = req.query.id;
-  const sql = `SELECT * FROM users WHERE id = ${id}`;
-  return db.query(sql);
-}</div>
-          </article>
-
-          <article class="result-card">
-            <div class="flex items-start justify-between gap-4 mb-3">
-              <div class="flex items-center gap-3">
-                <span class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold bg-[var(--vuln-state-error)]/10 text-[var(--vuln-state-error)] border border-[var(--vuln-state-error)]/20">
-                  <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
-                  高危
-                </span>
-                <span class="text-xs font-mono text-[var(--vuln-ink-3)]">CWE-78</span>
-              </div>
-              <button type="button" class="toggle-code text-xs text-[var(--vuln-brand)] hover:text-[var(--vuln-brand-300)] font-medium" aria-expanded="false">展开代码</button>
-            </div>
-            <h3 class="text-base font-semibold text-[var(--vuln-ink)] mb-1">OS 命令注入</h3>
-            <p class="text-xs text-[var(--vuln-ink-3)] mb-2 font-mono">src/utils/PdfExporter.js · 第 18–21 行</p>
-            <p class="text-sm text-[var(--vuln-ink-2)] mb-3">外部输入未经转义即传入 shell.exec，可导致任意命令执行。</p>
-            <div class="code-block hidden" role="region" aria-label="漏洞代码证据">
-const filename = req.body.filename;
-shell.exec(`wkhtmltopdf ${filename} report.pdf`);</div>
-          </article>
-
-          <article class="result-card">
-            <div class="flex items-start justify-between gap-4 mb-3">
-              <div class="flex items-center gap-3">
-                <span class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold bg-[var(--vuln-state-warning)]/10 text-[var(--vuln-state-warning)] border border-[var(--vuln-state-warning)]/20">
-                  <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v2m0 4h.01"></path><path d="M5.25 20h13.5a2.25 2.25 0 0 0 1.96-3.35L14.18 4.6a2.25 2.25 0 0 0-4.36 0L3.29 16.65A2.25 2.25 0 0 0 5.25 20z"></path></svg>
-                  中危
-                </span>
-                <span class="text-xs font-mono text-[var(--vuln-ink-3)]">CWE-79</span>
-              </div>
-              <button type="button" class="toggle-code text-xs text-[var(--vuln-brand)] hover:text-[var(--vuln-brand-300)] font-medium" aria-expanded="false">展开代码</button>
-            </div>
-            <h3 class="text-base font-semibold text-[var(--vuln-ink)] mb-1">反射型 XSS</h3>
-            <p class="text-xs text-[var(--vuln-ink-3)] mb-2 font-mono">src/views/search.ejs · 第 12 行</p>
-            <p class="text-sm text-[var(--vuln-ink-2)] mb-3">用户输入直接回显到页面，未进行 HTML 实体编码，可触发脚本执行。</p>
-            <div class="code-block hidden" role="region" aria-label="漏洞代码证据">
-&lt;div class="result"&gt;
-  &lt;%- query %&gt;
-&lt;/div&gt;</div>
-          </article>
-
-          <article class="result-card">
-            <div class="flex items-start justify-between gap-4 mb-3">
-              <div class="flex items-center gap-3">
-                <span class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold bg-[var(--vuln-state-info)]/10 text-[var(--vuln-state-info)] border border-[var(--vuln-state-info)]/20">
-                  <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-                  信息
-                </span>
-                <span class="text-xs font-mono text-[var(--vuln-ink-3)]">CWE-200</span>
-              </div>
-              <button type="button" class="toggle-code text-xs text-[var(--vuln-brand)] hover:text-[var(--vuln-brand-300)] font-medium" aria-expanded="false">展开代码</button>
-            </div>
-            <h3 class="text-base font-semibold text-[var(--vuln-ink)] mb-1">敏感信息泄露：错误堆栈暴露</h3>
-            <p class="text-xs text-[var(--vuln-ink-3)] mb-2 font-mono">src/middleware/errorHandler.js · 第 8–11 行</p>
-            <p class="text-sm text-[var(--vuln-ink-2)] mb-3">生产环境错误处理中间件将完整堆栈返回给客户端，可能泄露服务器路径与依赖版本。</p>
-            <div class="code-block hidden" role="region" aria-label="漏洞代码证据">
-app.use((err, req, res, next) =&gt; {
-  res.status(500).json({
-    message: err.message,
-    stack: err.stack
-  });
-});</div>
-          </article>
+          <div class="text-center py-16 text-[var(--vuln-ink-3)] text-sm">
+            <svg class="w-12 h-12 mx-auto mb-3 opacity-30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <p>点击「开始分析」启动漏洞扫描</p>
+          </div>
         </div>
       </section>
     </main>
 
     <script>
       (function () {
-        const tabs = [
+        'use strict';
+
+        // ── DOM 引用 ──────────────────────────────────
+        var tabs = [
           document.getElementById('tab-paste'),
           document.getElementById('tab-upload'),
           document.getElementById('tab-url'),
           document.getElementById('tab-github')
         ];
-        const panels = [
+        var panels = [
           document.getElementById('panel-paste'),
           document.getElementById('panel-upload'),
           document.getElementById('panel-url'),
           document.getElementById('panel-github')
         ];
-        const activeClass = ['text-[var(--vuln-brand)]', 'bg-[var(--vuln-brand)]/10'];
-        const inactiveClass = ['text-[var(--vuln-ink-2)]', 'hover:text-[var(--vuln-ink)]', 'hover:bg-[var(--vuln-surface-2)]'];
+        var tabKeys = ['paste', 'upload', 'url', 'github'];
+        var activeClass = ['text-[var(--vuln-brand)]', 'bg-[var(--vuln-brand)]/10'];
+        var inactiveClass = ['text-[var(--vuln-ink-2)]', 'hover:text-[var(--vuln-ink)]', 'hover:bg-[var(--vuln-surface-2)]'];
+        var currentTab = 'paste';
+        var uploadedFiles = [];
 
-        function switchTab(index) {
-          tabs.forEach((tab, i) => {
-            const selected = i === index;
-            tab.setAttribute('aria-selected', String(selected));
-            tab.classList.remove(...activeClass, ...inactiveClass);
-            if (selected) {
-              tab.classList.add(...activeClass);
-              panels[i].classList.remove('hidden');
+        var analyzeBtn = document.getElementById('btn-analyze');
+        var progressWrap = document.getElementById('scan-progress');
+        var progressFill = document.getElementById('scan-progress-fill');
+        var scanStatus = document.getElementById('scan-status');
+        var scanPercent = document.getElementById('scan-percent');
+        var resultsPanel = document.getElementById('results-panel');
+        var resultCount = document.getElementById('result-count');
+        var activeFilter = 'all';
+
+        // ── 工具函数 ──────────────────────────────────
+        function esc(s) {
+          if (!s) return '';
+          return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        function detectLang(filename) {
+          var ext = (filename.split('.').pop() || '').toLowerCase();
+          var map = {
+            py: 'python', js: 'javascript', ts: 'typescript', jsx: 'javascript', tsx: 'typescript',
+            java: 'java', go: 'go', php: 'php', c: 'c', h: 'c', cpp: 'cpp', cc: 'cpp', cxx: 'cpp',
+            cs: 'csharp', rb: 'ruby', rs: 'rust', swift: 'swift', kt: 'kotlin', scala: 'scala',
+            sh: 'bash', bash: 'bash', zsh: 'bash', pl: 'perl', lua: 'lua', r: 'r', sql: 'sql'
+          };
+          return map[ext] || 'unknown';
+        }
+
+        var riskMeta = {
+          critical: { label: '严重', color: 'error', icon: '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line>' },
+          high:     { label: '高危', color: 'error', icon: '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line>' },
+          medium:   { label: '中危', color: 'warning', icon: '<path d="M12 9v2m0 4h.01"></path><path d="M5.25 20h13.5a2.25 2.25 0 0 0 1.96-3.35L14.18 4.6a2.25 2.25 0 0 0-4.36 0L3.29 16.65A2.25 2.25 0 0 0 5.25 20z"></path>' },
+          low:      { label: '低危', color: 'info', icon: '<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line>' },
+          none:     { label: '安全', color: 'success', icon: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline>' }
+        };
+
+        function renderResultCard(r) {
+          var risk = (r.risk_level || 'none').toLowerCase();
+          var meta = riskMeta[risk] || riskMeta.none;
+          var isVuln = r.has_vulnerability;
+          var stateVar = 'var(--vuln-state-' + meta.color + ')';
+          var chunks = r.chunk_count > 1 ? ' · ' + r.chunk_count + ' chunks' : '';
+          var duration = r.duration ? ' · ' + r.duration.toFixed(1) + 's' : '';
+
+          var html = '<article class="result-card" data-risk="' + risk + '">';
+          html += '<div class="flex items-start justify-between gap-4 mb-3">';
+          html += '<div class="flex items-center gap-3">';
+          html += '<span class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold" style="background:' + stateVar + '1a;color:' + stateVar + ';border:1px solid ' + stateVar + '33">';
+          html += '<svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + meta.icon + '</svg>';
+          html += meta.label;
+          html += '</span>';
+          if (r.vulnerability_type && r.vulnerability_type !== 'none') {
+            html += '<span class="text-xs font-mono text-[var(--vuln-ink-3)]">' + esc(r.vulnerability_type) + '</span>';
+          }
+          html += '</div>';
+          if (r.raw_output) {
+            html += '<button type="button" class="toggle-code text-xs text-[var(--vuln-brand)] hover:text-[var(--vuln-brand-300)] font-medium" aria-expanded="false">展开详情</button>';
+          }
+          html += '</div>';
+
+          if (isVuln) {
+            html += '<h3 class="text-base font-semibold text-[var(--vuln-ink)] mb-1">' + esc(r.vulnerability_type) + '</h3>';
+          } else {
+            html += '<h3 class="text-base font-semibold text-[var(--vuln-state-success)] mb-1">未检测到漏洞</h3>';
+          }
+          html += '<p class="text-xs text-[var(--vuln-ink-3)] mb-2 font-mono">' + esc(r.filename) + chunks + duration + '</p>';
+
+          if (r.explanation) {
+            html += '<p class="text-sm text-[var(--vuln-ink-2)] mb-2">' + esc(r.explanation) + '</p>';
+          }
+          if (r.source && r.sink) {
+            html += '<p class="text-xs text-[var(--vuln-ink-3)] mb-2 font-mono">source: ' + esc(r.source) + ' → sink: ' + esc(r.sink) + '</p>';
+          }
+          if (r.fix_suggestion) {
+            html += '<div class="text-xs text-[var(--vuln-ink-2)] bg-[var(--vuln-bg)] border border-[var(--vuln-line)] rounded-md p-3 mb-2"><strong class="text-[var(--vuln-state-success)]">修复建议：</strong> ' + esc(r.fix_suggestion) + '</div>';
+          }
+          if (r.error) {
+            html += '<div class="text-xs text-[var(--vuln-state-error)] mb-2">错误: ' + esc(r.error) + '</div>';
+          }
+
+          if (r.raw_output) {
+            html += '<div class="code-block hidden" role="region" aria-label="LLM 原始输出"><pre class="text-xs text-[var(--vuln-ink-2)] whitespace-pre-wrap break-words font-mono p-3 bg-[var(--vuln-bg)] rounded-md border border-[var(--vuln-line)] overflow-x-auto">' + esc(r.raw_output) + '</pre></div>';
+          }
+          html += '</article>';
+          return html;
+        }
+
+        function renderSummary(summary) {
+          if (!summary) return '';
+          var s = summary;
+          var html = '<div class="mb-4 p-4 rounded-md bg-[var(--vuln-surface-2)] border border-[var(--vuln-line)] text-sm">';
+          html += '<div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">';
+          html += '<div><div class="text-2xl font-bold text-[var(--vuln-ink)]">' + (s.scanned || 0) + '</div><div class="text-xs text-[var(--vuln-ink-3)]">已扫描</div></div>';
+          html += '<div><div class="text-2xl font-bold text-[var(--vuln-state-error)]">' + (s.vulnerable || 0) + '</div><div class="text-xs text-[var(--vuln-ink-3)]">有漏洞</div></div>';
+          html += '<div><div class="text-2xl font-bold text-[var(--vuln-state-success)]">' + (s.safe || 0) + '</div><div class="text-xs text-[var(--vuln-ink-3)]">安全</div></div>';
+          html += '<div><div class="text-2xl font-bold text-[var(--vuln-state-warning)]">' + (s.errors || 0) + '</div><div class="text-xs text-[var(--vuln-ink-3)]">错误</div></div>';
+          html += '</div>';
+          if (s.total_duration) {
+            html += '<div class="text-xs text-[var(--vuln-ink-3)] text-center mt-2">总耗时 ' + s.total_duration.toFixed(1) + 's</div>';
+          }
+          html += '</div>';
+          return html;
+        }
+
+        function updateResults(results, summary) {
+          var html = '';
+          if (summary) html += renderSummary(summary);
+          var vulnResults = results.filter(function(r) { return r.has_vulnerability; });
+          var safeResults = results.filter(function(r) { return !r.has_vulnerability; });
+          // 漏洞在前，安全在后
+          vulnResults.forEach(function(r) { html += renderResultCard(r); });
+          safeResults.forEach(function(r) { html += renderResultCard(r); });
+
+          if (!results.length) {
+            html = '<div class="text-center py-12 text-[var(--vuln-ink-3)] text-sm">未找到可分析的脚本</div>';
+          }
+
+          resultsPanel.innerHTML = html;
+          resultCount.innerHTML = '共 <strong class="text-[var(--vuln-ink)]">' + results.length + '</strong> 项';
+          applyFilter();
+        }
+
+        function applyFilter() {
+          var cards = resultsPanel.querySelectorAll('.result-card');
+          cards.forEach(function(card) {
+            if (activeFilter === 'all' || card.getAttribute('data-risk') === activeFilter) {
+              card.style.display = '';
             } else {
-              tab.classList.add(...inactiveClass);
-              panels[i].classList.add('hidden');
+              card.style.display = 'none';
             }
           });
         }
 
-        tabs.forEach((tab, i) => {
-          tab.addEventListener('click', () => switchTab(i));
-        });
-
-        const analyzeBtn = document.getElementById('btn-analyze');
-        const progressWrap = document.getElementById('scan-progress');
-        const progressFill = document.getElementById('scan-progress-fill');
-        const scanStatus = document.getElementById('scan-status');
-        const scanPercent = document.getElementById('scan-percent');
-
-        analyzeBtn.addEventListener('click', function () {
-          analyzeBtn.disabled = true;
-          analyzeBtn.classList.add('opacity-60', 'cursor-not-allowed');
+        // ── 进度条 ──────────────────────────────────
+        function showProgress(text) {
           progressWrap.classList.remove('hidden');
-          let progress = 0;
-          const phases = [
-            { at: 0, text: '正在初始化分析引擎…' },
-            { at: 25, text: '正在解析代码结构…' },
-            { at: 55, text: '正在执行污点追踪…' },
-            { at: 80, text: '正在匹配 CWE 规则库…' },
-            { at: 100, text: '扫描完成，已生成 4 条结果' }
-          ];
-          const interval = setInterval(() => {
-            progress += Math.floor(Math.random() * 6) + 2;
-            if (progress > 100) progress = 100;
-            progressFill.style.width = progress + '%';
-            scanPercent.textContent = progress + '%';
-            const phase = phases.slice().reverse().find(p => progress >= p.at);
-            if (phase) scanStatus.textContent = phase.text;
-            if (progress === 100) {
-              clearInterval(interval);
-              analyzeBtn.disabled = false;
-              analyzeBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+          scanStatus.textContent = text || '正在分析…';
+          progressFill.style.width = '5%';
+          scanPercent.textContent = '';
+        }
+        function updateProgress(pct, text) {
+          progressFill.style.width = pct + '%';
+          if (text) scanStatus.textContent = text;
+          scanPercent.textContent = pct + '%';
+        }
+        function hideProgress() {
+          progressWrap.classList.add('hidden');
+        }
+
+        function setBusy(busy) {
+          analyzeBtn.disabled = busy;
+          analyzeBtn.classList.toggle('opacity-60', busy);
+          analyzeBtn.classList.toggle('cursor-not-allowed', busy);
+        }
+
+        // ── Tab 切换 ──────────────────────────────────
+        function switchTab(index) {
+          currentTab = tabKeys[index];
+          tabs.forEach(function(tab, i) {
+            var selected = i === index;
+            tab.setAttribute('aria-selected', String(selected));
+            tab.classList.remove.apply(tab.classList, activeClass.concat(inactiveClass));
+            if (selected) {
+              tab.classList.add.apply(tab.classList, activeClass);
+              panels[i].classList.remove('hidden');
+            } else {
+              tab.classList.add.apply(tab.classList, inactiveClass);
+              panels[i].classList.add('hidden');
             }
-          }, 180);
+          });
+        }
+        tabs.forEach(function(tab, i) {
+          tab.addEventListener('click', function() { switchTab(i); });
         });
 
-        document.querySelectorAll('.toggle-code').forEach(btn => {
-          btn.addEventListener('click', function () {
-            const code = this.closest('.result-card').querySelector('.code-block');
-            const expanded = !code.classList.contains('hidden');
-            code.classList.toggle('hidden');
-            this.setAttribute('aria-expanded', String(!expanded));
-            this.textContent = expanded ? '展开代码' : '收起代码';
+        // ── 文件上传 ──────────────────────────────────
+        var dropzone = document.getElementById('upload-dropzone');
+        var fileInput = document.getElementById('upload-input');
+        var fileListEl = document.getElementById('upload-file-list');
+
+        dropzone.addEventListener('click', function() { fileInput.click(); });
+        fileInput.addEventListener('change', function() {
+          uploadedFiles = Array.prototype.slice.call(fileInput.files);
+          renderFileList();
+        });
+        dropzone.addEventListener('dragover', function(e) {
+          e.preventDefault();
+          dropzone.classList.add('border-[var(--vuln-brand)]', 'bg-[var(--vuln-brand)]/5');
+        });
+        dropzone.addEventListener('dragleave', function() {
+          dropzone.classList.remove('border-[var(--vuln-brand)]', 'bg-[var(--vuln-brand)]/5');
+        });
+        dropzone.addEventListener('drop', function(e) {
+          e.preventDefault();
+          dropzone.classList.remove('border-[var(--vuln-brand)]', 'bg-[var(--vuln-brand)]/5');
+          uploadedFiles = Array.prototype.slice.call(e.dataTransfer.files);
+          renderFileList();
+        });
+
+        function renderFileList() {
+          if (!uploadedFiles.length) {
+            fileListEl.innerHTML = '';
+            return;
+          }
+          fileListEl.innerHTML = uploadedFiles.map(function(f, i) {
+            return '<div class="flex items-center justify-between px-2 py-1 rounded bg-[var(--vuln-surface-2)]">'
+              + '<span>' + esc(f.name) + ' <span class="text-[var(--vuln-ink-3)]">(' + (f.size / 1024).toFixed(1) + ' KB)</span></span>'
+              + '<button type="button" data-remove="' + i + '" class="text-[var(--vuln-state-error)] hover:text-red-400">✕</button>'
+              + '</div>';
+          }).join('');
+          fileListEl.querySelectorAll('[data-remove]').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+              uploadedFiles.splice(parseInt(this.getAttribute('data-remove')), 1);
+              renderFileList();
+            });
+          });
+        }
+
+        // ── 健康检查 ──────────────────────────────────
+        function checkHealth() {
+          fetch('/api/health')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+              var el = document.getElementById('engine-info');
+              if (data.ollama_connected && data.model_available) {
+                el.innerHTML = '引擎: <span class="text-[var(--vuln-state-success)]">●</span> ' + esc(data.model);
+              } else if (data.ollama_connected) {
+                el.innerHTML = '引擎: <span class="text-[var(--vuln-state-warning)]">●</span> 模型未就绪 (' + esc(data.model) + ')';
+              } else {
+                el.innerHTML = '引擎: <span class="text-[var(--vuln-state-error)]">●</span> Ollama 未连接';
+              }
+            })
+            .catch(function() {
+              document.getElementById('engine-info').textContent = '引擎: 后端未响应';
+            });
+        }
+
+        // ── 筛选器 ──────────────────────────────────
+        document.querySelectorAll('.filter-chip').forEach(function(chip) {
+          chip.addEventListener('click', function() {
+            document.querySelectorAll('.filter-chip').forEach(function(c) {
+              c.classList.remove('active', 'bg-[var(--vuln-brand)]/10', 'text-[var(--vuln-brand)]');
+              c.classList.add('text-[var(--vuln-ink-2)]');
+            });
+            this.classList.add('active', 'bg-[var(--vuln-brand)]/10', 'text-[var(--vuln-brand)]');
+            this.classList.remove('text-[var(--vuln-ink-2)]');
+            activeFilter = this.getAttribute('data-filter');
+            applyFilter();
           });
         });
+
+        // ── 代码展开/收起（事件委托） ──────────────────
+        resultsPanel.addEventListener('click', function(e) {
+          var btn = e.target.closest('.toggle-code');
+          if (!btn) return;
+          var code = btn.closest('.result-card').querySelector('.code-block');
+          var expanded = !code.classList.contains('hidden');
+          code.classList.toggle('hidden');
+          btn.setAttribute('aria-expanded', String(!expanded));
+          btn.textContent = expanded ? '展开详情' : '收起详情';
+        });
+
+        // ── 主分析逻辑 ──────────────────────────────────
+        function getRag() {
+          return document.getElementById('rag-toggle').checked;
+        }
+
+        async function analyzePaste() {
+          var code = document.getElementById('code-input').value.trim();
+          if (!code) { alert('请粘贴需要审计的代码'); return false; }
+          showProgress('正在分析代码…');
+          updateProgress(30, 'LLM 推理中…');
+          var res = await fetch('/api/analyze', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: code, language: 'auto', filename: 'pasted_code.txt', use_rag: getRag() })
+          });
+          updateProgress(90, '整理结果…');
+          var data = await res.json();
+          if (!res.ok) { throw new Error(data.error || '分析失败'); }
+          updateProgress(100, '完成');
+          updateResults([data], null);
+          return true;
+        }
+
+        async function analyzeUpload() {
+          if (!uploadedFiles.length) { alert('请选择文件'); return false; }
+          var formData = new FormData();
+          uploadedFiles.forEach(function(f) { formData.append('files', f); });
+          formData.append('rag', getRag());
+
+          showProgress('正在批量扫描…');
+          var res = await fetch('/api/batch', { method: 'POST', body: formData });
+          if (!res.ok) {
+            var err = await res.json().catch(function() { return {}; });
+            throw new Error(err.error || '批量扫描失败');
+          }
+
+          var reader = res.body.getReader();
+          var decoder = new TextDecoder();
+          var buffer = '';
+          var results = [];
+          var summary = null;
+
+          while (true) {
+            var chunk = await reader.read();
+            if (chunk.done) break;
+            buffer += decoder.decode(chunk.value, { stream: true });
+            var lines = buffer.split('\n');
+            buffer = lines.pop();
+            for (var i = 0; i < lines.length; i++) {
+              var line = lines[i].trim();
+              if (!line) continue;
+              var msg = JSON.parse(line);
+              if (msg.type === 'progress') {
+                var pct = msg.total > 0 ? Math.round(msg.scanned / msg.total * 100) : 0;
+                updateProgress(pct, '已扫描 ' + msg.scanned + '/' + msg.total + ' (' + (msg.result.filename || '') + ')');
+                if (msg.result) results.push(msg.result);
+              } else if (msg.type === 'done') {
+                summary = msg.summary;
+              }
+            }
+          }
+          updateProgress(100, '完成');
+          updateResults(results, summary);
+          return true;
+        }
+
+        async function analyzeUrl() {
+          var url = document.getElementById('url-input').value.trim();
+          if (!url) { alert('请输入 URL'); return false; }
+          showProgress('正在抓取并扫描站点…');
+          updateProgress(20, '抓取页面脚本…');
+          var res = await fetch('/api/url-scan', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: url, use_rag: getRag() })
+          });
+          updateProgress(70, 'LLM 分析中…');
+          var data = await res.json();
+          if (!res.ok) { throw new Error(data.error || 'URL 扫描失败'); }
+          updateProgress(100, '完成');
+          var results = (data.summary && data.summary.results) || [];
+          updateResults(results, data.summary);
+          return true;
+        }
+
+        async function analyzeGithub() {
+          var repo = document.getElementById('github-input').value.trim();
+          if (!repo) { alert('请输入 GitHub 仓库地址'); return false; }
+          // 补全 URL（owner/repo → https://github.com/owner/repo）
+          if (repo.indexOf('http') !== 0) {
+            repo = 'https://github.com/' + repo;
+          }
+          showProgress('正在克隆并扫描仓库…');
+          updateProgress(15, 'git clone 中…（最多 120s）');
+          var res = await fetch('/api/github-scan', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ repo_url: repo, use_rag: getRag() })
+          });
+          updateProgress(80, 'LLM 分析中…');
+          var data = await res.json();
+          if (!res.ok) { throw new Error(data.error || 'GitHub 扫描失败'); }
+          updateProgress(100, '完成');
+          var results = (data.summary && data.summary.results) || [];
+          updateResults(results, data.summary);
+          return true;
+        }
+
+        // ── 绑定分析按钮 ──────────────────────────────────
+        analyzeBtn.addEventListener('click', async function() {
+          setBusy(true);
+          try {
+            var ok = false;
+            if (currentTab === 'paste') ok = await analyzePaste();
+            else if (currentTab === 'upload') ok = await analyzeUpload();
+            else if (currentTab === 'url') ok = await analyzeUrl();
+            else if (currentTab === 'github') ok = await analyzeGithub();
+            if (!ok) hideProgress();
+          } catch (err) {
+            hideProgress();
+            resultsPanel.innerHTML = '<div class="text-center py-12 text-[var(--vuln-state-error)] text-sm">⚠ ' + esc(err.message) + '</div>';
+            resultCount.innerHTML = '共 <strong class="text-[var(--vuln-ink)]">0</strong> 项';
+          } finally {
+            setBusy(false);
+          }
+        });
+
+        // ── 初始化 ──────────────────────────────────
+        checkHealth();
       })();
     </script>
 </body>

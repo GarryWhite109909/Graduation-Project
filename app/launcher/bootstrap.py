@@ -24,7 +24,7 @@ import requests
 # 项目根目录（Graduation-Project/）
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 # 默认模型（发布到 Ollama Registry 的 SFT，可通过环境变量切换版本）
-DEFAULT_MODEL = os.environ.get("VULN_SCANNER_MODEL", "graduation-vuln-scanner:v5")
+DEFAULT_MODEL = os.environ.get("VULN_SCANNER_MODEL", "garrywhite109909/graduation-vuln-scanner:v5")
 # 回退模型（官方 Qwen3-8B，未微调）
 FALLBACK_MODEL = os.environ.get("VULN_SCANNER_FALLBACK_MODEL", "qwen3:8b")
 # 后端端口
@@ -34,6 +34,69 @@ PORT = 8765
 def check_ollama_installed() -> bool:
     """检测系统是否安装 Ollama。"""
     return shutil.which("ollama") is not None
+
+
+def try_install_ollama() -> bool:
+    """尝试自动安装 Ollama。成功返回 True，失败回退到打开下载页。"""
+    print("[启动器] 未检测到 Ollama，尝试自动安装...")
+
+    if sys.platform == "win32":
+        # Windows: 优先 winget
+        if shutil.which("winget"):
+            print("[启动器] 使用 winget 安装 Ollama...")
+            try:
+                result = subprocess.run(
+                    ["winget", "install", "Ollama.Ollama",
+                     "--accept-source-agreements", "--accept-package-agreements"],
+                    timeout=600,
+                )
+                if result.returncode == 0 and check_ollama_installed():
+                    print("[启动器] Ollama 安装完成。")
+                    return True
+                print(f"[启动器] winget 退出码 {result.returncode}。")
+            except subprocess.TimeoutExpired:
+                print("[启动器] winget 安装超时。")
+        else:
+            print("[启动器] 未检测到 winget，无法自动安装。")
+        webbrowser.open("https://ollama.com/download")
+        return False
+
+    elif sys.platform == "darwin":
+        # macOS: 优先 Homebrew
+        if shutil.which("brew"):
+            print("[启动器] 使用 Homebrew 安装 Ollama...")
+            try:
+                result = subprocess.run(
+                    ["brew", "install", "ollama"],
+                    timeout=600,
+                )
+                if result.returncode == 0 and check_ollama_installed():
+                    print("[启动器] Ollama 安装完成。")
+                    return True
+                print(f"[启动器] brew 退出码 {result.returncode}。")
+            except subprocess.TimeoutExpired:
+                print("[启动器] brew 安装超时。")
+        else:
+            print("[启动器] 未检测到 brew，无法自动安装。")
+        webbrowser.open("https://ollama.com/download")
+        return False
+
+    else:
+        # Linux: 官方一键脚本（可能需要 sudo 密码）
+        print("[启动器] 使用官方脚本安装 Ollama（如提示请输入 sudo 密码）...")
+        try:
+            result = subprocess.run(
+                ["bash", "-c", "curl -fsSL https://ollama.com/install.sh | sh"],
+                timeout=600,
+            )
+            if result.returncode == 0 and check_ollama_installed():
+                print("[启动器] Ollama 安装完成。")
+                return True
+            print(f"[启动器] 安装脚本退出码 {result.returncode}。")
+        except subprocess.TimeoutExpired:
+            print("[启动器] 安装超时。")
+        webbrowser.open("https://ollama.com/download")
+        return False
 
 
 def ensure_ollama_running() -> bool:
@@ -79,8 +142,8 @@ def list_ollama_models() -> list[str]:
 def ensure_model_available(model: str) -> bool:
     """确保模型已 pull。未 pull 则自动下载。"""
     models = list_ollama_models()
-    # Ollama 模型名可能带 :latest 后缀，模糊匹配
-    if any(model in m or m in model for m in models):
+    # 精确匹配（Ollama 模型名含 tag，不需要模糊匹配）
+    if model in models:
         return True
 
     print(f"[启动器] 首次使用，正在下载模型 {model}（约 5GB，请耐心等待）...")
@@ -135,12 +198,19 @@ def main():
 
     # 1. 检测 Ollama
     if not check_ollama_installed():
-        print("\n[错误] 未检测到 Ollama。请先安装：")
-        print("  下载地址：https://ollama.com/download")
-        print("  安装后重新运行本启动器。")
-        webbrowser.open("https://ollama.com/download")
-        input("\n按回车键退出...")
-        return
+        # 尝试自动安装
+        if not try_install_ollama():
+            print("\n[错误] Ollama 自动安装失败。请手动安装：")
+            print("  下载地址：https://ollama.com/download")
+            print("  安装后重新运行本启动器。")
+            input("\n按回车键退出...")
+            return
+        # 安装后重新检查 PATH
+        if not check_ollama_installed():
+            print("\n[错误] Ollama 已安装但不在 PATH 中。")
+            print("  请重启终端后重新运行本启动器，或手动将 ollama 加入 PATH。")
+            input("\n按回车键退出...")
+            return
 
     print("[1/4] Ollama 已安装")
 
@@ -169,7 +239,7 @@ def main():
     # 4. 启动后端
     backend_proc = start_backend(PORT)
     if not wait_for_backend(PORT):
-        print("\n[错误] 后端启动超时。请检查端口 {PORT} 是否被占用。")
+        print(f"\n[错误] 后端启动超时。请检查端口 {PORT} 是否被占用。")
         backend_proc.terminate()
         input("\n按回车键退出...")
         return

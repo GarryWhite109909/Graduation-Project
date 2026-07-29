@@ -1,5 +1,5 @@
 # Ollama Modelfile —— SFT v5 漏洞扫描模型
-# 用法：ollama create graduation-vuln-scanner:v5 -f Modelfile
+# 用法：ollama create garrywhite109909/graduation-vuln-scanner:v5 -f Modelfile
 #
 # 前置：已用 merge_lora.py 合并模型，并用 llama.cpp 量化为 GGUF Q4_K_M
 
