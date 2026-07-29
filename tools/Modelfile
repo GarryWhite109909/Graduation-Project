@@ -1,0 +1,27 @@
+# Ollama Modelfile —— SFT v5 漏洞扫描模型
+# 用法：ollama create graduation-vuln-scanner:v5 -f Modelfile
+#
+# 前置：已用 merge_lora.py 合并模型，并用 llama.cpp 量化为 GGUF Q4_K_M
+
+FROM ./merged_v5-q4km.gguf
+
+# Qwen3 chat template（与训练时一致）
+TEMPLATE """{{- if .System }}<|im_start|>system
+{{ .System }}<|im_end|>
+{{- end }}<|im_start|>user
+{{ .Prompt }}<|im_end|>
+<|im_start|>assistant
+"""
+
+# 系统提示词用 LITE 版（训练/推理一致）
+SYSTEM """你是一名资深的代码安全审计专家。请对给出的代码片段进行安全分析，判断其中是否存在安全漏洞。"""
+
+# 推理参数
+PARAMETER temperature 0.1
+PARAMETER num_ctx 16384
+PARAMETER num_predict 2048
+PARAMETER stop "<|im_end|>"
+PARAMETER stop "<|endoftext|>"
+
+# 默认用完即卸显存（可被 API 调用覆盖）
+# PARAMETER keep_alive 0

@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 漏洞扫描器</title>
+<script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, "Microsoft YaHei", sans-serif; background: #0f1419; color: #e6e6e6; }
+#app { max-width: 1200px; margin: 0 auto; padding: 20px; }
+.header { display: flex; justify-content: space-between; align-items: center; padding: 16px 0; border-bottom: 1px solid #2a2a2a; margin-bottom: 24px; }
+.header h1 { font-size: 22px; color: #58a6ff; }
+.status { font-size: 13px; padding: 4px 12px; border-radius: 12px; }
+.status.ok { background: #1b4332; color: #40db88; }
+.status.err { background: #4a1d1d; color: #ff6b6b; }
+.tabs { display: flex; gap: 4px; margin-bottom: 20px; }
+.tab { padding: 10px 20px; cursor: pointer; border-radius: 8px 8px 0 0; background: #1a1f2e; color: #8b949e; border: 1px solid #2a2a2a; border-bottom: none; }
+.tab.active { background: #161b22; color: #58a6ff; border-color: #58a6ff; }
+.panel { background: #161b22; border: 1px solid #2a2a2a; border-radius: 0 8px 8px 8px; padding: 24px; }
+.form-group { margin-bottom: 16px; }
+.form-group label { display: block; margin-bottom: 6px; color: #8b949e; font-size: 14px; }
+input, textarea, select { width: 100%; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 10px; color: #e6e6e6; font-size: 14px; }
+textarea { min-height: 200px; font-family: "Cascadia Code", Consolas, monospace; resize: vertical; }
+input:focus, textarea:focus, select:focus { outline: none; border-color: #58a6ff; }
+.btn { padding: 10px 24px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; background: #238636; color: #fff; }
+.btn:hover { background: #2ea043; }
+.btn:disabled { background: #21262d; color: #6e7681; cursor: not-allowed; }
+.btn.secondary { background: #21262d; color: #c9d1d9; }
+.btn.secondary:hover { background: #30363d; }
+.toolbar { display: flex; gap: 8px; margin-bottom: 16px; }
+.progress { margin: 12px 0; padding: 8px; background: #0d1117; border-radius: 6px; font-size: 13px; color: #8b949e; }
+.progress-bar { height: 4px; background: #21262d; border-radius: 2px; margin-top: 6px; }
+.progress-bar-fill { height: 100%; background: #58a6ff; border-radius: 2px; transition: width 0.3s; }
+.results { margin-top: 20px; }
+.result-card { background: #0d1117; border: 1px solid #30363d; border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+.result-card.vuln { border-left: 4px solid #ff6b6b; }
+.result-card.safe { border-left: 4px solid #40db88; }
+.result-card.error { border-left: 4px solid #ffa657; }
+.result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.result-title { font-weight: 600; font-size: 15px; }
+.badge { padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; }
+.badge.critical { background: #4a1d1d; color: #ff6b6b; }
+.badge.high { background: #4a2d1d; color: #ffa657; }
+.badge.medium { background: #4a3d1d; color: #ffdb88; }
+.badge.low { background: #1d3a4a; color: #58a6ff; }
+.badge.safe { background: #1b4332; color: #40db88; }
+.result-meta { font-size: 13px; color: #8b949e; margin-bottom: 8px; }
+.result-explanation { font-size: 14px; line-height: 1.6; margin-bottom: 8px; }
+.result-fix { background: #161b22; padding: 10px; border-radius: 6px; font-size: 13px; color: #7ee787; }
+details { margin-top: 8px; }
+summary { cursor: pointer; font-size: 13px; color: #58a6ff; }
+pre { background: #0d1117; padding: 12px; border-radius: 6px; overflow-x: auto; font-size: 12px; margin-top: 8px; }
+.empty { text-align: center; padding: 40px; color: #6e7681; }
+.summary { display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
+.summary-item { background: #0d1117; padding: 12px 20px; border-radius: 8px; text-align: center; }
+.summary-item .num { font-size: 24px; font-weight: 700; }
+.summary-item .label { font-size: 12px; color: #8b949e; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="header">
+    <h1>AI 漏洞扫描器</h1>
+    <div :class="['status', health.ollama_connected ? 'ok' : 'err']">
+      {{ health.ollama_connected ? 'Ollama 已连接' : 'Ollama 未连接' }} · {{ health.model }}
+    </div>
+  </div>
+
+  <div class="tabs">
+    <div v-for="t in tabs" :key="t.id" :class="['tab', activeTab === t.id ? 'active' : '']"
+         @click="activeTab = t.id">{{ t.label }}</div>
+  </div>
+
+  <div class="panel">
+    <!-- 代码粘贴 -->
+    <div v-show="activeTab === 'paste'">
+      <div class="form-group">
+        <label>文件名（可选）</label>
+        <input v-model="pasteForm.filename" placeholder="pasted_code.py">
+      </div>
+      <div class="form-group">
+        <label>语言</label>
+        <select v-model="pasteForm.language">
+          <option v-for="l in languages" :key="l" :value="l">{{ l }}</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>代码</label>
+        <textarea v-model="pasteForm.code" placeholder="粘贴代码到这里..."></textarea>
+      </div>
+      <div class="toolbar">
+        <button class="btn" @click="analyzePaste" :disabled="loading || !pasteForm.code">
+          {{ loading ? '分析中...' : '分析漏洞' }}
+        </button>
+        <label class="btn secondary">
+          <input type="checkbox" v-model="pasteForm.useRag"> 启用 RAG 知识库
+        </label>
+      </div>
+    </div>
+
+    <!-- 文件上传 -->
+    <div v-show="activeTab === 'upload'">
+      <div class="form-group">
+        <label>选择文件（可多选，支持 .py/.js/.ts/.java/.php/.go/.html）</label>
+        <input type="file" multiple @change="onFileSelect" ref="fileInput">
+      </div>
+      <div class="toolbar">
+        <button class="btn" @click="batchScan" :disabled="loading || !selectedFiles.length">
+          {{ loading ? '扫描中...' : `扫描 ${selectedFiles.length} 个文件` }}
+        </button>
+        <label class="btn secondary">
+          <input type="checkbox" v-model="uploadUseRag"> 启用 RAG
+        </label>
+        <button class="btn secondary" @click="downloadReport" :disabled="!lastBatch">下载报告</button>
+      </div>
+      <div v-if="batchProgress" class="progress">
+        {{ batchProgress.scanned }} / {{ batchProgress.total }}
+        <div class="progress-bar"><div class="progress-bar-fill"
+          :style="{ width: (batchProgress.total ? batchProgress.scanned / batchProgress.total * 100 : 0) + '%' }"></div></div>
+      </div>
+    </div>
+
+    <!-- URL 抓取 -->
+    <div v-show="activeTab === 'url'">
+      <div class="form-group">
+        <label>目标网页 URL</label>
+        <input v-model="urlForm.url" placeholder="https://example.com">
+      </div>
+      <div class="toolbar">
+        <button class="btn" @click="scanUrl" :disabled="loading || !urlForm.url">
+          {{ loading ? '抓取分析中...' : '抓取并扫描' }}
+        </button>
+        <label class="btn secondary">
+          <input type="checkbox" v-model="urlForm.useRag"> 启用 RAG
+        </label>
+      </div>
+    </div>
+
+    <!-- GitHub 仓库 -->
+    <div v-show="activeTab === 'github'">
+      <div class="form-group">
+        <label>GitHub 仓库 URL</label>
+        <input v-model="ghForm.repo_url" placeholder="https://github.com/user/repo">
+      </div>
+      <div class="form-group">
+        <label>最大扫描文件数</label>
+        <input type="number" v-model.number="ghForm.max_files" min="1" max="200">
+      </div>
+      <div class="toolbar">
+        <button class="btn" @click="scanGithub" :disabled="loading || !ghForm.repo_url">
+          {{ loading ? '克隆扫描中...' : '克隆并扫描' }}
+        </button>
+        <label class="btn secondary">
+          <input type="checkbox" v-model="ghForm.useRag"> 启用 RAG
+        </label>
+      </div>
+    </div>
+
+    <!-- 结果展示 -->
+    <div class="results" v-if="results.length">
+      <div class="summary" v-if="summary">
+        <div class="summary-item"><div class="num" style="color:#58a6ff">{{ summary.scanned }}</div><div class="label">已扫描</div></div>
+        <div class="summary-item"><div class="num" style="color:#ff6b6b">{{ summary.vulnerable }}</div><div class="label">有漏洞</div></div>
+        <div class="summary-item"><div class="num" style="color:#40db88">{{ summary.safe }}</div><div class="label">安全</div></div>
+        <div class="summary-item"><div class="num" style="color:#ffa657">{{ summary.errors }}</div><div class="label">错误</div></div>
+        <div class="summary-item"><div class="num" style="color:#8b949e">{{ summary.total_duration }}s</div><div class="label">总耗时</div></div>
+      </div>
+      <div v-for="(r, i) in results" :key="i"
+           :class="['result-card', r.has_vulnerability === true ? 'vuln' : r.has_vulnerability === false ? 'safe' : 'error']">
+        <div class="result-header">
+          <div class="result-title">{{ r.filename }}</div>
+          <div>
+            <span v-if="r.has_vulnerability === true" :class="['badge', (r.risk_level||'').toLowerCase()]">{{ r.risk_level }}</span>
+            <span v-if="r.has_vulnerability === false" class="badge safe">安全</span>
+            <span v-if="r.has_vulnerability === null" class="badge low">错误</span>
+            <span style="margin-left:8px;font-size:12px;color:#6e7681">{{ r.duration }}s</span>
+          </div>
+        </div>
+        <div class="result-meta" v-if="r.has_vulnerability === true">
+          {{ r.vulnerability_type }} · 源: {{ r.source }} → 汇: {{ r.sink }}
+        </div>
+        <div class="result-explanation" v-if="r.explanation">{{ r.explanation }}</div>
+        <div class="result-fix" v-if="r.has_vulnerability === true && r.fix_suggestion">
+          <strong>修复建议：</strong>{{ r.fix_suggestion }}
+        </div>
+        <div v-if="r.error" style="color:#ff6b6b;font-size:13px">错误: {{ r.error }}</div>
+        <details v-if="r.raw_output">
+          <summary>查看模型分析过程</summary>
+          <pre>{{ r.raw_output }}</pre>
+        </details>
+      </div>
+    </div>
+    <div class="empty" v-else-if="!loading">
+      选择一个入口，开始扫描
+    </div>
+  </div>
+</div>
+
+<script>
+const { createApp, ref, reactive, onMounted } = Vue;
+
+createApp({
+  setup() {
+    const activeTab = ref('paste');
+    const tabs = [
+      { id: 'paste', label: '代码粘贴' },
+      { id: 'upload', label: '文件上传' },
+      { id: 'url', label: 'URL 抓取' },
+      { id: 'github', label: 'GitHub 仓库' },
+    ];
+    const languages = ['python', 'javascript', 'typescript', 'java', 'php', 'go', 'html'];
+    const loading = ref(false);
+    const results = ref([]);
+    const summary = ref(null);
+    const health = reactive({ ollama_connected: false, model: '', model_available: false });
+    const lastBatch = ref(false);
+
+    const pasteForm = reactive({ filename: 'pasted_code.py', language: 'python', code: '', useRag: false });
+    const urlForm = reactive({ url: '', useRag: true });
+    const ghForm = reactive({ repo_url: '', useRag: true, max_files: 50 });
+    const selectedFiles = ref([]);
+    const uploadUseRag = ref(false);
+    const batchProgress = ref(null);
+    const fileInput = ref(null);
+
+    async function checkHealth() {
+      try {
+        const r = await fetch('/api/health');
+        Object.assign(health, await r.json());
+      } catch (e) { console.error(e); }
+    }
+
+    function addResult(r) {
+      results.value = [r, ...results.value].slice(0, 100);
+    }
+
+    async function analyzePaste() {
+      loading.value = true;
+      results.value = [];
+      summary.value = null;
+      try {
+        const r = await fetch('/api/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code: pasteForm.code,
+            language: pasteForm.language,
+            filename: pasteForm.filename,
+            use_rag: pasteForm.useRag || null,
+          }),
+        });
+        const data = await r.json();
+        addResult(data);
+      } catch (e) {
+        addResult({ filename: pasteForm.filename, has_vulnerability: null, error: e.message });
+      }
+      loading.value = false;
+    }
+
+    function onFileSelect(e) {
+      selectedFiles.value = Array.from(e.target.files);
+    }
+
+    async function batchScan() {
+      loading.value = true;
+      results.value = [];
+      summary.value = null;
+      batchProgress.value = { scanned: 0, total: selectedFiles.value.length };
+      const formData = new FormData();
+      for (const f of selectedFiles.value) formData.append('files', f);
+      formData.append('use_rag', uploadUseRag.value ? '1' : '0');
+
+      try {
+        const resp = await fetch('/api/batch', { method: 'POST', body: formData });
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop();
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            const msg = JSON.parse(line);
+            if (msg.type === 'progress') {
+              batchProgress.value = { scanned: msg.scanned, total: msg.total };
+              addResult(msg.result);
+            } else if (msg.type === 'done') {
+              summary.value = msg.summary;
+              lastBatch.value = true;
+            }
+          }
+        }
+      } catch (e) {
+        addResult({ filename: 'batch', has_vulnerability: null, error: e.message });
+      }
+      loading.value = false;
+    }
+
+    async function scanUrl() {
+      loading.value = true;
+      results.value = [];
+      summary.value = null;
+      try {
+        const r = await fetch('/api/url-scan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: urlForm.url, use_rag: urlForm.useRag || null }),
+        });
+        const data = await r.json();
+        if (data.error) {
+          addResult({ filename: urlForm.url, has_vulnerability: null, error: data.error });
+        } else if (data.summary) {
+          summary.value = data.summary;
+          for (const r of data.summary.results || []) addResult(r);
+        }
+      } catch (e) {
+        addResult({ filename: urlForm.url, has_vulnerability: null, error: e.message });
+      }
+      loading.value = false;
+    }
+
+    async function scanGithub() {
+      loading.value = true;
+      results.value = [];
+      summary.value = null;
+      try {
+        const r = await fetch('/api/github-scan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            repo_url: ghForm.repo_url,
+            use_rag: ghForm.useRag || null,
+            max_files: ghForm.max_files,
+          }),
+        });
+        const data = await r.json();
+        if (data.error) {
+          addResult({ filename: ghForm.repo_url, has_vulnerability: null, error: data.error });
+        } else if (data.summary) {
+          summary.value = data.summary;
+          for (const r of data.summary.results || []) addResult(r);
+          lastBatch.value = true;
+        }
+      } catch (e) {
+        addResult({ filename: ghForm.repo_url, has_vulnerability: null, error: e.message });
+      }
+      loading.value = false;
+    }
+
+    function downloadReport() {
+      window.open('/api/report', '_blank');
+    }
+
+    onMounted(checkHealth);
+
+    return {
+      activeTab, tabs, languages, loading, results, summary, health, lastBatch,
+      pasteForm, urlForm, ghForm, selectedFiles, uploadUseRag, batchProgress, fileInput,
+      analyzePaste, onFileSelect, batchScan, scanUrl, scanGithub, downloadReport,
+    };
+  }
+}).mount('#app');
+</script>
+</body>
+</html>

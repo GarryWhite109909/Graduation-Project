@@ -9,6 +9,16 @@ tree-sitter-java>=0.23.5
 tree-sitter-php>=0.24.1
 tree-sitter-typescript>=0.23.2
 
+# Web 应用层（app/）
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+python-multipart>=0.0.9
+
+# 模型合并（tools/merge_lora.py，仅台式机开发时需要）
+# peft>=0.13.0
+# transformers>=4.45.0
+# accelerate>=1.0.0
+
 # 以下是间接依赖中较关键的，显式列出方便排查
 # numpy          (chromadb / sentence-transformers 依赖)
 # torch          (sentence-transformers 依赖)

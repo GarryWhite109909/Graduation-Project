@@ -1,0 +1,297 @@
+"""
+扫描编排服务 —— 复用 graduation_project 核心包，统一调度
+LLM 推理 + 代码切片 + RAG 检索。
+
+关键设计：
+- SFT v5 用 SYSTEM_PROMPT_LITE 训练，推理也必须用 LITE（训练/推理一致）
+- OllamaClient.analyze_vulnerability 硬编码了完整版 SYSTEM_PROMPT，
+  本服务绕过它，直接调 client.generate 传入 LITE 版
+- RAG 可开关（Web 端默认开，插件端默认关）
+"""
+
+from __future__ import annotations
+
+import time
+from dataclasses import dataclass, field
+from typing import Optional
+
+from graduation_project.llm_client import OllamaClient
+from graduation_project.prompts import SYSTEM_PROMPT, SYSTEM_PROMPT_LITE, build_user_prompt
+from graduation_project.schema import parse_verdict, normalize_has_vulnerability
+from graduation_project.code_slicer import CodeSlicer, SliceResult
+
+# 默认模型：发布到 Ollama Registry 的 SFT v5
+DEFAULT_MODEL = "graduation-vuln-scanner:v5"
+# 回退模型：官方 Qwen3-8B（未微调，用户首次未 pull v5 时用）
+FALLBACK_MODEL = "qwen3:8b"
+# Chroma 知识库集合名
+KNOWLEDGE_COLLECTION = "vuln_knowledge"
+
+
+@dataclass
+class SingleResult:
+    """单段代码扫描结果。"""
+    filename: str
+    language: str
+    has_vulnerability: Optional[bool]
+    vulnerability_type: str = "none"
+    risk_level: str = "None"
+    source: str = "N/A"
+    sink: str = "N/A"
+    explanation: str = ""
+    fix_suggestion: str = "no fix needed"
+    raw_output: str = ""  # 模型原始输出（含 CoT 分析过程）
+    duration: float = 0.0
+    error: Optional[str] = None
+    sliced: bool = False
+    chunk_count: int = 1
+
+    def to_dict(self) -> dict:
+        return {
+            "filename": self.filename,
+            "language": self.language,
+            "has_vulnerability": self.has_vulnerability,
+            "vulnerability_type": self.vulnerability_type,
+            "risk_level": self.risk_level,
+            "source": self.source,
+            "sink": self.sink,
+            "explanation": self.explanation,
+            "fix_suggestion": self.fix_suggestion,
+            "raw_output": self.raw_output,
+            "duration": round(self.duration, 2),
+            "error": self.error,
+            "sliced": self.sliced,
+            "chunk_count": self.chunk_count,
+        }
+
+
+@dataclass
+class BatchResult:
+    """批量扫描汇总结果。"""
+    total_files: int = 0
+    scanned: int = 0
+    vulnerable: int = 0
+    safe: int = 0
+    errors: int = 0
+    results: list[SingleResult] = field(default_factory=list)
+    total_duration: float = 0.0
+
+    def to_dict(self) -> dict:
+        return {
+            "total_files": self.total_files,
+            "scanned": self.scanned,
+            "vulnerable": self.vulnerable,
+            "safe": self.safe,
+            "errors": self.errors,
+            "results": [r.to_dict() for r in self.results],
+            "total_duration": round(self.total_duration, 2),
+        }
+
+
+class Scanner:
+    """漏洞扫描编排器。
+
+    Args:
+        model: Ollama 模型名（默认 graduation-vuln-scanner:v5）
+        base_url: Ollama 服务地址
+        use_rag: 是否启用 RAG 知识库增强
+        use_lite_prompt: 是否用 SYSTEM_PROMPT_LITE（SFT v5 必须 True）
+        keep_alive: 模型卸载策略（0=用完即卸，-1=常驻）
+    """
+
+    def __init__(
+        self,
+        model: str = DEFAULT_MODEL,
+        base_url: str = "http://localhost:11434",
+        use_rag: bool = False,
+        use_lite_prompt: bool = True,
+        keep_alive=0,
+    ):
+        self.client = OllamaClient(base_url=base_url, model=model)
+        self.model = model
+        self.use_rag = use_rag
+        self.keep_alive = keep_alive
+        self.system_prompt = SYSTEM_PROMPT_LITE if use_lite_prompt else SYSTEM_PROMPT
+        self.slicer = CodeSlicer(min_lines=150)
+        self._chroma = None  # 延迟初始化（首次用 RAG 时才连 Chroma）
+
+    @property
+    def chroma(self):
+        """延迟加载 ChromaManager，避免未安装 chromadb 时报错。"""
+        if self._chroma is None and self.use_rag:
+            try:
+                from graduation_project.chroma_manager import ChromaManager
+                self._chroma = ChromaManager()
+            except Exception as e:
+                print(f"[Scanner] RAG 初始化失败，回退纯 LLM: {e}")
+                self.use_rag = False
+        return self._chroma
+
+    def check_health(self) -> dict:
+        """健康检查：Ollama 连接 + 模型可用性。"""
+        connected = self.client.check_connection()
+        models = self.client.list_models() if connected else []
+        model_available = self.model in models or any(
+            self.model in m for m in models
+        )
+        return {
+            "ollama_connected": connected,
+            "model": self.model,
+            "model_available": model_available,
+            "available_models": models,
+            "rag_enabled": self.use_rag,
+        }
+
+    def _retrieve_rag_context(self, code: str) -> Optional[str]:
+        """从知识库检索相关漏洞知识。"""
+        if not self.use_rag or not self.chroma:
+            return None
+        try:
+            results = self.chroma.query(
+                collection_name=KNOWLEDGE_COLLECTION,
+                query_text=code[:2000],  # 限制查询长度
+                n_results=3,
+            )
+            docs = results.get("documents", [])
+            if not docs:
+                return None
+            return "\n---\n".join(docs)
+        except Exception as e:
+            print(f"[Scanner] RAG 检索失败: {e}")
+            return None
+
+    def scan_code(
+        self,
+        code: str,
+        language: str = "python",
+        filename: str = "",
+        use_rag: Optional[bool] = None,
+    ) -> SingleResult:
+        """扫描单段代码。
+
+        长文件（>150 行）自动切片，逐 chunk 分析，
+        若任一 chunk 发现漏洞则整文件判漏洞。
+
+        Args:
+            code: 代码文本
+            language: 代码语言
+            filename: 文件名（给模型作上下文）
+            use_rag: 是否启用 RAG（None 表示用 Scanner 默认值）
+        """
+        if not code or not code.strip():
+            return SingleResult(
+                filename=filename, language=language,
+                has_vulnerability=None, error="empty code",
+            )
+
+        rag_enabled = self.use_rag if use_rag is None else use_rag
+        rag_context = self._retrieve_rag_context(code) if rag_enabled else None
+
+        # 切片
+        slice_result: SliceResult = self.slicer.slice(
+            code, language=language, filename=filename,
+        )
+
+        # 逐 chunk 分析
+        chunk_results: list[SingleResult] = []
+        for chunk in slice_result.chunks:
+            r = self._analyze_chunk(
+                chunk.code, language, filename, rag_context,
+                chunk_name=chunk.name,
+            )
+            r.sliced = slice_result.sliced
+            r.chunk_count = slice_result.chunk_count
+            chunk_results.append(r)
+
+        # 合并：任一 chunk 有漏洞 → 整文件有漏洞
+        if len(chunk_results) == 1:
+            return chunk_results[0]
+
+        # 多 chunk：取最严重的
+        merged = chunk_results[0]
+        merged.filename = filename
+        for cr in chunk_results[1:]:
+            if cr.has_vulnerability and not merged.has_vulnerability:
+                merged = cr
+                merged.filename = filename
+                break
+        return merged
+
+    def _analyze_chunk(
+        self,
+        code: str,
+        language: str,
+        filename: str,
+        rag_context: Optional[str],
+        chunk_name: str = "",
+    ) -> SingleResult:
+        """分析单个代码 chunk。"""
+        display_name = f"{filename}::{chunk_name}" if chunk_name else filename
+        prompt = build_user_prompt(
+            code=code, language=language,
+            filename=display_name, rag_context=rag_context,
+        )
+
+        start = time.time()
+        result = self.client.generate(
+            prompt=prompt,
+            system_prompt=self.system_prompt,
+            keep_alive=self.keep_alive,
+        )
+        duration = time.time() - start
+
+        if result["error"]:
+            return SingleResult(
+                filename=filename, language=language,
+                has_vulnerability=None, error=result["error"],
+                duration=duration,
+            )
+
+        verdict = parse_verdict(result["text"])
+        has_vuln = normalize_has_vulnerability(verdict.get("has_vulnerability"))
+
+        return SingleResult(
+            filename=filename,
+            language=language,
+            has_vulnerability=has_vuln,
+            vulnerability_type=verdict.get("vulnerability_type", "none"),
+            risk_level=verdict.get("risk_level", "None"),
+            source=verdict.get("source", "N/A"),
+            sink=verdict.get("sink", "N/A"),
+            explanation=verdict.get("explanation", ""),
+            fix_suggestion=verdict.get("fix_suggestion", "no fix needed"),
+            raw_output=result["text"],
+            duration=duration,
+        )
+
+    def scan_files(
+        self,
+        files: list[tuple[str, str, str]],  # (filename, language, code)
+        use_rag: Optional[bool] = None,
+    ) -> BatchResult:
+        """批量扫描多个文件。
+
+        Args:
+            files: [(filename, language, code), ...]
+            use_rag: 是否启用 RAG
+        """
+        batch = BatchResult(total_files=len(files))
+        batch_start = time.time()
+
+        for filename, language, code in files:
+            r = self.scan_code(code, language, filename, use_rag=use_rag)
+            batch.results.append(r)
+            batch.scanned += 1
+            if r.has_vulnerability is True:
+                batch.vulnerable += 1
+            elif r.has_vulnerability is False:
+                batch.safe += 1
+            else:
+                batch.errors += 1
+
+        batch.total_duration = time.time() - batch_start
+        return batch
+
+    def unload(self):
+        """卸载模型释放显存。"""
+        self.client.unload_model()

@@ -13,5 +13,17 @@ dependencies = [
     "sentence-transformers>=5.6.0",
 ]
 
+[project.optional-dependencies]
+app = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "python-multipart>=0.0.9",
+]
+merge = [
+    "peft>=0.13.0",
+    "transformers>=4.45.0",
+    "accelerate>=1.0.0",
+]
+
 [tool.setuptools]
-packages = ["graduation_project"]
+packages = ["graduation_project", "app", "app.backend", "app.backend.services", "app.launcher"]

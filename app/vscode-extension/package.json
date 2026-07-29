@@ -1,0 +1,51 @@
+{
+  "name": "vuln-scanner",
+  "displayName": "AI 漏洞扫描器",
+  "description": "基于 LLM 的代码安全审计 — 右键分析当前文件",
+  "version": "0.1.0",
+  "publisher": "graduation-project",
+  "engines": { "vscode": "^1.80.0" },
+  "categories": ["Security", "Other"],
+  "activationEvents": ["onCommand:vulnScanner.analyzeFile"],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "vulnScanner.analyzeFile",
+        "title": "AI 漏洞扫描: 分析当前文件",
+        "icon": "$(shield)"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "vulnScanner.analyzeFile",
+          "when": "editorFocus",
+          "group": "vulnScanner@1"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "vulnScanner.analyzeFile",
+          "when": "editorFocus",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "AI 漏洞扫描器",
+      "properties": {
+        "vulnScanner.backendUrl": {
+          "type": "string",
+          "default": "http://localhost:8765",
+          "description": "后端服务地址"
+        },
+        "vulnScanner.useRag": {
+          "type": "boolean",
+          "default": false,
+          "description": "是否启用 RAG 知识库增强（较慢但更准）"
+        }
+      }
+    }
+  }
+}
