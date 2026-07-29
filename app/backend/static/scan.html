@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>扫描工作台</title>
+    <style id="theme-vars">
+/* Vuln Scanner UI — Cyber-security dark theme tokens */
+
+:root {
+  /* Neutral scale */
+  --vuln-bg: #0b0f17;
+  --vuln-surface: #111827;
+  --vuln-surface-2: #1f2937;
+  --vuln-ink: #e6edf3;
+  --vuln-ink-2: #8b949e;
+  --vuln-ink-3: #6e7681;
+  --vuln-line: #30363d;
+
+  /* Brand primary — tech blue */
+  --vuln-brand: #3b82f6;
+  --vuln-brand-ink: #ffffff;
+  --vuln-brand-50: #eff6ff;
+  --vuln-brand-100: #dbeafe;
+  --vuln-brand-200: #bfdbfe;
+  --vuln-brand-300: #93c5fd;
+  --vuln-brand-400: #60a5fa;
+  --vuln-brand-500: #3b82f6;
+  --vuln-brand-600: #2563eb;
+  --vuln-brand-700: #1d4ed8;
+
+  /* Semantic state colors */
+  --vuln-state-success: #22c55e;
+  --vuln-state-warning: #f59e0b;
+  --vuln-state-error: #ef4444;
+  --vuln-state-info: #58a6ff;
+
+  /* Semantic aliases required by head contract */
+  --vuln-background: var(--vuln-bg);
+  --vuln-foreground: var(--vuln-ink);
+  --vuln-card: var(--vuln-surface);
+  --vuln-card-foreground: var(--vuln-ink);
+  --vuln-popover: var(--vuln-surface-2);
+  --vuln-popover-foreground: var(--vuln-ink);
+  --vuln-primary: var(--vuln-brand);
+  --vuln-primary-foreground: var(--vuln-brand-ink);
+  --vuln-muted: var(--vuln-surface-2);
+  --vuln-muted-foreground: var(--vuln-ink-2);
+  --vuln-border: var(--vuln-line);
+  --vuln-input: var(--vuln-line);
+  --vuln-ring: var(--vuln-brand-500);
+  --vuln-radius-small: 4px;
+  --vuln-radius-medium: 8px;
+  --vuln-radius-large: 16px;
+
+  /* Spacing */
+  --vuln-s-1: 4px;
+  --vuln-s-2: 8px;
+  --vuln-s-3: 12px;
+  --vuln-s-4: 16px;
+  --vuln-s-5: 24px;
+  --vuln-s-6: 32px;
+  --vuln-s-7: 48px;
+  --vuln-s-8: 80px;
+
+  /* Typography */
+  --vuln-font-sans: Inter, "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --vuln-font-mono: "Cascadia Code", "Fira Code", Consolas, Monaco, "Courier New", monospace;
+
+  /* Shadows */
+  --vuln-shadow-1: 0 1px 2px rgba(15, 23, 42, 0.05), 0 1px 1px rgba(15, 23, 42, 0.03);
+  --vuln-shadow-2: 0 8px 24px -8px rgba(0, 0, 0, 0.35);
+  --vuln-shadow-3: 0 24px 60px -20px rgba(0, 0, 0, 0.45);
+}
+
+/* Base typography classes */
+.vuln-font-sans { font-family: var(--vuln-font-sans); }
+.vuln-font-mono { font-family: var(--vuln-font-mono); }
+
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.1/dist/index.global.js"></script>
+    <script src="https://unpkg.com/lucide@1.8.0/dist/umd/lucide.min.js"></script>
+    <style type="text/tailwindcss">
+  @theme inline {
+    --color-background: var(--vuln-background);
+    --color-foreground: var(--vuln-foreground);
+    --color-card: var(--vuln-card);
+    --color-card-foreground: var(--vuln-card-foreground);
+    --color-popover: var(--vuln-popover);
+    --color-popover-foreground: var(--vuln-popover-foreground);
+    --color-primary: var(--vuln-primary);
+    --color-primary-foreground: var(--vuln-primary-foreground);
+    --color-muted: var(--vuln-muted);
+    --color-muted-foreground: var(--vuln-muted-foreground);
+    --color-border: var(--vuln-border);
+    --color-input: var(--vuln-input);
+    --color-ring: var(--vuln-ring);
+    --radius-sm: var(--vuln-radius-small);
+    --radius-md: var(--vuln-radius-medium);
+    --radius-lg: var(--vuln-radius-large);
+  }
+  @layer base {
+    body { background: var(--vuln-background); color: var(--vuln-foreground); }
+    td, th { @apply break-words; word-break: break-all; word-break: auto-phrase; }
+    th { @apply whitespace-nowrap; }
+  }
+    </style>
+    <style id="semantic-token-fallback">
+      .bg-background { background-color: var(--vuln-background); }
+      .text-background { color: var(--vuln-background); }
+      .border-background { border-color: var(--vuln-background); }
+      .ring-background { --tw-ring-color: var(--vuln-background); }
+      .bg-foreground { background-color: var(--vuln-foreground); }
+      .text-foreground { color: var(--vuln-foreground); }
+      .border-foreground { border-color: var(--vuln-foreground); }
+      .ring-foreground { --tw-ring-color: var(--vuln-foreground); }
+      .bg-card { background-color: var(--vuln-card); }
+      .text-card { color: var(--vuln-card); }
+      .border-card { border-color: var(--vuln-card); }
+      .ring-card { --tw-ring-color: var(--vuln-card); }
+      .bg-card-foreground { background-color: var(--vuln-card-foreground); }
+      .text-card-foreground { color: var(--vuln-card-foreground); }
+      .border-card-foreground { border-color: var(--vuln-card-foreground); }
+      .ring-card-foreground { --tw-ring-color: var(--vuln-card-foreground); }
+      .bg-popover { background-color: var(--vuln-popover); }
+      .text-popover { color: var(--vuln-popover); }
+      .border-popover { border-color: var(--vuln-popover); }
+      .ring-popover { --tw-ring-color: var(--vuln-popover); }
+      .bg-popover-foreground { background-color: var(--vuln-popover-foreground); }
+      .text-popover-foreground { color: var(--vuln-popover-foreground); }
+      .border-popover-foreground { border-color: var(--vuln-popover-foreground); }
+      .ring-popover-foreground { --tw-ring-color: var(--vuln-popover-foreground); }
+      .bg-primary { background-color: var(--vuln-primary); }
+      .text-primary { color: var(--vuln-primary); }
+      .border-primary { border-color: var(--vuln-primary); }
+      .ring-primary { --tw-ring-color: var(--vuln-primary); }
+      .bg-primary-foreground { background-color: var(--vuln-primary-foreground); }
+      .text-primary-foreground { color: var(--vuln-primary-foreground); }
+      .border-primary-foreground { border-color: var(--vuln-primary-foreground); }
+      .ring-primary-foreground { --tw-ring-color: var(--vuln-primary-foreground); }
+      .bg-muted { background-color: var(--vuln-muted); }
+      .text-muted { color: var(--vuln-muted); }
+      .border-muted { border-color: var(--vuln-muted); }
+      .ring-muted { --tw-ring-color: var(--vuln-muted); }
+      .bg-muted-foreground { background-color: var(--vuln-muted-foreground); }
+      .text-muted-foreground { color: var(--vuln-muted-foreground); }
+      .border-muted-foreground { border-color: var(--vuln-muted-foreground); }
+      .ring-muted-foreground { --tw-ring-color: var(--vuln-muted-foreground); }
+      .bg-border { background-color: var(--vuln-border); }
+      .text-border { color: var(--vuln-border); }
+      .border-border { border-color: var(--vuln-border); }
+      .ring-border { --tw-ring-color: var(--vuln-border); }
+      .bg-input { background-color: var(--vuln-input); }
+      .text-input { color: var(--vuln-input); }
+      .border-input { border-color: var(--vuln-input); }
+      .ring-input { --tw-ring-color: var(--vuln-input); }
+      .bg-ring { background-color: var(--vuln-ring); }
+      .text-ring { color: var(--vuln-ring); }
+      .border-ring { border-color: var(--vuln-ring); }
+      .ring-ring { --tw-ring-color: var(--vuln-ring); }
+    </style>
+    <style>
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      [data-icon] {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        -webkit-mask-size: contain;
+        mask-size: contain;
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+        -webkit-mask-position: center;
+        mask-position: center;
+        background-color: currentColor;
+      }
+    </style>
+</head>
+<body class="min-h-screen font-sans antialiased">
+    <style id="critical-layout">
+      .scan-layout {
+        display: flex;
+        gap: 24px;
+        padding: 88px 24px 24px;
+        max-width: 1600px;
+        margin: 0 auto;
+      }
+      .control-panel {
+        position: sticky;
+        top: 72px;
+        align-self: flex-start;
+        flex: 0 0 360px;
+        width: 360px;
+      }
+      .results-panel {
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+      .result-card {
+        background-color: var(--vuln-surface);
+        border: 1px solid var(--vuln-line);
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 16px;
+      }
+      .code-block {
+        font-family: var(--vuln-font-mono);
+        background-color: var(--vuln-bg);
+        border: 1px solid var(--vuln-line);
+        border-radius: 4px;
+        padding: 12px;
+        overflow-x: auto;
+        white-space: pre;
+        font-size: 13px;
+        line-height: 1.5;
+        color: var(--vuln-ink);
+      }
+      .progress-bar {
+        height: 6px;
+        background-color: var(--vuln-line);
+        border-radius: 999px;
+        overflow: hidden;
+      }
+      .progress-bar > span {
+        display: block;
+        height: 100%;
+        width: 0%;
+        background-color: var(--vuln-brand);
+        transition: width 0.3s ease;
+      }
+      @media (max-width: 1024px) {
+        .scan-layout { flex-direction: column; }
+        .control-panel { position: static; width: 100%; flex: none; }
+      }
+    </style>
+
+    <nav class="fixed top-0 left-0 right-0 z-50 border-b border-[var(--vuln-line)] bg-[var(--vuln-bg)]/90 backdrop-blur">
+      <div class="max-w-[1600px] mx-auto px-6 h-14 flex items-center justify-between">
+        <a href="./index.html" class="flex items-center gap-2 text-[var(--vuln-ink)] font-semibold">
+          <svg class="w-6 h-6 text-[var(--vuln-brand)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+            <path d="M2 17l10 5 10-5"></path>
+            <path d="M2 12l10 5 10-5"></path>
+          </svg>
+          <span>VulnScanner</span>
+        </a>
+        <ul class="flex items-center gap-1">
+          <li><a id="nav-dashboard" data-dom-id="nav-dashboard" href="./index.html" class="text-sm font-medium text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] transition-colors px-3 py-2 rounded-md">仪表盘</a></li>
+          <li><a id="nav-scan" data-dom-id="nav-scan" href="./scan.html" class="text-[var(--vuln-brand)] bg-[var(--vuln-brand)]/10 text-sm font-medium px-3 py-2 rounded-md" aria-current="page">扫描工作台</a></li>
+          <li><a id="nav-cwe" data-dom-id="nav-cwe" href="./cwe.html" class="text-sm font-medium text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] transition-colors px-3 py-2 rounded-md">CWE 样本库</a></li>
+          <li><a id="nav-posture" data-dom-id="nav-posture" href="./posture.html" class="text-sm font-medium text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] transition-colors px-3 py-2 rounded-md">安全态势</a></li>
+        </ul>
+      </div>
+    </nav>
+
+    <main class="scan-layout">
+      <section class="control-panel bg-[var(--vuln-surface)] border border-[var(--vuln-line)] rounded-lg p-5" aria-label="扫描输入">
+        <div class="flex items-center justify-between mb-4">
+          <h1 class="text-lg font-semibold text-[var(--vuln-ink)]">新建扫描</h1>
+          <span class="text-xs px-2 py-1 rounded bg-[var(--vuln-surface-2)] text-[var(--vuln-ink-2)]">静态分析</span>
+        </div>
+
+        <div class="flex gap-1 mb-4 p-1 bg-[var(--vuln-bg)] rounded-md border border-[var(--vuln-line)]" role="tablist" aria-label="输入方式">
+          <button id="tab-paste" type="button" role="tab" aria-selected="true" aria-controls="panel-paste" class="flex-1 text-sm px-2 py-1.5 rounded text-[var(--vuln-brand)] bg-[var(--vuln-brand)]/10 font-medium">粘贴代码</button>
+          <button id="tab-upload" type="button" role="tab" aria-selected="false" aria-controls="panel-upload" class="flex-1 text-sm px-2 py-1.5 rounded text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] hover:bg-[var(--vuln-surface-2)] transition-colors font-medium">上传文件</button>
+          <button id="tab-url" type="button" role="tab" aria-selected="false" aria-controls="panel-url" class="flex-1 text-sm px-2 py-1.5 rounded text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] hover:bg-[var(--vuln-surface-2)] transition-colors font-medium">URL/站点</button>
+          <button id="tab-github" type="button" role="tab" aria-selected="false" aria-controls="panel-github" class="flex-1 text-sm px-2 py-1.5 rounded text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] hover:bg-[var(--vuln-surface-2)] transition-colors font-medium">GitHub</button>
+        </div>
+
+        <div class="tab-panels">
+          <div id="panel-paste" role="tabpanel" class="tab-panel">
+            <label for="code-input" class="block text-xs text-[var(--vuln-ink-2)] mb-2">粘贴需要审计的源代码</label>
+            <textarea id="code-input" rows="12" class="w-full bg-[var(--vuln-bg)] border border-[var(--vuln-line)] rounded-md p-3 text-sm text-[var(--vuln-ink)] font-mono focus:outline-none focus:ring-2 focus:ring-[var(--vuln-brand)] resize-none" placeholder="function query(userInput) {&#10;  return db.exec('SELECT * FROM users WHERE id = ' + userInput);&#10;}"></textarea>
+          </div>
+          <div id="panel-upload" role="tabpanel" class="tab-panel hidden">
+            <div class="border-2 border-dashed border-[var(--vuln-line)] rounded-md p-8 text-center bg-[var(--vuln-bg)] hover:border-[var(--vuln-brand)]/60 transition-colors">
+              <svg class="w-8 h-8 mx-auto mb-2 text-[var(--vuln-ink-3)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+              <p class="text-sm text-[var(--vuln-ink-2)]">拖拽文件到此处，或点击选择</p>
+              <p class="text-xs text-[var(--vuln-ink-3)] mt-1">支持 .js、.ts、.py、.java、.go、.c</p>
+              <input type="file" class="hidden" aria-label="上传文件" />
+            </div>
+          </div>
+          <div id="panel-url" role="tabpanel" class="tab-panel hidden">
+            <label for="url-input" class="block text-xs text-[var(--vuln-ink-2)] mb-2">目标站点 URL</label>
+            <input id="url-input" type="url" class="w-full bg-[var(--vuln-bg)] border border-[var(--vuln-line)] rounded-md p-3 text-sm text-[var(--vuln-ink)] focus:outline-none focus:ring-2 focus:ring-[var(--vuln-brand)]" placeholder="https://example.com/api" />
+            <p class="text-xs text-[var(--vuln-ink-3)] mt-2">将对站点进行远程静态资源与端点分析。</p>
+          </div>
+          <div id="panel-github" role="tabpanel" class="tab-panel hidden">
+            <label for="github-input" class="block text-xs text-[var(--vuln-ink-2)] mb-2">GitHub 仓库地址</label>
+            <input id="github-input" type="text" class="w-full bg-[var(--vuln-bg)] border border-[var(--vuln-line)] rounded-md p-3 text-sm text-[var(--vuln-ink)] focus:outline-none focus:ring-2 focus:ring-[var(--vuln-brand)]" placeholder="owner/repository" />
+            <p class="text-xs text-[var(--vuln-ink-3)] mt-2">默认拉取默认分支，最大扫描深度为 5 层目录。</p>
+          </div>
+        </div>
+
+        <div class="mt-4 flex items-center justify-between text-xs text-[var(--vuln-ink-2)]">
+          <span>引擎: CodeAudit v2.4</span>
+          <span>规则库: 2026-07-29</span>
+        </div>
+
+        <div id="scan-progress" class="mt-4 hidden">
+          <div class="flex items-center justify-between text-xs mb-1">
+            <span id="scan-status" class="text-[var(--vuln-ink-2)]">正在初始化分析引擎…</span>
+            <span id="scan-percent" class="text-[var(--vuln-brand)] font-mono">0%</span>
+          </div>
+          <div class="progress-bar" aria-label="扫描进度">
+            <span id="scan-progress-fill"></span>
+          </div>
+        </div>
+
+        <button id="btn-analyze" type="button" class="mt-5 w-full inline-flex items-center justify-center gap-2 bg-[var(--vuln-brand)] hover:bg-[var(--vuln-brand-600)] text-white text-sm font-medium px-4 py-2.5 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--vuln-brand)] focus:ring-offset-2 focus:ring-offset-[var(--vuln-surface)]">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+          </svg>
+          开始分析
+        </button>
+      </section>
+
+      <section class="results-panel" aria-label="扫描结果">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-3">
+            <h2 class="text-lg font-semibold text-[var(--vuln-ink)]">检测结果</h2>
+            <span class="text-xs text-[var(--vuln-ink-2)]">共 <strong class="text-[var(--vuln-ink)]">4</strong> 项</span>
+          </div>
+          <div class="flex flex-wrap gap-2" role="group" aria-label="严重级别筛选">
+            <button type="button" class="filter-chip active text-xs px-3 py-1.5 rounded-full border border-[var(--vuln-line)] bg-[var(--vuln-brand)]/10 text-[var(--vuln-brand)] font-medium">全部</button>
+            <button type="button" class="filter-chip text-xs px-3 py-1.5 rounded-full border border-[var(--vuln-line)] text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] hover:bg-[var(--vuln-surface-2)] transition-colors">高危</button>
+            <button type="button" class="filter-chip text-xs px-3 py-1.5 rounded-full border border-[var(--vuln-line)] text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] hover:bg-[var(--vuln-surface-2)] transition-colors">中危</button>
+            <button type="button" class="filter-chip text-xs px-3 py-1.5 rounded-full border border-[var(--vuln-line)] text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] hover:bg-[var(--vuln-surface-2)] transition-colors">低危</button>
+            <button type="button" class="filter-chip text-xs px-3 py-1.5 rounded-full border border-[var(--vuln-line)] text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] hover:bg-[var(--vuln-surface-2)] transition-colors">信息</button>
+          </div>
+        </div>
+
+        <div id="results-panel">
+          <article class="result-card">
+            <div class="flex items-start justify-between gap-4 mb-3">
+              <div class="flex items-center gap-3">
+                <span class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold bg-[var(--vuln-state-error)]/10 text-[var(--vuln-state-error)] border border-[var(--vuln-state-error)]/20">
+                  <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                  高危
+                </span>
+                <span class="text-xs font-mono text-[var(--vuln-ink-3)]">CWE-89</span>
+              </div>
+              <button type="button" class="toggle-code text-xs text-[var(--vuln-brand)] hover:text-[var(--vuln-brand-300)] font-medium" aria-expanded="false">展开代码</button>
+            </div>
+            <h3 class="text-base font-semibold text-[var(--vuln-ink)] mb-1">SQL 注入：动态拼接用户输入</h3>
+            <p class="text-xs text-[var(--vuln-ink-3)] mb-2 font-mono">src/controllers/UserController.js · 第 42–46 行</p>
+            <p class="text-sm text-[var(--vuln-ink-2)] mb-3">用户可控参数直接拼接到 SQL 语句中，缺少参数化查询或预编译处理，攻击者可绕过认证或拖取数据库。</p>
+            <div class="code-block hidden" role="region" aria-label="漏洞代码证据">
+function getUserById(req, res) {
+  const id = req.query.id;
+  const sql = `SELECT * FROM users WHERE id = ${id}`;
+  return db.query(sql);
+}</div>
+          </article>
+
+          <article class="result-card">
+            <div class="flex items-start justify-between gap-4 mb-3">
+              <div class="flex items-center gap-3">
+                <span class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold bg-[var(--vuln-state-error)]/10 text-[var(--vuln-state-error)] border border-[var(--vuln-state-error)]/20">
+                  <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                  高危
+                </span>
+                <span class="text-xs font-mono text-[var(--vuln-ink-3)]">CWE-78</span>
+              </div>
+              <button type="button" class="toggle-code text-xs text-[var(--vuln-brand)] hover:text-[var(--vuln-brand-300)] font-medium" aria-expanded="false">展开代码</button>
+            </div>
+            <h3 class="text-base font-semibold text-[var(--vuln-ink)] mb-1">OS 命令注入</h3>
+            <p class="text-xs text-[var(--vuln-ink-3)] mb-2 font-mono">src/utils/PdfExporter.js · 第 18–21 行</p>
+            <p class="text-sm text-[var(--vuln-ink-2)] mb-3">外部输入未经转义即传入 shell.exec，可导致任意命令执行。</p>
+            <div class="code-block hidden" role="region" aria-label="漏洞代码证据">
+const filename = req.body.filename;
+shell.exec(`wkhtmltopdf ${filename} report.pdf`);</div>
+          </article>
+
+          <article class="result-card">
+            <div class="flex items-start justify-between gap-4 mb-3">
+              <div class="flex items-center gap-3">
+                <span class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold bg-[var(--vuln-state-warning)]/10 text-[var(--vuln-state-warning)] border border-[var(--vuln-state-warning)]/20">
+                  <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v2m0 4h.01"></path><path d="M5.25 20h13.5a2.25 2.25 0 0 0 1.96-3.35L14.18 4.6a2.25 2.25 0 0 0-4.36 0L3.29 16.65A2.25 2.25 0 0 0 5.25 20z"></path></svg>
+                  中危
+                </span>
+                <span class="text-xs font-mono text-[var(--vuln-ink-3)]">CWE-79</span>
+              </div>
+              <button type="button" class="toggle-code text-xs text-[var(--vuln-brand)] hover:text-[var(--vuln-brand-300)] font-medium" aria-expanded="false">展开代码</button>
+            </div>
+            <h3 class="text-base font-semibold text-[var(--vuln-ink)] mb-1">反射型 XSS</h3>
+            <p class="text-xs text-[var(--vuln-ink-3)] mb-2 font-mono">src/views/search.ejs · 第 12 行</p>
+            <p class="text-sm text-[var(--vuln-ink-2)] mb-3">用户输入直接回显到页面，未进行 HTML 实体编码，可触发脚本执行。</p>
+            <div class="code-block hidden" role="region" aria-label="漏洞代码证据">
+&lt;div class="result"&gt;
+  &lt;%- query %&gt;
+&lt;/div&gt;</div>
+          </article>
+
+          <article class="result-card">
+            <div class="flex items-start justify-between gap-4 mb-3">
+              <div class="flex items-center gap-3">
+                <span class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold bg-[var(--vuln-state-info)]/10 text-[var(--vuln-state-info)] border border-[var(--vuln-state-info)]/20">
+                  <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                  信息
+                </span>
+                <span class="text-xs font-mono text-[var(--vuln-ink-3)]">CWE-200</span>
+              </div>
+              <button type="button" class="toggle-code text-xs text-[var(--vuln-brand)] hover:text-[var(--vuln-brand-300)] font-medium" aria-expanded="false">展开代码</button>
+            </div>
+            <h3 class="text-base font-semibold text-[var(--vuln-ink)] mb-1">敏感信息泄露：错误堆栈暴露</h3>
+            <p class="text-xs text-[var(--vuln-ink-3)] mb-2 font-mono">src/middleware/errorHandler.js · 第 8–11 行</p>
+            <p class="text-sm text-[var(--vuln-ink-2)] mb-3">生产环境错误处理中间件将完整堆栈返回给客户端，可能泄露服务器路径与依赖版本。</p>
+            <div class="code-block hidden" role="region" aria-label="漏洞代码证据">
+app.use((err, req, res, next) =&gt; {
+  res.status(500).json({
+    message: err.message,
+    stack: err.stack
+  });
+});</div>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      (function () {
+        const tabs = [
+          document.getElementById('tab-paste'),
+          document.getElementById('tab-upload'),
+          document.getElementById('tab-url'),
+          document.getElementById('tab-github')
+        ];
+        const panels = [
+          document.getElementById('panel-paste'),
+          document.getElementById('panel-upload'),
+          document.getElementById('panel-url'),
+          document.getElementById('panel-github')
+        ];
+        const activeClass = ['text-[var(--vuln-brand)]', 'bg-[var(--vuln-brand)]/10'];
+        const inactiveClass = ['text-[var(--vuln-ink-2)]', 'hover:text-[var(--vuln-ink)]', 'hover:bg-[var(--vuln-surface-2)]'];
+
+        function switchTab(index) {
+          tabs.forEach((tab, i) => {
+            const selected = i === index;
+            tab.setAttribute('aria-selected', String(selected));
+            tab.classList.remove(...activeClass, ...inactiveClass);
+            if (selected) {
+              tab.classList.add(...activeClass);
+              panels[i].classList.remove('hidden');
+            } else {
+              tab.classList.add(...inactiveClass);
+              panels[i].classList.add('hidden');
+            }
+          });
+        }
+
+        tabs.forEach((tab, i) => {
+          tab.addEventListener('click', () => switchTab(i));
+        });
+
+        const analyzeBtn = document.getElementById('btn-analyze');
+        const progressWrap = document.getElementById('scan-progress');
+        const progressFill = document.getElementById('scan-progress-fill');
+        const scanStatus = document.getElementById('scan-status');
+        const scanPercent = document.getElementById('scan-percent');
+
+        analyzeBtn.addEventListener('click', function () {
+          analyzeBtn.disabled = true;
+          analyzeBtn.classList.add('opacity-60', 'cursor-not-allowed');
+          progressWrap.classList.remove('hidden');
+          let progress = 0;
+          const phases = [
+            { at: 0, text: '正在初始化分析引擎…' },
+            { at: 25, text: '正在解析代码结构…' },
+            { at: 55, text: '正在执行污点追踪…' },
+            { at: 80, text: '正在匹配 CWE 规则库…' },
+            { at: 100, text: '扫描完成，已生成 4 条结果' }
+          ];
+          const interval = setInterval(() => {
+            progress += Math.floor(Math.random() * 6) + 2;
+            if (progress > 100) progress = 100;
+            progressFill.style.width = progress + '%';
+            scanPercent.textContent = progress + '%';
+            const phase = phases.slice().reverse().find(p => progress >= p.at);
+            if (phase) scanStatus.textContent = phase.text;
+            if (progress === 100) {
+              clearInterval(interval);
+              analyzeBtn.disabled = false;
+              analyzeBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+            }
+          }, 180);
+        });
+
+        document.querySelectorAll('.toggle-code').forEach(btn => {
+          btn.addEventListener('click', function () {
+            const code = this.closest('.result-card').querySelector('.code-block');
+            const expanded = !code.classList.contains('hidden');
+            code.classList.toggle('hidden');
+            this.setAttribute('aria-expanded', String(!expanded));
+            this.textContent = expanded ? '展开代码' : '收起代码';
+          });
+        });
+      })();
+    </script>
+</body>
+</html>
