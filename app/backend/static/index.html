@@ -70,14 +70,17 @@ pre { background: #0d1117; padding: 12px; border-radius: 6px; overflow-x: auto; 
   <div class="tabs">
     <div v-for="t in tabs" :key="t.id" :class="['tab', activeTab === t.id ? 'active' : '']"
          @click="activeTab = t.id">{{ t.label }}</div>
+    <div class="tab" style="margin-left:auto" @click="activeTab = 'history'">
+      历史 ({{ history.length }})
+    </div>
   </div>
 
   <div class="panel">
     <!-- 代码粘贴 -->
     <div v-show="activeTab === 'paste'">
       <div class="form-group">
-        <label>文件名（可选）</label>
-        <input v-model="pasteForm.filename" placeholder="pasted_code.py">
+        <label>文件名（自定义命名，会显示在历史记录中）</label>
+        <input v-model="pasteForm.filename" placeholder="例如：my_login.py">
       </div>
       <div class="form-group">
         <label>语言</label>
@@ -191,8 +194,41 @@ pre { background: #0d1117; padding: 12px; border-radius: 6px; overflow-x: auto; 
         </details>
       </div>
     </div>
-    <div class="empty" v-else-if="!loading">
+    <div class="empty" v-else-if="!loading && activeTab !== 'history'">
       选择一个入口，开始扫描
+    </div>
+
+    <!-- 历史记录 -->
+    <div v-show="activeTab === 'history'">
+      <div class="toolbar">
+        <button class="btn secondary" @click="clearHistory" :disabled="!history.length">清空历史</button>
+        <span style="font-size:13px;color:#6e7681;align-self:center">
+          存储于浏览器 localStorage，最多保留 100 条
+        </span>
+      </div>
+      <div v-if="!history.length" class="empty">暂无历史记录</div>
+      <div v-for="(r, i) in history" :key="r._id" :class="['result-card', r.has_vulnerability === true ? 'vuln' : r.has_vulnerability === false ? 'safe' : 'error']">
+        <div class="result-header">
+          <div class="result-title">{{ r.filename }}</div>
+          <div>
+            <span v-if="r.has_vulnerability === true" :class="['badge', (r.risk_level||'').toLowerCase()]">{{ r.risk_level }}</span>
+            <span v-if="r.has_vulnerability === false" class="badge safe">安全</span>
+            <span v-if="r.has_vulnerability === null" class="badge low">错误</span>
+            <span style="margin-left:8px;font-size:12px;color:#6e7681">{{ r._time }}</span>
+          </div>
+        </div>
+        <div class="result-meta" v-if="r.has_vulnerability === true">
+          {{ r.vulnerability_type }} · 源: {{ r.source }} → 汇: {{ r.sink }}
+        </div>
+        <div class="result-explanation" v-if="r.explanation">{{ r.explanation }}</div>
+        <div class="result-fix" v-if="r.has_vulnerability === true && r.fix_suggestion">
+          <strong>修复建议：</strong>{{ r.fix_suggestion }}
+        </div>
+        <details v-if="r.raw_output">
+          <summary>查看模型分析过程</summary>
+          <pre>{{ r.raw_output }}</pre>
+        </details>
+      </div>
     </div>
   </div>
 </div>
@@ -215,6 +251,30 @@ createApp({
     const summary = ref(null);
     const health = reactive({ ollama_connected: false, model: '', model_available: false });
     const lastBatch = ref(false);
+    const history = ref([]);
+
+    const HISTORY_KEY = 'vuln_scanner_history';
+    const HISTORY_MAX = 100;
+
+    function loadHistory() {
+      try {
+        const raw = localStorage.getItem(HISTORY_KEY);
+        history.value = raw ? JSON.parse(raw) : [];
+      } catch (e) { history.value = []; }
+    }
+
+    function saveToHistory(r) {
+      const item = { ...r, _id: Date.now() + '-' + Math.random().toString(36).slice(2, 8), _time: new Date().toLocaleString('zh-CN') };
+      history.value.unshift(item);
+      if (history.value.length > HISTORY_MAX) history.value = history.value.slice(0, HISTORY_MAX);
+      try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history.value)); } catch (e) { /* 配额满静默 */ }
+    }
+
+    function clearHistory() {
+      if (!confirm('确定清空所有历史记录？')) return;
+      history.value = [];
+      localStorage.removeItem(HISTORY_KEY);
+    }
 
     const pasteForm = reactive({ filename: 'pasted_code.py', language: 'python', code: '', useRag: false });
     const urlForm = reactive({ url: '', useRag: true });
@@ -233,6 +293,8 @@ createApp({
 
     function addResult(r) {
       results.value = [r, ...results.value].slice(0, 100);
+      // 单文件结果（含 has_vulnerability 字段）才入历史；批量汇总 summary 不入
+      if (r && 'has_vulnerability' in r) saveToHistory(r);
     }
 
     async function analyzePaste() {
@@ -355,12 +417,16 @@ createApp({
       window.open('/api/report', '_blank');
     }
 
-    onMounted(checkHealth);
+    onMounted(() => {
+      checkHealth();
+      loadHistory();
+    });
 
     return {
       activeTab, tabs, languages, loading, results, summary, health, lastBatch,
       pasteForm, urlForm, ghForm, selectedFiles, uploadUseRag, batchProgress, fileInput,
       analyzePaste, onFileSelect, batchScan, scanUrl, scanGithub, downloadReport,
+      history, clearHistory,
     };
   }
 }).mount('#app');
