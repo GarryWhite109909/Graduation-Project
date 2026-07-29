@@ -49,8 +49,8 @@ if str(PROJECT_ROOT) not in sys.path:
 
 # 重量级项目依赖（tree_sitter / chromadb 等）延迟到命令执行时才 import，
 # 保证 --help / 参数解析在依赖缺失时也能工作。
-DEFAULT_MODEL = "graduation-vuln-scanner:v5"
-FALLBACK_MODEL = "qwen3:8b"
+DEFAULT_MODEL = os.environ.get("VULN_SCANNER_MODEL", "graduation-vuln-scanner:v5")
+FALLBACK_MODEL = os.environ.get("VULN_SCANNER_FALLBACK_MODEL", "qwen3:8b")
 
 # 文件扩展名 → 语言映射（与后端保持一致）
 EXT_TO_LANG = {
