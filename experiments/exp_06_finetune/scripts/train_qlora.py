@@ -1,7 +1,7 @@
-"""
-QLoRA 微调脚本 —— 支持 Qwen3-8B（4bit）或 3B（fp16）。
+"""QLoRA 微调脚本 —— 支持 Qwen3-8B（4bit）或 3B（fp16）。
 
-数据：experiments/exp_06_finetune/data/train_chatml_v2.jsonl（760 条 ChatML 样本）
+数据：experiments/exp_06_finetune/data/train_chatml_v5_clean.jsonl（默认，当前最佳 SFT 数据）
+      可通过 --data-file 切换 v7 等新数据
 基座：Qwen/Qwen3-8B（默认，4bit QLoRA）
       Qwen/Qwen2.5-Coder-3B-Instruct（--model-id 指定，fp16 LoRA）
 方法：4bit NF4 量化 + LoRA（默认 r=8, alpha=16）+ 梯度检查点
@@ -12,13 +12,14 @@ QLoRA 微调脚本 —— 支持 Qwen3-8B（4bit）或 3B（fp16）。
   - 从训练集分 15% 作 dev，按 dev loss 选 best checkpoint
   - EarlyStoppingCallback：dev loss 连续 patience 轮不降则停
   - load_best_model_at_end=True：训练结束自动回滚到 best checkpoint
-  - 默认 epochs=1, lr=1e-5（依据 docs/_archive/改进_历史分析_20260710.md：7B baseline 已 90.8%，
-    强干预会负蒸馏覆盖预训练知识，只需轻量补盲）
+  - 默认 epochs=3, lr=1e-4（v5 最优配置：rsLoRA r=8）
 
 用法（在 AI conda 环境中运行，需 GPU 访问）：
-  # 7B 4bit QLoRA（默认，轻量补盲配置）
-  HF_HUB_OFFLINE=1 python3 train_qlora.py \
-      --epochs 1 --batch-size 1 --grad-accum 8 --lr 1e-5
+  # v7 训练：与 v5 相同配置，仅数据不同
+  HF_HUB_OFFLINE=1 TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1 python3 train_qlora.py \
+      --data-file data/train_chatml_v7.jsonl \
+      --epochs 3 --batch-size 1 --grad-accum 8 --lr 1e-4 --lora-r 8 --use-rslora \
+      --output-suffix _v7
 
   # 3B fp16（用 --no-4bit + --model-id 切换）
   HF_HUB_OFFLINE=1 python3 train_qlora.py \
@@ -81,7 +82,7 @@ from transformers import (
 from trl import SFTConfig, SFTTrainer
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-DATA_FILE = PROJECT_ROOT / "experiments/exp_06_finetune/data/train_chatml_v2.jsonl"
+DATA_FILE = PROJECT_ROOT / "experiments/exp_06_finetune/data/train_chatml_v5_clean.jsonl"
 OUTPUT_DIR = PROJECT_ROOT / "experiments/exp_06_finetune/outputs"
 LOG_DIR = PROJECT_ROOT / "experiments/exp_06_finetune/logs"
 MODEL_ID = "Qwen/Qwen3-8B"  # 默认 Qwen3-8B（Instruct），4bit QLoRA 实测可行
