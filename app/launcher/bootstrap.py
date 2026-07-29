@@ -23,10 +23,10 @@ import requests
 
 # 项目根目录（Graduation-Project/）
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-# 默认模型（发布到 Ollama Registry 的 SFT v5）
-DEFAULT_MODEL = "graduation-vuln-scanner:v5"
+# 默认模型（发布到 Ollama Registry 的 SFT，可通过环境变量切换版本）
+DEFAULT_MODEL = os.environ.get("VULN_SCANNER_MODEL", "graduation-vuln-scanner:v5")
 # 回退模型（官方 Qwen3-8B，未微调）
-FALLBACK_MODEL = "qwen3:8b"
+FALLBACK_MODEL = os.environ.get("VULN_SCANNER_FALLBACK_MODEL", "qwen3:8b")
 # 后端端口
 PORT = 8765
 

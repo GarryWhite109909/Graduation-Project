@@ -20,10 +20,10 @@ from graduation_project.prompts import SYSTEM_PROMPT, SYSTEM_PROMPT_LITE, build_
 from graduation_project.schema import parse_verdict, normalize_has_vulnerability
 from graduation_project.code_slicer import CodeSlicer, SliceResult
 
-# 默认模型：发布到 Ollama Registry 的 SFT v5
-DEFAULT_MODEL = "graduation-vuln-scanner:v5"
-# 回退模型：官方 Qwen3-8B（未微调，用户首次未 pull v5 时用）
-FALLBACK_MODEL = "qwen3:8b"
+# 默认模型：从环境变量读取，缺省为当前发布的 SFT v5
+DEFAULT_MODEL = os.environ.get("VULN_SCANNER_MODEL", "graduation-vuln-scanner:v5")
+# 回退模型：官方 Qwen3-8B（未微调，用户首次未 pull 自定义模型时可用）
+FALLBACK_MODEL = os.environ.get("VULN_SCANNER_FALLBACK_MODEL", "qwen3:8b")
 # Chroma 知识库集合名
 KNOWLEDGE_COLLECTION = "vuln_knowledge"
 
