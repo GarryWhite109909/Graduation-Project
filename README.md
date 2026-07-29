@@ -7,8 +7,27 @@
 [![状态](https://img.shields.io/badge/状态-P3%20DPO%20本地不可行，方向待决策-orange)](规划.md)
 [![License](https://img.shields.io/badge/License-MIT-lightgrey)]()
 
+## 快速开始
+
+```bash
+git clone <repo-url> && cd Graduation-Project
+pip install -r requirements.txt && pip install -e .
+
+# 启动（自动检测/安装 Ollama → 拉取模型 → 启动后端 → 打开浏览器）
+bash app/launcher/start_linux_macos.sh    # Linux / macOS
+app\launcher\start_windows.bat            # Windows
+```
+
+首次启动会自动完成：
+1. 安装 Ollama（如未安装）
+2. 拉取模型 `garrywhite109909/graduation-vuln-scanner:v5`（约 5GB，Q4 量化）
+3. 启动 Web 服务并打开浏览器 → http://localhost:8765
+
+> 前置条件：Python 3.10+、pip。启动脚本首次运行会自动安装 Python 依赖。
+
 ## 目录
 
+- [快速开始](#快速开始)
 - [核心结果](#核心结果)
 - [当前状态与待决策](#当前状态与待决策)
 - [项目简介](#项目简介)
@@ -557,7 +576,7 @@ VULN_SCANNER_MODEL=graduation-vuln-scanner:v7 python -m app.launcher.bootstrap
 | CLI | `VULN_SCANNER_MODEL=... python -m app.launcher.vuln_scanner_cli scan file.py` |
 | VS Code 插件 | 在插件设置或启动脚本中设置环境变量 |
 
-缺省模型仍为 `graduation-vuln-scanner:v5`，发布 v7 后统一改为 v7。
+缺省模型仍为 `garrywhite109909/graduation-vuln-scanner:v5`，发布 v7 后统一改为 v7。
 
 ### 环境准备（所有实验的前置步骤，只需执行一次）
 

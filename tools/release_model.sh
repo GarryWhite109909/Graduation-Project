@@ -8,7 +8,7 @@
 #       --version v7 \
 #       --adapter experiments/exp_06_finetune/outputs/lora_r8_a16_e3_lr0.0001_s42_rslora_v7/best \
 #       --base Qwen/Qwen3-8B \
-#       --ollama-name graduation-vuln-scanner:v7
+#       --ollama-name garrywhite109909/graduation-vuln-scanner:v7
 #
 # 前置：
 #   - conda activate AI（含 peft/transformers/torch）
@@ -21,12 +21,12 @@ PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VERSION="v7"
 ADAPTER=""
 BASE_MODEL="Qwen/Qwen3-8B"
-OLLAMA_NAME="graduation-vuln-scanner:v7"
+OLLAMA_NAME="garrywhite109909/graduation-vuln-scanner:v7"
 PUSH=0
 LLAMA_CPP_DIR="${PROJECT_ROOT}/.cache/llama.cpp"
 
 usage() {
-    echo "用法: $0 --version v7 --adapter <adapter_path> [--base Qwen/Qwen3-8B] [--ollama-name graduation-vuln-scanner:v7] [--push]"
+    echo "用法: $0 --version v7 --adapter <adapter_path> [--base Qwen/Qwen3-8B] [--ollama-name garrywhite109909/graduation-vuln-scanner:v7] [--push]"
     exit 1
 }
 
@@ -64,12 +64,13 @@ python3 "${PROJECT_ROOT}/tools/merge_lora.py" \
 
 # 2. 准备 llama.cpp
 echo "[2/6] 检查 llama.cpp"
-if [[ ! -f "${LLAMA_CPP_DIR}/quantize" || ! -f "${LLAMA_CPP_DIR}/convert_hf_to_gguf.py" ]]; then
+if [[ ! -f "${LLAMA_CPP_DIR}/build/bin/llama-quantize" || ! -f "${LLAMA_CPP_DIR}/convert_hf_to_gguf.py" ]]; then
     echo "  llama.cpp 未找到，自动克隆并编译（约 2-5 分钟）..."
     mkdir -p "${LLAMA_CPP_DIR}"
     git clone --depth 1 https://github.com/ggerganov/llama.cpp.git "${LLAMA_CPP_DIR}"
     cd "${LLAMA_CPP_DIR}"
-    make -j"$(nproc)" quantize
+    cmake -B build
+    cmake --build build --config Release -j "$(nproc)"
     cd "${PROJECT_ROOT}"
 fi
 
@@ -83,7 +84,7 @@ python3 "${LLAMA_CPP_DIR}/convert_hf_to_gguf.py" "${MERGED_DIR}" \
 # 4. 量化为 Q4_K_M（8GB 显存可跑）
 GGUF_Q4="${PROJECT_ROOT}/outputs/merged_${VERSION}-q4_k_m.gguf"
 echo "[4/6] 量化为 Q4_K_M（约 4.7GB，适配 8GB 显存）-> ${GGUF_Q4}"
-"${LLAMA_CPP_DIR}/quantize" "${GGUF_F16}" "${GGUF_Q4}" q4_k_m
+"${LLAMA_CPP_DIR}/build/bin/llama-quantize" "${GGUF_F16}" "${GGUF_Q4}" q4_k_m
 
 # 5. 生成 Modelfile 并创建 Ollama 模型
 MODELFILE="${PROJECT_ROOT}/outputs/Modelfile_${VERSION}"

@@ -55,7 +55,7 @@ def merge(base_model_id: str, adapter_path: str, out_path: str) -> None:
     print("\n[完成] 合并模型已保存。下一步：")
     print(f"  1. 转 GGUF：python llama.cpp/convert_hf_to_gguf.py {out_dir} --outtype f16")
     print(f"  2. 量化：./llama.cpp/quantize {out_dir}-f16.gguf {out_dir}-q4km.gguf q4_k_m")
-    print(f"  3. 创建 Ollama 模型：ollama create graduation-vuln-scanner:v5 -f Modelfile")
+    print(f"  3. 创建 Ollama 模型：ollama create garrywhite109909/graduation-vuln-scanner:v5 -f Modelfile")
 
 
 def main():

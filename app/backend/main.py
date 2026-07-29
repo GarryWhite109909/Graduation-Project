@@ -87,7 +87,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 本地开发；生产环境应限制
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -196,6 +196,8 @@ def url_scan(req: UrlScanRequest):
         for s in fetch_result.scripts
     ]
     batch = scanner.scan_files(files, use_rag=req.use_rag)
+    global _last_batch
+    _last_batch = batch
 
     return {
         "url": req.url,
@@ -213,63 +215,62 @@ def github_scan(req: GithubScanRequest):
     """clone GitHub 仓库 → 遍历代码文件 → 批量扫描。"""
     # 浅克隆到临时目录
     tmp_dir = tempfile.mkdtemp(prefix="vuln_scan_")
-    repo_name = req.repo_url.rstrip("/").split("/")[-1].replace(".git", "")
-    clone_target = os.path.join(tmp_dir, repo_name)
-
     try:
-        result = subprocess.run(
-            ["git", "clone", "--depth", "1", req.repo_url, clone_target],
-            capture_output=True, text=True, timeout=120,
-        )
-        if result.returncode != 0:
-            return JSONResponse(
-                {"error": f"git clone 失败: {result.stderr[:500]}"},
-                status_code=502,
-            )
-    except subprocess.TimeoutExpired:
-        return JSONResponse({"error": "git clone 超时（120s）"}, status_code=504)
-    except FileNotFoundError:
-        return JSONResponse({"error": "系统未安装 git"}, status_code=500)
+        repo_name = req.repo_url.rstrip("/").split("/")[-1].replace(".git", "")
+        clone_target = os.path.join(tmp_dir, repo_name)
 
-    # 遍历代码文件
-    code_files = []
-    for root, _dirs, fnames in os.walk(clone_target):
-        # 跳过 .git / node_modules / vendor 等
-        if any(skip in root for skip in [".git", "node_modules", "vendor", "__pycache__"]):
-            continue
-        for fname in fnames:
-            ext = Path(fname).suffix.lower()
-            if ext not in EXT_TO_LANG:
+        try:
+            result = subprocess.run(
+                ["git", "clone", "--depth", "1", req.repo_url, clone_target],
+                capture_output=True, text=True, timeout=120,
+            )
+            if result.returncode != 0:
+                return JSONResponse(
+                    {"error": f"git clone 失败: {result.stderr[:500]}"},
+                    status_code=502,
+                )
+        except subprocess.TimeoutExpired:
+            return JSONResponse({"error": "git clone 超时（120s）"}, status_code=504)
+        except FileNotFoundError:
+            return JSONResponse({"error": "系统未安装 git"}, status_code=500)
+
+        # 遍历代码文件
+        code_files = []
+        for root, _dirs, fnames in os.walk(clone_target):
+            # 跳过 .git / node_modules / vendor 等
+            if any(skip in root for skip in [".git", "node_modules", "vendor", "__pycache__"]):
                 continue
-            fpath = os.path.join(root, fname)
-            try:
-                with open(fpath, "r", encoding="utf-8", errors="replace") as fp:
-                    content = fp.read()
-                rel_path = os.path.relpath(fpath, clone_target)
-                code_files.append((rel_path, EXT_TO_LANG[ext], content))
-            except Exception:
-                continue
+            for fname in fnames:
+                ext = Path(fname).suffix.lower()
+                if ext not in EXT_TO_LANG:
+                    continue
+                fpath = os.path.join(root, fname)
+                try:
+                    with open(fpath, "r", encoding="utf-8", errors="replace") as fp:
+                        content = fp.read()
+                    rel_path = os.path.relpath(fpath, clone_target)
+                    code_files.append((rel_path, EXT_TO_LANG[ext], content))
+                except Exception:
+                    continue
+                if len(code_files) >= req.max_files:
+                    break
             if len(code_files) >= req.max_files:
                 break
-        if len(code_files) >= req.max_files:
-            break
 
-    if not code_files:
+        if not code_files:
+            return {"repo": req.repo_url, "message": "仓库中未找到支持的代码文件"}
+
+        batch = scanner.scan_files(code_files, use_rag=req.use_rag)
+        global _last_batch
+        _last_batch = batch
+
+        return {
+            "repo": req.repo_url,
+            "scanned_files": len(code_files),
+            "summary": batch.to_dict(),
+        }
+    finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
-        return {"repo": req.repo_url, "message": "仓库中未找到支持的代码文件"}
-
-    batch = scanner.scan_files(code_files, use_rag=req.use_rag)
-    global _last_batch
-    _last_batch = batch
-
-    # 清理临时目录
-    shutil.rmtree(tmp_dir, ignore_errors=True)
-
-    return {
-        "repo": req.repo_url,
-        "scanned_files": len(code_files),
-        "summary": batch.to_dict(),
-    }
 
 
 # ---------------------------------------------------------------------------

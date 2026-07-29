@@ -38,6 +38,8 @@ ENV/
 *.onnx
 # Ollama 本地模型缓存
 ~/.ollama/
+# 模型发布产物（merged HF / GGUF / Modelfile，由 release_model.sh 生成）
+outputs/
 
 # RAG 向量数据库（本地持久化，体积大且无需入库） =====
 # 注意：训练数据（experiments/exp_06_finetune/data/*.jsonl）需要入库以保证复现性，

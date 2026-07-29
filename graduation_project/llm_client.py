@@ -22,7 +22,7 @@ __all__ = [
 
 
 class OllamaClient:
-    def __init__(self, base_url: str = "http://localhost:11434", model: str = "qwen3:8b"):
+    def __init__(self, base_url: str = "http://localhost:11434", model: str = "garrywhite109909/graduation-vuln-scanner:v5"):
         self.base_url = base_url
         self.model = model
         self.api_generate = f"{base_url}/api/generate"
@@ -250,7 +250,7 @@ class OllamaClient:
 
 
 if __name__ == "__main__":
-    client = OllamaClient(model="qwen3:8b")
+    client = OllamaClient(model="garrywhite109909/graduation-vuln-scanner:v5")
     
     # 检查连接
     if not client.check_connection():

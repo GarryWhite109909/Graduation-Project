@@ -11,6 +11,7 @@ LLM 推理 + 代码切片 + RAG 检索。
 
 from __future__ import annotations
 
+import os
 import time
 from dataclasses import dataclass, field
 from typing import Optional
@@ -21,7 +22,7 @@ from graduation_project.schema import parse_verdict, normalize_has_vulnerability
 from graduation_project.code_slicer import CodeSlicer, SliceResult
 
 # 默认模型：从环境变量读取，缺省为当前发布的 SFT v5
-DEFAULT_MODEL = os.environ.get("VULN_SCANNER_MODEL", "graduation-vuln-scanner:v5")
+DEFAULT_MODEL = os.environ.get("VULN_SCANNER_MODEL", "garrywhite109909/graduation-vuln-scanner:v5")
 # 回退模型：官方 Qwen3-8B（未微调，用户首次未 pull 自定义模型时可用）
 FALLBACK_MODEL = os.environ.get("VULN_SCANNER_FALLBACK_MODEL", "qwen3:8b")
 # Chroma 知识库集合名
@@ -92,7 +93,7 @@ class Scanner:
     """漏洞扫描编排器。
 
     Args:
-        model: Ollama 模型名（默认 graduation-vuln-scanner:v5）
+        model: Ollama 模型名（默认 garrywhite109909/graduation-vuln-scanner:v5）
         base_url: Ollama 服务地址
         use_rag: 是否启用 RAG 知识库增强
         use_lite_prompt: 是否用 SYSTEM_PROMPT_LITE（SFT v5 必须 True）
@@ -131,9 +132,7 @@ class Scanner:
         """健康检查：Ollama 连接 + 模型可用性。"""
         connected = self.client.check_connection()
         models = self.client.list_models() if connected else []
-        model_available = self.model in models or any(
-            self.model in m for m in models
-        )
+        model_available = self.model in models
         return {
             "ollama_connected": connected,
             "model": self.model,
@@ -207,14 +206,18 @@ class Scanner:
         if len(chunk_results) == 1:
             return chunk_results[0]
 
-        # 多 chunk：取最严重的
+        # 多 chunk：取风险最高的
+        risk_order = {"critical": 4, "high": 3, "medium": 2, "low": 1, "none": 0}
         merged = chunk_results[0]
         merged.filename = filename
         for cr in chunk_results[1:]:
-            if cr.has_vulnerability and not merged.has_vulnerability:
+            cr_risk = risk_order.get((cr.risk_level or "none").lower(), 0)
+            merged_risk = risk_order.get((merged.risk_level or "none").lower(), 0)
+            if cr.has_vulnerability and (
+                not merged.has_vulnerability or cr_risk > merged_risk
+            ):
                 merged = cr
                 merged.filename = filename
-                break
         return merged
 
     def _analyze_chunk(

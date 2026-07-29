@@ -49,7 +49,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 # 重量级项目依赖（tree_sitter / chromadb 等）延迟到命令执行时才 import，
 # 保证 --help / 参数解析在依赖缺失时也能工作。
-DEFAULT_MODEL = os.environ.get("VULN_SCANNER_MODEL", "graduation-vuln-scanner:v5")
+DEFAULT_MODEL = os.environ.get("VULN_SCANNER_MODEL", "garrywhite109909/graduation-vuln-scanner:v5")
 FALLBACK_MODEL = os.environ.get("VULN_SCANNER_FALLBACK_MODEL", "qwen3:8b")
 
 # 文件扩展名 → 语言映射（与后端保持一致）
@@ -71,6 +71,10 @@ RISK_COLORS = {
 }
 RESET = "\033[0m"
 BOLD = "\033[1m"
+# 直接颜色常量（Python 3.11 f-string 表达式禁止含反斜杠字面量，须用变量引用）
+RED = "\033[31m"
+GREEN = "\033[32m"
+YELLOW = "\033[33m"
 
 
 # ---------------------------------------------------------------------------
@@ -97,7 +101,7 @@ def print_single_result(r, verbose: bool = False) -> None:
     color = RISK_COLORS.get(risk_key, RISK_COLORS["none"])
 
     if r.error:
-        print(f"  {colorize('✗', '\033[31m')} {r.filename} — 错误: {r.error}")
+        print(f"  {colorize('✗', RED)} {r.filename} — 错误: {r.error}")
         return
 
     if r.has_vulnerability is True:
@@ -132,10 +136,10 @@ def print_batch_summary(batch) -> None:
     print_header("扫描汇总")
     print(f"  总文件数: {batch.total_files}")
     print(f"  已扫描:   {batch.scanned}")
-    print(f"  {colorize('发现漏洞:', '\033[31m')} {batch.vulnerable}")
-    print(f"  {colorize('安全:', '\033[32m')}     {batch.safe}")
+    print(f"  {colorize('发现漏洞:', RED)} {batch.vulnerable}")
+    print(f"  {colorize('安全:', GREEN)}     {batch.safe}")
     if batch.errors:
-        print(f"  {colorize('错误:', '\033[33m')}     {batch.errors}")
+        print(f"  {colorize('错误:', YELLOW)}     {batch.errors}")
     print(f"  总耗时:   {batch.total_duration:.2f}s")
 
     if batch.vulnerable:
@@ -224,7 +228,7 @@ def cmd_health(args: argparse.Namespace) -> int:
     if health["ollama_connected"]:
         print(f"  Ollama 连接: {colorize('✓ 已连接', RISK_COLORS['none'])}")
     else:
-        print(f"  Ollama 连接: {colorize('✗ 未连接', '\033[31m')}")
+        print(f"  Ollama 连接: {colorize('✗ 未连接', RED)}")
         print(f"     请确保 Ollama 服务已启动: ollama serve")
         return 1
 
@@ -232,7 +236,7 @@ def cmd_health(args: argparse.Namespace) -> int:
     if health["model_available"]:
         print(f"  模型可用:   {colorize('✓ 可用', RISK_COLORS['none'])}")
     else:
-        print(f"  模型可用:   {colorize('✗ 未找到', '\033[33m')}")
+        print(f"  模型可用:   {colorize('✗ 未找到', YELLOW)}")
         print(f"     可用模型: {', '.join(health['available_models']) or '(无)'}")
         print(f"     提示: ollama pull {health['model']}")
 
@@ -256,12 +260,12 @@ def cmd_scan(args: argparse.Namespace) -> int:
 
     filepath = Path(args.file)
     if not filepath.is_file():
-        print(f"  {colorize('错误:', '\033[31m')} 文件不存在: {filepath}")
+        print(f"  {colorize('错误:', RED)} 文件不存在: {filepath}")
         return 1
 
     code = filepath.read_text(encoding="utf-8", errors="replace")
     if not code.strip():
-        print(f"  {colorize('错误:', '\033[33m')} 文件为空: {filepath}")
+        print(f"  {colorize('错误:', YELLOW)} 文件为空: {filepath}")
         return 1
 
     language = args.language or detect_language(str(filepath))
@@ -300,11 +304,11 @@ def cmd_batch(args: argparse.Namespace) -> int:
 
     files = collect_files_from_dir(args.directory, recursive=not args.no_recursive)
     if not files:
-        print(f"  {colorize('提示:', '\033[33m')} 目录中未找到支持的代码文件: {args.directory}")
+        print(f"  {colorize('提示:', YELLOW)} 目录中未找到支持的代码文件: {args.directory}")
         return 1
 
     if args.limit and len(files) > args.limit:
-        print(f"  {colorize('提示:', '\033[33m')} 文件数 {len(files)} 超过上限 {args.limit}，仅扫描前 {args.limit} 个")
+        print(f"  {colorize('提示:', YELLOW)} 文件数 {len(files)} 超过上限 {args.limit}，仅扫描前 {args.limit} 个")
         files = files[: args.limit]
 
     scanner = build_scanner(args)
@@ -372,14 +376,14 @@ def cmd_url(args: argparse.Namespace) -> int:
     fetch_result = fetch_url(args.url)
 
     if fetch_result.error:
-        print(f"  {colorize('抓取失败:', '\033[31m')} {fetch_result.error}")
+        print(f"  {colorize('抓取失败:', RED)} {fetch_result.error}")
         return 1
 
     print(f"  页面标题: {fetch_result.title}")
     print(f"  发现脚本: {fetch_result.total_scripts}")
 
     if not fetch_result.scripts:
-        print(f"  {colorize('提示:', '\033[33m')} 未找到可分析的脚本")
+        print(f"  {colorize('提示:', YELLOW)} 未找到可分析的脚本")
         return 0
 
     files = [
@@ -431,7 +435,7 @@ def cmd_github(args: argparse.Namespace) -> int:
 
     repo_url = args.repo_url
     if not shutil.which("git"):
-        print(f"  {colorize('错误:', '\033[31m')} 系统未安装 git")
+        print(f"  {colorize('错误:', RED)} 系统未安装 git")
         return 1
 
     scanner = build_scanner(args)
@@ -453,11 +457,11 @@ def cmd_github(args: argparse.Namespace) -> int:
             capture_output=True, text=True, timeout=120,
         )
         if result.returncode != 0:
-            print(f"  {colorize('克隆失败:', '\033[31m')} {result.stderr[:500]}")
+            print(f"  {colorize('克隆失败:', RED)} {result.stderr[:500]}")
             shutil.rmtree(tmp_dir, ignore_errors=True)
             return 1
     except subprocess.TimeoutExpired:
-        print(f"  {colorize('错误:', '\033[31m')} git clone 超时（120s）")
+        print(f"  {colorize('错误:', RED)} git clone 超时（120s）")
         shutil.rmtree(tmp_dir, ignore_errors=True)
         return 1
 
@@ -472,7 +476,8 @@ def cmd_github(args: argparse.Namespace) -> int:
                 continue
             fpath = os.path.join(root, fname)
             try:
-                content = open(fpath, "r", encoding="utf-8", errors="replace").read()
+                with open(fpath, "r", encoding="utf-8", errors="replace") as fp:
+                    content = fp.read()
                 rel_path = os.path.relpath(fpath, clone_target)
                 code_files.append((rel_path, EXT_TO_LANG[ext], content))
             except Exception:
@@ -485,7 +490,7 @@ def cmd_github(args: argparse.Namespace) -> int:
     shutil.rmtree(tmp_dir, ignore_errors=True)
 
     if not code_files:
-        print(f"  {colorize('提示:', '\033[33m')} 仓库中未找到支持的代码文件")
+        print(f"  {colorize('提示:', YELLOW)} 仓库中未找到支持的代码文件")
         return 0
 
     print(f"  共 {len(code_files)} 个代码文件")
@@ -603,10 +608,10 @@ def main() -> int:
             parser.print_help()
             return 1
     except KeyboardInterrupt:
-        print(f"\n  {colorize('已取消', '\033[33m')}")
+        print(f"\n  {colorize('已取消', YELLOW)}")
         return 130
     except Exception as e:
-        print(f"\n  {colorize('错误:', '\033[31m')} {e}")
+        print(f"\n  {colorize('错误:', RED)} {e}")
         if os.environ.get("VULN_CLI_DEBUG"):
             import traceback
             traceback.print_exc()
