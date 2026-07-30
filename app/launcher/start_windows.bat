@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 >nul
-cd /d "%~dp0\.."
+cd /d "%~dp0\..\.."
 echo Starting AI Vulnerability Scanner...
 
 REM 首次运行自动安装依赖：检测核心 Web 层 + 分析引擎层 + tree-sitter 语言包 + 启动器硬件检测
