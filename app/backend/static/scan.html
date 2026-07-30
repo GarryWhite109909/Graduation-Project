@@ -1,8 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-CN" class="light">
+<html lang="zh-CN" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>(function(){try{var k='vuln-theme',s=localStorage.getItem(k),t=(s==='light'||s==='dark')?s:'dark';document.documentElement.classList.remove('light','dark');document.documentElement.classList.add(t);}catch(e){document.documentElement.classList.add('dark');}})();</script>
     <title>扫描工作台</title>
     <style id="theme-vars">
 /* Vuln Scanner UI — Google-style clean analytical dashboard tokens */
@@ -196,6 +197,7 @@
       @keyframes toastIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
       @keyframes toastOut { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(40px); } }
     </style>
+    <link rel="stylesheet" href="./lively.css">
 </head>
 <body class="min-h-screen font-sans antialiased">
     <style id="critical-layout">
@@ -426,6 +428,20 @@
       .badge-dot.on { background: var(--vuln-state-success); box-shadow: 0 0 6px rgba(52,168,83,0.5); }
       .badge-dot.off { background: var(--vuln-ink-3); }
 
+      /* === 灵动交互增强 — 弹跳/浮起/旋转 === */
+      .glass-card:hover { transform: translateY(-8px) scale(1.025) !important; box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), 0 20px 50px rgba(14,17,21,0.14) !important; }
+      .dark .glass-card:hover { box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 20px 50px rgba(0,0,0,0.4) !important; }
+      .result-card:hover { transform: translateY(-8px) scale(1.025) !important; }
+      .control-panel:hover { transform: translateY(-4px) scale(1.01) !important; }
+      button:hover { transform: translateY(-2px); }
+      button:active { transform: scale(0.92); }
+      a:active { transform: scale(0.93); }
+      .filter-chip:not(.active):hover { transform: translateY(-3px) scale(1.06) !important; box-shadow: 0 8px 20px rgba(66,133,244,0.18); }
+      .dark .filter-chip:not(.active):hover { box-shadow: 0 8px 20px rgba(252,44,80,0.18); }
+      .filter-chip.active { transform: scale(1.06); }
+      .icon-box:hover { transform: scale(1.15) rotate(-6deg) !important; }
+      .view-detail:hover { transform: translateX(4px); }
+
       @media (prefers-reduced-motion: reduce) {
         *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
       }
@@ -643,6 +659,7 @@
           var tab = tabs[index];
           if (!tab || !indicator) return;
           var wrapper = tab.parentElement;
+          if (!wrapper) return;
           var wrapperRect = wrapper.getBoundingClientRect();
           var tabRect = tab.getBoundingClientRect();
           indicator.style.transform = 'translateX(' + (tabRect.left - wrapperRect.left) + 'px)';
@@ -1328,5 +1345,8 @@
         loadHealth();
       })();
     </script>
+<link rel="stylesheet" href="./lively.css">
+<script src="./lively.js" defer></script>
+<script src="./theme.js" defer></script>
 </body>
 </html>

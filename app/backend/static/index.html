@@ -1,8 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-CN" class="light">
+<html lang="zh-CN" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>(function(){try{var k='vuln-theme',s=localStorage.getItem(k),t=(s==='light'||s==='dark')?s:'dark';document.documentElement.classList.remove('light','dark');document.documentElement.classList.add(t);}catch(e){document.documentElement.classList.add('dark');}})();</script>
     <title>仪表盘</title>
     <style id="theme-vars">
 /* Vuln Scanner UI — Google-style clean analytical dashboard tokens */
@@ -226,6 +227,7 @@
         background-color: currentColor;
       }
     </style>
+    <link rel="stylesheet" href="./lively.css">
 </head>
 <body class="min-h-screen font-sans antialiased flex flex-col">
 <style id="critical-layout">
@@ -333,6 +335,21 @@
 
       :focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(66,133,244,0.2); }
       .dark :focus-visible { box-shadow: 0 0 0 3px rgba(252,44,80,0.25); }
+
+      /* === 灵动交互增强 — 弹跳/浮起/旋转 === */
+      .glass-card:hover { transform: translateY(-8px) scale(1.025) !important; box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), 0 20px 50px rgba(14,17,21,0.14) !important; }
+      .dark .glass-card:hover { box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 20px 50px rgba(0,0,0,0.4) !important; }
+      .kpi-card:hover { transform: translateY(-6px) scale(1.03) !important; }
+      .bento-card:hover { transform: translateY(-6px) scale(1.02) !important; }
+      .quick-entry:hover { transform: translateY(-4px) !important; }
+      button:hover { transform: translateY(-2px); }
+      button:active { transform: scale(0.92); }
+      a:active { transform: scale(0.93); }
+      .filter-chip:not(.active):hover { transform: translateY(-3px) scale(1.06) !important; box-shadow: 0 8px 20px rgba(66,133,244,0.18); }
+      .dark .filter-chip:not(.active):hover { box-shadow: 0 8px 20px rgba(252,44,80,0.18); }
+      .filter-chip.active { transform: scale(1.06); }
+      .icon-box:hover { transform: scale(1.15) rotate(-6deg) !important; }
+      .view-detail:hover { transform: translateX(4px); }
 
       @media (prefers-reduced-motion: reduce) {
         *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
@@ -443,12 +460,12 @@
         <div class="vuln-chart flex items-center justify-center gap-6">
           <svg id="chart-donut" viewBox="0 0 120 120" role="img" aria-label="风险分布 donut 图：严重 15%，高危 25%，中危 35%，低危 25%">
             <circle cx="60" cy="60" r="50" fill="none" stroke="var(--vuln-surface-2)" stroke-width="12"/>
-            <circle cx="60" cy="60" r="50" fill="none" stroke="var(--vuln-state-error)" stroke-width="12" stroke-dasharray="47.1 267.1" stroke-dashoffset="0" transform="rotate(-90 60 60)"/>
-            <circle cx="60" cy="60" r="50" fill="none" stroke="var(--vuln-state-warning)" stroke-width="12" stroke-dasharray="78.5 235.7" stroke-dashoffset="-47.1" transform="rotate(-90 60 60)"/>
-            <circle cx="60" cy="60" r="50" fill="none" stroke="var(--vuln-state-info)" stroke-width="12" stroke-dasharray="110.0 204.2" stroke-dashoffset="-125.6" transform="rotate(-90 60 60)"/>
-            <circle cx="60" cy="60" r="50" fill="none" stroke="var(--vuln-state-success)" stroke-width="12" stroke-dasharray="78.5 235.7" stroke-dashoffset="-235.6" transform="rotate(-90 60 60)"/>
-            <text x="60" y="58" text-anchor="middle" fill="var(--vuln-ink)" font-size="14" font-weight="600">风险</text>
-            <text x="60" y="74" text-anchor="middle" fill="var(--vuln-ink-2)" font-size="10">分布</text>
+            <circle class="donut-seg" data-seg="0" data-label="严重" data-value="6" data-pct="15" cx="60" cy="60" r="50" fill="none" stroke="var(--vuln-state-error)" stroke-width="12" stroke-dasharray="47.12 267.04" stroke-dashoffset="0" transform="rotate(-90 60 60)" style="cursor:pointer;"/>
+            <circle class="donut-seg" data-seg="1" data-label="高危" data-value="10" data-pct="25" cx="60" cy="60" r="50" fill="none" stroke="var(--vuln-state-warning)" stroke-width="12" stroke-dasharray="78.54 235.62" stroke-dashoffset="-47.12" transform="rotate(-90 60 60)" style="cursor:pointer;"/>
+            <circle class="donut-seg" data-seg="2" data-label="中危" data-value="14" data-pct="35" cx="60" cy="60" r="50" fill="none" stroke="var(--vuln-state-info)" stroke-width="12" stroke-dasharray="109.96 204.20" stroke-dashoffset="-125.66" transform="rotate(-90 60 60)" style="cursor:pointer;"/>
+            <circle class="donut-seg" data-seg="3" data-label="低危" data-value="10" data-pct="25" cx="60" cy="60" r="50" fill="none" stroke="var(--vuln-state-success)" stroke-width="12" stroke-dasharray="78.54 235.62" stroke-dashoffset="-235.62" transform="rotate(-90 60 60)" style="cursor:pointer;"/>
+            <text id="donut-center-num" x="60" y="58" text-anchor="middle" fill="var(--vuln-ink)" font-size="16" font-weight="700">40</text>
+            <text id="donut-center-label" x="60" y="74" text-anchor="middle" fill="var(--vuln-ink-2)" font-size="10">风险</text>
           </svg>
           <ul id="donut-legend" class="space-y-2 text-xs" aria-hidden="true">
             <li class="flex items-center gap-2 text-[var(--vuln-ink-2)]"><span class="inline-block w-2.5 h-2.5 rounded-full" style="background:var(--vuln-state-error)"></span>严重 15%</li>
@@ -727,6 +744,57 @@
     setHTML('kpi-risk-sub', '');
   }
 
+  /* ---------- donut 交互绑定（静态 fallback 与动态数据共用） ---------- */
+  function wireDonut(svg, legend) {
+    if (!svg) return;
+    var segEls = svg.querySelectorAll('.donut-seg');
+    if (!segEls.length) return;
+    var centerNum = svg.querySelector('#donut-center-num');
+    var centerLabel = svg.querySelector('#donut-center-label');
+    var legendItems = legend ? legend.querySelectorAll('li') : [];
+    // 捕获当前中心文字作为复位态（静态为 "40/风险"，动态为 "总数/风险"）
+    var resetNum = centerNum ? centerNum.textContent : '';
+    var resetLabel = centerLabel ? centerLabel.textContent : '';
+    function resetCenter() {
+      if (centerNum) centerNum.textContent = resetNum;
+      if (centerLabel) centerLabel.textContent = resetLabel;
+    }
+    function highlight(el) {
+      var idx = parseInt(el.getAttribute('data-seg'), 10);
+      if (centerNum) centerNum.textContent = el.getAttribute('data-pct') + '%';
+      if (centerLabel) centerLabel.textContent = el.getAttribute('data-label') + ' ' + el.getAttribute('data-value');
+      el.classList.add('donut-seg-active');
+      legendItems.forEach(function (l, i) {
+        if (i === idx) l.classList.add('legend-active'); else l.classList.remove('legend-active');
+      });
+    }
+    function clearAll() {
+      segEls.forEach(function (o) { o.classList.remove('donut-seg-active'); });
+      legendItems.forEach(function (l) { l.classList.remove('legend-active'); });
+    }
+    segEls.forEach(function (el) {
+      if (el.dataset.donutBound) return; // 防重复绑定
+      el.dataset.donutBound = '1';
+      el.addEventListener('mouseenter', function () { highlight(el); });
+      el.addEventListener('mouseleave', function () {
+        el.classList.remove('donut-seg-active');
+        var idx = parseInt(el.getAttribute('data-seg'), 10);
+        if (legendItems[idx]) legendItems[idx].classList.remove('legend-active');
+        resetCenter();
+      });
+      // 触屏支持：点击切换高亮（hover 在触屏不可靠）
+      el.addEventListener('click', function () {
+        if (el.classList.contains('donut-seg-active')) {
+          clearAll();
+          resetCenter();
+        } else {
+          clearAll();
+          highlight(el);
+        }
+      });
+    });
+  }
+
   /* ---------- 风险分布 donut 图 ---------- */
   function updateDonut(findings) {
     var svg = document.getElementById('chart-donut');
@@ -759,24 +827,31 @@
           var seg = segments[j];
           if (seg.value === 0) continue;
           var len = (seg.value / total) * C;
-          inner += '<circle cx="60" cy="60" r="50" fill="none" stroke="' + seg.color + '" stroke-width="12" stroke-dasharray="' + len.toFixed(2) + ' ' + (C - len).toFixed(2) + '" stroke-dashoffset="' + (-offset).toFixed(2) + '" transform="rotate(-90 60 60)"/>';
+          var pct = Math.round((seg.value / total) * 100);
+          inner += '<circle class="donut-seg" data-seg="' + j + '" data-label="' + escapeHtml(seg.label) + '" data-value="' + seg.value + '" data-pct="' + pct + '" cx="60" cy="60" r="50" fill="none" stroke="' + seg.color + '" stroke-width="12" stroke-dasharray="' + len.toFixed(2) + ' ' + (C - len).toFixed(2) + '" stroke-dashoffset="' + (-offset).toFixed(2) + '" transform="rotate(-90 60 60)" style="cursor:pointer;"/>';
           offset += len;
         }
       }
-      inner += '<text x="60" y="58" text-anchor="middle" fill="var(--vuln-ink)" font-size="14" font-weight="600">' + (total > 0 ? total : '—') + '</text>';
-      inner += '<text x="60" y="74" text-anchor="middle" fill="var(--vuln-ink-2)" font-size="10">风险</text>';
+      inner += '<text id="donut-center-num" x="60" y="58" text-anchor="middle" fill="var(--vuln-ink)" font-size="16" font-weight="700">' + (total > 0 ? total : '—') + '</text>';
+      inner += '<text id="donut-center-label" x="60" y="74" text-anchor="middle" fill="var(--vuln-ink-2)" font-size="10">风险</text>';
       svg.innerHTML = inner;
       svg.setAttribute('aria-label', '风险分布 donut 图：高危 ' + counts.high + '、中危 ' + counts.medium + '、低危 ' + counts.low + '、信息 ' + counts.info);
-    }
 
-    if (legend) {
-      var li = '';
-      for (var k = 0; k < segments.length; k++) {
-        var s = segments[k];
-        var pct = total > 0 ? Math.round((s.value / total) * 100) : 0;
-        li += '<li class="flex items-center gap-2 text-[var(--vuln-ink-2)]"><span class="inline-block w-2.5 h-2.5 rounded-full" style="background:' + s.color + '"></span>' + escapeHtml(s.label) + ' ' + pct + '%</li>';
+      // 先渲染图例，再绑定段交互，确保 legendItems 引用的是最新节点
+      var legendItems = [];
+      if (legend) {
+        var li = '';
+        for (var k = 0; k < segments.length; k++) {
+          var s = segments[k];
+          var pct = total > 0 ? Math.round((s.value / total) * 100) : 0;
+          li += '<li class="flex items-center gap-2 text-[var(--vuln-ink-2)]"><span class="inline-block w-2.5 h-2.5 rounded-full" style="background:' + s.color + '"></span>' + escapeHtml(s.label) + ' ' + pct + '%</li>';
+        }
+        legend.innerHTML = li;
+        legendItems = legend.querySelectorAll('li');
       }
-      legend.innerHTML = li;
+
+      // 段交互：hover 放大外凸 + 中心文字切换 + 图例联动（含触屏点击）
+      wireDonut(svg, legend);
     }
   }
 
@@ -895,6 +970,8 @@
   function init() {
     // 趋势图来自 localStorage，与后端无关，先渲染
     updateTrend();
+    // 静态 fallback 圆环立即可交互（API 失败/空数据时仍保留交互）
+    wireDonut(document.getElementById('chart-donut'), document.getElementById('donut-legend'));
 
     fetch('/api/stats')
       .then(function (res) {
@@ -921,5 +998,8 @@
   }
 })();
 </script>
+<link rel="stylesheet" href="./lively.css">
+<script src="./lively.js" defer></script>
+<script src="./theme.js" defer></script>
 </body>
 </html>
