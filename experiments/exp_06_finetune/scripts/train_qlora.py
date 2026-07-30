@@ -1,7 +1,7 @@
 """QLoRA 微调脚本 —— 支持 Qwen3-8B（4bit）或 3B（fp16）。
 
 数据：experiments/exp_06_finetune/data/train_chatml_v5_clean.jsonl（默认，当前最佳 SFT 数据）
-      可通过 --data-file 切换 v7 等新数据
+      可通过 --data-file 切换其他实验数据
 基座：Qwen/Qwen3-8B（默认，4bit QLoRA）
       Qwen/Qwen2.5-Coder-3B-Instruct（--model-id 指定，fp16 LoRA）
 方法：4bit NF4 量化 + LoRA（默认 r=8, alpha=16）+ 梯度检查点
@@ -15,11 +15,11 @@
   - 默认 epochs=3, lr=1e-4（v5 最优配置：rsLoRA r=8）
 
 用法（在 AI conda 环境中运行，需 GPU 访问）：
-  # v7 训练：与 v5 相同配置，仅数据不同
+  # 自定义数据训练：与 v5 相同配置，仅数据不同
   HF_HUB_OFFLINE=1 TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1 python3 train_qlora.py \
-      --data-file data/train_chatml_v7.jsonl \
+      --data-file data/train_chatml_v5_clean.jsonl \
       --epochs 3 --batch-size 1 --grad-accum 8 --lr 1e-4 --lora-r 8 --use-rslora \
-      --output-suffix _v7
+      --output-suffix _v5
 
   # 3B fp16（用 --no-4bit + --model-id 切换）
   HF_HUB_OFFLINE=1 python3 train_qlora.py \

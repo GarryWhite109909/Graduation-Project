@@ -11,8 +11,18 @@ from typing import List, Dict, Optional
 
 
 # 默认 embedding 模型（sentence-transformers 格式）
-DEFAULT_EMBEDDING_MODEL = "BAAI/bge-small-en-v1.5"
-DEFAULT_EMBEDDING_MODEL_NAME = "bge-small-en-v1.5"
+#
+# 选择 bge-m3 的原因：RAG 知识库文档主要为中文漏洞资料，原 bge-small-en-v1.5
+# 仅支持英文，对中文文本的向量化质量差，导致检索效果不佳。bge-m3 是多语言模型，
+# 同时支持中文与英文（以及 100+ 种语言），能显著提升中文漏洞知识库的检索质量。
+#
+# 重要：更换 embedding 模型后，向量维度与语义空间均会改变，原有索引不再兼容。
+# 若 data/chroma_db/ 是用旧模型（bge-small-en-v1.5）构建的，必须先删除该目录，
+# 再重新运行知识库导入脚本以重建索引，否则检索结果会错乱。
+#   步骤：1. 删除 data/chroma_db/ 目录
+#         2. 重新执行知识库构建/导入脚本
+DEFAULT_EMBEDDING_MODEL = "BAAI/bge-m3"
+DEFAULT_EMBEDDING_MODEL_NAME = "bge-m3"
 
 
 def _set_offline_mode() -> None:

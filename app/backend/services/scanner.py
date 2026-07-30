@@ -1,12 +1,13 @@
 """
 扫描编排服务 —— 复用 graduation_project 核心包，统一调度
-LLM 推理 + 代码切片 + RAG 检索。
+LLM 推理 + 代码切片 + RAG 检索 + 传统规则预筛。
 
 关键设计：
 - SFT v5 用 SYSTEM_PROMPT_LITE 训练，推理也必须用 LITE（训练/推理一致）
 - OllamaClient.analyze_vulnerability 硬编码了完整版 SYSTEM_PROMPT，
   本服务绕过它，直接调 client.generate 传入 LITE 版
 - RAG 可开关（Web 端默认开，插件端默认关）
+- 预筛层（prefilter）可开关：开启后对明显漏洞/安全样本直接短路，跳过 LLM
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ from graduation_project.llm_client import OllamaClient
 from graduation_project.prompts import SYSTEM_PROMPT, SYSTEM_PROMPT_LITE, build_user_prompt
 from graduation_project.schema import parse_verdict, normalize_has_vulnerability
 from graduation_project.code_slicer import CodeSlicer, SliceResult
+from graduation_project.prefilter import Prefilter, PrefilterResult
 
 # 默认模型：从环境变量读取，缺省为当前发布的 SFT v5
 DEFAULT_MODEL = os.environ.get("VULN_SCANNER_MODEL", "garrywhite109909/graduation-vuln-scanner:v5")
@@ -46,6 +48,8 @@ class SingleResult:
     error: Optional[str] = None
     sliced: bool = False
     chunk_count: int = 1
+    prefilter_verdict: Optional[bool] = None  # 预筛层判定（None=未预筛/交LLM）
+    prefilter_rules: list[str] = field(default_factory=list)  # 预筛命中规则
 
     def to_dict(self) -> dict:
         return {
@@ -63,6 +67,8 @@ class SingleResult:
             "error": self.error,
             "sliced": self.sliced,
             "chunk_count": self.chunk_count,
+            "prefilter_verdict": self.prefilter_verdict,
+            "prefilter_rules": self.prefilter_rules,
         }
 
 
@@ -97,6 +103,9 @@ class Scanner:
         base_url: Ollama 服务地址
         use_rag: 是否启用 RAG 知识库增强
         use_lite_prompt: 是否用 SYSTEM_PROMPT_LITE（SFT v5 必须 True）
+        use_prefilter: 是否启用传统规则预筛层（True 时对明显样本短路跳过 LLM）
+        use_structured_fallback: 是否在 CoT+JSON 解析失败时用 Ollama format=json 约束解码兜底
+        use_taint_tracking: 是否启用轻量污点分析（source→sink 路径注入 LLM 上下文）
         keep_alive: 模型卸载策略（0=用完即卸，-1=常驻）
     """
 
@@ -106,14 +115,26 @@ class Scanner:
         base_url: str = "http://localhost:11434",
         use_rag: bool = False,
         use_lite_prompt: bool = True,
+        use_prefilter: bool = False,
+        use_structured_fallback: bool = True,
+        use_taint_tracking: bool = False,
         keep_alive=0,
     ):
         self.client = OllamaClient(base_url=base_url, model=model)
         self.model = model
         self.use_rag = use_rag
+        self.use_prefilter = use_prefilter
+        self.use_structured_fallback = use_structured_fallback
+        self.use_taint_tracking = use_taint_tracking
         self.keep_alive = keep_alive
+        # 从环境变量读取硬件适配配置（bootstrap.py 设置）
+        self._num_ctx = int(os.environ.get("VULN_SCANNER_NUM_CTX", "8192"))
+        self._num_gpu = int(os.environ.get("VULN_SCANNER_NUM_GPU", "-1"))
+        self._num_thread = int(os.environ.get("VULN_SCANNER_NUM_THREAD", "0"))
         self.system_prompt = SYSTEM_PROMPT_LITE if use_lite_prompt else SYSTEM_PROMPT
         self.slicer = CodeSlicer(min_lines=150)
+        self.prefilter = Prefilter() if use_prefilter else None
+        self._taint_tracker = None
         self._chroma = None  # 延迟初始化（首次用 RAG 时才连 Chroma）
 
     @property
@@ -128,8 +149,20 @@ class Scanner:
                 self.use_rag = False
         return self._chroma
 
+    @property
+    def taint_tracker(self):
+        """延迟加载 TaintTracker，避免未安装依赖时报错。"""
+        if self._taint_tracker is None and self.use_taint_tracking:
+            try:
+                from graduation_project.taint_tracker import TaintTracker
+                self._taint_tracker = TaintTracker()
+            except Exception as e:
+                print(f"[Scanner] 污点分析初始化失败，跳过: {e}")
+                self.use_taint_tracking = False
+        return self._taint_tracker
+
     def check_health(self) -> dict:
-        """健康检查：Ollama 连接 + 模型可用性。"""
+        """健康检查：Ollama 连接 + 模型可用性 + 各层开关状态。"""
         connected = self.client.check_connection()
         models = self.client.list_models() if connected else []
         model_available = self.model in models
@@ -139,6 +172,9 @@ class Scanner:
             "model_available": model_available,
             "available_models": models,
             "rag_enabled": self.use_rag,
+            "prefilter_enabled": self.use_prefilter,
+            "structured_fallback_enabled": self.use_structured_fallback,
+            "taint_tracking_enabled": self.use_taint_tracking,
         }
 
     def _retrieve_rag_context(self, code: str) -> Optional[str]:
@@ -157,6 +193,25 @@ class Scanner:
             return "\n---\n".join(docs)
         except Exception as e:
             print(f"[Scanner] RAG 检索失败: {e}")
+            return None
+
+    def _retrieve_taint_context(self, code: str, filename: str) -> Optional[str]:
+        """轻量污点分析：提取 source→sink 数据流路径，作为 LLM 上下文。
+
+        与 RAG 上下文互补：RAG 提供领域知识，污点分析提供代码内真实调用链。
+        """
+        if not self.use_taint_tracking or not self.taint_tracker:
+            return None
+        try:
+            paths = self.taint_tracker.trace(code, filename=filename)
+            if not paths:
+                return None
+            lines = ["[污点分析] 检测到以下 source→sink 数据流路径："]
+            for p in paths:
+                lines.append(f"  {p.source} → {p.sink} ({p.taint_type})")
+            return "\n".join(lines)
+        except Exception as e:
+            print(f"[Scanner] 污点分析失败: {e}")
             return None
 
     def scan_code(
@@ -186,6 +241,40 @@ class Scanner:
         rag_enabled = self.use_rag if use_rag is None else use_rag
         rag_context = self._retrieve_rag_context(code) if rag_enabled else None
 
+        # 污点分析：提取 source→sink 数据流路径，作为 LLM 上下文
+        taint_context = self._retrieve_taint_context(code, filename) if self.use_taint_tracking else None
+
+        # 预筛层：对明显漏洞/安全样本直接短路，跳过 LLM 调用
+        prefilter_result: Optional[PrefilterResult] = None
+        if self.prefilter:
+            prefilter_result = self.prefilter.scan(code, language)
+            if prefilter_result.preliminary_verdict is not None:
+                # 预筛给出高置信判定，直接返回，不调 LLM
+                has_vuln = prefilter_result.preliminary_verdict
+                if has_vuln:
+                    vuln_type = prefilter_result.matched_rules[0] if prefilter_result.matched_rules else "detected"
+                    return SingleResult(
+                        filename=filename, language=language,
+                        has_vulnerability=True,
+                        vulnerability_type=vuln_type,
+                        risk_level="High",
+                        explanation=f"预筛层检测到明显漏洞特征：{', '.join(prefilter_result.matched_rules)}",
+                        fix_suggestion="请参考 LLM 详细分析或相关 CWE 修复指南",
+                        duration=0.0,
+                        prefilter_verdict=True,
+                        prefilter_rules=prefilter_result.matched_rules,
+                    )
+                else:
+                    return SingleResult(
+                        filename=filename, language=language,
+                        has_vulnerability=False,
+                        vulnerability_type="none",
+                        risk_level="None",
+                        explanation=f"预筛层检测到安全模式：{', '.join(prefilter_result.matched_rules)}",
+                        prefilter_verdict=False,
+                        prefilter_rules=prefilter_result.matched_rules,
+                    )
+
         # 切片
         slice_result: SliceResult = self.slicer.slice(
             code, language=language, filename=filename,
@@ -197,6 +286,7 @@ class Scanner:
             r = self._analyze_chunk(
                 chunk.code, language, filename, rag_context,
                 chunk_name=chunk.name,
+                taint_context=taint_context,
             )
             r.sliced = slice_result.sliced
             r.chunk_count = slice_result.chunk_count
@@ -227,12 +317,29 @@ class Scanner:
         filename: str,
         rag_context: Optional[str],
         chunk_name: str = "",
+        taint_context: Optional[str] = None,
     ) -> SingleResult:
-        """分析单个代码 chunk。"""
+        """分析单个代码 chunk。
+
+        流程：
+        1. 第一轮：正常 CoT + JSON 输出（保留分析过程）
+        2. 若 parse 失败且 use_structured_fallback=True：
+           用 Ollama format=json 约束解码重试，数学上保证输出可解析
+        3. 污点分析上下文（如有）与 RAG 上下文一并注入 prompt
+        """
         display_name = f"{filename}::{chunk_name}" if chunk_name else filename
+        # 合并 RAG + 污点上下文
+        combined_context = None
+        if rag_context and taint_context:
+            combined_context = rag_context + "\n\n" + taint_context
+        elif rag_context:
+            combined_context = rag_context
+        elif taint_context:
+            combined_context = taint_context
+
         prompt = build_user_prompt(
             code=code, language=language,
-            filename=display_name, rag_context=rag_context,
+            filename=display_name, rag_context=combined_context,
         )
 
         start = time.time()
@@ -240,6 +347,9 @@ class Scanner:
             prompt=prompt,
             system_prompt=self.system_prompt,
             keep_alive=self.keep_alive,
+            num_ctx=self._num_ctx,
+            num_gpu=self._num_gpu,
+            num_thread=self._num_thread,
         )
         duration = time.time() - start
 
@@ -252,6 +362,24 @@ class Scanner:
 
         verdict = parse_verdict(result["text"])
         has_vuln = normalize_has_vulnerability(verdict.get("has_vulnerability"))
+
+        # 约束解码兜底：CoT+JSON 解析失败时，用 Ollama format=json 重试
+        if has_vuln is None and self.use_structured_fallback:
+            structured_result = self.client.generate_structured(
+                prompt=prompt,
+                system_prompt=self.system_prompt,
+                keep_alive=self.keep_alive,
+                num_ctx=self._num_ctx,
+                num_gpu=self._num_gpu,
+                num_thread=self._num_thread,
+            )
+            if not structured_result["error"]:
+                verdict = parse_verdict(structured_result["text"])
+                has_vuln = normalize_has_vulnerability(verdict.get("has_vulnerability"))
+                if has_vuln is not None:
+                    # 约束解码成功，用结构化输出替换
+                    result = structured_result
+                    duration += structured_result["duration"]
 
         return SingleResult(
             filename=filename,

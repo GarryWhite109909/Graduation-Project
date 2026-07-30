@@ -5,10 +5,10 @@
 #
 # 用法：
 #   bash tools/release_model.sh \
-#       --version v7 \
-#       --adapter experiments/exp_06_finetune/outputs/lora_r8_a16_e3_lr0.0001_s42_rslora_v7/best \
+#       --version v5 \
+#       --adapter experiments/exp_06_finetune/outputs/lora_r8_a16_e3_lr0.0001_s42_rslora_v5/best \
 #       --base Qwen/Qwen3-8B \
-#       --ollama-name garrywhite109909/graduation-vuln-scanner:v7
+#       --ollama-name garrywhite109909/graduation-vuln-scanner:v5
 #
 # 前置：
 #   - conda activate AI（含 peft/transformers/torch）
@@ -18,15 +18,15 @@
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-VERSION="v7"
+VERSION="v5"
 ADAPTER=""
 BASE_MODEL="Qwen/Qwen3-8B"
-OLLAMA_NAME="garrywhite109909/graduation-vuln-scanner:v7"
+OLLAMA_NAME="garrywhite109909/graduation-vuln-scanner:v5"
 PUSH=0
 LLAMA_CPP_DIR="${PROJECT_ROOT}/.cache/llama.cpp"
 
 usage() {
-    echo "用法: $0 --version v7 --adapter <adapter_path> [--base Qwen/Qwen3-8B] [--ollama-name garrywhite109909/graduation-vuln-scanner:v7] [--push]"
+    echo "用法: $0 --version v5 --adapter <adapter_path> [--base Qwen/Qwen3-8B] [--ollama-name garrywhite109909/graduation-vuln-scanner:v5] [--push]"
     exit 1
 }
 

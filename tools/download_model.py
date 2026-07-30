@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 """
-模型下载脚本 —— 支持两种获取方式：
+模型下载脚本 —— 支持两种获取方式，并自动适配本机硬件：
 
 1. Ollama Registry（默认，最简单）
-   python tools/download_model.py --source ollama --model graduation-vuln-scanner:v7
+   python tools/download_model.py --source ollama --model graduation-vuln-scanner:v5
 
 2. 直接下载 GGUF（适合无法访问 Ollama Registry 的环境）
    python tools/download_model.py \
        --source gguf \
-       --url https://github.com/GarryWhite109909/Graduation-Project/releases/download/v1.0/merged_v7-q4_k_m.gguf \
-       --model graduation-vuln-scanner:v7
+       --url https://github.com/GarryWhite109909/Graduation-Project/releases/download/v1.0/merged_v5-q4_k_m.gguf \
+       --model graduation-vuln-scanner:v5
 
-8GB 显存用户：脚本默认使用 Q4_K_M 量化 + num_ctx=8192，可在 Modelfile 中再调低。
+硬件自适应：脚本会自动检测 GPU 显存 / CPU 核数，动态生成 Modelfile 中的
+num_ctx / num_gpu / num_thread 参数。≥8GB 显存使用 num_ctx=8192，4-8GB 使用
+4096，<4GB 或无 GPU 时回退到 2048 并启用 CPU 推理。
 """
 
 from __future__ import annotations
@@ -26,6 +28,14 @@ from pathlib import Path
 from urllib.request import urlopen
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+# 复用 bootstrap 中的硬件检测逻辑，避免代码漂移
+sys.path.insert(0, str(PROJECT_ROOT))
+try:
+    from app.launcher.bootstrap import detect_hardware, recommend_config
+except Exception:  # pragma: no cover - 兜底，避免独立运行时 import 失败
+    detect_hardware = None  # type: ignore
+    recommend_config = None  # type: ignore
 
 
 def run(cmd: list[str], **kwargs) -> int:
@@ -52,8 +62,61 @@ def download_gguf(url: str, out_path: Path) -> None:
 
 
 def create_modelfile(gguf_path: Path, model_name: str) -> Path:
+    """根据本机硬件自适应生成 Modelfile。
+
+    - ≥8GB 显存：num_ctx=8192，全 GPU 层
+    - 4-8GB 显存：num_ctx=4096，全 GPU 层
+    - <4GB 或无 GPU：num_ctx=2048，CPU 推理（num_gpu=0）
+    - Apple Silicon：num_ctx=4096，Metal 加速（num_gpu=1）
+    """
     modelfile = PROJECT_ROOT / f"outputs/Modelfile_{model_name.replace(':', '_')}"
     modelfile.parent.mkdir(parents=True, exist_ok=True)
+
+    # 硬件检测 + 推荐参数
+    if detect_hardware is not None and recommend_config is not None:
+        hardware = detect_hardware()
+        config = recommend_config(hardware)
+    else:
+        # 兜底：保守配置（与历史行为一致）
+        hardware = {"has_nvidia_gpu": False, "gpu_name": None,
+                    "vram_mb": None, "cpu_cores": os.cpu_count() or 4,
+                    "ram_gb": 8.0, "platform": sys.platform}
+        config = {
+            "num_ctx": 8192, "num_gpu": -1,
+            "num_thread": min(os.cpu_count() or 4, 8),
+            "quantization": "q4_k_m", "warning": None, "mode": "gpu",
+        }
+
+    # 打印硬件摘要
+    print("[硬件检测] 生成 Modelfile 前的硬件检测结果：")
+    if hardware.get("has_nvidia_gpu") and hardware.get("gpu_name"):
+        print(f"  GPU: {hardware['gpu_name']} ({hardware['vram_mb']}MB)")
+    elif hardware.get("gpu_name") and "Apple M" in hardware["gpu_name"]:
+        print(f"  GPU: {hardware['gpu_name']} (Apple Silicon)")
+    else:
+        print("  GPU: 未检测到 NVIDIA GPU")
+    print(f"  CPU: {hardware['cpu_cores']} 核")
+    print(f"  推理模式: {config['mode'].upper()} "
+          f"(num_ctx={config['num_ctx']}, num_gpu={config['num_gpu']}, "
+          f"num_thread={config['num_thread']}, {config['quantization']})")
+    if config["warning"]:
+        print(f"  ⚠️ {config['warning']}")
+
+    # 根据模式组织 Modelfile 注释
+    if config["mode"] == "gpu":
+        if config["num_ctx"] == 8192:
+            hw_comment = "# 硬件适配：≥8GB 显存，Q4_K_M 约 4.7GB，num_ctx 8192 留足 activations 余量\n"
+        else:
+            hw_comment = "# 硬件适配：4-8GB 显存，num_ctx 4096 平衡显存与上下文长度\n"
+    elif config["mode"] == "apple_silicon":
+        hw_comment = "# 硬件适配：Apple Silicon，Metal 加速（num_gpu=1），统一内存架构\n"
+    else:
+        hw_comment = "# 硬件适配：显存不足或无 GPU，启用 CPU 推理（num_gpu=0），速度较慢\n"
+
+    # num_gpu 仅在非默认时显式写出（-1 全 GPU / 0 纯 CPU / 1 Metal）
+    num_gpu_line = f"PARAMETER num_gpu {config['num_gpu']}\n"
+    num_thread_line = f"PARAMETER num_thread {config['num_thread']}\n"
+
     content = (
         f"FROM {gguf_path}\n\n"
         "# Qwen3 chat template（与训练时一致）\n"
@@ -64,14 +127,17 @@ def create_modelfile(gguf_path: Path, model_name: str) -> Path:
         "<|im_start|>assistant\n"
         '"""\n\n'
         'SYSTEM """你是一名资深的代码安全审计专家。请对给出的代码片段进行安全分析，判断其中是否存在安全漏洞。"""\n\n'
-        "# 8GB 显存适配：Q4_K_M 约 4.7GB，num_ctx 8192 留足 activations 余量\n"
+        f"{hw_comment}"
         "PARAMETER temperature 0.1\n"
-        "PARAMETER num_ctx 8192\n"
+        f"PARAMETER num_ctx {config['num_ctx']}\n"
+        f"{num_gpu_line}"
+        f"{num_thread_line}"
         "PARAMETER num_predict 2048\n"
         'PARAMETER stop "<|im_end|>"\n'
         'PARAMETER stop "<|endoftext|>"\n'
     )
     modelfile.write_text(content, encoding="utf-8")
+    print(f"[硬件检测] Modelfile 已写入：{modelfile}")
     return modelfile
 
 
@@ -103,7 +169,7 @@ def main() -> int:
         default="ollama",
         help="模型来源：ollama registry 或直接下载 GGUF",
     )
-    parser.add_argument("--model", default="graduation-vuln-scanner:v7", help="本地 Ollama 模型名")
+    parser.add_argument("--model", default="graduation-vuln-scanner:v5", help="本地 Ollama 模型名")
     parser.add_argument("--url", help="GGUF 下载地址（source=gguf 时必填）")
     args = parser.parse_args()
 

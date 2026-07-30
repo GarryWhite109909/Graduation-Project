@@ -167,6 +167,9 @@ def start_backend(port: int = PORT) -> subprocess.Popen:
     """启动 FastAPI 后端。"""
     env = os.environ.copy()
     env["PYTHONPATH"] = str(PROJECT_ROOT)
+    # 防止 OOM：限制 Ollama 并发请求数和常驻模型数
+    env.setdefault("OLLAMA_NUM_PARALLEL", "1")
+    env.setdefault("OLLAMA_MAX_LOADED_MODELS", "1")
 
     cmd = [
         sys.executable, "-m", "uvicorn",
@@ -191,6 +194,178 @@ def wait_for_backend(port: int, timeout: int = 30) -> bool:
     return False
 
 
+def detect_hardware() -> dict:
+    """检测本机硬件（GPU/CPU/RAM）。跨平台、无额外依赖。
+
+    返回字典结构：
+        {
+            "has_nvidia_gpu": bool,
+            "gpu_name": str | None,
+            "vram_mb": int | None,
+            "cpu_cores": int,
+            "ram_gb": float,
+            "platform": str,
+        }
+    """
+    hardware: dict = {
+        "has_nvidia_gpu": False,
+        "gpu_name": None,
+        "vram_mb": None,
+        "cpu_cores": os.cpu_count() or 4,
+        "ram_gb": 0.0,
+        "platform": sys.platform,
+    }
+
+    # 1) NVIDIA GPU 检测：优先 nvidia-smi（跨平台，Windows/Linux 都可用）
+    try:
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=name,memory.total",
+             "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            line = result.stdout.strip().splitlines()[0]
+            parts = [p.strip() for p in line.split(",")]
+            if len(parts) >= 2 and parts[0]:
+                hardware["has_nvidia_gpu"] = True
+                hardware["gpu_name"] = parts[0]
+                try:
+                    hardware["vram_mb"] = int(parts[1])
+                except ValueError:
+                    hardware["vram_mb"] = None
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        pass
+
+    # 2) nvidia-smi 失败则尝试 torch.cuda（torch 是 sentence-transformers 的间接依赖）
+    if not hardware["has_nvidia_gpu"]:
+        try:
+            import torch  # type: ignore
+            if torch.cuda.is_available():
+                hardware["has_nvidia_gpu"] = True
+                hardware["gpu_name"] = torch.cuda.get_device_name(0)
+                props = torch.cuda.get_device_properties(0)
+                hardware["vram_mb"] = int(props.total_memory // 1024 // 1024)
+        except Exception:
+            pass
+
+    # 3) macOS Apple Silicon 检测（统一内存架构，无独立显存统计）
+    if sys.platform == "darwin" and not hardware["has_nvidia_gpu"]:
+        try:
+            result = subprocess.run(
+                ["sysctl", "-n", "machdep.cpu.brand_string"],
+                capture_output=True, text=True, timeout=3,
+            )
+            brand = result.stdout.strip()
+            if "Apple M" in brand:
+                hardware["gpu_name"] = brand
+        except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+            pass
+
+    # 4) RAM 检测：优先 psutil，否则平台特定回退
+    try:
+        import psutil  # type: ignore
+        hardware["ram_gb"] = round(psutil.virtual_memory().total / 1024 ** 3, 1)
+    except Exception:
+        if sys.platform.startswith("linux"):
+            try:
+                ram_bytes = os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
+                hardware["ram_gb"] = round(ram_bytes / 1024 ** 3, 1)
+            except (ValueError, OSError):
+                pass
+        elif sys.platform == "win32":
+            try:
+                result = subprocess.run(
+                    ["wmic", "ComputerSystem", "get", "TotalPhysicalMemory"],
+                    capture_output=True, text=True, timeout=3,
+                )
+                lines = [l.strip() for l in result.stdout.splitlines()
+                         if l.strip().isdigit()]
+                if lines:
+                    hardware["ram_gb"] = round(int(lines[0]) / 1024 ** 3, 1)
+            except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+                pass
+        # 兜底估算：8GB
+        if hardware["ram_gb"] == 0.0:
+            hardware["ram_gb"] = 8.0
+
+    return hardware
+
+
+def recommend_config(hardware: dict) -> dict:
+    """根据硬件信息返回推荐的 Ollama 推理参数。
+
+    返回字典结构：
+        {
+            "num_ctx": int,
+            "num_gpu": int,
+            "num_thread": int,
+            "quantization": str,
+            "warning": str | None,
+            "mode": str,   # "gpu" / "cpu" / "apple_silicon"
+        }
+    """
+    cpu_cores = hardware.get("cpu_cores") or 4
+    num_thread = min(cpu_cores, 8)
+
+    is_apple_silicon = (
+        sys.platform == "darwin"
+        and not hardware.get("has_nvidia_gpu")
+        and hardware.get("gpu_name")
+        and "Apple M" in hardware["gpu_name"]
+    )
+
+    # NVIDIA GPU 分支：按显存分档
+    if hardware.get("has_nvidia_gpu") and hardware.get("vram_mb"):
+        vram = hardware["vram_mb"]
+        if vram >= 8192:
+            return {
+                "num_ctx": 8192, "num_gpu": -1, "num_thread": num_thread,
+                "quantization": "q4_k_m", "warning": None, "mode": "gpu",
+            }
+        elif vram >= 4096:
+            return {
+                "num_ctx": 4096, "num_gpu": -1, "num_thread": num_thread,
+                "quantization": "q4_k_m", "warning": None, "mode": "gpu",
+            }
+        else:
+            return {
+                "num_ctx": 2048, "num_gpu": 0, "num_thread": num_thread,
+                "quantization": "q4_k_m",
+                "warning": "显存不足，将使用 CPU 推理（速度较慢）",
+                "mode": "cpu",
+            }
+
+    # Apple Silicon 分支：Metal 加速
+    if is_apple_silicon:
+        return {
+            "num_ctx": 4096, "num_gpu": 1, "num_thread": num_thread,
+            "quantization": "q4_k_m", "warning": None, "mode": "apple_silicon",
+        }
+
+    # 纯 CPU 分支
+    return {
+        "num_ctx": 2048, "num_gpu": 0, "num_thread": num_thread,
+        "quantization": "q4_k_m",
+        "warning": "未检测到 GPU，将使用 CPU 推理（速度约为 GPU 的 1/10）",
+        "mode": "cpu",
+    }
+
+
+def print_hardware_summary(hardware: dict, config: dict) -> None:
+    """将硬件检测结果打印到控制台。"""
+    if hardware.get("has_nvidia_gpu") and hardware.get("gpu_name"):
+        print(f"[硬件检测] GPU: {hardware['gpu_name']} ({hardware['vram_mb']}MB)")
+    elif hardware.get("gpu_name") and "Apple M" in hardware["gpu_name"]:
+        print(f"[硬件检测] GPU: {hardware['gpu_name']} (Apple Silicon)")
+    else:
+        print("[硬件检测] GPU: 未检测到 NVIDIA GPU")
+    print(f"[硬件检测] CPU: {hardware['cpu_cores']} 核")
+    print(f"[硬件检测] 推理模式: {config['mode'].upper()} "
+          f"(num_ctx={config['num_ctx']}, {config['quantization']})")
+    if config["warning"]:
+        print(f"[硬件检测] ⚠️ {config['warning']}")
+
+
 def main():
     print("=" * 60)
     print("  AI 漏洞扫描器 —— 启动中")
@@ -212,7 +387,7 @@ def main():
             input("\n按回车键退出...")
             return
 
-    print("[1/4] Ollama 已安装")
+    print("[1/5] Ollama 已安装")
 
     # 2. 确保 Ollama 服务运行
     if not ensure_ollama_running():
@@ -220,9 +395,20 @@ def main():
         input("\n按回车键退出...")
         return
 
-    print("[2/4] Ollama 服务已运行")
+    print("[2/5] Ollama 服务已运行")
 
-    # 3. 确保模型可用
+    # 3. 硬件检测 + 自适应推理参数（在拉取模型前完成，便于后续 scanner.py 读取）
+    hardware = detect_hardware()
+    config = recommend_config(hardware)
+    print_hardware_summary(hardware, config)
+    # 写入环境变量，供 scanner.py / 后端进程读取
+    os.environ["VULN_SCANNER_NUM_CTX"] = str(config["num_ctx"])
+    os.environ["VULN_SCANNER_NUM_GPU"] = str(config["num_gpu"])
+    os.environ["VULN_SCANNER_NUM_THREAD"] = str(config["num_thread"])
+
+    print("[3/5] 硬件检测完成")
+
+    # 4. 确保模型可用
     model = os.environ.get("VULN_SCANNER_MODEL", DEFAULT_MODEL)
     if not ensure_model_available(model):
         # 回退到官方 Qwen3-8B
@@ -234,9 +420,9 @@ def main():
             return
         os.environ["VULN_SCANNER_MODEL"] = FALLBACK_MODEL
 
-    print(f"[3/4] 模型就绪")
+    print(f"[4/5] 模型就绪")
 
-    # 4. 启动后端
+    # 5. 启动后端
     backend_proc = start_backend(PORT)
     if not wait_for_backend(PORT):
         print(f"\n[错误] 后端启动超时。请检查端口 {PORT} 是否被占用。")
@@ -244,9 +430,9 @@ def main():
         input("\n按回车键退出...")
         return
 
-    print(f"[4/4] 后端就绪，正在打开浏览器...")
+    print(f"[5/5] 后端就绪，正在打开浏览器...")
 
-    # 5. 打开浏览器
+    # 6. 打开浏览器
     webbrowser.open(f"http://localhost:{PORT}")
 
     print(f"\n{'=' * 60}")

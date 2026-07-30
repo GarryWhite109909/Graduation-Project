@@ -3,10 +3,11 @@ Ollama LLM 客户端
 封装本地模型调用，支持 RAG 增强的漏洞检测
 """
 
+import json
 import sys
 import requests
 import time
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 # schema 与 prompt 统一从 graduation_project.schema / graduation_project.prompts 导入（全项目唯一来源）。
 # 此处 re-export 仅为向后兼容历史代码 `from graduation_project.llm_client import parse_verdict`。
@@ -19,6 +20,47 @@ __all__ = [
     "parse_verdict",
     "normalize_has_vulnerability",
 ]
+
+
+# Ollama format=json 约束解码用的 JSON Schema（Pydantic 风格）
+# Ollama 0.1.34+ 支持 format 参数传入 JSON Schema dict，约束模型输出为合法 JSON
+# 参考: https://ollama.com/blog/structured-outputs
+_STRUCTURED_OUTPUT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "has_vulnerability": {
+            "type": "boolean",
+            "description": "true 表示存在漏洞，false 表示未发现漏洞"
+        },
+        "vulnerability_type": {
+            "type": "string",
+            "description": "单个字符串，格式如 'CWE-89 SQL注入'；无漏洞填 'none'"
+        },
+        "risk_level": {
+            "type": "string",
+            "enum": ["Critical", "High", "Medium", "Low", "None"],
+            "description": "风险等级；无漏洞填 'None'"
+        },
+        "source": {
+            "type": "string",
+            "description": "污染来源（用户可控输入点）；无漏洞填 'N/A'"
+        },
+        "sink": {
+            "type": "string",
+            "description": "危险函数或触发点；无漏洞填 'N/A'"
+        },
+        "explanation": {
+            "type": "string",
+            "description": "漏洞或安全现状说明"
+        },
+        "fix_suggestion": {
+            "type": "string",
+            "description": "修复建议；无漏洞填 'no fix needed'"
+        }
+    },
+    "required": ["has_vulnerability", "vulnerability_type", "risk_level",
+                 "source", "sink", "explanation", "fix_suggestion"]
+}
 
 
 class OllamaClient:
@@ -85,6 +127,7 @@ class OllamaClient:
         num_gpu: Optional[int] = None,
         num_thread: Optional[int] = None,
         think: Optional[bool] = None,
+        format: Optional[Union[str, dict]] = None,
     ) -> Dict:
         """
         生成文本
@@ -113,6 +156,11 @@ class OllamaClient:
                    模型默认 False，其他模型忽略）。Ollama 0.30+ 把 Qwen3 等
                    模型的思考内容分离到 thinking 字段，generate API 的 response
                    会为空；必须用 chat API + think:false 禁用思考块。
+            format: Ollama 结构化输出约束。None 表示不约束（默认，CoT+JSON 模式）；
+                    "json" 表示约束输出为合法 JSON（不含 CoT 文本）；
+                    传入 dict（JSON Schema）表示约束输出匹配该 Schema。
+                    注意：format=json 会约束整个输出为 JSON，不能与 CoT 分析共存。
+                    如需 CoT + 结构化输出，请用 generate_structured() 两轮调用。
 
         Returns:
             {"text": str, "duration": float, "tokens": dict, "meta": dict, "error": str|None}
@@ -151,6 +199,8 @@ class OllamaClient:
                 }
                 if think is not None:
                     payload["think"] = think
+                if format is not None:
+                    payload["format"] = format
 
                 resp = requests.post(self.api_chat, json=payload, timeout=timeout)
                 resp.raise_for_status()
@@ -168,6 +218,8 @@ class OllamaClient:
                 }
                 if system_prompt:
                     payload["system"] = system_prompt
+                if format is not None:
+                    payload["format"] = format
 
                 resp = requests.post(self.api_generate, json=payload, timeout=timeout)
                 resp.raise_for_status()
@@ -205,6 +257,48 @@ class OllamaClient:
                 "meta": {},
                 "error": f"{type(e).__name__}: {e}",
             }
+
+    def generate_structured(
+        self,
+        prompt: str,
+        system_prompt: Optional[str] = None,
+        temperature: float = 0.1,
+        max_tokens: Optional[int] = 1024,
+        keep_alive=0,
+        timeout: int = 300,
+        num_ctx: int = 16384,
+        num_gpu: Optional[int] = None,
+        num_thread: Optional[int] = None,
+        think: Optional[bool] = None,
+    ) -> Dict:
+        """使用 Ollama format=json 约束解码生成结构化输出。
+
+        约束模型输出为匹配 _STRUCTURED_OUTPUT_SCHEMA 的合法 JSON，
+        消除 JSON 解析失败的风险。适用于不需要 CoT 分析的快速判定场景。
+
+        num_ctx / num_gpu / num_thread 与 generate() 语义一致，由 scanner.py
+        从环境变量（bootstrap.py 硬件检测写入）传入，确保约束解码兜底也使用
+        与首轮 CoT 推理相同的硬件适配参数，避免低显存设备上 num_ctx 过大导致 OOM。
+
+        注意：此方法约束整个输出为 JSON（无 CoT 分析文本）。
+        如需 CoT + 结构化输出，请用 analyze_with_cot_and_structure() 两轮调用。
+
+        Returns:
+            与 generate() 相同的返回结构，text 字段为合法 JSON 字符串。
+        """
+        return self.generate(
+            prompt=prompt,
+            system_prompt=system_prompt,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            keep_alive=keep_alive,
+            timeout=timeout,
+            num_ctx=num_ctx,
+            num_gpu=num_gpu,
+            num_thread=num_thread,
+            think=think,
+            format=_STRUCTURED_OUTPUT_SCHEMA,
+        )
 
     def unload_model(self, timeout: int = 60) -> bool:
         """主动从显存卸载模型（keep_alive=0）。多模型场景下避免爆显存。

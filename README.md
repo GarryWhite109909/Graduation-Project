@@ -133,6 +133,18 @@ Graduation-Project/
 ├── requirements.txt                       # 锁版本依赖清单
 ├── TODO.md                                # 代码审查问题清单（处理进度跟踪）
 ├── 规划.md                                 # 项目阶段规划与进度（唯一进度源）
+├── app/                                   # Web 应用与启动器
+│   ├── backend/                           #   FastAPI 后端 + 静态前端页面
+│   │   ├── main.py                        #     API 入口（/api/* 路由）
+│   │   ├── services/                      #     扫描/抓取/报告服务
+│   │   └── static/                        #     HTML 前端（仪表盘/扫描台/CWE/态势）
+│   ├── launcher/                          #   一键启动器
+│   │   ├── bootstrap.py                   #     检测 Ollama/模型/启动后端/开浏览器
+│   │   ├── start_windows.bat              #     Windows 一键启动
+│   │   ├── start_linux_macos.sh           #     Linux/macOS 一键启动
+│   │   └── vuln_scanner_cli.py            #     命令行扫描入口
+│   ├── vscode-extension/                  #   VS Code 插件
+│   └── intellij-extension/                #   IntelliJ 插件
 ├── docs/                                  # 设计文档与改进建议
 │   ├── _archive/                          #   历史建议归档
 │   │   ├── glm的建议_20260628.md          #     GLM 给出的改进路线建议
@@ -462,43 +474,51 @@ LLM 单样本推理耗时高于传统工具，但输出包含自然语言解释�
 | 错误分析 | 分 CWE 类型统计、幻觉率、CWE 错标数、source/sink 真实性校验 |
 | 错题闭环 | `extract_phase3_errors.py` 等脚本支持 Phase N vs Phase N+1 回归追踪 |
 
-### 6.5 工程化层（后续扩展）
+### 6.5 工程化层（已落地）
 
-| 方向 | 候选方案 | 状态 |
+| 方向 | 实现方案 | 状态 |
 | --- | --- | --- |
-| 后端服务 | FastAPI / Spring Boot | 待启动 |
-| 前端界面 | Vue.js / React | 待启动 |
-| 批量扫描 | 任务队列 + 文件级并行 | 待启动 |
-| 报告导出 | PDF / Markdown | 待启动 |
-| 污点流分析 | Source→Sink 跨函数追踪 | 待启动 |
-| 修复建议验证 | 生成代码编译/测试通过率 | 待启动 |
+| 后端服务 | FastAPI (`app/backend/main.py`) | ✅ 已上线 |
+| 前端界面 | 原生 HTML + Tailwind CSS (`app/backend/static/`) | ✅ 已上线 |
+| 批量扫描 | NDJSON 流式响应 + 前端 SSE 解析 | ✅ 已上线 |
+| 报告导出 | Markdown（`/api/report`、`/api/report/single`） | ✅ 后端已提供，前端待接入下载按钮 |
+| 污点流分析 | 同函数 source→sink 启发式匹配 (`graduation_project/taint_tracker.py`) | ✅ 已集成（默认关闭，可通过 `use_taint_tracking` 开启） |
+| 修复建议验证 | 语法校验 + 危险模式移除检查 (`graduation_project/fix_verifier.py` + `/api/verify-fix`) | ✅ 已上线 |
+| 外部工具扫描 | Bandit / Semgrep / Gitleaks / Trivy (`graduation_project/external_scanner.py` + `/api/external-scan`) | ✅ 已上线（工具未安装时静默跳过） |
+| 多模型投票 | `/api/multi-model-scan`（顺序加载 ≥2 模型投票聚合） | ✅ 已上线 |
+| vLLM 推理后端 | `/api/vllm-analyze`（OpenAI 兼容 API） | ✅ 已上线 |
 
-### 6.6 系统架构草图（运行时）
+### 6.6 系统架构（运行时）
 
 ```
-┌─────────────────────────────────────────────┐
-│  用户界面（Vue.js / React，规划中）             │
-│  代码上传 │ 分析结果 │ 漏洞详情 │ 修复建议      │
-└─────────────────────────────────────────────┘
-                      ↓
-┌─────────────────────────────────────────────┐
-│  后端服务（FastAPI / Spring Boot，规划中）      │
-│  任务调度 │ 文件预处理 │ 结果聚合             │
-└─────────────────────────────────────────────┘
-                      ↓
-┌─────────────────────────────────────────────┐
-│  核心分析引擎（Python）                        │
-│  ┌─────────┐  ┌─────────┐  ┌─────────────┐ │
-│  │ AST 切片  │  │ RAG 检索  │  │ LLM 推理     │ │
-│  │ tree-sitter│  │ Chroma   │  │ qwen2.5-coder│ │
-│  └─────────┘  └─────────┘  └─────────────┘ │
-└─────────────────────────────────────────────┘
-                      ↓
-┌─────────────────────────────────────────────┐
-│  训练与评估流水线（exp_06）                    │
-│  Qwen3-8B QLoRA SFT → DPO(云 GPU 待验证)     │
-│  evaluate.py / compare_results.py           │
-└─────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│  用户界面（`app/backend/static/` 纯静态页面）                   │
+│  仪表盘 │ 扫描工作台 │ CWE 样本库 │ 安全态势                    │
+└──────────────────────────────────────────────────────────────┘
+                              ↓
+┌──────────────────────────────────────────────────────────────┐
+│  后端服务（FastAPI，127.0.0.1:8765）                            │
+│  /api/analyze │ /api/batch │ /api/url-scan │ /api/github-scan  │
+│  /api/external-scan │ /api/verify-fix │ /api/multi-model-scan │
+│  /api/vllm-analyze │ /api/report │ /api/health                 │
+└──────────────────────────────────────────────────────────────┘
+                              ↓
+┌──────────────────────────────────────────────────────────────┐
+│  核心分析引擎（`graduation_project/`）                          │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────┐    │
+│  │ AST 切片   │ │ RAG 检索   │ │ 预筛规则   │ │ 轻量污点追踪     │    │
+│  │tree-sitter│ │ Chroma   │ │Prefilter │ │ TaintTracker │    │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────────┘    │
+│                              ↓                                │
+│  ┌─────────────────────────────────────────────────────────┐ │
+│  │ LLM 推理：Ollama（默认） / vLLM（可选） / 多模型投票        │ │
+│  └─────────────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────────────┘
+                              ↓
+┌──────────────────────────────────────────────────────────────┐
+│  训练与评估流水线（`experiments/exp_06_finetune/`）              │
+│  Qwen3-8B QLoRA SFT(v5) → DPO(云 GPU 待验证)                  │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 ***
@@ -507,39 +527,21 @@ LLM 单样本推理耗时高于传统工具，但输出包含自然语言解释�
 
 ### 模型发布与部署（给别人用）
 
-训练好的 LoRA adapter 需要合并、量化为 GGUF，并发布为 Ollama 模型，才能被 `app/` 软件系统消费。
+当前已发布模型为 **SFT v5**（`garrywhite109909/graduation-vuln-scanner:v5`），启动器会自动检测并 pull。
 
-#### 1. 发布新模型（开发者/台式机执行）
-
-```bash
-# 1. 合并 LoRA → HF 格式 → GGUF Q4_K_M → Ollama 模型
-# 训练完成后，adapter 位于 outputs/lora_r8_a16_e3_lr0.0001_s42_rslora_v7/best/
-bash tools/release_model.sh \
-  --version v7 \
-  --adapter experiments/exp_06_finetune/outputs/lora_r8_a16_e3_lr0.0001_s42_rslora_v7/best \
-  --base Qwen/Qwen3-8B \
-  --ollama-name graduation-vuln-scanner:v7
-
-# 2. 推送到 Ollama Registry（可选，需要登录）
-ollama push graduation-vuln-scanner:v7
-```
-
-脚本会自动：
-- 调用 `tools/merge_lora.py` 合并 adapter 到 base 模型
-- 克隆/编译 `llama.cpp`
-- 转换为 `f16` GGUF，再量化为 `Q4_K_M`（约 4.7GB，**适配 8GB 显存**）
-- 生成 `Modelfile` 并执行 `ollama create`
-
-#### 2. 用户侧下载并应用模型
+#### 1. 用户侧下载并应用模型
 
 **方式 A：Ollama Registry（推荐，最简单）**
 
 ```bash
 # 启动器会自动检测并 pull 模型
-VULN_SCANNER_MODEL=graduation-vuln-scanner:v7 python -m app.launcher.bootstrap
+python -m app.launcher.bootstrap
 
-# 或在环境变量/启动脚本中永久设置
-export VULN_SCANNER_MODEL=graduation-vuln-scanner:v7
+# 或显式指定（与默认值相同）
+VULN_SCANNER_MODEL=garrywhite109909/graduation-vuln-scanner:v5 python -m app.launcher.bootstrap
+
+# 在环境变量/启动脚本中永久设置
+export VULN_SCANNER_MODEL=garrywhite109909/graduation-vuln-scanner:v5
 bash app/launcher/start_linux_macos.sh
 ```
 
@@ -548,24 +550,24 @@ bash app/launcher/start_linux_macos.sh
 ```bash
 python tools/download_model.py \
   --source gguf \
-  --url https://github.com/<user>/<repo>/releases/download/<tag>/merged_v7-q4_k_m.gguf \
-  --model graduation-vuln-scanner:v7
+  --url https://github.com/<user>/<repo>/releases/download/<tag>/merged_v5-q4_k_m.gguf \
+  --model garrywhite109909/graduation-vuln-scanner:v5
 
-VULN_SCANNER_MODEL=graduation-vuln-scanner:v7 python -m app.launcher.bootstrap
+VULN_SCANNER_MODEL=garrywhite109909/graduation-vuln-scanner:v5 python -m app.launcher.bootstrap
 ```
 
-#### 3. 8GB 显存适配说明
+#### 2. 8GB 显存适配说明
 
 - 默认使用 **Q4_K_M 量化**，模型权重约 **4.7GB**
 - 推理时 activations/KV cache 额外占用，建议 `num_ctx=8192`（已在 `Modelfile` 中设置）
 - 若仍报 OOM，可进一步降低 `num_ctx` 到 4096：
   ```bash
-  echo 'PARAMETER num_ctx 4096' >> outputs/Modelfile_v7
-  ollama create graduation-vuln-scanner:v7-4k -f outputs/Modelfile_v7
-  VULN_SCANNER_MODEL=graduation-vuln-scanner:v7-4k python -m app.launcher.bootstrap
+  echo 'PARAMETER num_ctx 4096' >> outputs/Modelfile_v5
+  ollama create garrywhite109909/graduation-vuln-scanner:v5-4k -f outputs/Modelfile_v5
+  VULN_SCANNER_MODEL=garrywhite109909/graduation-vuln-scanner:v5-4k python -m app.launcher.bootstrap
   ```
 
-#### 4. 模型版本切换
+#### 3. 模型版本切换
 
 `app/` 所有入口均读取环境变量 `VULN_SCANNER_MODEL`：
 
@@ -576,7 +578,29 @@ VULN_SCANNER_MODEL=graduation-vuln-scanner:v7 python -m app.launcher.bootstrap
 | CLI | `VULN_SCANNER_MODEL=... python -m app.launcher.vuln_scanner_cli scan file.py` |
 | VS Code 插件 | 在插件设置或启动脚本中设置环境变量 |
 
-缺省模型仍为 `garrywhite109909/graduation-vuln-scanner:v5`，发布 v7 后统一改为 v7。
+缺省模型为 `garrywhite109909/graduation-vuln-scanner:v5`（SFT v5，当前唯一已发布版本）。
+
+#### 4. 重新发布模型（开发者/台式机执行）
+
+若后续训练出新版本，可用 `release_model.sh` 重新打包：
+
+```bash
+# 合并 LoRA → HF 格式 → GGUF Q4_K_M → Ollama 模型
+bash tools/release_model.sh \
+  --version v5 \
+  --adapter experiments/exp_06_finetune/outputs/lora_r8_a16_e3_lr0.0001_s42_rslora_v5/best \
+  --base Qwen/Qwen3-8B \
+  --ollama-name garrywhite109909/graduation-vuln-scanner:v5
+
+# 推送到 Ollama Registry（可选，需要登录）
+ollama push garrywhite109909/graduation-vuln-scanner:v5
+```
+
+脚本会自动：
+- 调用 `tools/merge_lora.py` 合并 adapter 到 base 模型
+- 克隆/编译 `llama.cpp`
+- 转换为 `f16` GGUF，再量化为 `Q4_K_M`（约 4.7GB，**适配 8GB 显存**）
+- 生成 `Modelfile` 并执行 `ollama create`
 
 ### 环境准备（所有实验的前置步骤，只需执行一次）
 
@@ -794,7 +818,7 @@ CI = [center - margin, center + margin]
 
 ## 约定与备注
 
-- 本阶段聚焦核心算法验证与专用模型训练，前后端工程化框架待实验完成后再明确需求并启动。
+- 本阶段聚焦核心算法验证与专用模型训练，前后端工程化框架已落地（详见"技术架构与全栈"§6.5）。仪表盘等页面仍有部分静态占位数据待接入后端。
 - 所有实验过程、Prompt 迭代与训练日志均已保留，作为后续论文撰写的原始依据。
 - 模型名称需与 Ollama 中实际可用的模型名一致。
 - **显存管理约定**：每次实验脚本跑完必须主动从显存卸载模型（Ollama `keep_alive=0`），多模型场景下避免爆显存。`run_experiment.py` 默认在末尾卸载，如需保留加 `--keep-loaded`。
