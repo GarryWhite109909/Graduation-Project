@@ -5,35 +5,36 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>安全态势</title>
     <style id="theme-vars">
-/* Vuln Scanner UI — Cyber-security dark theme tokens */
+/* Vuln Scanner UI — Google-style clean analytical dashboard tokens */
+/* Light mode: white-paper clarity with #4285f4 primary; Dark mode: editorial high-contrast with #fc2c50 primary */
 
 :root {
-  /* Neutral scale */
-  --vuln-bg: #0b0f17;
-  --vuln-surface: #111827;
-  --vuln-surface-2: #1f2937;
-  --vuln-ink: #e6edf3;
-  --vuln-ink-2: #8b949e;
-  --vuln-ink-3: #6e7681;
-  --vuln-line: #30363d;
+  /* Neutral scale — light mode */
+  --vuln-bg: #ffffff;
+  --vuln-surface: #ffffff;
+  --vuln-surface-2: #f9f9fa;
+  --vuln-ink: #0e1115;
+  --vuln-ink-2: #7f8d9f;
+  --vuln-ink-3: #b0b8c2;
+  --vuln-line: #ebebeb;
 
-  /* Brand primary — tech blue */
-  --vuln-brand: #3b82f6;
+  /* Brand primary — Google blue */
+  --vuln-brand: #4285f4;
   --vuln-brand-ink: #ffffff;
   --vuln-brand-50: #eff6ff;
   --vuln-brand-100: #dbeafe;
   --vuln-brand-200: #bfdbfe;
   --vuln-brand-300: #93c5fd;
   --vuln-brand-400: #60a5fa;
-  --vuln-brand-500: #3b82f6;
+  --vuln-brand-500: #4285f4;
   --vuln-brand-600: #2563eb;
   --vuln-brand-700: #1d4ed8;
 
-  /* Semantic state colors */
-  --vuln-state-success: #22c55e;
-  --vuln-state-warning: #f59e0b;
-  --vuln-state-error: #ef4444;
-  --vuln-state-info: #58a6ff;
+  /* Semantic state colors — Google palette */
+  --vuln-state-success: #34a853;
+  --vuln-state-warning: #fbbc05;
+  --vuln-state-error: #ea4335;
+  --vuln-state-info: #4285f4;
 
   /* Semantic aliases required by head contract */
   --vuln-background: var(--vuln-bg);
@@ -47,11 +48,11 @@
   --vuln-muted: var(--vuln-surface-2);
   --vuln-muted-foreground: var(--vuln-ink-2);
   --vuln-border: var(--vuln-line);
-  --vuln-input: var(--vuln-line);
+  --vuln-input: #e2e3e4;
   --vuln-ring: var(--vuln-brand-500);
   --vuln-radius-small: 4px;
   --vuln-radius-medium: 8px;
-  --vuln-radius-large: 16px;
+  --vuln-radius-large: 12px;
 
   /* Spacing */
   --vuln-s-1: 4px;
@@ -63,14 +64,64 @@
   --vuln-s-7: 48px;
   --vuln-s-8: 80px;
 
-  /* Typography */
-  --vuln-font-sans: Inter, "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
-  --vuln-font-mono: "Cascadia Code", "Fira Code", Consolas, Monaco, "Courier New", monospace;
+  /* Typography — DM Sans for UI, JetBrains Mono for code/data */
+  --vuln-font-sans: DM Sans, "Noto Sans SC", "PingFang SC", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
+  --vuln-font-mono: JetBrains Mono, "Cascadia Code", Consolas, Monaco, "Courier New", monospace;
 
-  /* Shadows */
-  --vuln-shadow-1: 0 1px 2px rgba(15, 23, 42, 0.05), 0 1px 1px rgba(15, 23, 42, 0.03);
-  --vuln-shadow-2: 0 8px 24px -8px rgba(0, 0, 0, 0.35);
-  --vuln-shadow-3: 0 24px 60px -20px rgba(0, 0, 0, 0.45);
+  /* Shadows — flat, border-led hierarchy */
+  --vuln-shadow-1: 0 1px 2px rgba(14, 17, 21, 0.03);
+  --vuln-shadow-2: 0 1px 3px rgba(14, 17, 21, 0.05);
+  --vuln-shadow-3: 0 4px 12px rgba(14, 17, 21, 0.05);
+}
+
+/* Dark mode — editorial high-contrast */
+.dark {
+  /* Neutral scale */
+  --vuln-bg: #161616;
+  --vuln-surface: #1d1d1c;
+  --vuln-surface-2: #2e2e2e;
+  --vuln-ink: #eff1f4;
+  --vuln-ink-2: #949494;
+  --vuln-ink-3: #707070;
+  --vuln-line: #404040;
+
+  /* Brand primary — electric red */
+  --vuln-brand: #fc2c50;
+  --vuln-brand-ink: #ffffff;
+  --vuln-brand-50: #4a2026;
+  --vuln-brand-100: #5c2830;
+  --vuln-brand-200: #7a333e;
+  --vuln-brand-300: #a34452;
+  --vuln-brand-400: #d14f62;
+  --vuln-brand-500: #fc2c50;
+  --vuln-brand-600: #ff4d6d;
+  --vuln-brand-700: #ff6b85;
+
+  /* Semantic state colors */
+  --vuln-state-success: #baf6f0;
+  --vuln-state-warning: #fbeb35;
+  --vuln-state-error: #f1204a;
+  --vuln-state-info: #2dccd3;
+
+  /* Semantic aliases */
+  --vuln-background: var(--vuln-bg);
+  --vuln-foreground: var(--vuln-ink);
+  --vuln-card: var(--vuln-surface);
+  --vuln-card-foreground: var(--vuln-ink);
+  --vuln-popover: var(--vuln-surface-2);
+  --vuln-popover-foreground: var(--vuln-ink);
+  --vuln-primary: var(--vuln-brand);
+  --vuln-primary-foreground: var(--vuln-brand-ink);
+  --vuln-muted: var(--vuln-surface-2);
+  --vuln-muted-foreground: var(--vuln-ink-2);
+  --vuln-border: var(--vuln-line);
+  --vuln-input: #000000;
+  --vuln-ring: #ffffff;
+
+  /* Shadows remain flat */
+  --vuln-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --vuln-shadow-2: 0 1px 3px rgba(0, 0, 0, 0.05);
+  --vuln-shadow-3: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
 /* Base typography classes */
@@ -344,7 +395,94 @@
       .rem-btn-low { background-color: rgba(34,197,94,0.12); color: #22c55e; }
       .rem-btn-info { background-color: rgba(88,166,255,0.12); color: #58a6ff; }
     </style>
-  <nav class="fixed top-0 left-0 right-0 z-50 border-b border-[var(--vuln-line)] bg-[var(--vuln-bg)]/90 backdrop-blur">
+  <style id="enhanced-effects">
+    :root {
+      --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+      --ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
+      --dur-fast: 150ms;
+      --dur-normal: 350ms;
+      --dur-slow: 600ms;
+    }
+
+    body {
+      background: radial-gradient(ellipse at top, rgba(66,133,244,0.03), transparent 60%);
+    }
+    .dark body {
+      background: radial-gradient(ellipse at top, rgba(252,44,80,0.04), transparent 60%);
+    }
+
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes shimmer { from { transform: translateX(-100%); } to { transform: translateX(200%); } }
+
+    .glass-card {
+      background: rgba(255,255,255,0.72);
+      backdrop-filter: blur(24px) saturate(180%);
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
+      border: 1px solid rgba(255,255,255,0.5);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), 0 8px 32px rgba(14,17,21,0.06);
+      transition: transform var(--dur-normal) var(--ease-spring), box-shadow var(--dur-normal) var(--ease-smooth), border-color var(--dur-normal) var(--ease-smooth);
+    }
+    .glass-card:hover {
+      transform: translateY(-4px) scale(1.005);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), 0 12px 40px rgba(14,17,21,0.10);
+    }
+    .dark .glass-card {
+      background: rgba(29,29,28,0.72);
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 8px 32px rgba(0,0,0,0.2);
+    }
+    .dark .glass-card:hover {
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 12px 40px rgba(0,0,0,0.35);
+    }
+
+    .nav-glass {
+      background: rgba(255,255,255,0.8) !important;
+      backdrop-filter: blur(32px) saturate(200%);
+      -webkit-backdrop-filter: blur(32px) saturate(200%);
+    }
+    .dark .nav-glass { background: rgba(22,22,22,0.8) !important; }
+
+    button {
+      transition: transform var(--dur-fast) var(--ease-spring), background-color var(--dur-normal) var(--ease-smooth), color var(--dur-normal) var(--ease-smooth), box-shadow var(--dur-normal) var(--ease-smooth), opacity var(--dur-fast) var(--ease-smooth);
+    }
+    button:active { transform: scale(0.96); }
+    a { transition: transform var(--dur-fast) var(--ease-spring), color var(--dur-normal) var(--ease-smooth), background-color var(--dur-normal) var(--ease-smooth); }
+    a:active { transform: scale(0.96); }
+
+    .filter-chip { transition: all var(--dur-normal) var(--ease-spring); }
+    .filter-chip.active { background: var(--vuln-brand) !important; color: var(--vuln-brand-ink) !important; border-color: var(--vuln-brand) !important; }
+    .filter-chip:not(.active):hover { background: var(--vuln-surface-2); transform: translateY(-1px); }
+
+    .posture-header { animation: fadeUp 0.5s var(--ease-spring) both; }
+    .score-card { animation: fadeUp 0.5s var(--ease-spring) 0.1s both; }
+    .stats-card { animation: fadeUp 0.5s var(--ease-spring) 0.2s both; }
+    .chart-card-anim { animation: fadeUp 0.5s var(--ease-spring) 0.3s both; }
+    .remediation-section { animation: fadeUp 0.5s var(--ease-spring) 0.4s both; }
+
+    .remediation-table tbody tr {
+      transition: opacity 0.2s var(--ease-smooth), transform 0.2s var(--ease-smooth);
+    }
+    .remediation-table tbody tr.filtered-out {
+      opacity: 0;
+      transform: scale(0.95);
+      pointer-events: none;
+      position: absolute;
+      visibility: hidden;
+    }
+
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--vuln-ink-3); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--vuln-ink-2); }
+
+    :focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(66,133,244,0.2); }
+    .dark :focus-visible { box-shadow: 0 0 0 3px rgba(252,44,80,0.25); }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+    }
+  </style>
+  <nav class="nav-glass fixed top-0 left-0 right-0 z-50 border-b border-[var(--vuln-line)]">
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
       <div class="flex h-16 items-center justify-between">
         <a href="./index.html" class="flex items-center gap-3">
@@ -375,7 +513,7 @@
 
   <main class="pt-24 pb-16">
     <div class="mx-auto max-w-7xl space-y-8 px-4 sm:px-6 lg:px-8">
-      <section class="posture-header" aria-label="仓库分析头部">
+      <section class="posture-header glass-card" aria-label="仓库分析头部">
         <div class="flex-1 min-w-[240px]">
           <div class="mb-2 flex items-center justify-between gap-3">
             <label for="input-repo" class="block text-sm font-medium text-[var(--vuln-ink-2)]">目标仓库</label>
@@ -426,7 +564,7 @@
       </section>
 
       <section class="grid grid-cols-1 items-start gap-8 lg:grid-cols-3" aria-label="评分与图表">
-        <div class="rounded-2xl border border-[var(--vuln-line)] bg-card p-8">
+        <div class="glass-card score-card rounded-2xl border border-[var(--vuln-line)] p-8">
           <h2 class="mb-6 text-center text-base font-semibold text-[var(--vuln-ink)]">综合风险评分</h2>
           <div class="flex justify-center">
             <div id="score-ring" class="score-ring" role="img" aria-label="综合风险评分 73 分，等级 B+">
@@ -445,7 +583,7 @@
         </div>
 
         <div class="space-y-8 lg:col-span-2">
-          <div class="rounded-2xl border border-[var(--vuln-line)] bg-card p-6">
+          <div class="glass-card stats-card rounded-2xl border border-[var(--vuln-line)] p-6">
             <h2 class="mb-4 text-base font-semibold text-[var(--vuln-ink)]">漏洞统计</h2>
             <div class="grid grid-cols-2 gap-4 sm:grid-cols-5">
               <div class="rounded-lg bg-[var(--vuln-surface-2)] p-4 text-center">
@@ -472,7 +610,7 @@
           </div>
 
           <div class="charts-row" role="region" aria-label="漏洞分布与趋势图表">
-            <div class="chart-card">
+            <div class="chart-card glass-card chart-card-anim">
               <h3 class="mb-4 text-sm font-semibold text-[var(--vuln-ink)]">严重等级分布</h3>
               <svg id="chart-severity" viewBox="0 0 320 170" role="img" aria-label="严重等级分布柱状图：高危 8、中危 19、低危 15、信息 5">
                 <g>
@@ -497,7 +635,7 @@
                 </g>
               </svg>
             </div>
-            <div class="chart-card">
+            <div class="chart-card glass-card chart-card-anim">
               <h3 class="mb-4 text-sm font-semibold text-[var(--vuln-ink)]">近 7 天趋势</h3>
               <svg id="chart-trend" viewBox="0 0 320 170" role="img" aria-label="近 7 天风险评分趋势折线图">
                 <polyline fill="none" stroke="var(--vuln-brand)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" points="20,120 70,100 120,110 170,80 220,60 270,50 300,30"/>
@@ -517,10 +655,16 @@
         </div>
       </section>
 
-      <section aria-label="优先修复清单">
-        <div class="mb-4 flex items-center justify-between">
+      <section aria-label="优先修复清单" class="remediation-section">
+        <div class="mb-4 flex items-center justify-between flex-wrap gap-3">
           <h2 class="text-base font-semibold text-[var(--vuln-ink)]">优先修复清单</h2>
-          <span class="text-xs text-[var(--vuln-ink-2)]">按风险优先级排序</span>
+          <div class="flex flex-wrap gap-2" role="group" aria-label="严重等级筛选">
+            <button type="button" class="filter-chip active text-xs px-3 py-1.5 rounded-full border border-[var(--vuln-line)] font-medium" data-sev-filter="all">全部</button>
+            <button type="button" class="filter-chip text-xs px-3 py-1.5 rounded-full border border-[var(--vuln-line)] text-[var(--vuln-ink-2)] font-medium" data-sev-filter="high">高危</button>
+            <button type="button" class="filter-chip text-xs px-3 py-1.5 rounded-full border border-[var(--vuln-line)] text-[var(--vuln-ink-2)] font-medium" data-sev-filter="medium">中危</button>
+            <button type="button" class="filter-chip text-xs px-3 py-1.5 rounded-full border border-[var(--vuln-line)] text-[var(--vuln-ink-2)] font-medium" data-sev-filter="low">低危</button>
+            <button type="button" class="filter-chip text-xs px-3 py-1.5 rounded-full border border-[var(--vuln-line)] text-[var(--vuln-ink-2)] font-medium" data-sev-filter="info">信息</button>
+          </div>
         </div>
         <div class="overflow-x-auto rounded-2xl border border-[var(--vuln-line)]">
           <table id="remediation-table" class="remediation-table">
@@ -535,7 +679,7 @@
               </tr>
             </thead>
             <tbody id="remediation-tbody">
-              <tr>
+              <tr data-sev="high">
                 <td class="font-mono text-sm font-semibold text-[var(--vuln-ink)]">P1</td>
                 <td class="font-mono text-sm text-[var(--vuln-ink-2)]">CWE-89</td>
                 <td class="font-mono text-sm text-[var(--vuln-ink)]">src/services/UserRepository.java</td>
@@ -545,7 +689,7 @@
                   <button type="button" class="rem-btn rem-btn-high">修复</button>
                 </td>
               </tr>
-              <tr>
+              <tr data-sev="high">
                 <td class="font-mono text-sm font-semibold text-[var(--vuln-ink)]">P2</td>
                 <td class="font-mono text-sm text-[var(--vuln-ink-2)]">CWE-79</td>
                 <td class="font-mono text-sm text-[var(--vuln-ink)]">src/components/ReviewForm.vue</td>
@@ -555,7 +699,7 @@
                   <button type="button" class="rem-btn rem-btn-high">修复</button>
                 </td>
               </tr>
-              <tr>
+              <tr data-sev="medium">
                 <td class="font-mono text-sm font-semibold text-[var(--vuln-ink)]">P3</td>
                 <td class="font-mono text-sm text-[var(--vuln-ink-2)]">CWE-22</td>
                 <td class="font-mono text-sm text-[var(--vuln-ink)]">api/controllers/FileController.ts</td>
@@ -565,7 +709,7 @@
                   <button type="button" class="rem-btn rem-btn-med">修复</button>
                 </td>
               </tr>
-              <tr>
+              <tr data-sev="medium">
                 <td class="font-mono text-sm font-semibold text-[var(--vuln-ink)]">P4</td>
                 <td class="font-mono text-sm text-[var(--vuln-ink-2)]">CWE-352</td>
                 <td class="font-mono text-sm text-[var(--vuln-ink)]">src/pages/Settings.vue</td>
@@ -575,7 +719,7 @@
                   <button type="button" class="rem-btn rem-btn-med">修复</button>
                 </td>
               </tr>
-              <tr>
+              <tr data-sev="low">
                 <td class="font-mono text-sm font-semibold text-[var(--vuln-ink)]">P5</td>
                 <td class="font-mono text-sm text-[var(--vuln-ink-2)]">CWE-384</td>
                 <td class="font-mono text-sm text-[var(--vuln-ink)]">server/middleware/auth.js</td>
@@ -585,7 +729,7 @@
                   <button type="button" class="rem-btn rem-btn-low">修复</button>
                 </td>
               </tr>
-              <tr>
+              <tr data-sev="info">
                 <td class="font-mono text-sm font-semibold text-[var(--vuln-ink)]">P6</td>
                 <td class="font-mono text-sm text-[var(--vuln-ink-2)]">CWE-918</td>
                 <td class="font-mono text-sm text-[var(--vuln-ink)]">workers/ReportJob.py</td>
@@ -615,7 +759,7 @@
     (function () {
       'use strict';
 
-      const BACKEND_URL = 'http://localhost:8765';
+      const BACKEND_URL = window.location.origin;
       const HISTORY_KEY = 'vuln_scan_history';
       const MAX_HISTORY = 7;
 
@@ -937,7 +1081,7 @@
           const cwe = mapCwe(v.vulnerability_type);
           const priority = 'P' + (i + 1);
           const sb = severityBadge(lvl);
-          html += '<tr>';
+          html += '<tr data-sev="' + lvl + '">';
           html += '<td class="font-mono text-sm font-semibold text-[var(--vuln-ink)]">' + escapeHtml(priority) + '</td>';
           html += '<td class="font-mono text-sm text-[var(--vuln-ink-2)]">' + escapeHtml(cwe) + '</td>';
           html += '<td class="font-mono text-sm text-[var(--vuln-ink)]">' + escapeHtml(v.filename || '—') + '</td>';
@@ -1081,6 +1225,32 @@
         }
       }
 
+      /* ---------- 修复清单筛选 ---------- */
+      var currentSevFilter = 'all';
+      function applyRemediationFilter() {
+        var rows = document.querySelectorAll('#remediation-tbody tr');
+        rows.forEach(function (row) {
+          var sev = row.getAttribute('data-sev') || 'info';
+          if (currentSevFilter === 'all' || sev === currentSevFilter) {
+            row.classList.remove('filtered-out');
+          } else {
+            row.classList.add('filtered-out');
+          }
+        });
+      }
+      document.addEventListener('click', function (e) {
+        var chip = e.target.closest('[data-sev-filter]');
+        if (!chip) return;
+        document.querySelectorAll('[data-sev-filter]').forEach(function (c) {
+          c.classList.remove('active');
+          c.classList.add('text-[var(--vuln-ink-2)]');
+        });
+        chip.classList.add('active');
+        chip.classList.remove('text-[var(--vuln-ink-2)]');
+        currentSevFilter = chip.getAttribute('data-sev-filter') || 'all';
+        applyRemediationFilter();
+      });
+
       /* ---------- 初始化 ---------- */
       function init() {
         const btn = document.getElementById('btn-analyze-repo');
@@ -1104,6 +1274,9 @@
 
         // 后端健康检查
         checkHealth();
+
+        // 应用修复清单筛选（初始展示全部）
+        applyRemediationFilter();
       }
 
       if (document.readyState === 'loading') {

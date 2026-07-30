@@ -214,7 +214,7 @@ function callAnalyzeApi(doc, overrideCode) {
       code,
       language,
       filename,
-      use_rag: useRag || null,
+      use_rag: useRag,
     });
 
     const req = http.request(

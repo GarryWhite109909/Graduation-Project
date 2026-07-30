@@ -109,11 +109,44 @@ def _try_parse_json(text: str) -> Optional[dict]:
     return None
 
 
+def _extract_balanced_json(text: str, start: int) -> Optional[str]:
+    """从 text[start] 处的 '{' 开始，提取一个花括号平衡的 JSON 片段。
+
+    正确处理字符串内部的花括号（如 explanation 字段中含 "obj.method() {return}"）。
+    返回提取的子串（含首尾花括号）；若 start 处不是 '{' 或无法平衡则返回 None。
+    """
+    if start >= len(text) or text[start] != '{':
+        return None
+    depth = 0
+    in_string = False
+    escape = False
+    for i in range(start, len(text)):
+        ch = text[i]
+        if escape:
+            escape = False
+            continue
+        if ch == '\\' and in_string:
+            escape = True
+            continue
+        if ch == '"' and not escape:
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch == '{':
+            depth += 1
+        elif ch == '}':
+            depth -= 1
+            if depth == 0:
+                return text[start:i + 1]
+    return None
+
+
 def _extract_verdict_fallback(raw_output: str) -> dict:
     """字段级兜底提取：当完整 JSON 解析失败时，用正则逐字段提取。
 
     处理模型输出 JSON 字符串值中含未转义双引号（如 HTML 属性 class="..."）
-    导致 json.loads 失败的情况。仅提取关键字段，不保证完整 schema。
+    导致 json.loads 失败的情况。提取所有 schema 字段。
     同时处理 markdown 列表格式（如 `- **has_vulnerability**: false`）的输出。
     """
     verdict = {}
@@ -153,39 +186,81 @@ def _extract_verdict_fallback(raw_output: str) -> dict:
     if m:
         verdict["risk_level"] = m.group(1).strip()
 
+    # 提取 source（新增：之前 fallback 缺少此字段）
+    m = re.search(r'"source"\s*:\s*"(.*?)(?=",\s*"|"\s*})', raw_output)
+    if not m:
+        m = re.search(r'\*{0,2}source\*{0,2}\s*:\s*"?([^"\n*]+)"?(?=\s*\n|$)',
+                      raw_output, re.IGNORECASE)
+    if m:
+        verdict["source"] = m.group(1).strip()
+
+    # 提取 sink（新增：之前 fallback 缺少此字段）
+    m = re.search(r'"sink"\s*:\s*"(.*?)(?=",\s*"|"\s*})', raw_output)
+    if not m:
+        m = re.search(r'\*{0,2}sink\*{0,2}\s*:\s*"?([^"\n*]+)"?(?=\s*\n|$)',
+                      raw_output, re.IGNORECASE)
+    if m:
+        verdict["sink"] = m.group(1).strip()
+
+    # 提取 explanation（新增：之前 fallback 缺少此字段）
+    m = re.search(r'"explanation"\s*:\s*"(.*?)(?=",\s*"|"\s*})', raw_output)
+    if not m:
+        m = re.search(r'\*{0,2}explanation\*{0,2}\s*:\s*"?([^"\n*]+)"?(?=\s*\n|$)',
+                      raw_output, re.IGNORECASE)
+    if m:
+        verdict["explanation"] = m.group(1).strip()
+
+    # 提取 fix_suggestion（新增：之前 fallback 缺少此字段）
+    m = re.search(r'"fix_suggestion"\s*:\s*"(.*?)(?=",\s*"|"\s*})', raw_output)
+    if not m:
+        m = re.search(r'\*{0,2}fix_suggestion\*{0,2}\s*:\s*"?([^"\n*]+)"?(?=\s*\n|$)',
+                      raw_output, re.IGNORECASE)
+    if m:
+        verdict["fix_suggestion"] = m.group(1).strip()
+
     return verdict
 
 
 def parse_verdict(raw_output: str) -> dict:
     """从模型输出中抽取最后的 JSON 结论（统一 schema）。
 
-    优先匹配 ```json ... ``` 代码块；兜底匹配含 has_vulnerability 字段的 JSON 片段。
-    解析时会自动修复 DeepSeek 风格的畸形 JSON（连续字符串值合并）。
-    所有 JSON 解析失败时，最后用字段级正则提取 has_vulnerability 等关键字段。
+    解析策略（逐层降级）：
+    1. 提取 ```json ... ``` 代码块内的文本，用平衡花括号提取完整 JSON
+    2. 全文扫描 '{' 位置，用平衡花括号提取含 has_vulnerability 的 JSON 片段
+    3. 字段级正则提取（处理 JSON 字符串值含未转义双引号的畸形）
+
+    修复历史 bug：旧版正则 `\\{.*?\\}` 非贪婪匹配会在字符串值含 '}' 时截断，
+    导致 JSON 不完整无法解析。改用平衡花括号匹配后可正确处理。
+
     解析失败返回空 dict。
     """
     if not raw_output:
         return {}
 
-    # 优先匹配 ```json ... ``` 代码块
-    blocks = re.findall(r"```json\s*(\{.*?\})\s*```", raw_output, re.DOTALL)
-    # 兜底：含 has_vulnerability 字段的任意 JSON 片段
-    candidates = blocks if blocks else re.findall(
-        r"\{[^{}]*\"has_vulnerability\"[^{}]*\}", raw_output, re.DOTALL
-    )
-    # 从后往前尝试所有候选，通常模型最后的 JSON 块才是结论，但早先候选也可能可解析
-    for cand in reversed(candidates):
-        parsed = _try_parse_json(cand)
-        if parsed and "has_vulnerability" in parsed:
-            return parsed
+    # 策略 1：提取 ```json ... ``` 代码块内的文本
+    # 注意：不再用 (\{.*?\}) 非贪婪匹配，改为提取围栏内全部文本再用平衡括号解析
+    fence_matches = re.findall(r"```(?:json)?\s*(.*?)\s*```", raw_output, re.DOTALL)
+    for fence_text in reversed(fence_matches):
+        # 在围栏文本中找第一个 '{'，用平衡括号提取完整 JSON
+        brace_idx = fence_text.find('{')
+        if brace_idx == -1:
+            continue
+        balanced = _extract_balanced_json(fence_text, brace_idx)
+        if balanced:
+            parsed = _try_parse_json(balanced)
+            if parsed and "has_vulnerability" in parsed:
+                return parsed
 
-    # 最后兜底：扫描所有完整 { ... } 片段
-    for match in re.finditer(r"\{[^{}]*\}", raw_output, re.DOTALL):
-        parsed = _try_parse_json(match.group(0))
-        if parsed and "has_vulnerability" in parsed:
-            return parsed
+    # 策略 2：全文扫描所有 '{' 位置，用平衡括号提取含 has_vulnerability 的 JSON
+    for i, ch in enumerate(raw_output):
+        if ch == '{':
+            balanced = _extract_balanced_json(raw_output, i)
+            if balanced and '"has_vulnerability"' in balanced:
+                parsed = _try_parse_json(balanced)
+                if parsed and "has_vulnerability" in parsed:
+                    return parsed
 
-    # 终极兜底：字段级正则提取（处理 JSON 字符串值含未转义双引号的畸形）
+    # 策略 3：字段级正则提取（处理 JSON 字符串值含未转义双引号的畸形）
     fallback = _extract_verdict_fallback(raw_output)
     if "has_vulnerability" in fallback:
         return fallback
@@ -370,3 +445,33 @@ if __name__ == "__main__":
         new_v, info = apply_safe_pattern_override(code, verdict_true)
         print(f"[{label}] override={info['override_applied']}, reason={info['reason']}, "
               f"has_vuln={new_v.get('has_vulnerability')}")
+
+    # 用例 4：JSON 字符串值中含花括号（修复后的 bug 验证）
+    brace_in_string = (
+        '分析过程：代码中使用了 obj.method() {return true} 的写法...\n'
+        '```json\n'
+        '{"has_vulnerability": false, "vulnerability_type": "none", '
+        '"risk_level": "None", "source": "N/A", "sink": "N/A", '
+        '"explanation": "代码中使用 obj.method() {return true} 是安全的", '
+        '"fix_suggestion": "no fix needed"}\n'
+        '```'
+    )
+    v4 = parse_verdict(brace_in_string)
+    print("[花括号]  解析结果:", v4)
+    print("[花括号]  has_vulnerability =", v4.get("has_vulnerability"))
+    print("[花括号]  explanation =", v4.get("explanation"))
+
+    # 用例 5：fallback 完整字段提取验证
+    no_json_block = (
+        '分析过程：这是一段SQL注入漏洞代码。\n'
+        '- **has_vulnerability**: true\n'
+        '- **vulnerability_type**: CWE-89 SQL注入\n'
+        '- **risk_level**: High\n'
+        '- **source**: 用户输入 username\n'
+        '- **sink**: cursor.execute\n'
+        '- **explanation**: 字符串拼接SQL\n'
+        '- **fix_suggestion**: 使用参数化查询'
+    )
+    v5 = parse_verdict(no_json_block)
+    print("\n[fallback] 解析结果:", v5)
+    print("[fallback] 字段数:", len(v5))

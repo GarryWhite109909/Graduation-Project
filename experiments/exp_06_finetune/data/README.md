@@ -28,7 +28,7 @@
 
 | 文件 | 行数 | 状态 | 说明 |
 |---|---|---|---|
-| `train_chatml_v7.jsonl` | 757 | **当前 v7 训练数据（实验中）** | 基于 v5_clean，针对 7 个 FP + 1 个 FN 做替换式增强（非 hard-negative 追加），避免 v6 负迁移 |
+| `train_chatml_v7.jsonl` | 757 | **v7 实验数据（未发布，仅供参考）** | 基于 v5_clean，针对 7 个 FP + 1 个 FN 做替换式增强（非 hard-negative 追加），避免 v6 负迁移。v7 模型未发布，v5 仍为当前唯一已发布版本 |
 | `train_chatml_v6_hard_neg.jsonl` | 755 | 已归档为失败尝试 | v5_clean + 6 个 FP 正确拒绝 CoT。**引起负迁移**：CVE-fix recall 从 57.1% 掉到 42.9%，新增 `cve_fix_0003.py` FN；合成集 recall 从 100% 掉到 98.4% |
 | `_archive_failed/train_chatml_v4_LEAKED_DO_NOT_USE.jsonl` | 839 | **已归档为泄漏数据，严禁复用** | v3 + CoT 清单化修复 + 7 条 CWE-441 样本。**含测试集泄漏**（3 精确匹配 + 63 高重叠变体），不可用于可信评估 |
 | `train_chatml_v3_fixed.jsonl` | 832 | 已被 v4 替代 | v3 修复 CWE 标注冲突 + 107 条 CoT 重写 + 9 条 LDAP 补充 |

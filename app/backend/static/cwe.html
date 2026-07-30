@@ -5,35 +5,36 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CWE 样本库</title>
     <style id="theme-vars">
-/* Vuln Scanner UI — Cyber-security dark theme tokens */
+/* Vuln Scanner UI — Google-style clean analytical dashboard tokens */
+/* Light mode: white-paper clarity with #4285f4 primary; Dark mode: editorial high-contrast with #fc2c50 primary */
 
 :root {
-  /* Neutral scale */
-  --vuln-bg: #0b0f17;
-  --vuln-surface: #111827;
-  --vuln-surface-2: #1f2937;
-  --vuln-ink: #e6edf3;
-  --vuln-ink-2: #8b949e;
-  --vuln-ink-3: #6e7681;
-  --vuln-line: #30363d;
+  /* Neutral scale — light mode */
+  --vuln-bg: #ffffff;
+  --vuln-surface: #ffffff;
+  --vuln-surface-2: #f9f9fa;
+  --vuln-ink: #0e1115;
+  --vuln-ink-2: #7f8d9f;
+  --vuln-ink-3: #b0b8c2;
+  --vuln-line: #ebebeb;
 
-  /* Brand primary — tech blue */
-  --vuln-brand: #3b82f6;
+  /* Brand primary — Google blue */
+  --vuln-brand: #4285f4;
   --vuln-brand-ink: #ffffff;
   --vuln-brand-50: #eff6ff;
   --vuln-brand-100: #dbeafe;
   --vuln-brand-200: #bfdbfe;
   --vuln-brand-300: #93c5fd;
   --vuln-brand-400: #60a5fa;
-  --vuln-brand-500: #3b82f6;
+  --vuln-brand-500: #4285f4;
   --vuln-brand-600: #2563eb;
   --vuln-brand-700: #1d4ed8;
 
-  /* Semantic state colors */
-  --vuln-state-success: #22c55e;
-  --vuln-state-warning: #f59e0b;
-  --vuln-state-error: #ef4444;
-  --vuln-state-info: #58a6ff;
+  /* Semantic state colors — Google palette */
+  --vuln-state-success: #34a853;
+  --vuln-state-warning: #fbbc05;
+  --vuln-state-error: #ea4335;
+  --vuln-state-info: #4285f4;
 
   /* Semantic aliases required by head contract */
   --vuln-background: var(--vuln-bg);
@@ -47,11 +48,11 @@
   --vuln-muted: var(--vuln-surface-2);
   --vuln-muted-foreground: var(--vuln-ink-2);
   --vuln-border: var(--vuln-line);
-  --vuln-input: var(--vuln-line);
+  --vuln-input: #e2e3e4;
   --vuln-ring: var(--vuln-brand-500);
   --vuln-radius-small: 4px;
   --vuln-radius-medium: 8px;
-  --vuln-radius-large: 16px;
+  --vuln-radius-large: 12px;
 
   /* Spacing */
   --vuln-s-1: 4px;
@@ -63,14 +64,64 @@
   --vuln-s-7: 48px;
   --vuln-s-8: 80px;
 
-  /* Typography */
-  --vuln-font-sans: Inter, "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
-  --vuln-font-mono: "Cascadia Code", "Fira Code", Consolas, Monaco, "Courier New", monospace;
+  /* Typography — DM Sans for UI, JetBrains Mono for code/data */
+  --vuln-font-sans: DM Sans, "Noto Sans SC", "PingFang SC", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
+  --vuln-font-mono: JetBrains Mono, "Cascadia Code", Consolas, Monaco, "Courier New", monospace;
 
-  /* Shadows */
-  --vuln-shadow-1: 0 1px 2px rgba(15, 23, 42, 0.05), 0 1px 1px rgba(15, 23, 42, 0.03);
-  --vuln-shadow-2: 0 8px 24px -8px rgba(0, 0, 0, 0.35);
-  --vuln-shadow-3: 0 24px 60px -20px rgba(0, 0, 0, 0.45);
+  /* Shadows — flat, border-led hierarchy */
+  --vuln-shadow-1: 0 1px 2px rgba(14, 17, 21, 0.03);
+  --vuln-shadow-2: 0 1px 3px rgba(14, 17, 21, 0.05);
+  --vuln-shadow-3: 0 4px 12px rgba(14, 17, 21, 0.05);
+}
+
+/* Dark mode — editorial high-contrast */
+.dark {
+  /* Neutral scale */
+  --vuln-bg: #161616;
+  --vuln-surface: #1d1d1c;
+  --vuln-surface-2: #2e2e2e;
+  --vuln-ink: #eff1f4;
+  --vuln-ink-2: #949494;
+  --vuln-ink-3: #707070;
+  --vuln-line: #404040;
+
+  /* Brand primary — electric red */
+  --vuln-brand: #fc2c50;
+  --vuln-brand-ink: #ffffff;
+  --vuln-brand-50: #4a2026;
+  --vuln-brand-100: #5c2830;
+  --vuln-brand-200: #7a333e;
+  --vuln-brand-300: #a34452;
+  --vuln-brand-400: #d14f62;
+  --vuln-brand-500: #fc2c50;
+  --vuln-brand-600: #ff4d6d;
+  --vuln-brand-700: #ff6b85;
+
+  /* Semantic state colors */
+  --vuln-state-success: #baf6f0;
+  --vuln-state-warning: #fbeb35;
+  --vuln-state-error: #f1204a;
+  --vuln-state-info: #2dccd3;
+
+  /* Semantic aliases */
+  --vuln-background: var(--vuln-bg);
+  --vuln-foreground: var(--vuln-ink);
+  --vuln-card: var(--vuln-surface);
+  --vuln-card-foreground: var(--vuln-ink);
+  --vuln-popover: var(--vuln-surface-2);
+  --vuln-popover-foreground: var(--vuln-ink);
+  --vuln-primary: var(--vuln-brand);
+  --vuln-primary-foreground: var(--vuln-brand-ink);
+  --vuln-muted: var(--vuln-surface-2);
+  --vuln-muted-foreground: var(--vuln-ink-2);
+  --vuln-border: var(--vuln-line);
+  --vuln-input: #000000;
+  --vuln-ring: #ffffff;
+
+  /* Shadows remain flat */
+  --vuln-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --vuln-shadow-2: 0 1px 3px rgba(0, 0, 0, 0.05);
+  --vuln-shadow-3: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
 /* Base typography classes */
@@ -240,8 +291,94 @@
     .cwe-code-block.vuln { border-left: 3px solid var(--vuln-state-error); }
     .cwe-code-block.safe { border-left: 3px solid var(--vuln-state-success); }
   </style>
+  <style id="enhanced-effects">
+    :root {
+      --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+      --ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
+      --dur-fast: 150ms;
+      --dur-normal: 350ms;
+      --dur-slow: 600ms;
+    }
 
-  <nav class="fixed top-0 left-0 right-0 z-50 border-b border-[var(--vuln-line)] bg-[var(--vuln-bg)]/90 backdrop-blur" aria-label="主导航">
+    body {
+      background: radial-gradient(ellipse at top, rgba(66,133,244,0.03), transparent 60%);
+    }
+    .dark body {
+      background: radial-gradient(ellipse at top, rgba(252,44,80,0.04), transparent 60%);
+    }
+
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes shimmer { from { transform: translateX(-100%); } to { transform: translateX(200%); } }
+    @keyframes pulseBorder { 0%, 100% { border-color: var(--vuln-line); } 50% { border-color: var(--vuln-brand-300); } }
+
+    .glass-card {
+      background: rgba(255,255,255,0.72);
+      backdrop-filter: blur(24px) saturate(180%);
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
+      border: 1px solid rgba(255,255,255,0.5);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), 0 8px 32px rgba(14,17,21,0.06);
+      transition: transform var(--dur-normal) var(--ease-spring), box-shadow var(--dur-normal) var(--ease-smooth), border-color var(--dur-normal) var(--ease-smooth), opacity var(--dur-normal) var(--ease-smooth);
+    }
+    .glass-card:hover {
+      transform: translateY(-4px) scale(1.005);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), 0 12px 40px rgba(14,17,21,0.10);
+      border-color: rgba(66,133,244,0.3);
+    }
+    .dark .glass-card {
+      background: rgba(29,29,28,0.72);
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 8px 32px rgba(0,0,0,0.2);
+    }
+    .dark .glass-card:hover {
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 12px 40px rgba(0,0,0,0.35);
+      border-color: rgba(252,44,80,0.3);
+    }
+
+    .nav-glass {
+      background: rgba(255,255,255,0.8) !important;
+      backdrop-filter: blur(32px) saturate(200%);
+      -webkit-backdrop-filter: blur(32px) saturate(200%);
+    }
+    .dark .nav-glass { background: rgba(22,22,22,0.8) !important; }
+
+    button {
+      transition: transform var(--dur-fast) var(--ease-spring), background-color var(--dur-normal) var(--ease-smooth), color var(--dur-normal) var(--ease-smooth), box-shadow var(--dur-normal) var(--ease-smooth), opacity var(--dur-fast) var(--ease-smooth);
+    }
+    button:active { transform: scale(0.96); }
+    a { transition: transform var(--dur-fast) var(--ease-spring), color var(--dur-normal) var(--ease-smooth), background-color var(--dur-normal) var(--ease-smooth); }
+    a:active { transform: scale(0.96); }
+
+    .filter-chip { transition: all var(--dur-normal) var(--ease-spring); }
+    .filter-chip.active { background: var(--vuln-brand) !important; color: var(--vuln-brand-ink) !important; border-color: var(--vuln-brand) !important; }
+    .filter-chip:not(.active):hover { background: var(--vuln-surface-2); transform: translateY(-1px); }
+
+    /* Smooth card filtering transition instead of hard display:none */
+    .cwe-card {
+      animation: fadeUp 0.4s var(--ease-spring) both;
+      transition: opacity 0.2s var(--ease-smooth), transform 0.2s var(--ease-smooth);
+    }
+    .cwe-card.filtered-out {
+      opacity: 0;
+      transform: scale(0.95);
+      pointer-events: none;
+      position: absolute;
+      visibility: hidden;
+    }
+
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--vuln-ink-3); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--vuln-ink-2); }
+
+    :focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(66,133,244,0.2); }
+    .dark :focus-visible { box-shadow: 0 0 0 3px rgba(252,44,80,0.25); }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+    }
+  </style>
+
+  <nav class="nav-glass fixed top-0 left-0 right-0 z-50 border-b border-[var(--vuln-line)]" aria-label="主导航">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex h-14 items-center justify-between">
         <a href="./index.html" class="flex items-center gap-2 text-[var(--vuln-ink)] font-semibold">
@@ -276,26 +413,13 @@
       <p class="text-sm text-[var(--vuln-ink-2)]">浏览常见安全弱点分类、严重等级及代码示例，辅助审计与学习。</p>
     </header>
 
-    <section class="cwe-toolbar mb-4 p-4 bg-[var(--vuln-surface)] border border-[var(--vuln-line)] rounded-lg">
+    <section class="cwe-toolbar glass-card mb-4 p-4 rounded-lg" style="animation: fadeUp 0.4s var(--ease-spring) both;">
       <div class="flex items-center gap-2 flex-1 min-w-[16rem]">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-[var(--vuln-ink-3)]">
           <circle cx="11" cy="11" r="8"/>
           <path d="m21 21-4.3-4.3"/>
         </svg>
         <input id="search-cwe" type="search" placeholder="搜索 CWE ID、名称或关键词..." aria-label="搜索 CWE" class="w-full bg-[var(--vuln-surface-2)] border border-[var(--vuln-line)] text-[var(--vuln-ink)] text-sm rounded-md px-3 py-2 placeholder:text-[var(--vuln-ink-3)] focus:outline-none focus:ring-2 focus:ring-[var(--vuln-brand)]"/>
-      </div>
-
-      <div class="flex items-center gap-2">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-[var(--vuln-ink-3)]">
-          <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
-        </svg>
-        <select id="filter-severity" aria-label="按严重等级筛选" class="bg-[var(--vuln-surface-2)] border border-[var(--vuln-line)] text-[var(--vuln-ink)] text-sm rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--vuln-brand)]">
-          <option value="">全部等级</option>
-          <option value="high">高危</option>
-          <option value="medium">中危</option>
-          <option value="low">低危</option>
-          <option value="info">信息</option>
-        </select>
       </div>
 
       <div class="flex flex-wrap gap-2" role="group" aria-label="严重等级筛选">
@@ -309,7 +433,8 @@
 
     <div class="flex items-center justify-between mb-4 px-1">
       <p id="cwe-stats" class="text-xs text-[var(--vuln-ink-3)]">共 0 个 CWE · 显示 0 个</p>
-      <p class="text-xs text-[var(--vuln-ink-3)]">数据驱动 · 实时筛选 · 点击卡片查看代码示例</p>
+      <p id="detected-summary" class="text-xs text-[var(--vuln-ink-3)] hidden"></p>
+      <p class="text-xs text-[var(--vuln-ink-3)]">参考库 · 实时筛选 · 点击卡片查看代码示例</p>
     </div>
 
     <section id="cwe-grid" class="cwe-grid" aria-label="CWE 卡片列表">
@@ -617,7 +742,6 @@
       var $footerCount = document.getElementById('cwe-footer-count');
       var $empty = document.getElementById('cwe-empty');
       var $search = document.getElementById('search-cwe');
-      var $select = document.getElementById('filter-severity');
       var $overlay = document.getElementById('cwe-modal-overlay');
 
       /* ---------- 渲染卡片 ---------- */
@@ -628,10 +752,10 @@
       }
 
       function renderCards() {
-        var html = CWE_DATA.map(function (c) {
+        var html = CWE_DATA.map(function (c, i) {
           var meta = SEVERITY_META[c.severity] || SEVERITY_META.info;
           return '' +
-            '<article class="cwe-card group bg-[var(--vuln-surface)] border border-[var(--vuln-line)] rounded-lg p-5 hover:border-[var(--vuln-brand)]/60 transition-colors" data-severity="' + escapeHtml(c.severity) + '" data-cwe-id="' + escapeHtml(c.id) + '">' +
+            '<article class="cwe-card glass-card group rounded-lg p-5" data-severity="' + escapeHtml(c.severity) + '" data-cwe-id="' + escapeHtml(c.id) + '" style="animation-delay: ' + (i * 50) + 'ms;">' +
               '<div class="flex items-start justify-between mb-3">' +
                 '<span class="inline-flex items-center px-2 py-1 rounded-md bg-[var(--vuln-surface-2)] border border-[var(--vuln-line)] text-[var(--vuln-brand)] font-mono text-xs font-semibold">' + escapeHtml(c.id) + '</span>' +
                 '<span class="severity-badge inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ' + meta.badge + '">' + escapeHtml(meta.label) + '</span>' +
@@ -677,10 +801,10 @@
           var matchSev = sev === 'all' || cardSev === sev;
 
           if (matchSearch && matchSev) {
-            card.style.display = '';
+            card.classList.remove('filtered-out');
             shown++;
           } else {
-            card.style.display = 'none';
+            card.classList.add('filtered-out');
           }
         });
 
@@ -761,19 +885,11 @@
         applyFilters();
       });
 
-      // 下拉筛选
-      $select.addEventListener('change', function (e) {
-        state.severity = e.target.value || 'all';
-        syncChips();
-        applyFilters();
-      });
-
       // chip 筛选
       var chips = document.querySelectorAll('.filter-chip');
       chips.forEach(function (chip) {
         chip.addEventListener('click', function () {
           state.severity = chip.getAttribute('data-severity') || 'all';
-          $select.value = state.severity === 'all' ? '' : state.severity;
           syncChips();
           applyFilters();
         });
@@ -803,6 +919,64 @@
       renderCards();
       syncChips();
       applyFilters();
+
+      /* ---------- 扫描历史检测标记 ---------- */
+      // 从 localStorage 读取扫描历史，标记哪些 CWE 在最近扫描中被检测到
+      function getDetectedCwes() {
+        try {
+          var raw = localStorage.getItem('vuln_scan_history');
+          if (!raw) return {};
+          var hist = JSON.parse(raw);
+          if (!Array.isArray(hist)) return {};
+          var detected = {};
+          for (var i = 0; i < hist.length; i++) {
+            var results = hist[i].results;
+            if (!Array.isArray(results)) continue;
+            for (var j = 0; j < results.length; j++) {
+              if (results[j] && results[j].has_vulnerability === true) {
+                var vt = String(results[j].vulnerability_type || '').toLowerCase();
+                // 映射漏洞类型到 CWE ID
+                for (var k = 0; k < CWE_DATA.length; k++) {
+                  var cwe = CWE_DATA[k];
+                  if (vt.indexOf(cwe.id.toLowerCase()) > -1 ||
+                      vt.indexOf(cwe.name.toLowerCase()) > -1) {
+                    detected[cwe.id] = (detected[cwe.id] || 0) + 1;
+                  }
+                }
+              }
+            }
+          }
+          return detected;
+        } catch (e) { return {}; }
+      }
+
+      function applyDetectedBadges() {
+        var detected = getDetectedCwes();
+        var count = Object.keys(detected).length;
+        if (count === 0) return;
+        // 显示汇总
+        var summary = document.getElementById('detected-summary');
+        if (summary) {
+          summary.textContent = '最近扫描中发现 ' + count + ' 类 CWE';
+          summary.classList.remove('hidden');
+          summary.style.color = 'var(--vuln-state-error)';
+        }
+        // 在卡片上添加检测标记
+        var cards = $grid.querySelectorAll('.cwe-card');
+        cards.forEach(function (card) {
+          var cweId = card.getAttribute('data-cwe-id');
+          if (detected[cweId]) {
+            var badge = document.createElement('span');
+            badge.className = 'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs font-medium bg-[var(--vuln-state-error)]/10 text-[var(--vuln-state-error)] border border-[var(--vuln-state-error)]/20';
+            badge.style.marginLeft = '6px';
+            badge.textContent = '近期发现 ' + detected[cweId] + ' 次';
+            var idSpan = card.querySelector('.font-mono.text-xs');
+            if (idSpan) idSpan.parentElement.appendChild(badge);
+          }
+        });
+      }
+
+      applyDetectedBadges();
       if (window.lucide && typeof window.lucide.createIcons === 'function') {
         try { window.lucide.createIcons(); } catch (e) {}
       }

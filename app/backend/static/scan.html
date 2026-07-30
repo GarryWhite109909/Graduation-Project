@@ -5,35 +5,36 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>扫描工作台</title>
     <style id="theme-vars">
-/* Vuln Scanner UI — Cyber-security dark theme tokens */
+/* Vuln Scanner UI — Google-style clean analytical dashboard tokens */
+/* Light mode: white-paper clarity with #4285f4 primary; Dark mode: editorial high-contrast with #fc2c50 primary */
 
 :root {
-  /* Neutral scale */
-  --vuln-bg: #0b0f17;
-  --vuln-surface: #111827;
-  --vuln-surface-2: #1f2937;
-  --vuln-ink: #e6edf3;
-  --vuln-ink-2: #8b949e;
-  --vuln-ink-3: #6e7681;
-  --vuln-line: #30363d;
+  /* Neutral scale — light mode */
+  --vuln-bg: #ffffff;
+  --vuln-surface: #ffffff;
+  --vuln-surface-2: #f9f9fa;
+  --vuln-ink: #0e1115;
+  --vuln-ink-2: #7f8d9f;
+  --vuln-ink-3: #b0b8c2;
+  --vuln-line: #ebebeb;
 
-  /* Brand primary — tech blue */
-  --vuln-brand: #3b82f6;
+  /* Brand primary — Google blue */
+  --vuln-brand: #4285f4;
   --vuln-brand-ink: #ffffff;
   --vuln-brand-50: #eff6ff;
   --vuln-brand-100: #dbeafe;
   --vuln-brand-200: #bfdbfe;
   --vuln-brand-300: #93c5fd;
   --vuln-brand-400: #60a5fa;
-  --vuln-brand-500: #3b82f6;
+  --vuln-brand-500: #4285f4;
   --vuln-brand-600: #2563eb;
   --vuln-brand-700: #1d4ed8;
 
-  /* Semantic state colors */
-  --vuln-state-success: #22c55e;
-  --vuln-state-warning: #f59e0b;
-  --vuln-state-error: #ef4444;
-  --vuln-state-info: #58a6ff;
+  /* Semantic state colors — Google palette */
+  --vuln-state-success: #34a853;
+  --vuln-state-warning: #fbbc05;
+  --vuln-state-error: #ea4335;
+  --vuln-state-info: #4285f4;
 
   /* Semantic aliases required by head contract */
   --vuln-background: var(--vuln-bg);
@@ -47,11 +48,11 @@
   --vuln-muted: var(--vuln-surface-2);
   --vuln-muted-foreground: var(--vuln-ink-2);
   --vuln-border: var(--vuln-line);
-  --vuln-input: var(--vuln-line);
+  --vuln-input: #e2e3e4;
   --vuln-ring: var(--vuln-brand-500);
   --vuln-radius-small: 4px;
   --vuln-radius-medium: 8px;
-  --vuln-radius-large: 16px;
+  --vuln-radius-large: 12px;
 
   /* Spacing */
   --vuln-s-1: 4px;
@@ -63,17 +64,61 @@
   --vuln-s-7: 48px;
   --vuln-s-8: 80px;
 
-  /* Typography */
-  --vuln-font-sans: Inter, "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
-  --vuln-font-mono: "Cascadia Code", "Fira Code", Consolas, Monaco, "Courier New", monospace;
+  /* Typography — DM Sans for UI, JetBrains Mono for code/data */
+  --vuln-font-sans: DM Sans, "Noto Sans SC", "PingFang SC", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
+  --vuln-font-mono: JetBrains Mono, "Cascadia Code", Consolas, Monaco, "Courier New", monospace;
 
-  /* Shadows */
-  --vuln-shadow-1: 0 1px 2px rgba(15, 23, 42, 0.05), 0 1px 1px rgba(15, 23, 42, 0.03);
-  --vuln-shadow-2: 0 8px 24px -8px rgba(0, 0, 0, 0.35);
-  --vuln-shadow-3: 0 24px 60px -20px rgba(0, 0, 0, 0.45);
+  /* Shadows — flat, border-led hierarchy */
+  --vuln-shadow-1: 0 1px 2px rgba(14, 17, 21, 0.03);
+  --vuln-shadow-2: 0 1px 3px rgba(14, 17, 21, 0.05);
+  --vuln-shadow-3: 0 4px 12px rgba(14, 17, 21, 0.05);
 }
 
-/* Base typography classes */
+/* Dark mode — editorial high-contrast */
+.dark {
+  --vuln-bg: #161616;
+  --vuln-surface: #1d1d1c;
+  --vuln-surface-2: #2e2e2e;
+  --vuln-ink: #eff1f4;
+  --vuln-ink-2: #949494;
+  --vuln-ink-3: #707070;
+  --vuln-line: #404040;
+
+  --vuln-brand: #fc2c50;
+  --vuln-brand-ink: #ffffff;
+  --vuln-brand-50: #4a2026;
+  --vuln-brand-100: #5c2830;
+  --vuln-brand-200: #7a333e;
+  --vuln-brand-300: #a34452;
+  --vuln-brand-400: #d14f62;
+  --vuln-brand-500: #fc2c50;
+  --vuln-brand-600: #ff4d6d;
+  --vuln-brand-700: #ff6b85;
+
+  --vuln-state-success: #baf6f0;
+  --vuln-state-warning: #fbeb35;
+  --vuln-state-error: #f1204a;
+  --vuln-state-info: #2dccd3;
+
+  --vuln-background: var(--vuln-bg);
+  --vuln-foreground: var(--vuln-ink);
+  --vuln-card: var(--vuln-surface);
+  --vuln-card-foreground: var(--vuln-ink);
+  --vuln-popover: var(--vuln-surface-2);
+  --vuln-popover-foreground: var(--vuln-ink);
+  --vuln-primary: var(--vuln-brand);
+  --vuln-primary-foreground: var(--vuln-brand-ink);
+  --vuln-muted: var(--vuln-surface-2);
+  --vuln-muted-foreground: var(--vuln-ink-2);
+  --vuln-border: var(--vuln-line);
+  --vuln-input: #000000;
+  --vuln-ring: #ffffff;
+
+  --vuln-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --vuln-shadow-2: 0 1px 3px rgba(0, 0, 0, 0.05);
+  --vuln-shadow-3: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
 .vuln-font-sans { font-family: var(--vuln-font-sans); }
 .vuln-font-mono { font-family: var(--vuln-font-mono); }
 
@@ -107,73 +152,49 @@
     </style>
     <style id="semantic-token-fallback">
       .bg-background { background-color: var(--vuln-background); }
-      .text-background { color: var(--vuln-background); }
-      .border-background { border-color: var(--vuln-background); }
-      .ring-background { --tw-ring-color: var(--vuln-background); }
-      .bg-foreground { background-color: var(--vuln-foreground); }
       .text-foreground { color: var(--vuln-foreground); }
-      .border-foreground { border-color: var(--vuln-foreground); }
-      .ring-foreground { --tw-ring-color: var(--vuln-foreground); }
       .bg-card { background-color: var(--vuln-card); }
-      .text-card { color: var(--vuln-card); }
-      .border-card { border-color: var(--vuln-card); }
-      .ring-card { --tw-ring-color: var(--vuln-card); }
-      .bg-card-foreground { background-color: var(--vuln-card-foreground); }
       .text-card-foreground { color: var(--vuln-card-foreground); }
-      .border-card-foreground { border-color: var(--vuln-card-foreground); }
-      .ring-card-foreground { --tw-ring-color: var(--vuln-card-foreground); }
       .bg-popover { background-color: var(--vuln-popover); }
-      .text-popover { color: var(--vuln-popover); }
-      .border-popover { border-color: var(--vuln-popover); }
-      .ring-popover { --tw-ring-color: var(--vuln-popover); }
-      .bg-popover-foreground { background-color: var(--vuln-popover-foreground); }
-      .text-popover-foreground { color: var(--vuln-popover-foreground); }
-      .border-popover-foreground { border-color: var(--vuln-popover-foreground); }
-      .ring-popover-foreground { --tw-ring-color: var(--vuln-popover-foreground); }
       .bg-primary { background-color: var(--vuln-primary); }
       .text-primary { color: var(--vuln-primary); }
-      .border-primary { border-color: var(--vuln-primary); }
-      .ring-primary { --tw-ring-color: var(--vuln-primary); }
-      .bg-primary-foreground { background-color: var(--vuln-primary-foreground); }
-      .text-primary-foreground { color: var(--vuln-primary-foreground); }
-      .border-primary-foreground { border-color: var(--vuln-primary-foreground); }
-      .ring-primary-foreground { --tw-ring-color: var(--vuln-primary-foreground); }
       .bg-muted { background-color: var(--vuln-muted); }
-      .text-muted { color: var(--vuln-muted); }
-      .border-muted { border-color: var(--vuln-muted); }
-      .ring-muted { --tw-ring-color: var(--vuln-muted); }
-      .bg-muted-foreground { background-color: var(--vuln-muted-foreground); }
       .text-muted-foreground { color: var(--vuln-muted-foreground); }
-      .border-muted-foreground { border-color: var(--vuln-muted-foreground); }
-      .ring-muted-foreground { --tw-ring-color: var(--vuln-muted-foreground); }
-      .bg-border { background-color: var(--vuln-border); }
-      .text-border { color: var(--vuln-border); }
       .border-border { border-color: var(--vuln-border); }
-      .ring-border { --tw-ring-color: var(--vuln-border); }
-      .bg-input { background-color: var(--vuln-input); }
-      .text-input { color: var(--vuln-input); }
-      .border-input { border-color: var(--vuln-input); }
-      .ring-input { --tw-ring-color: var(--vuln-input); }
-      .bg-ring { background-color: var(--vuln-ring); }
-      .text-ring { color: var(--vuln-ring); }
-      .border-ring { border-color: var(--vuln-ring); }
-      .ring-ring { --tw-ring-color: var(--vuln-ring); }
     </style>
     <style>
       .no-scrollbar::-webkit-scrollbar { display: none; }
       .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-      [data-icon] {
-        display: inline-flex;
+    </style>
+    <style id="toast-styles">
+      .toast {
+        pointer-events: auto;
+        min-width: 240px;
+        max-width: 360px;
+        padding: 12px 16px;
+        border-radius: 8px;
+        background: var(--vuln-surface);
+        border: 1px solid var(--vuln-line);
+        box-shadow: var(--vuln-shadow-3);
+        color: var(--vuln-ink);
+        font-size: 13px;
+        display: flex;
         align-items: center;
-        justify-content: center;
-        -webkit-mask-size: contain;
-        mask-size: contain;
-        -webkit-mask-repeat: no-repeat;
-        mask-repeat: no-repeat;
-        -webkit-mask-position: center;
-        mask-position: center;
-        background-color: currentColor;
+        gap: 8px;
+        animation: toastIn 0.3s var(--ease-smooth) both;
       }
+      .toast.removing { animation: toastOut 0.25s var(--ease-smooth) both; }
+      .toast.success { border-left: 3px solid var(--vuln-state-success); }
+      .toast.error { border-left: 3px solid var(--vuln-state-error); }
+      .toast.warning { border-left: 3px solid var(--vuln-state-warning); }
+      .toast.info { border-left: 3px solid var(--vuln-state-info); }
+      .toast-icon { flex-shrink: 0; }
+      .toast.success .toast-icon { color: var(--vuln-state-success); }
+      .toast.error .toast-icon { color: var(--vuln-state-error); }
+      .toast.warning .toast-icon { color: var(--vuln-state-warning); }
+      .toast.info .toast-icon { color: var(--vuln-state-info); }
+      @keyframes toastIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
+      @keyframes toastOut { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(40px); } }
     </style>
 </head>
 <body class="min-h-screen font-sans antialiased">
@@ -189,34 +210,46 @@
         position: sticky;
         top: 72px;
         align-self: flex-start;
-        flex: 0 0 360px;
-        width: 360px;
+        flex: 0 0 380px;
+        width: 380px;
+        max-height: calc(100vh - 88px);
+        overflow-y: auto;
       }
       .results-panel {
         flex: 1 1 auto;
         min-width: 0;
       }
       .result-card {
-        background-color: var(--vuln-surface);
-        border: 1px solid var(--vuln-line);
-        border-radius: 8px;
-        padding: 16px;
+        border-radius: 12px;
+        padding: 20px;
         margin-bottom: 16px;
       }
       .code-block {
         font-family: var(--vuln-font-mono);
         background-color: var(--vuln-bg);
         border: 1px solid var(--vuln-line);
-        border-radius: 4px;
-        padding: 12px;
+        border-radius: 8px;
         overflow-x: auto;
-        white-space: pre;
+        white-space: pre-wrap;
+        word-break: break-all;
         font-size: 13px;
-        line-height: 1.5;
+        line-height: 1.6;
         color: var(--vuln-ink);
+        max-height: 0;
+        opacity: 0;
+        overflow: hidden;
+        padding: 0 14px;
+        margin-top: 0;
+        transition: max-height 0.35s var(--ease-smooth), opacity 0.25s var(--ease-smooth), padding 0.35s var(--ease-smooth), margin-top 0.35s var(--ease-smooth);
+      }
+      .code-block.expanded {
+        max-height: 600px;
+        opacity: 1;
+        padding: 14px;
+        margin-top: 4px;
       }
       .progress-bar {
-        height: 6px;
+        height: 8px;
         background-color: var(--vuln-line);
         border-radius: 999px;
         overflow: hidden;
@@ -226,83 +259,286 @@
         height: 100%;
         width: 0%;
         background-color: var(--vuln-brand);
-        transition: width 0.3s ease;
+        transition: width 0.4s var(--ease-smooth);
+        position: relative;
+        overflow: hidden;
+        border-radius: 999px;
       }
+      .progress-bar > span::after {
+        content: '';
+        position: absolute;
+        top: 0; left: 0;
+        width: 100%; height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+        animation: shimmer 1.5s infinite;
+      }
+      .progress-bar.indeterminate > span {
+        width: 35% !important;
+        animation: indeterminate 1.4s var(--ease-smooth) infinite;
+      }
+      @keyframes indeterminate {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(380%); }
+      }
+      .tab-list-wrapper { position: relative; }
+      .tab-indicator {
+        position: absolute;
+        top: 4px; left: 4px;
+        height: calc(100% - 8px);
+        background: var(--vuln-brand);
+        border-radius: 6px;
+        opacity: 0.12;
+        transition: transform var(--dur-normal) var(--ease-spring), width var(--dur-normal) var(--ease-spring);
+        pointer-events: none;
+        z-index: 0;
+      }
+      .tab-list-wrapper > button { position: relative; z-index: 1; }
+      .tab-panel-enter { animation: fadeUp 0.3s var(--ease-smooth) both; }
       @media (max-width: 1024px) {
         .scan-layout { flex-direction: column; }
-        .control-panel { position: static; width: 100%; flex: none; }
+        .control-panel { position: static; width: 100%; flex: none; max-height: none; }
       }
     </style>
 
-    <nav class="fixed top-0 left-0 right-0 z-50 border-b border-[var(--vuln-line)] bg-[var(--vuln-bg)]/90 backdrop-blur">
+    <style id="enhanced-effects">
+      :root {
+        --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+        --ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
+        --dur-fast: 150ms;
+        --dur-normal: 350ms;
+        --dur-slow: 600ms;
+      }
+
+      body {
+        background: radial-gradient(ellipse at top, rgba(66,133,244,0.03), transparent 60%);
+      }
+      .dark body {
+        background: radial-gradient(ellipse at top, rgba(252,44,80,0.04), transparent 60%);
+      }
+
+      @keyframes fadeUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+      @keyframes shimmer { from { transform: translateX(-100%); } to { transform: translateX(200%); } }
+      @keyframes pulseBorder { 0%, 100% { border-color: var(--vuln-line); } 50% { border-color: var(--vuln-brand-300); } }
+
+      .glass-card {
+        background: rgba(255,255,255,0.72);
+        backdrop-filter: blur(24px) saturate(180%);
+        -webkit-backdrop-filter: blur(24px) saturate(180%);
+        border: 1px solid rgba(255,255,255,0.5);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), 0 8px 32px rgba(14,17,21,0.06);
+      }
+      .dark .glass-card {
+        background: rgba(29,29,28,0.72);
+        border: 1px solid rgba(255,255,255,0.08);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 8px 32px rgba(0,0,0,0.2);
+      }
+
+      .nav-glass {
+        background: rgba(255,255,255,0.8);
+        backdrop-filter: blur(32px) saturate(200%);
+        -webkit-backdrop-filter: blur(32px) saturate(200%);
+        border-bottom: 1px solid var(--vuln-line);
+      }
+      .dark .nav-glass { background: rgba(22,22,22,0.8); }
+
+      .control-panel { animation: fadeUp 0.5s var(--ease-spring) both; }
+      .results-header { animation: fadeUp 0.4s var(--ease-spring) 0.05s both; }
+      .result-card { animation: fadeUp 0.5s var(--ease-spring) both; }
+
+      .result-card {
+        transition: transform var(--dur-normal) var(--ease-spring),
+                    box-shadow var(--dur-normal) var(--ease-smooth),
+                    border-color var(--dur-normal) var(--ease-smooth);
+      }
+      .result-card:hover {
+        transform: translateY(-4px) scale(1.005);
+        box-shadow: 0 12px 40px rgba(14,17,21,0.10), 0 0 0 1px rgba(66,133,244,0.25);
+        border-color: rgba(66,133,244,0.3);
+      }
+      .dark .result-card:hover {
+        box-shadow: 0 12px 40px rgba(0,0,0,0.3), 0 0 0 1px rgba(252,44,80,0.3);
+        border-color: rgba(252,44,80,0.3);
+      }
+
+      button {
+        transition: transform var(--dur-fast) var(--ease-spring), background-color var(--dur-normal) var(--ease-smooth), color var(--dur-normal) var(--ease-smooth), box-shadow var(--dur-normal) var(--ease-smooth), opacity var(--dur-fast) var(--ease-smooth);
+      }
+      button:active { transform: scale(0.96); }
+      a { transition: transform var(--dur-fast) var(--ease-spring), color var(--dur-normal) var(--ease-smooth), background-color var(--dur-normal) var(--ease-smooth); }
+      a:active { transform: scale(0.96); }
+
+      .icon-box {
+        width: 44px; height: 44px; border-radius: 12px;
+        display: inline-flex; align-items: center; justify-content: center;
+        background: linear-gradient(135deg, rgba(66,133,244,0.12), rgba(66,133,244,0.04));
+        border: 1px solid rgba(66,133,244,0.12);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        flex-shrink: 0;
+        transition: transform var(--dur-normal) var(--ease-spring);
+      }
+      .icon-box:hover { transform: scale(1.08) rotate(-3deg); }
+      .dark .icon-box {
+        background: linear-gradient(135deg, rgba(252,44,80,0.12), rgba(252,44,80,0.04));
+        border: 1px solid rgba(252,44,80,0.12);
+      }
+      .icon-box-sm { width: 28px; height: 28px; border-radius: 8px; }
+      .icon-box-sm.error { background: linear-gradient(135deg, rgba(234,67,53,0.16), rgba(234,67,53,0.06)); border: 1px solid rgba(234,67,53,0.18); color: var(--vuln-state-error); }
+      .dark .icon-box-sm.error { background: linear-gradient(135deg, rgba(241,32,74,0.16), rgba(241,32,74,0.06)); border: 1px solid rgba(241,32,74,0.18); }
+      .icon-box-sm.warning { background: linear-gradient(135deg, rgba(251,188,5,0.16), rgba(251,188,5,0.06)); border: 1px solid rgba(251,188,5,0.18); color: var(--vuln-state-warning); }
+      .dark .icon-box-sm.warning { background: linear-gradient(135deg, rgba(251,235,53,0.16), rgba(251,235,53,0.06)); border: 1px solid rgba(251,235,53,0.18); }
+      .icon-box-sm.info { background: linear-gradient(135deg, rgba(66,133,244,0.16), rgba(66,133,244,0.06)); border: 1px solid rgba(66,133,244,0.18); color: var(--vuln-state-info); }
+      .dark .icon-box-sm.info { background: linear-gradient(135deg, rgba(45,204,211,0.16), rgba(45,204,211,0.06)); border: 1px solid rgba(45,204,211,0.18); }
+      .icon-box-sm.success { background: linear-gradient(135deg, rgba(52,168,83,0.16), rgba(52,168,83,0.06)); border: 1px solid rgba(52,168,83,0.18); color: var(--vuln-state-success); }
+      .dark .icon-box-sm.success { background: linear-gradient(135deg, rgba(186,246,240,0.16), rgba(186,246,240,0.06)); border: 1px solid rgba(186,246,240,0.18); }
+
+      .filter-chip { transition: all var(--dur-normal) var(--ease-spring); }
+      .filter-chip.active { background: var(--vuln-brand); color: var(--vuln-brand-ink); border-color: var(--vuln-brand); }
+      .filter-chip:not(.active):hover { background: var(--vuln-surface-2); transform: translateY(-1px); }
+
+      .dropzone-animated {
+        border: 2px dashed var(--vuln-line);
+        animation: pulseBorder 2.5s var(--ease-smooth) infinite;
+        transition: border-color var(--dur-normal) var(--ease-smooth), box-shadow var(--dur-normal) var(--ease-smooth), background-color var(--dur-normal) var(--ease-smooth);
+      }
+      .dropzone-animated:hover, .dropzone-animated.dragover {
+        border-style: solid; border-color: var(--vuln-brand);
+        box-shadow: 0 0 0 4px rgba(66,133,244,0.12), 0 8px 24px rgba(66,133,244,0.08);
+        background-color: rgba(66,133,244,0.03);
+      }
+      .dark .dropzone-animated:hover, .dark .dropzone-animated.dragover {
+        box-shadow: 0 0 0 4px rgba(252,44,80,0.12), 0 8px 24px rgba(252,44,80,0.08);
+        background-color: rgba(252,44,80,0.03);
+      }
+
+      ::-webkit-scrollbar { width: 8px; height: 8px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: var(--vuln-ink-3); border-radius: 4px; }
+      ::-webkit-scrollbar-thumb:hover { background: var(--vuln-ink-2); }
+
+      :focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(66,133,244,0.2); }
+      .dark :focus-visible { box-shadow: 0 0 0 3px rgba(252,44,80,0.25); }
+
+      .toggle-row { transition: background-color var(--dur-normal) var(--ease-smooth); }
+      .toggle-row:hover { background-color: var(--vuln-surface-2); }
+
+      .badge-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+      .badge-dot.on { background: var(--vuln-state-success); box-shadow: 0 0 6px rgba(52,168,83,0.5); }
+      .badge-dot.off { background: var(--vuln-ink-3); }
+
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+      }
+    </style>
+
+    <nav class="nav-glass fixed top-0 left-0 right-0 z-50">
       <div class="max-w-[1600px] mx-auto px-6 h-14 flex items-center justify-between">
         <a href="./index.html" class="flex items-center gap-2 text-[var(--vuln-ink)] font-semibold">
-          <svg class="w-6 h-6 text-[var(--vuln-brand)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
-            <path d="M2 17l10 5 10-5"></path>
-            <path d="M2 12l10 5 10-5"></path>
+          <svg class="w-6 h-6 text-[var(--vuln-brand)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path>
           </svg>
           <span>VulnScanner</span>
         </a>
         <ul class="flex items-center gap-1">
-          <li><a id="nav-dashboard" data-dom-id="nav-dashboard" href="./index.html" class="text-sm font-medium text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] transition-colors px-3 py-2 rounded-md">仪表盘</a></li>
-          <li><a id="nav-scan" data-dom-id="nav-scan" href="./scan.html" class="text-[var(--vuln-brand)] bg-[var(--vuln-brand)]/10 text-sm font-medium px-3 py-2 rounded-md" aria-current="page">扫描工作台</a></li>
-          <li><a id="nav-cwe" data-dom-id="nav-cwe" href="./cwe.html" class="text-sm font-medium text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] transition-colors px-3 py-2 rounded-md">CWE 样本库</a></li>
-          <li><a id="nav-posture" data-dom-id="nav-posture" href="./posture.html" class="text-sm font-medium text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] transition-colors px-3 py-2 rounded-md">安全态势</a></li>
+          <li><a href="./index.html" class="text-sm font-medium text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] px-3 py-2 rounded-md">仪表盘</a></li>
+          <li><a href="./scan.html" class="text-[var(--vuln-brand)] bg-[var(--vuln-brand)]/10 text-sm font-medium px-3 py-2 rounded-md" aria-current="page">扫描工作台</a></li>
+          <li><a href="./cwe.html" class="text-sm font-medium text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] px-3 py-2 rounded-md">CWE 样本库</a></li>
+          <li><a href="./posture.html" class="text-sm font-medium text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] px-3 py-2 rounded-md">安全态势</a></li>
         </ul>
       </div>
     </nav>
 
     <main class="scan-layout">
-      <section class="control-panel bg-[var(--vuln-surface)] border border-[var(--vuln-line)] rounded-lg p-5" aria-label="扫描输入">
+      <section class="control-panel glass-card rounded-xl p-5" aria-label="扫描输入">
         <div class="flex items-center justify-between mb-4">
           <h1 class="text-lg font-semibold text-[var(--vuln-ink)]">新建扫描</h1>
-          <span class="text-xs px-2 py-1 rounded bg-[var(--vuln-surface-2)] text-[var(--vuln-ink-2)]">静态分析</span>
+          <span class="text-xs px-2 py-1 rounded bg-[var(--vuln-surface-2)] text-[var(--vuln-ink-2)]">LLM 静态分析</span>
         </div>
 
-        <div class="flex gap-1 mb-4 p-1 bg-[var(--vuln-bg)] rounded-md border border-[var(--vuln-line)]" role="tablist" aria-label="输入方式">
-          <button id="tab-paste" type="button" role="tab" aria-selected="true" aria-controls="panel-paste" class="flex-1 text-sm px-2 py-1.5 rounded text-[var(--vuln-brand)] bg-[var(--vuln-brand)]/10 font-medium">粘贴代码</button>
-          <button id="tab-upload" type="button" role="tab" aria-selected="false" aria-controls="panel-upload" class="flex-1 text-sm px-2 py-1.5 rounded text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] hover:bg-[var(--vuln-surface-2)] transition-colors font-medium">上传文件</button>
-          <button id="tab-url" type="button" role="tab" aria-selected="false" aria-controls="panel-url" class="flex-1 text-sm px-2 py-1.5 rounded text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] hover:bg-[var(--vuln-surface-2)] transition-colors font-medium">URL/站点</button>
-          <button id="tab-github" type="button" role="tab" aria-selected="false" aria-controls="panel-github" class="flex-1 text-sm px-2 py-1.5 rounded text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] hover:bg-[var(--vuln-surface-2)] transition-colors font-medium">GitHub</button>
+        <div class="tab-list-wrapper flex gap-1 mb-4 p-1 bg-[var(--vuln-bg)] rounded-lg border border-[var(--vuln-line)]" role="tablist" aria-label="输入方式">
+          <div class="tab-indicator" id="tab-indicator"></div>
+          <button id="tab-paste" type="button" role="tab" aria-selected="true" class="flex-1 text-sm px-2 py-1.5 rounded text-[var(--vuln-brand)] font-medium">粘贴代码</button>
+          <button id="tab-upload" type="button" role="tab" aria-selected="false" class="flex-1 text-sm px-2 py-1.5 rounded text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] font-medium">上传文件</button>
+          <button id="tab-url" type="button" role="tab" aria-selected="false" class="flex-1 text-sm px-2 py-1.5 rounded text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] font-medium">URL</button>
+          <button id="tab-github" type="button" role="tab" aria-selected="false" class="flex-1 text-sm px-2 py-1.5 rounded text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] font-medium">GitHub</button>
         </div>
 
         <div class="tab-panels">
           <div id="panel-paste" role="tabpanel" class="tab-panel">
-            <label for="code-input" class="block text-xs text-[var(--vuln-ink-2)] mb-2">粘贴需要审计的源代码</label>
-            <textarea id="code-input" rows="12" class="w-full bg-[var(--vuln-bg)] border border-[var(--vuln-line)] rounded-md p-3 text-sm text-[var(--vuln-ink)] font-mono focus:outline-none focus:ring-2 focus:ring-[var(--vuln-brand)] resize-none" placeholder="function query(userInput) {&#10;  return db.exec('SELECT * FROM users WHERE id = ' + userInput);&#10;}"></textarea>
+            <div class="flex items-center justify-between mb-2">
+              <label for="code-input" class="block text-xs text-[var(--vuln-ink-2)]">粘贴需要审计的源代码</label>
+              <select id="lang-select" class="text-xs bg-[var(--vuln-bg)] border border-[var(--vuln-line)] rounded px-2 py-1 text-[var(--vuln-ink)] focus:outline-none focus:ring-1 focus:ring-[var(--vuln-brand)]">
+                <option value="python">Python</option>
+                <option value="javascript">JavaScript</option>
+                <option value="typescript">TypeScript</option>
+                <option value="java">Java</option>
+                <option value="php">PHP</option>
+                <option value="go">Go</option>
+                <option value="html">HTML</option>
+              </select>
+            </div>
+            <textarea id="code-input" rows="10" class="w-full bg-[var(--vuln-bg)] border border-[var(--vuln-line)] rounded-md p-3 text-sm text-[var(--vuln-ink)] font-mono focus:outline-none focus:ring-2 focus:ring-[var(--vuln-brand)] resize-none" placeholder="import sqlite3&#10;def get_user(name):&#10;    c = sqlite3.connect('db').cursor()&#10;    c.execute(&quot;SELECT * FROM users WHERE name='&quot; + name + &quot;'&quot;)"></textarea>
           </div>
           <div id="panel-upload" role="tabpanel" class="tab-panel hidden">
-            <div id="upload-dropzone" class="border-2 border-dashed border-[var(--vuln-line)] rounded-md p-8 text-center bg-[var(--vuln-bg)] hover:border-[var(--vuln-brand)]/60 transition-colors cursor-pointer">
-              <svg class="w-8 h-8 mx-auto mb-2 text-[var(--vuln-ink-3)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                <polyline points="17 8 12 3 7 8"></polyline>
-                <line x1="12" y1="3" x2="12" y2="15"></line>
-              </svg>
-              <p id="upload-hint" class="text-sm text-[var(--vuln-ink-2)]">拖拽文件到此处，或点击选择</p>
-              <p class="text-xs text-[var(--vuln-ink-3)] mt-1">支持 .py、.js、.ts、.java、.php、.go 等</p>
-              <input id="upload-input" type="file" multiple class="hidden" aria-label="上传文件" />
+            <div id="dropzone" class="dropzone-animated rounded-lg p-8 text-center bg-[var(--vuln-bg)] cursor-pointer">
+              <div class="icon-box mx-auto mb-3">
+                <svg class="w-5 h-5 text-[var(--vuln-brand)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+              </div>
+              <p class="text-sm text-[var(--vuln-ink-2)]">拖拽文件到此处，或点击选择</p>
+              <p class="text-xs text-[var(--vuln-ink-3)] mt-1">支持 .py .js .ts .java .php .go .html</p>
+              <input id="file-input" type="file" multiple class="hidden" aria-label="上传文件" />
             </div>
-            <div id="upload-file-list" class="mt-2 space-y-1 text-xs text-[var(--vuln-ink-2)]"></div>
+            <div id="file-list" class="mt-3 space-y-1"></div>
           </div>
           <div id="panel-url" role="tabpanel" class="tab-panel hidden">
             <label for="url-input" class="block text-xs text-[var(--vuln-ink-2)] mb-2">目标站点 URL</label>
             <input id="url-input" type="url" class="w-full bg-[var(--vuln-bg)] border border-[var(--vuln-line)] rounded-md p-3 text-sm text-[var(--vuln-ink)] focus:outline-none focus:ring-2 focus:ring-[var(--vuln-brand)]" placeholder="https://example.com/api" />
-            <p class="text-xs text-[var(--vuln-ink-3)] mt-2">将对站点进行远程静态资源与端点分析。</p>
+            <p class="text-xs text-[var(--vuln-ink-3)] mt-2">将抓取站点内联与外链脚本，逐个做 LLM 安全分析。</p>
           </div>
           <div id="panel-github" role="tabpanel" class="tab-panel hidden">
             <label for="github-input" class="block text-xs text-[var(--vuln-ink-2)] mb-2">GitHub 仓库地址</label>
-            <input id="github-input" type="text" class="w-full bg-[var(--vuln-bg)] border border-[var(--vuln-line)] rounded-md p-3 text-sm text-[var(--vuln-ink)] focus:outline-none focus:ring-2 focus:ring-[var(--vuln-brand)]" placeholder="owner/repository" />
-            <p class="text-xs text-[var(--vuln-ink-3)] mt-2">默认拉取默认分支，最大扫描深度为 5 层目录。</p>
+            <input id="github-input" type="text" class="w-full bg-[var(--vuln-bg)] border border-[var(--vuln-line)] rounded-md p-3 text-sm text-[var(--vuln-ink)] focus:outline-none focus:ring-2 focus:ring-[var(--vuln-brand)]" placeholder="https://github.com/owner/repo" />
+            <label for="max-files-input" class="block text-xs text-[var(--vuln-ink-2)] mt-3 mb-2">最大扫描文件数</label>
+            <input id="max-files-input" type="number" value="20" min="1" max="200" class="w-full bg-[var(--vuln-bg)] border border-[var(--vuln-line)] rounded-md p-2.5 text-sm text-[var(--vuln-ink)] focus:outline-none focus:ring-2 focus:ring-[var(--vuln-brand)]" />
+            <p class="text-xs text-[var(--vuln-state-warning)] mt-2">大仓库扫描耗时较长，建议限制文件数。</p>
+          </div>
+        </div>
+
+        <!-- 高级选项 -->
+        <div class="mt-4">
+          <button id="advanced-toggle" type="button" class="w-full flex items-center justify-between text-xs text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] py-1.5">
+            <span class="font-medium">高级选项</span>
+            <svg id="advanced-chevron" class="w-4 h-4 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </button>
+          <div id="advanced-panel" class="hidden mt-2 space-y-2">
+            <div class="toggle-row flex items-center justify-between rounded-md px-3 py-2">
+              <span class="text-xs text-[var(--vuln-ink-2)]">推理后端</span>
+              <div class="flex gap-1 text-xs">
+                <label class="flex items-center gap-1 cursor-pointer"><input type="radio" name="backend" value="ollama" checked class="accent-[var(--vuln-brand)]"> Ollama</label>
+                <label class="flex items-center gap-1 cursor-pointer ml-2"><input type="radio" name="backend" value="vllm" class="accent-[var(--vuln-brand)]"> vLLM</label>
+              </div>
+            </div>
+            <div class="toggle-row flex items-center justify-between rounded-md px-3 py-2">
+              <span class="text-xs text-[var(--vuln-ink-2)]">多模型投票</span>
+              <input id="opt-multi-model" type="checkbox" class="accent-[var(--vuln-brand)]" />
+            </div>
+            <div id="model-select-wrap" class="hidden px-3 pb-2">
+              <p class="text-xs text-[var(--vuln-ink-3)] mb-1">选择参与投票的模型（≥2）</p>
+              <div id="model-checkboxes" class="space-y-1 max-h-32 overflow-y-auto"></div>
+            </div>
+            <div class="toggle-row flex items-center justify-between rounded-md px-3 py-2">
+              <span class="text-xs text-[var(--vuln-ink-2)]">外部工具扫描</span>
+              <input id="opt-external" type="checkbox" class="accent-[var(--vuln-brand)]" />
+            </div>
+            <div id="external-tools-info" class="hidden px-3 pb-1 text-xs text-[var(--vuln-ink-3)]"></div>
           </div>
         </div>
 
         <div class="mt-4 flex items-center justify-between text-xs text-[var(--vuln-ink-2)]">
-          <span id="engine-info">引擎: 检查中…</span>
-          <label class="flex items-center gap-1.5 cursor-pointer select-none">
-            <input id="rag-toggle" type="checkbox" checked class="accent-[var(--vuln-brand)] w-3.5 h-3.5" />
-            <span>RAG 增强</span>
-          </label>
+          <span id="engine-info">引擎: --</span>
+          <span id="health-status" class="flex items-center gap-1.5"><span class="badge-dot off"></span>检测中</span>
         </div>
 
         <div id="scan-progress" class="mt-4 hidden">
@@ -310,456 +546,786 @@
             <span id="scan-status" class="text-[var(--vuln-ink-2)]">正在初始化分析引擎…</span>
             <span id="scan-percent" class="text-[var(--vuln-brand)] font-mono">0%</span>
           </div>
-          <div class="progress-bar" aria-label="扫描进度">
+          <div class="progress-bar" id="progress-track" aria-label="扫描进度">
             <span id="scan-progress-fill"></span>
           </div>
         </div>
 
-        <button id="btn-analyze" type="button" class="mt-5 w-full inline-flex items-center justify-center gap-2 bg-[var(--vuln-brand)] hover:bg-[var(--vuln-brand-600)] text-white text-sm font-medium px-4 py-2.5 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--vuln-brand)] focus:ring-offset-2 focus:ring-offset-[var(--vuln-surface)]">
-          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-          </svg>
+        <div id="resource-warning" class="mt-4 p-3 rounded-md border border-[var(--vuln-state-warning)]/30 bg-[var(--vuln-state-warning)]/5">
+          <div class="flex items-start gap-2">
+            <svg class="w-4 h-4 mt-0.5 shrink-0 text-[var(--vuln-state-warning)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+            <div class="text-xs text-[var(--vuln-ink-2)] space-y-1">
+              <p class="font-medium text-[var(--vuln-ink)]">资源消耗提示</p>
+              <p>每次扫描调用本地 LLM 推理，单文件约 5-15 秒。批量扫描按文件数线性增长。</p>
+              <p>扫描期间请勿同时运行其他 GPU 密集任务，以免显存溢出（OOM）。</p>
+            </div>
+          </div>
+        </div>
+
+        <button id="btn-analyze" type="button" class="mt-5 w-full inline-flex items-center justify-center gap-2 bg-[var(--vuln-brand)] hover:bg-[var(--vuln-brand-600)] text-white text-sm font-medium px-4 py-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--vuln-brand)] focus:ring-offset-2 focus:ring-offset-[var(--vuln-surface)]">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
           开始分析
         </button>
       </section>
 
       <section class="results-panel" aria-label="扫描结果">
-        <div class="flex items-center justify-between mb-4">
+        <div class="results-header flex items-center justify-between mb-4 flex-wrap gap-3">
           <div class="flex items-center gap-3">
             <h2 class="text-lg font-semibold text-[var(--vuln-ink)]">检测结果</h2>
             <span id="result-count" class="text-xs text-[var(--vuln-ink-2)]">共 <strong class="text-[var(--vuln-ink)]">0</strong> 项</span>
           </div>
-          <div class="flex flex-wrap gap-2" role="group" aria-label="严重级别筛选">
-            <button type="button" data-filter="all" class="filter-chip active text-xs px-3 py-1.5 rounded-full border border-[var(--vuln-line)] bg-[var(--vuln-brand)]/10 text-[var(--vuln-brand)] font-medium">全部</button>
-            <button type="button" data-filter="critical" class="filter-chip text-xs px-3 py-1.5 rounded-full border border-[var(--vuln-line)] text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] hover:bg-[var(--vuln-surface-2)] transition-colors">严重</button>
-            <button type="button" data-filter="high" class="filter-chip text-xs px-3 py-1.5 rounded-full border border-[var(--vuln-line)] text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] hover:bg-[var(--vuln-surface-2)] transition-colors">高危</button>
-            <button type="button" data-filter="medium" class="filter-chip text-xs px-3 py-1.5 rounded-full border border-[var(--vuln-line)] text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] hover:bg-[var(--vuln-surface-2)] transition-colors">中危</button>
-            <button type="button" data-filter="low" class="filter-chip text-xs px-3 py-1.5 rounded-full border border-[var(--vuln-line)] text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] hover:bg-[var(--vuln-surface-2)] transition-colors">低危</button>
-            <button type="button" data-filter="none" class="filter-chip text-xs px-3 py-1.5 rounded-full border border-[var(--vuln-line)] text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] hover:bg-[var(--vuln-surface-2)] transition-colors">安全</button>
+          <div class="flex items-center gap-2 flex-wrap">
+            <div class="glass-card flex flex-wrap gap-2 rounded-full p-1.5" role="group" aria-label="严重级别筛选">
+              <button type="button" data-severity="all" class="filter-chip active text-xs px-3 py-1.5 rounded-full border border-[var(--vuln-line)] font-medium">全部</button>
+              <button type="button" data-severity="high" class="filter-chip text-xs px-3 py-1.5 rounded-full border border-[var(--vuln-line)] text-[var(--vuln-ink-2)] font-medium">高危</button>
+              <button type="button" data-severity="medium" class="filter-chip text-xs px-3 py-1.5 rounded-full border border-[var(--vuln-line)] text-[var(--vuln-ink-2)] font-medium">中危</button>
+              <button type="button" data-severity="low" class="filter-chip text-xs px-3 py-1.5 rounded-full border border-[var(--vuln-line)] text-[var(--vuln-ink-2)] font-medium">低危</button>
+              <button type="button" data-severity="info" class="filter-chip text-xs px-3 py-1.5 rounded-full border border-[var(--vuln-line)] text-[var(--vuln-ink-2)] font-medium">信息</button>
+            </div>
+            <button id="btn-download-report" type="button" class="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-full border border-[var(--vuln-line)] bg-[var(--vuln-surface)] text-[var(--vuln-ink-2)] hover:text-[var(--vuln-brand)] hover:border-[var(--vuln-brand)]/40 focus:outline-none focus:ring-2 focus:ring-[var(--vuln-brand)]" title="下载批量扫描报告 (Markdown)">
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+              下载报告
+            </button>
           </div>
         </div>
 
-        <div id="results-panel">
-          <div class="text-center py-16 text-[var(--vuln-ink-3)] text-sm">
-            <svg class="w-12 h-12 mx-auto mb-3 opacity-30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-            <p>点击「开始分析」启动漏洞扫描</p>
+        <div id="results-panel"></div>
+        <div id="result-empty" class="hidden text-center py-16 border border-dashed border-[var(--vuln-line)] rounded-lg">
+          <svg class="w-10 h-10 mx-auto mb-3 text-[var(--vuln-ink-3)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <p class="text-sm text-[var(--vuln-ink-2)]">暂无检测结果，请在左侧输入代码后点击「开始分析」。</p>
+        </div>
+        <div id="result-scanning" class="hidden text-center py-16">
+          <div class="icon-box mx-auto mb-3" style="animation: pulseBorder 1.5s infinite;">
+            <svg class="w-5 h-5 text-[var(--vuln-brand)] animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line></svg>
           </div>
+          <p class="text-sm text-[var(--vuln-ink-2)]">正在分析中，请稍候…</p>
         </div>
       </section>
     </main>
+
+    <div id="toast-container" class="fixed bottom-6 right-6 z-[100] flex flex-col gap-2 pointer-events-none"></div>
 
     <script>
       (function () {
         'use strict';
 
-        // ── DOM 引用 ──────────────────────────────────
-        var tabs = [
-          document.getElementById('tab-paste'),
-          document.getElementById('tab-upload'),
-          document.getElementById('tab-url'),
-          document.getElementById('tab-github')
-        ];
-        var panels = [
-          document.getElementById('panel-paste'),
-          document.getElementById('panel-upload'),
-          document.getElementById('panel-url'),
-          document.getElementById('panel-github')
-        ];
-        var tabKeys = ['paste', 'upload', 'url', 'github'];
-        var activeClass = ['text-[var(--vuln-brand)]', 'bg-[var(--vuln-brand)]/10'];
-        var inactiveClass = ['text-[var(--vuln-ink-2)]', 'hover:text-[var(--vuln-ink)]', 'hover:bg-[var(--vuln-surface-2)]'];
-        var currentTab = 'paste';
-        var uploadedFiles = [];
+        /* ==================== State ==================== */
+        var scanResults = [];
+        var currentFilter = 'all';
+        var healthInfo = null;
+        var selectedFiles = [];
+        var activeTab = 'paste';
 
+        /* ==================== Constants ==================== */
+        var RISK_TO_SEV = { critical: 'high', high: 'high', medium: 'medium', low: 'low', none: 'info', '': 'info' };
+        var SEV_LABEL = { high: '高危', medium: '中危', low: '低危', info: '信息' };
+        var SEV_ICON = 'error';
+        var LANG_EXT = { python: 'py', javascript: 'js', typescript: 'ts', java: 'java', php: 'php', go: 'go', html: 'html' };
+        var EXT_TO_LANG = { '.py': 'python', '.js': 'javascript', '.ts': 'typescript', '.jsx': 'javascript', '.tsx': 'typescript', '.java': 'java', '.php': 'php', '.go': 'go', '.html': 'html', '.htm': 'html', '.vue': 'javascript', '.svelte': 'javascript' };
+
+        /* ==================== DOM refs ==================== */
+        var tabs = ['paste', 'upload', 'url', 'github'].map(function (id) { return document.getElementById('tab-' + id); });
+        var panels = ['paste', 'upload', 'url', 'github'].map(function (id) { return document.getElementById('panel-' + id); });
+        var indicator = document.getElementById('tab-indicator');
         var analyzeBtn = document.getElementById('btn-analyze');
         var progressWrap = document.getElementById('scan-progress');
+        var progressTrack = document.getElementById('progress-track');
         var progressFill = document.getElementById('scan-progress-fill');
         var scanStatus = document.getElementById('scan-status');
         var scanPercent = document.getElementById('scan-percent');
         var resultsPanel = document.getElementById('results-panel');
+        var resultEmpty = document.getElementById('result-empty');
+        var resultScanning = document.getElementById('result-scanning');
         var resultCount = document.getElementById('result-count');
-        var activeFilter = 'all';
 
-        // ── 工具函数 ──────────────────────────────────
-        function esc(s) {
-          if (!s) return '';
-          return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        /* ==================== Tab switching ==================== */
+        function moveIndicator(index) {
+          var tab = tabs[index];
+          if (!tab || !indicator) return;
+          var wrapper = tab.parentElement;
+          var wrapperRect = wrapper.getBoundingClientRect();
+          var tabRect = tab.getBoundingClientRect();
+          indicator.style.transform = 'translateX(' + (tabRect.left - wrapperRect.left) + 'px)';
+          indicator.style.width = tabRect.width + 'px';
         }
 
-        function detectLang(filename) {
-          var ext = (filename.split('.').pop() || '').toLowerCase();
-          var map = {
-            py: 'python', js: 'javascript', ts: 'typescript', jsx: 'javascript', tsx: 'typescript',
-            java: 'java', go: 'go', php: 'php', c: 'c', h: 'c', cpp: 'cpp', cc: 'cpp', cxx: 'cpp',
-            cs: 'csharp', rb: 'ruby', rs: 'rust', swift: 'swift', kt: 'kotlin', scala: 'scala',
-            sh: 'bash', bash: 'bash', zsh: 'bash', pl: 'perl', lua: 'lua', r: 'r', sql: 'sql'
-          };
-          return map[ext] || 'unknown';
-        }
-
-        var riskMeta = {
-          critical: { label: '严重', color: 'error', icon: '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line>' },
-          high:     { label: '高危', color: 'error', icon: '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line>' },
-          medium:   { label: '中危', color: 'warning', icon: '<path d="M12 9v2m0 4h.01"></path><path d="M5.25 20h13.5a2.25 2.25 0 0 0 1.96-3.35L14.18 4.6a2.25 2.25 0 0 0-4.36 0L3.29 16.65A2.25 2.25 0 0 0 5.25 20z"></path>' },
-          low:      { label: '低危', color: 'info', icon: '<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line>' },
-          none:     { label: '安全', color: 'success', icon: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline>' }
-        };
-
-        function renderResultCard(r) {
-          var risk = (r.risk_level || 'none').toLowerCase();
-          var meta = riskMeta[risk] || riskMeta.none;
-          var isVuln = r.has_vulnerability;
-          var stateVar = 'var(--vuln-state-' + meta.color + ')';
-          var chunks = r.chunk_count > 1 ? ' · ' + r.chunk_count + ' chunks' : '';
-          var duration = r.duration ? ' · ' + r.duration.toFixed(1) + 's' : '';
-
-          var html = '<article class="result-card" data-risk="' + risk + '">';
-          html += '<div class="flex items-start justify-between gap-4 mb-3">';
-          html += '<div class="flex items-center gap-3">';
-          html += '<span class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold" style="background:' + stateVar + '1a;color:' + stateVar + ';border:1px solid ' + stateVar + '33">';
-          html += '<svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + meta.icon + '</svg>';
-          html += meta.label;
-          html += '</span>';
-          if (r.vulnerability_type && r.vulnerability_type !== 'none') {
-            html += '<span class="text-xs font-mono text-[var(--vuln-ink-3)]">' + esc(r.vulnerability_type) + '</span>';
-          }
-          html += '</div>';
-          if (r.raw_output) {
-            html += '<button type="button" class="toggle-code text-xs text-[var(--vuln-brand)] hover:text-[var(--vuln-brand-300)] font-medium" aria-expanded="false">展开详情</button>';
-          }
-          html += '</div>';
-
-          if (isVuln) {
-            html += '<h3 class="text-base font-semibold text-[var(--vuln-ink)] mb-1">' + esc(r.vulnerability_type) + '</h3>';
-          } else {
-            html += '<h3 class="text-base font-semibold text-[var(--vuln-state-success)] mb-1">未检测到漏洞</h3>';
-          }
-          html += '<p class="text-xs text-[var(--vuln-ink-3)] mb-2 font-mono">' + esc(r.filename) + chunks + duration + '</p>';
-
-          if (r.explanation) {
-            html += '<p class="text-sm text-[var(--vuln-ink-2)] mb-2">' + esc(r.explanation) + '</p>';
-          }
-          if (r.source && r.sink) {
-            html += '<p class="text-xs text-[var(--vuln-ink-3)] mb-2 font-mono">source: ' + esc(r.source) + ' → sink: ' + esc(r.sink) + '</p>';
-          }
-          if (r.fix_suggestion) {
-            html += '<div class="text-xs text-[var(--vuln-ink-2)] bg-[var(--vuln-bg)] border border-[var(--vuln-line)] rounded-md p-3 mb-2"><strong class="text-[var(--vuln-state-success)]">修复建议：</strong> ' + esc(r.fix_suggestion) + '</div>';
-          }
-          if (r.error) {
-            html += '<div class="text-xs text-[var(--vuln-state-error)] mb-2">错误: ' + esc(r.error) + '</div>';
-          }
-
-          if (r.raw_output) {
-            html += '<div class="code-block hidden" role="region" aria-label="LLM 原始输出"><pre class="text-xs text-[var(--vuln-ink-2)] whitespace-pre-wrap break-words font-mono p-3 bg-[var(--vuln-bg)] rounded-md border border-[var(--vuln-line)] overflow-x-auto">' + esc(r.raw_output) + '</pre></div>';
-          }
-          html += '</article>';
-          return html;
-        }
-
-        function renderSummary(summary) {
-          if (!summary) return '';
-          var s = summary;
-          var html = '<div class="mb-4 p-4 rounded-md bg-[var(--vuln-surface-2)] border border-[var(--vuln-line)] text-sm">';
-          html += '<div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">';
-          html += '<div><div class="text-2xl font-bold text-[var(--vuln-ink)]">' + (s.scanned || 0) + '</div><div class="text-xs text-[var(--vuln-ink-3)]">已扫描</div></div>';
-          html += '<div><div class="text-2xl font-bold text-[var(--vuln-state-error)]">' + (s.vulnerable || 0) + '</div><div class="text-xs text-[var(--vuln-ink-3)]">有漏洞</div></div>';
-          html += '<div><div class="text-2xl font-bold text-[var(--vuln-state-success)]">' + (s.safe || 0) + '</div><div class="text-xs text-[var(--vuln-ink-3)]">安全</div></div>';
-          html += '<div><div class="text-2xl font-bold text-[var(--vuln-state-warning)]">' + (s.errors || 0) + '</div><div class="text-xs text-[var(--vuln-ink-3)]">错误</div></div>';
-          html += '</div>';
-          if (s.total_duration) {
-            html += '<div class="text-xs text-[var(--vuln-ink-3)] text-center mt-2">总耗时 ' + s.total_duration.toFixed(1) + 's</div>';
-          }
-          html += '</div>';
-          return html;
-        }
-
-        function updateResults(results, summary) {
-          var html = '';
-          if (summary) html += renderSummary(summary);
-          var vulnResults = results.filter(function(r) { return r.has_vulnerability; });
-          var safeResults = results.filter(function(r) { return !r.has_vulnerability; });
-          // 漏洞在前，安全在后
-          vulnResults.forEach(function(r) { html += renderResultCard(r); });
-          safeResults.forEach(function(r) { html += renderResultCard(r); });
-
-          if (!results.length) {
-            html = '<div class="text-center py-12 text-[var(--vuln-ink-3)] text-sm">未找到可分析的脚本</div>';
-          }
-
-          resultsPanel.innerHTML = html;
-          resultCount.innerHTML = '共 <strong class="text-[var(--vuln-ink)]">' + results.length + '</strong> 项';
-          applyFilter();
-        }
-
-        function applyFilter() {
-          var cards = resultsPanel.querySelectorAll('.result-card');
-          cards.forEach(function(card) {
-            if (activeFilter === 'all' || card.getAttribute('data-risk') === activeFilter) {
-              card.style.display = '';
-            } else {
-              card.style.display = 'none';
-            }
-          });
-        }
-
-        // ── 进度条 ──────────────────────────────────
-        function showProgress(text) {
-          progressWrap.classList.remove('hidden');
-          scanStatus.textContent = text || '正在分析…';
-          progressFill.style.width = '5%';
-          scanPercent.textContent = '';
-        }
-        function updateProgress(pct, text) {
-          progressFill.style.width = pct + '%';
-          if (text) scanStatus.textContent = text;
-          scanPercent.textContent = pct + '%';
-        }
-        function hideProgress() {
-          progressWrap.classList.add('hidden');
-        }
-
-        function setBusy(busy) {
-          analyzeBtn.disabled = busy;
-          analyzeBtn.classList.toggle('opacity-60', busy);
-          analyzeBtn.classList.toggle('cursor-not-allowed', busy);
-        }
-
-        // ── Tab 切换 ──────────────────────────────────
         function switchTab(index) {
-          currentTab = tabKeys[index];
-          tabs.forEach(function(tab, i) {
+          activeTab = ['paste', 'upload', 'url', 'github'][index];
+          tabs.forEach(function (tab, i) {
             var selected = i === index;
             tab.setAttribute('aria-selected', String(selected));
-            tab.classList.remove.apply(tab.classList, activeClass.concat(inactiveClass));
+            tab.classList.remove('text-[var(--vuln-brand)]', 'text-[var(--vuln-ink-2)]', 'hover:text-[var(--vuln-ink)]');
             if (selected) {
-              tab.classList.add.apply(tab.classList, activeClass);
+              tab.classList.add('text-[var(--vuln-brand)]');
               panels[i].classList.remove('hidden');
+              panels[i].classList.remove('tab-panel-enter');
+              void panels[i].offsetWidth;
+              panels[i].classList.add('tab-panel-enter');
             } else {
-              tab.classList.add.apply(tab.classList, inactiveClass);
+              tab.classList.add('text-[var(--vuln-ink-2)]', 'hover:text-[var(--vuln-ink)]');
               panels[i].classList.add('hidden');
             }
           });
+          moveIndicator(index);
         }
-        tabs.forEach(function(tab, i) {
-          tab.addEventListener('click', function() { switchTab(i); });
+
+        tabs.forEach(function (tab, i) { tab.addEventListener('click', function () { switchTab(i); }); });
+        window.addEventListener('load', function () { moveIndicator(0); });
+        window.addEventListener('resize', function () {
+          var idx = tabs.findIndex(function (t) { return t.getAttribute('aria-selected') === 'true'; });
+          if (idx >= 0) moveIndicator(idx);
         });
 
-        // ── 文件上传 ──────────────────────────────────
-        var dropzone = document.getElementById('upload-dropzone');
-        var fileInput = document.getElementById('upload-input');
-        var fileListEl = document.getElementById('upload-file-list');
-
-        dropzone.addEventListener('click', function() { fileInput.click(); });
-        fileInput.addEventListener('change', function() {
-          uploadedFiles = Array.prototype.slice.call(fileInput.files);
-          renderFileList();
-        });
-        dropzone.addEventListener('dragover', function(e) {
-          e.preventDefault();
-          dropzone.classList.add('border-[var(--vuln-brand)]', 'bg-[var(--vuln-brand)]/5');
-        });
-        dropzone.addEventListener('dragleave', function() {
-          dropzone.classList.remove('border-[var(--vuln-brand)]', 'bg-[var(--vuln-brand)]/5');
-        });
-        dropzone.addEventListener('drop', function(e) {
-          e.preventDefault();
-          dropzone.classList.remove('border-[var(--vuln-brand)]', 'bg-[var(--vuln-brand)]/5');
-          uploadedFiles = Array.prototype.slice.call(e.dataTransfer.files);
-          renderFileList();
+        /* ==================== Advanced options toggle ==================== */
+        var advToggle = document.getElementById('advanced-toggle');
+        var advPanel = document.getElementById('advanced-panel');
+        var advChevron = document.getElementById('advanced-chevron');
+        advToggle.addEventListener('click', function () {
+          advPanel.classList.toggle('hidden');
+          advChevron.style.transform = advPanel.classList.contains('hidden') ? '' : 'rotate(180deg)';
         });
 
-        function renderFileList() {
-          if (!uploadedFiles.length) {
-            fileListEl.innerHTML = '';
-            return;
-          }
-          fileListEl.innerHTML = uploadedFiles.map(function(f, i) {
-            return '<div class="flex items-center justify-between px-2 py-1 rounded bg-[var(--vuln-surface-2)]">'
-              + '<span>' + esc(f.name) + ' <span class="text-[var(--vuln-ink-3)]">(' + (f.size / 1024).toFixed(1) + ' KB)</span></span>'
-              + '<button type="button" data-remove="' + i + '" class="text-[var(--vuln-state-error)] hover:text-red-400">✕</button>'
-              + '</div>';
-          }).join('');
-          fileListEl.querySelectorAll('[data-remove]').forEach(function(btn) {
-            btn.addEventListener('click', function() {
-              uploadedFiles.splice(parseInt(this.getAttribute('data-remove')), 1);
-              renderFileList();
-            });
+        var multiModelCb = document.getElementById('opt-multi-model');
+        var modelSelectWrap = document.getElementById('model-select-wrap');
+        multiModelCb.addEventListener('change', function () {
+          modelSelectWrap.classList.toggle('hidden', !multiModelCb.checked);
+        });
+
+        /* ==================== File upload ==================== */
+        var dropzone = document.getElementById('dropzone');
+        var fileInput = document.getElementById('file-input');
+        var fileListEl = document.getElementById('file-list');
+
+        dropzone.addEventListener('click', function () { fileInput.click(); });
+        fileInput.addEventListener('change', function () { handleFiles(fileInput.files); });
+        dropzone.addEventListener('dragover', function (e) { e.preventDefault(); dropzone.classList.add('dragover'); });
+        dropzone.addEventListener('dragleave', function () { dropzone.classList.remove('dragover'); });
+        dropzone.addEventListener('drop', function (e) {
+          e.preventDefault(); dropzone.classList.remove('dragover');
+          handleFiles(e.dataTransfer.files);
+        });
+
+        function handleFiles(fileObjs) {
+          selectedFiles = [];
+          fileListEl.innerHTML = '';
+          Array.from(fileObjs).forEach(function (f) {
+            selectedFiles.push(f);
+            var item = document.createElement('div');
+            item.className = 'flex items-center justify-between text-xs text-[var(--vuln-ink-2)] bg-[var(--vuln-bg)] rounded px-3 py-1.5 border border-[var(--vuln-line)]';
+            item.innerHTML = '<span class="truncate">' + escapeHtml(f.name) + '</span><span class="text-[var(--vuln-ink-3)] ml-2 shrink-0">' + (f.size / 1024).toFixed(1) + ' KB</span>';
+            fileListEl.appendChild(item);
           });
         }
 
-        // ── 健康检查 ──────────────────────────────────
-        function checkHealth() {
-          fetch('/api/health')
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-              var el = document.getElementById('engine-info');
-              if (data.ollama_connected && data.model_available) {
-                el.innerHTML = '引擎: <span class="text-[var(--vuln-state-success)]">●</span> ' + esc(data.model);
-              } else if (data.ollama_connected) {
-                el.innerHTML = '引擎: <span class="text-[var(--vuln-state-warning)]">●</span> 模型未就绪 (' + esc(data.model) + ')';
+        /* ==================== Health check ==================== */
+        function loadHealth() {
+          fetch('/api/health').then(function (r) { return r.json(); }).then(function (data) {
+            healthInfo = data;
+            var dot = document.querySelector('#health-status .badge-dot');
+            var statusText = document.querySelector('#health-status');
+            var engineInfo = document.getElementById('engine-info');
+
+            if (data.ollama_connected && data.model_available) {
+              dot.className = 'badge-dot on';
+              statusText.lastChild.textContent = ' Ollama 就绪';
+              engineInfo.textContent = '引擎: ' + (data.model || 'unknown');
+            } else if (data.vllm_connected) {
+              dot.className = 'badge-dot on';
+              statusText.lastChild.textContent = ' vLLM 就绪';
+              engineInfo.textContent = '引擎: vLLM';
+            } else {
+              dot.className = 'badge-dot off';
+              statusText.lastChild.textContent = ' 未就绪';
+              engineInfo.textContent = '引擎: 离线';
+            }
+
+            // Populate model checkboxes
+            var modelWrap = document.getElementById('model-checkboxes');
+            var models = data.available_models || [];
+            modelWrap.innerHTML = models.map(function (m) {
+              return '<label class="flex items-center gap-2 text-xs text-[var(--vuln-ink-2)] cursor-pointer"><input type="checkbox" value="' + escapeAttr(m) + '" class="model-cb accent-[var(--vuln-brand)]"> ' + escapeHtml(m) + '</label>';
+            }).join('') || '<p class="text-xs text-[var(--vuln-ink-3)]">无可用模型</p>';
+
+            // External tools info
+            var extInfo = document.getElementById('external-tools-info');
+            var tools = data.external_tools || [];
+            extInfo.classList.remove('hidden');
+            if (tools.length) {
+              extInfo.innerHTML = '已安装: ' + tools.map(escapeHtml).join(', ');
+            } else {
+              extInfo.innerHTML = '未检测到外部工具（Bandit/Semgrep/Gitleaks/Trivy），将返回空结果';
+            }
+          }).catch(function () {
+            var dot = document.querySelector('#health-status .badge-dot');
+            dot.className = 'badge-dot off';
+            document.querySelector('#health-status').lastChild.textContent = ' 连接失败';
+          });
+        }
+
+        /* ==================== Progress helpers ==================== */
+        function showProgress(indeterminate, text) {
+          progressWrap.classList.remove('hidden');
+          resultScanning.classList.remove('hidden');
+          resultEmpty.classList.add('hidden');
+          if (indeterminate) {
+            progressTrack.classList.add('indeterminate');
+            scanPercent.textContent = '…';
+          } else {
+            progressTrack.classList.remove('indeterminate');
+          }
+          if (text) scanStatus.textContent = text;
+        }
+        function setProgress(pct, text) {
+          progressTrack.classList.remove('indeterminate');
+          progressFill.style.width = pct + '%';
+          scanPercent.textContent = Math.round(pct) + '%';
+          if (text) scanStatus.textContent = text;
+        }
+        function hideProgress(text) {
+          progressFill.style.width = '100%';
+          scanPercent.textContent = '100%';
+          scanStatus.textContent = text || '扫描完成';
+          resultScanning.classList.add('hidden');
+          setTimeout(function () { progressWrap.classList.add('hidden'); }, 800);
+        }
+
+        function setBtnLoading(loading) {
+          analyzeBtn.disabled = loading;
+          analyzeBtn.classList.toggle('opacity-60', loading);
+          analyzeBtn.classList.toggle('cursor-not-allowed', loading);
+        }
+
+        /* ==================== Analyze dispatcher ==================== */
+        analyzeBtn.addEventListener('click', function () {
+          if (activeTab === 'paste') analyzePaste();
+          else if (activeTab === 'upload') analyzeUpload();
+          else if (activeTab === 'url') analyzeUrl();
+          else if (activeTab === 'github') analyzeGithub();
+        });
+
+        /* ---------- Paste mode ---------- */
+        function analyzePaste() {
+          var code = document.getElementById('code-input').value;
+          if (!code.trim()) { alert('请输入要分析的代码'); return; }
+          var lang = document.getElementById('lang-select').value;
+          var filename = 'pasted_code.' + (LANG_EXT[lang] || 'py');
+          var useVllm = document.querySelector('input[name="backend"]:checked').value === 'vllm';
+          var useMulti = multiModelCb.checked;
+          var useExternal = document.getElementById('opt-external').checked;
+
+          setBtnLoading(true);
+          scanResults = [];
+          renderResults();
+          showProgress(true, '正在调用 LLM 分析引擎…');
+
+          var promises = [];
+
+          // Main LLM scan
+          if (useMulti) {
+            var models = getSelectedModels();
+            if (models.length >= 2) {
+              promises.push(postJSON('/api/multi-model-scan', { code: code, language: lang, filename: filename, models: models }).then(function (d) {
+                d._kind = 'multi'; d._orig = code; d._lang = lang; return d;
+              }));
+            } else {
+              promises.push(singleAnalyze(code, lang, filename, useVllm));
+            }
+          } else {
+            promises.push(singleAnalyze(code, lang, filename, useVllm));
+          }
+
+          // External tools (parallel)
+          if (useExternal) {
+            promises.push(postJSON('/api/external-scan', { code: code, language: lang, filename: filename }).then(function (d) {
+              d._kind = 'external'; return d;
+            }));
+          }
+
+          Promise.allSettled(promises).then(function (settled) {
+            setBtnLoading(false);
+            scanResults = [];
+            settled.forEach(function (s) {
+              if (s.status !== 'fulfilled') return;
+              var d = s.value;
+              if (d && d.error) { scanResults.push(errorResult(d.error, filename)); return; }
+              if (d._kind === 'external') {
+                (d.findings || []).forEach(function (f) { scanResults.push(externalToResult(f)); });
               } else {
-                el.innerHTML = '引擎: <span class="text-[var(--vuln-state-error)]">●</span> Ollama 未连接';
+                scanResults.push(d);
               }
-            })
-            .catch(function() {
-              document.getElementById('engine-info').textContent = '引擎: 后端未响应';
             });
-        }
-
-        // ── 筛选器 ──────────────────────────────────
-        document.querySelectorAll('.filter-chip').forEach(function(chip) {
-          chip.addEventListener('click', function() {
-            document.querySelectorAll('.filter-chip').forEach(function(c) {
-              c.classList.remove('active', 'bg-[var(--vuln-brand)]/10', 'text-[var(--vuln-brand)]');
-              c.classList.add('text-[var(--vuln-ink-2)]');
-            });
-            this.classList.add('active', 'bg-[var(--vuln-brand)]/10', 'text-[var(--vuln-brand)]');
-            this.classList.remove('text-[var(--vuln-ink-2)]');
-            activeFilter = this.getAttribute('data-filter');
-            applyFilter();
+            hideProgress('扫描完成，共 ' + scanResults.length + ' 项结果');
+            renderResults();
           });
-        });
-
-        // ── 代码展开/收起（事件委托） ──────────────────
-        resultsPanel.addEventListener('click', function(e) {
-          var btn = e.target.closest('.toggle-code');
-          if (!btn) return;
-          var code = btn.closest('.result-card').querySelector('.code-block');
-          var expanded = !code.classList.contains('hidden');
-          code.classList.toggle('hidden');
-          btn.setAttribute('aria-expanded', String(!expanded));
-          btn.textContent = expanded ? '展开详情' : '收起详情';
-        });
-
-        // ── 主分析逻辑 ──────────────────────────────────
-        function getRag() {
-          return document.getElementById('rag-toggle').checked;
         }
 
-        async function analyzePaste() {
-          var code = document.getElementById('code-input').value.trim();
-          if (!code) { alert('请粘贴需要审计的代码'); return false; }
-          showProgress('正在分析代码…');
-          updateProgress(30, 'LLM 推理中…');
-          var res = await fetch('/api/analyze', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code: code, language: 'auto', filename: 'pasted_code.txt', use_rag: getRag() })
+        function singleAnalyze(code, lang, filename, useVllm) {
+          var url = useVllm ? '/api/vllm-analyze' : '/api/analyze';
+          return postJSON(url, { code: code, language: lang, filename: filename }).then(function (d) {
+            d._kind = useVllm ? 'vllm' : 'ollama'; d._orig = code; d._lang = lang; return d;
           });
-          updateProgress(90, '整理结果…');
-          var data = await res.json();
-          if (!res.ok) { throw new Error(data.error || '分析失败'); }
-          updateProgress(100, '完成');
-          updateResults([data], null);
-          return true;
         }
 
-        async function analyzeUpload() {
-          if (!uploadedFiles.length) { alert('请选择文件'); return false; }
+        function getSelectedModels() {
+          return Array.from(document.querySelectorAll('.model-cb:checked')).map(function (cb) { return cb.value; });
+        }
+
+        /* ---------- Upload mode (batch NDJSON stream) ---------- */
+        function analyzeUpload() {
+          if (!selectedFiles.length) { alert('请先选择文件'); return; }
+          setBtnLoading(true);
+          scanResults = [];
+          renderResults();
+          showProgress(false, '准备批量扫描…');
+          setProgress(0);
+
           var formData = new FormData();
-          uploadedFiles.forEach(function(f) { formData.append('files', f); });
-          formData.append('rag', getRag());
+          selectedFiles.forEach(function (f) { formData.append('files', f); });
+          formData.append('use_rag', '0');
 
-          showProgress('正在批量扫描…');
-          var res = await fetch('/api/batch', { method: 'POST', body: formData });
-          if (!res.ok) {
-            var err = await res.json().catch(function() { return {}; });
-            throw new Error(err.error || '批量扫描失败');
-          }
+          fetch('/api/batch', { method: 'POST', body: formData }).then(function (resp) {
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            var reader = resp.body.getReader();
+            var decoder = new TextDecoder();
+            var buffer = '';
+            var total = selectedFiles.length;
 
-          var reader = res.body.getReader();
-          var decoder = new TextDecoder();
-          var buffer = '';
-          var results = [];
-          var summary = null;
-
-          while (true) {
-            var chunk = await reader.read();
-            if (chunk.done) break;
-            buffer += decoder.decode(chunk.value, { stream: true });
-            var lines = buffer.split('\n');
-            buffer = lines.pop();
-            for (var i = 0; i < lines.length; i++) {
-              var line = lines[i].trim();
-              if (!line) continue;
-              var msg = JSON.parse(line);
-              if (msg.type === 'progress') {
-                var pct = msg.total > 0 ? Math.round(msg.scanned / msg.total * 100) : 0;
-                updateProgress(pct, '已扫描 ' + msg.scanned + '/' + msg.total + ' (' + (msg.result.filename || '') + ')');
-                if (msg.result) results.push(msg.result);
-              } else if (msg.type === 'done') {
-                summary = msg.summary;
+            function processLine(line) {
+              if (!line.trim()) return;
+              var data;
+              try { data = JSON.parse(line); } catch (e) { return; }
+              if (data.type === 'progress') {
+                var pct = (data.scanned / data.total) * 100;
+                setProgress(pct, '已扫描 ' + data.scanned + '/' + data.total + ' …');
+                if (data.result) {
+                  data.result._kind = 'ollama';
+                  scanResults.push(data.result);
+                  renderResults(true);
+                }
+              } else if (data.type === 'done') {
+                setBtnLoading(false);
+                var sum = data.summary || {};
+                hideProgress('批量扫描完成：' + (sum.vulnerable || 0) + ' 漏洞 / ' + (sum.safe || 0) + ' 安全 / ' + (sum.errors || 0) + ' 错误');
+                renderResults();
               }
             }
-          }
-          updateProgress(100, '完成');
-          updateResults(results, summary);
-          return true;
+
+            function pump() {
+              return reader.read().then(function (chunk) {
+                if (chunk.done) {
+                  if (buffer.trim()) processLine(buffer);
+                  setBtnLoading(false);
+                  if (scanResults.length === 0) { hideProgress('扫描完成'); renderResults(); }
+                  return;
+                }
+                buffer += decoder.decode(chunk.value, { stream: true });
+                var lines = buffer.split('\n');
+                buffer = lines.pop();
+                lines.forEach(processLine);
+                return pump();
+              });
+            }
+            return pump();
+          }).catch(function (err) {
+            setBtnLoading(false);
+            hideProgress('扫描失败');
+            scanResults = [errorResult(err.message, 'batch')];
+            renderResults();
+          });
         }
 
-        async function analyzeUrl() {
+        /* ---------- URL mode ---------- */
+        function analyzeUrl() {
           var url = document.getElementById('url-input').value.trim();
-          if (!url) { alert('请输入 URL'); return false; }
-          showProgress('正在抓取并扫描站点…');
-          updateProgress(20, '抓取页面脚本…');
-          var res = await fetch('/api/url-scan', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: url, use_rag: getRag() })
+          if (!url) { alert('请输入 URL'); return; }
+          setBtnLoading(true);
+          scanResults = [];
+          renderResults();
+          showProgress(true, '正在抓取站点并分析…');
+          postJSON('/api/url-scan', { url: url }).then(function (d) {
+            setBtnLoading(false);
+            if (d.error) { scanResults = [errorResult(d.error, url)]; }
+            else {
+              // 后端两种响应形态：有脚本时返回 {summary:{results:[...]}}，
+              // 无脚本时返回 {results:[], message:"..."}。此处统一兼容。
+              var results = d.results || (d.summary && d.summary.results) || [];
+              if (results.length) {
+                scanResults = results.map(function (r) { r._kind = 'ollama'; return r; });
+              } else {
+                scanResults = [safeResult(url, d.message || '未找到可分析脚本')];
+              }
+            }
+            hideProgress('URL 扫描完成');
+            renderResults();
+          }).catch(function (err) {
+            setBtnLoading(false);
+            hideProgress('扫描失败');
+            scanResults = [errorResult(err.message, url)];
+            renderResults();
           });
-          updateProgress(70, 'LLM 分析中…');
-          var data = await res.json();
-          if (!res.ok) { throw new Error(data.error || 'URL 扫描失败'); }
-          updateProgress(100, '完成');
-          var results = (data.summary && data.summary.results) || [];
-          updateResults(results, data.summary);
-          return true;
         }
 
-        async function analyzeGithub() {
+        /* ---------- GitHub mode ---------- */
+        function analyzeGithub() {
           var repo = document.getElementById('github-input').value.trim();
-          if (!repo) { alert('请输入 GitHub 仓库地址'); return false; }
-          // 补全 URL（owner/repo → https://github.com/owner/repo）
-          if (repo.indexOf('http') !== 0) {
-            repo = 'https://github.com/' + repo;
-          }
-          showProgress('正在克隆并扫描仓库…');
-          updateProgress(15, 'git clone 中…（最多 120s）');
-          var res = await fetch('/api/github-scan', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ repo_url: repo, use_rag: getRag() })
+          if (!repo) { alert('请输入 GitHub 仓库地址'); return; }
+          var maxFiles = parseInt(document.getElementById('max-files-input').value, 10) || 20;
+          setBtnLoading(true);
+          scanResults = [];
+          renderResults();
+          showProgress(true, '正在克隆仓库并扫描…（可能耗时数分钟）');
+          postJSON('/api/github-scan', { repo_url: repo, max_files: maxFiles }).then(function (d) {
+            setBtnLoading(false);
+            if (d.error) { scanResults = [errorResult(d.error, repo)]; }
+            else if (d.summary && d.summary.results) {
+              scanResults = d.summary.results.map(function (r) { r._kind = 'ollama'; return r; });
+            } else {
+              scanResults = [safeResult(repo, d.message || '仓库中未找到支持的代码文件')];
+            }
+            hideProgress('GitHub 扫描完成');
+            renderResults();
+          }).catch(function (err) {
+            setBtnLoading(false);
+            hideProgress('扫描失败');
+            scanResults = [errorResult(err.message, repo)];
+            renderResults();
           });
-          updateProgress(80, 'LLM 分析中…');
-          var data = await res.json();
-          if (!res.ok) { throw new Error(data.error || 'GitHub 扫描失败'); }
-          updateProgress(100, '完成');
-          var results = (data.summary && data.summary.results) || [];
-          updateResults(results, data.summary);
-          return true;
         }
 
-        // ── 绑定分析按钮 ──────────────────────────────────
-        analyzeBtn.addEventListener('click', async function() {
-          setBusy(true);
-          try {
-            var ok = false;
-            if (currentTab === 'paste') ok = await analyzePaste();
-            else if (currentTab === 'upload') ok = await analyzeUpload();
-            else if (currentTab === 'url') ok = await analyzeUrl();
-            else if (currentTab === 'github') ok = await analyzeGithub();
-            if (!ok) hideProgress();
-          } catch (err) {
-            hideProgress();
-            resultsPanel.innerHTML = '<div class="text-center py-12 text-[var(--vuln-state-error)] text-sm">⚠ ' + esc(err.message) + '</div>';
-            resultCount.innerHTML = '共 <strong class="text-[var(--vuln-ink)]">0</strong> 项';
-          } finally {
-            setBusy(false);
+        /* ==================== Result conversion helpers ==================== */
+        function externalToResult(f) {
+          return {
+            has_vulnerability: true,
+            vulnerability_type: f.rule_id || f.tool,
+            risk_level: capFirst(f.severity || 'medium'),
+            source: f.category.toUpperCase(),
+            sink: f.tool,
+            explanation: f.message,
+            fix_suggestion: '',
+            filename: f.filename,
+            _kind: 'external',
+            _category: f.category,
+            _tool: f.tool,
+            _line: f.line
+          };
+        }
+        function errorResult(msg, filename) {
+          return { has_vulnerability: null, error: msg, filename: filename || '', _kind: 'error' };
+        }
+        function safeResult(filename, msg) {
+          return { has_vulnerability: false, vulnerability_type: 'none', risk_level: 'None', explanation: msg || '未发现漏洞', filename: filename || '', _kind: 'safe' };
+        }
+        function capFirst(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+        /* ==================== Render results ==================== */
+        function renderResults(isStreaming) {
+          var filtered = scanResults.filter(function (r) {
+            if (currentFilter === 'all') return true;
+            var sev = resultSeverity(r);
+            return sev === currentFilter;
+          });
+
+          resultCount.innerHTML = '共 <strong class="text-[var(--vuln-ink)]">' + filtered.length + '</strong> 项';
+
+          if (scanResults.length === 0 && !isStreaming) {
+            resultsPanel.innerHTML = '';
+            resultEmpty.classList.remove('hidden');
+            return;
+          }
+          resultEmpty.classList.add('hidden');
+
+          resultsPanel.innerHTML = filtered.map(function (r, i) {
+            return cardHTML(r, i);
+          }).join('');
+
+          // re-trigger stagger animation
+          var cards = resultsPanel.querySelectorAll('.result-card');
+          cards.forEach(function (card, i) {
+            card.style.animation = 'none';
+            void card.offsetWidth;
+            card.style.animation = '';
+            card.style.animationDelay = (i * 60) + 'ms';
+          });
+        }
+
+        function resultSeverity(r) {
+          if (r.has_vulnerability === null || r._kind === 'error') return 'info';
+          if (r.has_vulnerability === false) return 'info';
+          var risk = (r.risk_level || '').toLowerCase();
+          return RISK_TO_SEV[risk] || 'info';
+        }
+
+        function cardHTML(r, index) {
+          var sev = resultSeverity(r);
+
+          // Error card
+          if (r.has_vulnerability === null || r._kind === 'error') {
+            return '<article class="result-card glass-card" data-severity="info" style="border-left:3px solid var(--vuln-state-error)">' +
+              '<div class="flex items-center gap-3 mb-2"><span class="icon-box-sm error inline-flex items-center justify-center rounded"><svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg></span>' +
+              '<span class="text-xs font-semibold text-[var(--vuln-state-error)]">分析失败</span></div>' +
+              '<p class="text-sm text-[var(--vuln-ink-2)]">' + escapeHtml(r.error || '未知错误') + '</p>' +
+              (r.filename ? '<p class="text-xs text-[var(--vuln-ink-3)] mt-1 font-mono">' + escapeHtml(r.filename) + '</p>' : '') +
+              '</article>';
+          }
+
+          // Safe card
+          if (r.has_vulnerability === false) {
+            return '<article class="result-card glass-card" data-severity="info" style="border-left:3px solid var(--vuln-state-success)">' +
+              '<div class="flex items-center gap-3 mb-2"><span class="icon-box-sm success inline-flex items-center justify-center rounded"><svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg></span>' +
+              '<span class="text-xs font-semibold text-[var(--vuln-state-success)]">安全</span></div>' +
+              '<h3 class="text-base font-semibold text-[var(--vuln-ink)] mb-1">' + escapeHtml(r.filename || '代码') + '</h3>' +
+              '<p class="text-sm text-[var(--vuln-ink-2)]">' + escapeHtml(r.explanation || '未发现漏洞') + '</p>' +
+              '</article>';
+          }
+
+          // Vulnerability card
+          var sevColor = sev === 'high' ? 'error' : (sev === 'medium' ? 'warning' : 'info');
+          var iconSvg = sev === 'high'
+            ? '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line>'
+            : (sev === 'medium'
+              ? '<path d="M12 9v2m0 4h.01"></path><path d="M5.25 20h13.5a2.25 2.25 0 0 0 1.96-3.35L14.18 4.6a2.25 2.25 0 0 0-4.36 0L3.29 16.65A2.25 2.25 0 0 0 5.25 20z"></path>'
+              : '<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line>');
+
+          var vulnType = r.vulnerability_type || 'detected';
+          var cweMatch = vulnType.match(/CWE[-\s]?\d+/i);
+          var cweLabel = cweMatch ? cweMatch[0].toUpperCase().replace(/\s/g, '-') : '';
+
+          var meta = '';
+          if (r._kind === 'external') {
+            meta = '<span class="text-xs font-mono text-[var(--vuln-ink-3)]">' + escapeHtml(r._tool) + ' · ' + escapeHtml(r._category) + (r._line ? ' · 第 ' + r._line + ' 行' : '') + '</span>';
+          } else if (r.filename) {
+            meta = '<span class="text-xs font-mono text-[var(--vuln-ink-3)]">' + escapeHtml(r.filename) + (r.duration ? ' · ' + r.duration + 's' : '') + '</span>';
+          }
+
+          // Multi-model vote info
+          var voteInfo = '';
+          if (r._kind === 'multi' && r.model_votes) {
+            var consensusLabel = { unanimous: '全票一致', majority: '多数票', split: '势均力敌' }[r.consensus] || r.consensus;
+            voteInfo = '<div class="flex items-center gap-2 mb-2 text-xs">' +
+              '<span class="px-2 py-0.5 rounded-full bg-[var(--vuln-brand)]/10 text-[var(--vuln-brand)] font-medium">' + consensusLabel + ' · ' + (r.agreement_ratio * 100).toFixed(0) + '%</span>' +
+              '<span class="text-[var(--vuln-ink-3)]">' + r.model_votes.map(function (v) { return v.model.split(':').pop() + ': ' + (v.verdict.has_vulnerability === true ? '有' : v.verdict.has_vulnerability === false ? '无' : 'err'); }).join(' · ') + '</span>' +
+              '</div>';
+          }
+
+          // Source → Sink
+          var flowInfo = '';
+          if (r.source && r.source !== 'N/A' && r.sink && r.sink !== 'N/A') {
+            flowInfo = '<div class="text-xs text-[var(--vuln-ink-2)] mb-2 flex items-center gap-1.5"><span class="px-1.5 py-0.5 rounded bg-[var(--vuln-state-error)]/10 text-[var(--vuln-state-error)] font-mono">' + escapeHtml(r.source) + '</span><span class="text-[var(--vuln-ink-3)]">→</span><span class="px-1.5 py-0.5 rounded bg-[var(--vuln-state-warning)]/10 text-[var(--vuln-state-warning)] font-mono">' + escapeHtml(r.sink) + '</span></div>';
+          }
+
+          var buttons = '<button type="button" class="toggle-code text-xs text-[var(--vuln-brand)] hover:text-[var(--vuln-brand-300)] font-medium" aria-expanded="false">展开详情</button>';
+          if (r._orig) {
+            buttons += '<button type="button" class="download-single text-xs text-[var(--vuln-ink-3)] hover:text-[var(--vuln-brand)] font-medium ml-3" data-code="' + escapeAttr(r._orig) + '" data-lang="' + escapeAttr(r._lang || 'python') + '" data-filename="' + escapeAttr(r.filename || 'code') + '">下载单文件报告</button>';
+          }
+          if (r.fix_suggestion && r.fix_suggestion !== 'no fix needed' && r._orig) {
+            buttons += '<button type="button" class="verify-fix text-xs text-[var(--vuln-state-success)] hover:opacity-80 font-medium ml-3" data-fix="' + escapeAttr(r.fix_suggestion) + '" data-orig="' + escapeAttr(r._orig) + '" data-lang="' + escapeAttr(r._lang || 'python') + '">验证修复</button>';
+          }
+
+          var detailContent = '';
+          if (r.fix_suggestion && r.fix_suggestion !== 'no fix needed') {
+            detailContent += '<p class="text-xs font-medium text-[var(--vuln-ink)] mb-1">修复建议</p><div class="text-xs text-[var(--vuln-ink-2)] mb-3 whitespace-pre-wrap">' + escapeHtml(r.fix_suggestion) + '</div>';
+          }
+          if (r.raw_output) {
+            detailContent += '<p class="text-xs font-medium text-[var(--vuln-ink)] mb-1">LLM 原始输出</p><div class="text-xs text-[var(--vuln-ink-3)] whitespace-pre-wrap">' + escapeHtml(r.raw_output) + '</div>';
+          }
+          if (r.explanation) {
+            detailContent = '<p class="text-xs font-medium text-[var(--vuln-ink)] mb-1">分析说明</p><div class="text-xs text-[var(--vuln-ink-2)] mb-3 whitespace-pre-wrap">' + escapeHtml(r.explanation) + '</div>' + detailContent;
+          }
+
+          return '<article class="result-card glass-card" data-severity="' + sev + '" style="border-left:3px solid var(--vuln-state-' + sevColor + ')">' +
+            '<div class="flex items-start justify-between gap-4 mb-3">' +
+              '<div class="flex items-center gap-3">' +
+                '<span class="icon-box-sm ' + sevColor + ' inline-flex items-center justify-center rounded"><svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + iconSvg + '</svg></span>' +
+                '<span class="text-xs font-semibold text-[var(--vuln-state-' + sevColor + ')]">' + SEV_LABEL[sev] + '</span>' +
+                (cweLabel ? '<span class="text-xs font-mono text-[var(--vuln-ink-3)]">' + cweLabel + '</span>' : '') +
+                (r._kind === 'external' ? '<span class="text-xs px-1.5 py-0.5 rounded bg-[var(--vuln-surface-2)] text-[var(--vuln-ink-2)]">外部工具</span>' : '') +
+                (r._kind === 'vllm' ? '<span class="text-xs px-1.5 py-0.5 rounded bg-[var(--vuln-surface-2)] text-[var(--vuln-ink-2)]">vLLM</span>' : '') +
+              '</div>' +
+              '<div class="flex items-center">' + buttons + '</div>' +
+            '</div>' +
+            '<h3 class="text-base font-semibold text-[var(--vuln-ink)] mb-1">' + escapeHtml(vulnType) + '</h3>' +
+            (meta ? '<p class="mb-2">' + meta + '</p>' : '') +
+            voteInfo +
+            flowInfo +
+            (r.explanation && r._kind !== 'error' ? '<p class="text-sm text-[var(--vuln-ink-2)] mb-3">' + escapeHtml(r.explanation.length > 200 ? r.explanation.slice(0, 200) + '…' : r.explanation) + '</p>' : '') +
+            '<div class="code-block" role="region" aria-label="详情">' + (detailContent || '无附加详情') + '</div>' +
+            '<div class="verify-result mt-2"></div>' +
+          '</article>';
+        }
+
+        /* ==================== Event delegation ==================== */
+        // Code expand/collapse
+        resultsPanel.addEventListener('click', function (e) {
+          var toggleBtn = e.target.closest('.toggle-code');
+          if (toggleBtn) {
+            var card = toggleBtn.closest('.result-card');
+            var code = card.querySelector('.code-block');
+            var expanded = !code.classList.contains('expanded');
+            code.classList.toggle('expanded');
+            toggleBtn.setAttribute('aria-expanded', String(expanded));
+            toggleBtn.textContent = expanded ? '收起详情' : '展开详情';
+            return;
+          }
+
+          var dlSingleBtn = e.target.closest('.download-single');
+          if (dlSingleBtn) {
+            downloadSingleReport(dlSingleBtn);
+            return;
+          }
+
+          var verifyBtn = e.target.closest('.verify-fix');
+          if (verifyBtn) {
+            runVerifyFix(verifyBtn);
+            return;
           }
         });
 
-        // ── 初始化 ──────────────────────────────────
-        checkHealth();
+        function runVerifyFix(btn) {
+          var fix = btn.getAttribute('data-fix');
+          var orig = btn.getAttribute('data-orig');
+          var lang = btn.getAttribute('data-lang') || 'python';
+          var resultEl = btn.closest('.result-card').querySelector('.verify-result');
+          btn.disabled = true;
+          btn.textContent = '验证中…';
+          resultEl.innerHTML = '<p class="text-xs text-[var(--vuln-ink-3)]">正在校验语法与危险模式移除…</p>';
+
+          postJSON('/api/verify-fix', { original_code: orig, fix_suggestion: fix, language: lang }).then(function (d) {
+            btn.disabled = false;
+            btn.textContent = '验证修复';
+            var syntaxBadge = d.syntax_valid
+              ? '<span class="text-[var(--vuln-state-success)]">语法通过</span>'
+              : '<span class="text-[var(--vuln-state-error)]">语法错误</span>';
+            var testBadge = d.tests_passed === true
+              ? '<span class="text-[var(--vuln-state-success)]">危险模式已移除</span>'
+              : (d.tests_passed === false ? '<span class="text-[var(--vuln-state-error)]">危险模式仍存在</span>' : '<span class="text-[var(--vuln-ink-3)]">无法判定</span>');
+            resultEl.innerHTML = '<div class="flex items-center gap-3 text-xs font-medium p-2 rounded-md bg-[var(--vuln-bg)] border border-[var(--vuln-line)]">' + syntaxBadge + ' · ' + testBadge + (d.error_message ? ' · <span class="text-[var(--vuln-state-error)]">' + escapeHtml(d.error_message) + '</span>' : '') + '</div>';
+          }).catch(function (err) {
+            btn.disabled = false;
+            btn.textContent = '验证修复';
+            resultEl.innerHTML = '<p class="text-xs text-[var(--vuln-state-error)]">验证失败: ' + escapeHtml(err.message) + '</p>';
+          });
+        }
+
+        /* ==================== Filter chips ==================== */
+        document.querySelectorAll('.filter-chip').forEach(function (chip) {
+          chip.addEventListener('click', function () {
+            var severity = this.getAttribute('data-severity') || 'all';
+            document.querySelectorAll('.filter-chip').forEach(function (c) {
+              c.classList.remove('active');
+              c.classList.add('text-[var(--vuln-ink-2)]');
+            });
+            this.classList.add('active');
+            this.classList.remove('text-[var(--vuln-ink-2)]');
+            currentFilter = severity;
+            renderResults();
+          });
+        });
+
+        /* ==================== Report download ==================== */
+        var batchReportBtn = document.getElementById('btn-download-report');
+        if (batchReportBtn) {
+          batchReportBtn.addEventListener('click', downloadBatchReport);
+        }
+
+        function downloadBatchReport() {
+          fetch('/api/report').then(function (r) {
+            if (r.status === 404) {
+              showToast('暂无扫描结果，请先进行扫描', 'warning');
+              return null;
+            }
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.blob();
+          }).then(function (blob) {
+            if (!blob) return;
+            triggerBlobDownload(blob, 'scan-report.md');
+            showToast('批量报告已下载', 'success');
+          }).catch(function (err) {
+            showToast('下载失败: ' + err.message, 'error');
+          });
+        }
+
+        function downloadSingleReport(btn) {
+          var code = btn.getAttribute('data-code');
+          var lang = btn.getAttribute('data-lang') || 'python';
+          var filename = btn.getAttribute('data-filename') || 'code';
+          if (!code) { showToast('无可用的代码内容', 'warning'); return; }
+          var prevText = btn.textContent;
+          btn.disabled = true;
+          btn.textContent = '生成中…';
+          fetch('/api/report/single', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: code, language: lang, filename: filename })
+          }).then(function (r) {
+            if (!r.ok) return r.json().then(function (d) { throw new Error(d.error || d.detail || ('HTTP ' + r.status)); });
+            return r.blob();
+          }).then(function (blob) {
+            triggerBlobDownload(blob, 'report-' + filename + '.md');
+            showToast('单文件报告已下载', 'success');
+          }).catch(function (err) {
+            showToast('下载失败: ' + err.message, 'error');
+          }).finally(function () {
+            btn.disabled = false;
+            btn.textContent = prevText;
+          });
+        }
+
+        function triggerBlobDownload(blob, filename) {
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }
+
+        /* ==================== Toast ==================== */
+        function showToast(message, type) {
+          type = type || 'info';
+          var container = document.getElementById('toast-container');
+          if (!container) return;
+          var toast = document.createElement('div');
+          toast.className = 'toast ' + type;
+          var icons = {
+            success: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline>',
+            error: '<circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line>',
+            warning: '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line>',
+            info: '<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line>'
+          };
+          toast.innerHTML = '<svg class="toast-icon w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (icons[type] || icons.info) + '</svg><span class="flex-1">' + escapeHtml(message) + '</span>';
+          container.appendChild(toast);
+          setTimeout(function () {
+            toast.classList.add('removing');
+            setTimeout(function () { if (toast.parentNode) toast.remove(); }, 250);
+          }, 3500);
+        }
+
+        /* ==================== Utils ==================== */
+        function postJSON(url, data) {
+          return fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+          }).then(function (r) {
+            if (!r.ok) return r.json().then(function (d) { throw new Error(d.error || d.detail || ('HTTP ' + r.status)); });
+            return r.json();
+          });
+        }
+
+        function escapeHtml(s) {
+          if (s == null) return '';
+          return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
+        }
+        function escapeAttr(s) {
+          if (s == null) return '';
+          return String(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        /* ==================== Init ==================== */
+        renderResults();
+        loadHealth();
       })();
     </script>
 </body>

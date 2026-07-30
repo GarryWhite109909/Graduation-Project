@@ -1,0 +1,432 @@
+"""
+正则预过滤模块 —— 在调用 LLM 之前对代码做传统规则预筛，构成"混合扫描"的第一层。
+
+设计目标：
+- 高精度规则：仅在"几乎一定是漏洞"或"几乎一定是安全"时给出初步判定，
+  模糊情形一律 preliminary_verdict=None 交给 LLM 复核。
+- 与 schema.py 中的 _VULN_SIGNATURE_PATTERNS / _detect_safe_pattern 思路一致，
+  但定位不同：schema.py 的 apply_safe_pattern_override 是 LLM 输出"之后"的兜底后处理，
+  本模块是 LLM 调用"之前"的前置预筛，可对明显样本直接短路，节省 token / 降低延迟。
+- matched_rules 记录命中规则名，便于实验日志追溯与消融分析。
+
+判定逻辑：
+- 命中安全模式且未命中漏洞特征 → preliminary_verdict=False（安全）
+- 命中漏洞特征且未命中安全模式 → preliminary_verdict=True（漏洞）
+- 两者都命中（模糊）或都没命中 → preliminary_verdict=None（交 LLM 复核）
+
+置信度：
+- 恰好命中一类（仅漏洞或仅安全）→ high
+- 漏洞与安全都命中（相互矛盾，模糊）→ medium
+- 都未命中（无强烈特征，需 LLM 细判）→ low
+
+注意：本模块为"高精度低召回"设计，宁可漏判（交给 LLM）也不可误判。
+正则无法理解语义，因此所有规则均为"强烈特征"匹配；注释/字符串字面量中的
+误匹配属于已知局限，由后续 LLM 层兜底纠偏。
+"""
+
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass, field
+from typing import Optional
+
+
+# ---------------------------------------------------------------------------
+# 规则数据结构
+# ---------------------------------------------------------------------------
+@dataclass
+class _Rule:
+    """单条预筛规则。
+
+    Args:
+        name: 规则名（命中后写入 PrefilterResult.matched_rules）
+        patterns: 规则依赖的正则列表
+        require_all: False=任一 pattern 命中即视为规则命中（OR 语义）；
+                     True=所有 pattern 都命中才视为命中（AND 语义，用于组合特征，
+                     如"参数化查询 = SQL 占位符 + execute 带参数元组"）
+        exclude: 任一 exclude pattern 命中则规则不命中（用于否定条件，
+                 如"列表形式 subprocess 且不含 shell=True"）
+        category: "vuln" 漏洞特征 / "safe" 安全特征
+    """
+    name: str
+    patterns: list[re.Pattern]
+    require_all: bool = False
+    exclude: list[re.Pattern] = field(default_factory=list)
+    category: str = "vuln"
+
+    def match(self, code: str) -> bool:
+        """判断给定代码是否命中本规则。"""
+        # 否定条件：命中任一 exclude 即不命中
+        for ex in self.exclude:
+            if ex.search(code):
+                return False
+        if self.require_all:
+            return all(p.search(code) for p in self.patterns)
+        return any(p.search(code) for p in self.patterns)
+
+
+# ---------------------------------------------------------------------------
+# 预筛结果
+# ---------------------------------------------------------------------------
+@dataclass
+class PrefilterResult:
+    """正则预筛结果。
+
+    Attributes:
+        has_obvious_vuln: 是否命中明显漏洞特征
+        has_obvious_safe: 是否命中明显安全特征
+        matched_rules: 命中的规则名列表（漏洞规则在前，安全规则在后）
+        preliminary_verdict: 初步判定。
+            - has_obvious_safe 且 not has_obvious_vuln → False（安全）
+            - has_obvious_vuln 且 not has_obvious_safe → True（漏洞）
+            - 否则（两者都命中或都没命中）→ None（交 LLM）
+        confidence: 置信度 "high" / "medium" / "low"
+    """
+    has_obvious_vuln: bool
+    has_obvious_safe: bool
+    matched_rules: list[str] = field(default_factory=list)
+    preliminary_verdict: Optional[bool] = None
+    confidence: str = "low"
+
+    def __repr__(self) -> str:
+        verdict_str = {True: "漏洞", False: "安全", None: "待定(交LLM)"}[self.preliminary_verdict]
+        return (f"PrefilterResult(vuln={self.has_obvious_vuln}, safe={self.has_obvious_safe}, "
+                f"verdict={verdict_str}, confidence={self.confidence}, rules={self.matched_rules})")
+
+
+# ---------------------------------------------------------------------------
+# 预过滤器
+# ---------------------------------------------------------------------------
+class Prefilter:
+    """基于正则的代码预筛器（LLM 调用前的前置规则层）。
+
+    所有正则统一使用 re.IGNORECASE：变量名（password / Password / PASSWORD）、
+    SQL 关键字（SELECT / select）大小写不一，忽略大小写可提升召回且不损精度
+    （Python 模块/函数名大小写敏感，但 IGNORECASE 对 os.system 等无害）。
+
+    规则按"高置信度强烈特征"选取，宁缺毋滥：模糊写法不纳入，留给 LLM。
+    """
+
+    def __init__(self) -> None:
+        # 漏洞特征规则（命中任一即视为"明显漏洞"，除非同时命中安全模式）
+        self.vuln_rules: list[_Rule] = self._build_vuln_rules()
+        # 安全特征规则（命中任一即视为"明显安全"，除非同时命中漏洞特征）
+        self.safe_rules: list[_Rule] = self._build_safe_rules()
+
+    # ------------------------------------------------------------------
+    # 规则构建
+    # ------------------------------------------------------------------
+    def _build_vuln_rules(self) -> list[_Rule]:
+        """构建漏洞特征规则集。"""
+        IC = re.IGNORECASE
+        rules: list[_Rule] = []
+
+        # --- SQL 注入：字符串拼接 / f-string / % 格式化进 execute ---
+        rules.append(_Rule(
+            name="sqli_string_concat",
+            patterns=[re.compile(r"\.execute\s*\(\s*['\"][^'\"]*['\"]\s*\+", IC)],
+            category="vuln",
+        ))
+        rules.append(_Rule(
+            name="sqli_fstring",
+            patterns=[re.compile(r"\.execute\s*\(\s*f['\"]", IC)],
+            category="vuln",
+        ))
+        rules.append(_Rule(
+            name="sqli_percent_format",
+            patterns=[re.compile(r"\.execute\s*\(\s*['\"][^'\"]*['\"]\s*%", IC)],
+            category="vuln",
+        ))
+
+        # --- 命令注入 ---
+        # os.system(... + 用户输入)
+        rules.append(_Rule(
+            name="cmd_os_system_concat",
+            patterns=[re.compile(r"os\.system\s*\([^)]*\+", IC)],
+            category="vuln",
+        ))
+        # subprocess.*(..., shell=True) 且调用内含字符串拼接
+        # 组合特征：必须同时出现 shell=True 与"subprocess 调用内含 +"，
+        # 二者缺一不可（单独 shell=True 已由 schema.py 后处理层覆盖，此处要求更严）
+        rules.append(_Rule(
+            name="cmd_subprocess_shell_concat",
+            patterns=[
+                re.compile(r"shell\s*=\s*True", IC),
+                re.compile(r"subprocess\.(?:run|Popen|call|check_output|check_call)\s*\([^)]*\+", IC),
+            ],
+            require_all=True,
+            category="vuln",
+        ))
+        # eval(request....) 远程代码执行
+        rules.append(_Rule(
+            name="rce_eval_request",
+            patterns=[re.compile(r"eval\s*\(\s*request", IC)],
+            category="vuln",
+        ))
+
+        # --- 路径穿越：open(... + 用户输入) ---
+        rules.append(_Rule(
+            name="path_traversal_open_concat",
+            patterns=[re.compile(r"open\s*\([^)]*\+", IC)],
+            category="vuln",
+        ))
+
+        # --- 硬编码敏感信息（字面量赋值，非 os.environ / os.getenv）---
+        # 模式天然排除环境变量：要求等号后紧跟引号字面量，
+        # os.environ["X"] / os.getenv("X") 等号后是标识符，不会命中
+        rules.append(_Rule(
+            name="hardcoded_secret",
+            patterns=[re.compile(
+                r"\b(?:password|passwd|pwd|api[_-]?key|api[_-]?secret|apikey|"
+                r"secret|secret[_-]?key|client[_-]?secret|token|"
+                r"access[_-]?token|auth[_-]?token)\s*=\s*['\"][^'\"]{3,}['\"]",
+                IC,
+            )],
+            category="vuln",
+        ))
+
+        # --- 不安全反序列化 ---
+        rules.append(_Rule(
+            name="deser_pickle_loads",
+            patterns=[re.compile(r"pickle\.loads\s*\(", IC)],
+            category="vuln",
+        ))
+        # yaml.load( / yaml.load_all( —— 注意排除 yaml.safe_load(
+        # 'yaml.load' 不是 'yaml.safe_load' 的子串，故该模式天然不匹配 safe_load
+        rules.append(_Rule(
+            name="deser_yaml_unsafe_load",
+            patterns=[re.compile(r"yaml\.load(?:_all)?\s*\(", IC)],
+            category="vuln",
+        ))
+
+        return rules
+
+    def _build_safe_rules(self) -> list[_Rule]:
+        """构建安全特征规则集。"""
+        IC = re.IGNORECASE
+        rules: list[_Rule] = []
+
+        # --- 参数化查询：SQL 字符串含 ?/% 占位符 + execute 带参数元组 ---
+        # 组合特征（AND）：占位符特征 + execute(...) 内含逗号（第二参数即参数元组）
+        # 能正确区分 "..." % uid（漏洞，% 运算符拼接）与 "...", (uid,)（安全，参数传递）
+        rules.append(_Rule(
+            name="parameterized_query",
+            patterns=[
+                re.compile(r"['\"][^'\"]*(?:SELECT|INSERT|UPDATE|DELETE|WHERE)[^'\"]*[?%][^'\"]*['\"]", IC),
+                re.compile(r"\.execute\s*\([^)]*,", IC),
+            ],
+            require_all=True,
+            category="safe",
+        ))
+
+        # --- 安全 subprocess：列表参数形式，且不含 shell=True ---
+        rules.append(_Rule(
+            name="subprocess_list_form",
+            patterns=[re.compile(r"subprocess\.(?:run|Popen|call|check_output|check_call)\s*\(\s*\[", IC)],
+            exclude=[re.compile(r"shell\s*=\s*True", IC)],
+            category="safe",
+        ))
+
+        # --- 路径校验：os.path.abspath + .startswith 白名单 ---
+        rules.append(_Rule(
+            name="path_abspath_startswith",
+            patterns=[
+                re.compile(r"os\.path\.abspath\s*\(", IC),
+                re.compile(r"\.startswith\s*\(", IC),
+            ],
+            require_all=True,
+            category="safe",
+        ))
+
+        # --- 安全反序列化：json.loads / yaml.safe_load ---
+        rules.append(_Rule(
+            name="safe_deserialization",
+            patterns=[
+                re.compile(r"json\.loads\s*\(", IC),
+                re.compile(r"yaml\.safe_load\s*\(", IC),
+            ],
+            category="safe",
+        ))
+
+        # --- 环境变量读取（非硬编码）---
+        rules.append(_Rule(
+            name="env_var",
+            patterns=[
+                re.compile(r"os\.environ\s*\[", IC),
+                re.compile(r"os\.getenv\s*\(", IC),
+            ],
+            category="safe",
+        ))
+
+        return rules
+
+    # ------------------------------------------------------------------
+    # 公共 API
+    # ------------------------------------------------------------------
+    def scan(self, code: str, language: str = "python") -> PrefilterResult:
+        """对代码运行全部漏洞 / 安全规则，返回预筛结果。
+
+        Args:
+            code: 待分析源代码文本
+            language: 语言标签（默认 python）。当前规则面向 Python 调优，
+                     其他语言仍会运行同样规则（shell=True / eval / open 等具
+                     一定跨语言普适性），属 best-effort。
+
+        Returns:
+            PrefilterResult：含初步判定与置信度。preliminary_verdict 为 None
+            表示需交 LLM 复核。
+        """
+        if not code:
+            return PrefilterResult(
+                has_obvious_vuln=False,
+                has_obvious_safe=False,
+                matched_rules=[],
+                preliminary_verdict=None,
+                confidence="low",
+            )
+
+        matched: list[str] = []
+        has_vuln = False
+        has_safe = False
+
+        # 先跑漏洞规则，再跑安全规则（matched_rules 顺序：漏洞在前，安全在后）
+        for rule in self.vuln_rules:
+            if rule.match(code):
+                has_vuln = True
+                matched.append(rule.name)
+        for rule in self.safe_rules:
+            if rule.match(code):
+                has_safe = True
+                matched.append(rule.name)
+
+        # 初步判定
+        if has_safe and not has_vuln:
+            verdict: Optional[bool] = False
+        elif has_vuln and not has_safe:
+            verdict = True
+        else:
+            # 两者都命中（矛盾，模糊）或都没命中（无强烈特征）→ 交 LLM
+            verdict = None
+
+        # 置信度
+        if has_vuln ^ has_safe:
+            # 恰好命中一类 → 高置信
+            confidence = "high"
+        elif has_vuln and has_safe:
+            # 矛盾特征共存 → 中置信（需 LLM 裁决）
+            confidence = "medium"
+        else:
+            # 无任何强烈特征 → 低置信
+            confidence = "low"
+
+        return PrefilterResult(
+            has_obvious_vuln=has_vuln,
+            has_obvious_safe=has_safe,
+            matched_rules=matched,
+            preliminary_verdict=verdict,
+            confidence=confidence,
+        )
+
+
+# ---------------------------------------------------------------------------
+# 模块级便捷函数
+# ---------------------------------------------------------------------------
+_DEFAULT_PREFILTER = Prefilter()
+
+
+def prefilter_code(code: str, language: str = "python") -> PrefilterResult:
+    """便捷函数：用默认 Prefilter 预筛代码。
+
+    等价于 ``Prefilter().scan(code, language)``，但复用单例避免重复构建规则。
+    """
+    return _DEFAULT_PREFILTER.scan(code, language=language)
+
+
+# ---------------------------------------------------------------------------
+# 自检
+# ---------------------------------------------------------------------------
+if __name__ == "__main__":
+    # (标签, 代码, 期望 preliminary_verdict, 期望 confidence)
+    cases: list[tuple[str, str, Optional[bool], str]] = [
+        # --- 漏洞特征 ---
+        ("SQL字符串拼接(漏洞)",
+         'cursor.execute("SELECT * FROM users WHERE id = " + uid)',
+         True, "high"),
+        ("SQL f-string(漏洞)",
+         'cursor.execute(f"SELECT * FROM users WHERE id = {uid}")',
+         True, "high"),
+        ("SQL %格式化(漏洞)",
+         'cursor.execute("SELECT * FROM users WHERE id = %s" % uid)',
+         True, "high"),
+        ("os.system拼接(漏洞)",
+         'os.system("ping " + host)',
+         True, "high"),
+        ("subprocess shell+拼接(漏洞)",
+         'subprocess.run("cat " + filename, shell=True)',
+         True, "high"),
+        ("eval(request)(漏洞)",
+         'result = eval(request.args.get("expr"))',
+         True, "high"),
+        ("路径拼接open(漏洞)",
+         'f = open("/data/" + filename)',
+         True, "high"),
+        ("硬编码口令(漏洞)",
+         'password = "admin12345"',
+         True, "high"),
+        ("pickle反序列化(漏洞)",
+         "data = pickle.loads(request.data)",
+         True, "high"),
+        ("yaml.load(漏洞)",
+         "cfg = yaml.load(stream)",
+         True, "high"),
+
+        # --- 安全特征 ---
+        ("参数化查询(安全)",
+         'cur.execute("SELECT * FROM users WHERE id = ?", (uid,))',
+         False, "high"),
+        ("列表subprocess(安全)",
+         'subprocess.run(["ls", "-l", target])',
+         False, "high"),
+        ("abspath+startswith(安全)",
+         'p = os.path.abspath(user_path)\nif not p.startswith("/safe/"):\n    abort()',
+         False, "high"),
+        ("json.loads(安全)",
+         "data = json.loads(text)",
+         False, "high"),
+        ("yaml.safe_load(安全)",
+         "cfg = yaml.safe_load(stream)",
+         False, "high"),
+        ("os.environ(安全)",
+         'api_key = os.environ["API_KEY"]',
+         False, "high"),
+        ("os.getenv(安全)",
+         'api_key = os.getenv("API_KEY", "default")',
+         False, "high"),
+
+        # --- 模糊 / 无特征 ---
+        ("模糊:参数化+硬编码(待定)",
+         'cur.execute("SELECT * FROM u WHERE id = ?", (uid,))\npassword = "hardcoded123"',
+         None, "medium"),
+        ("无害代码(待定)",
+         "x = 1 + 2\nprint(x)",
+         None, "low"),
+    ]
+
+    pf = Prefilter()
+    all_pass = True
+    for label, code, exp_verdict, exp_conf in cases:
+        r = pf.scan(code)
+        ok = (r.preliminary_verdict == exp_verdict and r.confidence == exp_conf)
+        all_pass = all_pass and ok
+        flag = "PASS" if ok else "FAIL"
+        print(f"[{flag}] {label}: verdict={r.preliminary_verdict}(期望{exp_verdict}), "
+              f"conf={r.confidence}(期望{exp_conf}), rules={r.matched_rules}")
+
+    # 便捷函数一致性检查
+    sample = 'cursor.execute("SELECT * FROM t WHERE id = " + uid)'
+    r1 = pf.scan(sample)
+    r2 = prefilter_code(sample)
+    assert r1 == r2, "prefilter_code 与 Prefilter.scan 结果不一致"
+    print(f"\n[{'PASS' if r1 == r2 else 'FAIL'}] 便捷函数一致性: {r2}")
+
+    print("\n=== 全部通过 ===" if all_pass and r1 == r2 else "\n=== 存在失败用例 ===")

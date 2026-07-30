@@ -1,0 +1,39 @@
+<!--
+  AI 漏洞扫描器 IntelliJ 插件描述文件。
+  注册 VulnScannerAction 动作，并声明通知组。
+  本插件为桩代码，需配合 IntelliJ Platform SDK 构建。
+-->
+<idea-plugin>
+    <id>com.graduation.vulnscanner</id>
+    <name>AI 漏洞扫描器</name>
+    <vendor email="graduation@example.com" url="https://github.com/graduation/vulnscanner">毕业设计</vendor>
+
+    <description><![CDATA[
+        基于大语言模型的代码安全审计 IntelliJ 插件。<br/>
+        选中编辑器中的代码，右键调用后端 /api/analyze 接口进行漏洞扫描，<br/>
+        结果以通知形式展示。需先启动后端服务（默认 http://localhost:8765）。
+    ]]></description>
+
+    <!-- 兼容的 IntelliJ Platform 版本范围 -->
+    <idea-version since-build="221" until-build="241.*"/>
+
+    <!-- 依赖：核心平台 API（通知、动作、编辑器） -->
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <!-- 注册通知组，供 VulnScannerAction 弹出结果通知 -->
+        <notificationGroup id="AI 漏洞扫描器" displayType="BALLOON" isLogByDefault="true"/>
+    </extensions>
+
+    <actions>
+        <!-- 注册扫描动作：编辑器右键菜单 + 工具菜单 -->
+        <action id="VulnScanner.ScanSelection"
+                class="com.graduation.vulnscanner.VulnScannerAction"
+                text="AI 漏洞扫描(_S)"
+                description="将选中代码发送到后端进行漏洞分析">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="ctrl shift V"/>
+        </action>
+    </actions>
+</idea-plugin>
