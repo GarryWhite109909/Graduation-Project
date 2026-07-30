@@ -2,12 +2,18 @@
 FastAPI 后端入口 —— 漏洞扫描器 API。
 
 路由：
-  GET  /api/health          健康检查（Ollama 连接 + 模型可用性）
-  POST /api/analyze         单文件分析（JSON body: code/language/filename）
-  POST /api/batch           批量扫描（multipart 文件上传）
-  POST /api/url-scan        URL 抓取扫描
-  POST /api/github-scan     GitHub 仓库扫描
-  GET  /api/report          下载最近一次批量扫描的 Markdown 报告
+  GET  /api/health            健康检查（Ollama + vLLM 连接、外部工具、各层开关）
+  GET  /api/stats             仪表盘统计（扫描历史汇总 + 最近动态 + 健康状态）
+  POST /api/analyze           单文件分析（JSON body: code/language/filename）
+  POST /api/batch             批量扫描（multipart 文件上传，NDJSON 流式进度）
+  POST /api/url-scan          URL 抓取扫描
+  POST /api/github-scan       GitHub 仓库扫描
+  POST /api/external-scan     外部工具扫描（Bandit/Semgrep/Gitleaks/Trivy）
+  POST /api/verify-fix        修复建议验证（语法校验 + 危险模式移除）
+  POST /api/multi-model-scan  多模型投票扫描
+  POST /api/vllm-analyze      vLLM 推理后端单文件分析
+  GET  /api/report            下载最近一次批量扫描的 Markdown 报告
+  POST /api/report/single     分析并下载单文件 Markdown 报告
 
 启动：
   uvicorn app.backend.main:app --host 127.0.0.1 --port 8765 --reload
@@ -122,7 +128,7 @@ class VllmAnalyzeRequest(BaseModel):
 app = FastAPI(
     title="AI 漏洞扫描器",
     description="基于 LLM 的代码安全审计系统 API",
-    version="1.0.0",
+    version="1.1.0",
 )
 
 app.add_middleware(

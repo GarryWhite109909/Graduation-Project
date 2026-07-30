@@ -1,8 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-CN" class="light">
+<html lang="zh-CN" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>(function(){try{var k='vuln-theme',s=localStorage.getItem(k),t=(s==='light'||s==='dark')?s:'dark';document.documentElement.classList.remove('light','dark');document.documentElement.classList.add(t);}catch(e){document.documentElement.classList.add('dark');}})();</script>
     <title>CWE 样本库</title>
     <style id="theme-vars">
 /* Vuln Scanner UI — Google-style clean analytical dashboard tokens */
@@ -226,6 +227,7 @@
         background-color: currentColor;
       }
     </style>
+    <link rel="stylesheet" href="./lively.css">
 </head>
 <body class="min-h-screen font-sans antialiased">
   <style id="critical-layout">
@@ -372,6 +374,20 @@
 
     :focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(66,133,244,0.2); }
     .dark :focus-visible { box-shadow: 0 0 0 3px rgba(252,44,80,0.25); }
+
+    /* === 灵动交互增强 — 弹跳/浮起/旋转 === */
+    .cwe-card { transition: transform 0.35s var(--ease-spring), opacity 0.2s var(--ease-smooth) !important; }
+    .glass-card:hover { transform: translateY(-8px) scale(1.025) !important; box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), 0 20px 50px rgba(14,17,21,0.14) !important; }
+    .dark .glass-card:hover { box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 20px 50px rgba(0,0,0,0.4) !important; }
+    .cwe-card:hover { transform: translateY(-8px) scale(1.03) !important; }
+    button:hover { transform: translateY(-2px); }
+    button:active { transform: scale(0.92); }
+    a:active { transform: scale(0.93); }
+    .filter-chip:not(.active):hover { transform: translateY(-3px) scale(1.06) !important; box-shadow: 0 8px 20px rgba(66,133,244,0.18); }
+    .dark .filter-chip:not(.active):hover { box-shadow: 0 8px 20px rgba(252,44,80,0.18); }
+    .filter-chip.active { transform: scale(1.06); }
+    .icon-box:hover { transform: scale(1.15) rotate(-6deg) !important; }
+    .view-detail:hover { transform: translateX(4px); }
 
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
@@ -982,5 +998,8 @@
       }
     })();
   </script>
+<link rel="stylesheet" href="./lively.css">
+<script src="./lively.js" defer></script>
+<script src="./theme.js" defer></script>
 </body>
 </html>

@@ -1,0 +1,372 @@
+/* ======================================================================
+   lively.css — 灵动交互层（悬浮 / 3D 倾斜 / 弹起 / 避开 / 入场）
+   通过独立 transform 属性组合，避免与既有 hover 规则冲突：
+   - translate 属性  → idle 悬浮（@property --float 插值）
+   - scale   属性    → 入场弹跳
+   - transform 属性  → 3D 倾斜 + hover 弹起（JS 设 --rx/--ry）
+   加载顺序在页面内联 <style> 之后，配合 !important 覆盖旧规则。
+   ====================================================================== */
+
+@property --float {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+:root {
+  --lv-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --lv-smooth: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ---- 关键帧 ---- */
+@keyframes lv-floaty {
+  0%, 100% { --float: 0px; }
+  50%      { --float: -7px; }
+}
+@keyframes lv-floaty-soft {
+  0%, 100% { --float: 0px; }
+  50%      { --float: -4px; }
+}
+@keyframes lv-in {
+  from { opacity: 0; scale: 0.92; }
+  to   { opacity: 1; scale: 1; }
+}
+
+/* ======================================================================
+   1) 倾斜卡片：article.glass-card / kpi / bento / cwe-card / chart-card ...
+   transform = 3D 倾斜（hover 时叠加弹起），translate = idle 悬浮，scale = 入场
+   ====================================================================== */
+.lv-tilt {
+  transform: perspective(1100px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) translateZ(0);
+  translate: 0 var(--float, 0px);
+  transform-style: preserve-3d;
+  will-change: transform;
+  animation:
+    lv-in 0.55s var(--lv-spring) both,
+    lv-floaty var(--fd, 5.2s) var(--lv-smooth) infinite var(--fdelay, 0s);
+  transition:
+    transform 420ms var(--lv-spring),
+    box-shadow 420ms var(--lv-smooth),
+    border-color 320ms var(--lv-smooth) !important;
+}
+.lv-tilt:hover {
+  transform: perspective(1100px)
+    rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg))
+    translateY(-12px) scale(1.03) translateZ(0) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    0 24px 60px rgba(14, 17, 21, 0.16) !important;
+  z-index: 5;
+}
+.dark .lv-tilt:hover {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 24px 60px rgba(0, 0, 0, 0.45) !important;
+}
+/* KPI / bento 略不同幅度，避免整齐划一 */
+.kpi-card.lv-tilt:hover {
+  transform: perspective(1100px)
+    rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg))
+    translateY(-10px) scale(1.045) translateZ(0) !important;
+}
+.bento-card.lv-tilt:hover {
+  transform: perspective(1100px)
+    rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg))
+    translateY(-11px) scale(1.025) translateZ(0) !important;
+}
+/* 表格行轻量弹起 */
+.remediation-table tbody tr.lv-tilt:hover {
+  transform: translateY(-3px) scale(1.005) !important;
+  background: var(--vuln-surface-2) !important;
+}
+
+/* ======================================================================
+   2) 磁吸控件：button / filter-chip / view-detail / nav a / 快捷入口
+   translate = 磁吸偏移（JS 设 --mx/--my），transform = hover 弹起
+   ====================================================================== */
+.lv-magnetic {
+  translate: var(--mx, 0px) var(--my, 0px);
+  will-change: translate;
+  transition:
+    translate 200ms var(--lv-spring),
+    transform 220ms var(--lv-spring),
+    background-color 300ms var(--lv-smooth),
+    color 300ms var(--lv-smooth),
+    box-shadow 300ms var(--lv-smooth) !important;
+}
+.lv-magnetic:hover {
+  transform: translateY(-3px) scale(1.05) !important;
+}
+button.lv-magnetic:active,
+.lv-magnetic:active {
+  transform: scale(0.93) !important;
+  translate: calc(var(--mx, 0px) * 0.4) calc(var(--my, 0px) * 0.4) !important;
+}
+.filter-chip.active.lv-magnetic {
+  transform: scale(1.06) !important;
+}
+
+/* ======================================================================
+   3) 图标盒：idle 悬浮 + hover 弹起旋转；内部 svg 避开光标
+   ====================================================================== */
+.icon-box {
+  translate: 0 var(--float, 0px);
+  will-change: transform, translate;
+  animation: lv-floaty var(--fd, 4.4s) var(--lv-smooth) infinite var(--fdelay, 0s);
+  transition: transform 320ms var(--lv-spring) !important;
+}
+.icon-box:hover {
+  transform: scale(1.2) rotate(-8deg) !important;
+}
+/* 内部 svg 避开光标（JS 设 --dx/--dy），与盒子自身的 transform 互不干扰 */
+.icon-box > svg,
+.lv-dodge {
+  transform: translate(var(--dx, 0px), var(--dy, 0px)) scale(var(--ds, 1));
+  transition: transform 200ms var(--lv-smooth);
+  will-change: transform;
+}
+
+/* KPI / 导航 logo 图标也参与“避开” */
+.kpi-card svg,
+nav[aria-label="主导航"] > div > div > svg,
+nav[aria-label="主导航"] svg {
+  transition: transform 200ms var(--lv-smooth);
+}
+
+/* ======================================================================
+   4) 态势评分环：idle 呼吸
+   ====================================================================== */
+.score-ring {
+  animation: lv-floaty-soft 6s var(--lv-smooth) infinite;
+  will-change: transform;
+}
+
+/* ---- 滚动条优化（覆盖） ---- */
+.lv-tilt, .icon-box { backface-visibility: hidden; }
+
+/* ---- 无障碍：尊重减少动效 ---- */
+@media (prefers-reduced-motion: reduce) {
+  .lv-tilt, .icon-box, .score-ring, .lv-magnetic, .lv-dodge,
+  .icon-box > svg {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+    translate: 0 0 !important;
+    scale: 1 !important;
+  }
+}
+
+/* ======================================================================
+   6) 毛玻璃背景层 + iOS27/鸿蒙7 级液态玻璃
+   原理：玻璃要“透”，背后必须有明暗交错、色彩丰富、颗粒度细的内容。
+   单张卡片下要能捕获多层色调，玻璃才会显现真实通透感。
+   因此用一张自然抽象图作 body 背景（fixed + cover），替代稀疏光球。
+   玻璃参数：高 blur(40px)+saturate(190%)、低透明度透出背景、
+   顶部内反光 + 边缘高光，模拟 iOS27 Liquid Glass / 鸿蒙7 玻璃质感。
+   ====================================================================== */
+body {
+  background-color: var(--vuln-bg) !important;
+  background-image: url("./bg-light.jpg") !important;
+  background-size: cover !important;
+  background-position: center !important;
+  background-attachment: fixed !important;
+  background-repeat: no-repeat !important;
+}
+.dark body {
+  background-image: url("./bg-dark.jpg") !important;
+}
+
+/* 液态玻璃：透出背景明暗，保留文字可读性 */
+.glass-card {
+  background: rgba(255, 255, 255, 0.42) !important;
+  backdrop-filter: blur(40px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(40px) saturate(190%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.55) !important;
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.7),
+    inset 0 -1px 1px rgba(255, 255, 255, 0.15),
+    0 8px 32px rgba(14, 17, 21, 0.10) !important;
+}
+.dark .glass-card {
+  background: rgba(29, 29, 28, 0.42) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.18),
+    inset 0 -1px 1px rgba(255, 255, 255, 0.04),
+    0 8px 32px rgba(0, 0, 0, 0.35) !important;
+}
+
+/* ======================================================================
+   7) 主题切换按钮（玻璃质感，与导航栏融合）
+   ====================================================================== */
+.theme-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  margin-left: 0.5rem;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.42);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  color: var(--vuln-ink);
+  cursor: pointer;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.6), 0 2px 8px rgba(14, 17, 21, 0.08);
+  transition: transform var(--dur-fast, 150ms) var(--lv-spring, cubic-bezier(0.34, 1.56, 0.64, 1)),
+    background-color 260ms var(--lv-smooth, cubic-bezier(0.22, 1, 0.36, 1)),
+    border-color 260ms var(--lv-smooth, cubic-bezier(0.22, 1, 0.36, 1)),
+    color 260ms var(--lv-smooth, cubic-bezier(0.22, 1, 0.36, 1)) !important;
+}
+.theme-toggle-btn svg { width: 18px; height: 18px; }
+.theme-toggle-btn:hover {
+  transform: translateY(-2px) scale(1.06) !important;
+  border-color: var(--vuln-brand);
+  color: var(--vuln-brand);
+}
+.theme-toggle-btn:active { transform: scale(0.9) !important; }
+.dark .theme-toggle-btn {
+  background: rgba(29, 29, 28, 0.42);
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.18), 0 2px 8px rgba(0, 0, 0, 0.3);
+  color: var(--vuln-ink);
+}
+.dark .theme-toggle-btn:hover {
+  border-color: var(--vuln-brand);
+  color: var(--vuln-brand);
+}
+
+/* ======================================================================
+   8) 主题切换过渡动画
+   - View Transitions API：整页快照 cross-fade（现代浏览器）
+   - 降级：过渡期间给关键元素加颜色 transition
+   - 尊重 prefers-reduced-motion
+   ====================================================================== */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 420ms;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+::view-transition-old(root) { animation-name: vt-fade-out; }
+::view-transition-new(root) { animation-name: vt-fade-in; }
+@keyframes vt-fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+@keyframes vt-fade-in {
+  from { opacity: 0; transform: scale(1.015); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* 降级路径：过渡期间关键元素颜色平滑变化（瞬切时也有渐变） */
+.theme-transitioning,
+.theme-transitioning .glass-card,
+.theme-transitioning .nav-glass,
+.theme-transitioning body,
+.theme-transitioning .theme-toggle-btn {
+  transition:
+    background-color 420ms cubic-bezier(0.22, 1, 0.36, 1),
+    color 420ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 420ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 420ms cubic-bezier(0.22, 1, 0.36, 1) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) { animation: none !important; }
+  .theme-transitioning,
+  .theme-transitioning * { transition: none !important; }
+}
+
+/* ======================================================================
+   9) 图表交互与立体感
+   - 评分环：呼吸动画（不被 .glass-card 的 transform 覆盖）
+   - 柱状图柱子：hover 上浮 + 提亮 + 阴影，模拟立体
+   ====================================================================== */
+.score-ring {
+  /* 关键：必须用 translate 消费 --float，否则 lv-floaty-soft 只改属性无位移 */
+  translate: 0 var(--float, 0px);
+  animation: lv-floaty-soft 6s var(--lv-smooth, cubic-bezier(0.22, 1, 0.36, 1)) infinite !important;
+  will-change: transform, translate;
+}
+.score-ring-progress {
+  transition: stroke-dashoffset 1s var(--lv-smooth, cubic-bezier(0.22, 1, 0.36, 1));
+  filter: drop-shadow(0 0 6px rgba(66, 133, 244, 0.35));
+}
+.dark .score-ring-progress {
+  filter: drop-shadow(0 0 6px rgba(252, 44, 80, 0.4));
+}
+
+/* 柱状图柱子 hover 立体效果 */
+.bar-group rect {
+  transition: transform 280ms var(--lv-spring, cubic-bezier(0.34, 1.56, 0.64, 1)),
+    opacity 280ms var(--lv-smooth, cubic-bezier(0.22, 1, 0.36, 1)),
+    filter 280ms var(--lv-smooth, cubic-bezier(0.22, 1, 0.36, 1));
+  transform-box: fill-box;
+  transform-origin: center bottom;
+}
+.bar-group:hover rect {
+  transform: translateY(-4px) scaleY(1.04);
+  opacity: 1 !important;
+  filter: brightness(1.12) drop-shadow(0 6px 12px rgba(14, 17, 21, 0.18));
+}
+.bar-group:hover text { font-weight: 700; }
+
+/* ======================================================================
+   10) 仪表盘 donut 图交互
+   - 进入图表区域：未悬停段淡化，聚焦被悬停段
+   - 激活段：加粗描边 + 提亮 + 外发光阴影，模拟外凸立体
+   - 图例联动：高亮项加粗、左移、提色
+   - 中心文字由 JS 切换（百分比 / 标签）
+   ====================================================================== */
+.donut-seg {
+  transition:
+    stroke-width 280ms var(--lv-spring, cubic-bezier(0.34, 1.56, 0.64, 1)),
+    filter 280ms var(--lv-smooth, cubic-bezier(0.22, 1, 0.36, 1)),
+    opacity 220ms var(--lv-smooth, cubic-bezier(0.22, 1, 0.36, 1)) !important;
+}
+/* 进入 donut 区域时，所有段轻微淡化，等待聚焦 */
+#chart-donut:hover .donut-seg { opacity: 0.42; }
+/* 被激活的段：恢复全亮 + 加粗 + 发光外凸 */
+.donut-seg-active {
+  opacity: 1 !important;
+  stroke-width: 19 !important;
+  filter: brightness(1.2) drop-shadow(0 0 7px rgba(14, 17, 21, 0.28)) !important;
+}
+.dark .donut-seg-active {
+  filter: brightness(1.25) drop-shadow(0 0 8px rgba(0, 0, 0, 0.5)) !important;
+}
+/* 中心数字切换时的微弹 */
+#donut-center-num,
+#donut-center-label {
+  transition: transform 220ms var(--lv-spring, cubic-bezier(0.34, 1.56, 0.64, 1));
+}
+#donut-center-num { transform-box: fill-box; transform-origin: center; }
+
+/* 图例联动高亮 */
+#donut-legend li {
+  transition:
+    transform 220ms var(--lv-spring, cubic-bezier(0.34, 1.56, 0.64, 1)),
+    color 220ms var(--lv-smooth, cubic-bezier(0.22, 1, 0.36, 1)),
+    font-weight 220ms var(--lv-smooth, cubic-bezier(0.22, 1, 0.36, 1));
+  cursor: default;
+}
+#donut-legend li.legend-active {
+  color: var(--vuln-ink) !important;
+  font-weight: 700;
+  transform: translateX(5px);
+}
+#donut-legend li.legend-active span {
+  transform: scale(1.35);
+  box-shadow: 0 0 8px rgba(14, 17, 21, 0.25);
+}
+#donut-legend li span {
+  transition: transform 220ms var(--lv-spring, cubic-bezier(0.34, 1.56, 0.64, 1)),
+    box-shadow 220ms var(--lv-smooth, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .donut-seg, #donut-legend li, #donut-legend li span,
+  #donut-center-num, #donut-center-label {
+    transition: none !important;
+  }
+}
