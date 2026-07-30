@@ -7,27 +7,14 @@
 [![状态](https://img.shields.io/badge/状态-P3%20DPO%20本地不可行，方向待决策-orange)](规划.md)
 [![License](https://img.shields.io/badge/License-MIT-lightgrey)]()
 
-## 快速开始
-
-```bash
-git clone <repo-url> && cd Graduation-Project
-pip install -r requirements.txt && pip install -e .
-
-# 启动（自动检测/安装 Ollama → 拉取模型 → 启动后端 → 打开浏览器）
-bash app/launcher/start_linux_macos.sh    # Linux / macOS
-app\launcher\start_windows.bat            # Windows
-```
-
-首次启动会自动完成：
-1. 安装 Ollama（如未安装）
-2. 拉取模型 `garrywhite109909/graduation-vuln-scanner:v5`（约 5GB，Q4 量化）
-3. 启动 Web 服务并打开浏览器 → http://localhost:8765
-
-> 前置条件：Python 3.10+、pip。启动脚本首次运行会自动安装 Python 依赖。
-
 ## 目录
 
 - [快速开始](#快速开始)
+- [使用指南](#使用指南)
+  - [Web 界面](#web-界面)
+  - [命令行工具 CLI](#命令行工具-cli)
+  - [VS Code 插件](#vs-code-插件)
+  - [IntelliJ 插件](#intellij-插件)
 - [核心结果](#核心结果)
 - [当前状态与待决策](#当前状态与待决策)
 - [项目简介](#项目简介)
@@ -36,9 +23,391 @@ app\launcher\start_windows.bat            # Windows
 - [当前进度](#当前进度)
 - [研究主线与实验体系](#研究主线与实验体系)
 - [技术架构与全栈](#技术架构与全栈)
-- [复现方式](#复现方式)
-- [参考资源](#参考资源)
+- [模型部署与版本管理](#模型部署与版本管理)
+- [实验复现](#实验复现)
 - [评估方法学](#评估方法学)
+- [参考资源](#参考资源)
+- [故障排查](#故障排查)
+- [约定与备注](#约定与备注)
+
+***
+
+## 快速开始
+
+### 前置条件
+
+| 条件 | 要求 | 说明 |
+|------|------|------|
+| 操作系统 | Windows 10+ / Linux / macOS | 三平台均支持 |
+| Python | 3.10+ | 启动脚本会检测并自动安装依赖 |
+| pip | 任意可用版本 | 首次运行自动 `pip install -r requirements.txt && pip install -e .` |
+| 磁盘空间 | ≥ 8 GB | 模型权重约 5 GB + 依赖包约 2 GB + 向量库缓存 |
+| 内存 | ≥ 8 GB | 模型推理需要占用内存；8 GB 为最低线，16 GB 以上更流畅 |
+| GPU（可选） | NVIDIA ≥ 4 GB / Apple Silicon | 无 GPU 时自动回退 CPU 推理（速度约为 GPU 的 1/10） |
+| Ollama | 首次运行自动安装 | 若自动安装失败，请手动从 [ollama.com/download](https://ollama.com/download) 安装 |
+| git（可选） | 任意版本 | 仅 GitHub 仓库扫描功能需要 |
+| 网络 | 首次需要联网 | 下载依赖包 + Ollama 模型；后续可离线运行 |
+
+### 路径一：终端用户（只想用扫描器）
+
+适合只想使用漏洞扫描功能、不需要复现实验的用户。一条命令搞定。
+
+```bash
+git clone <repo-url> && cd Graduation-Project
+
+# Windows
+app\launcher\start_windows.bat
+
+# Linux / macOS
+bash app/launcher/start_linux_macos.sh
+```
+
+启动脚本会自动完成以下全部步骤：
+
+1. **检测并安装 Python 依赖**——首次运行自动执行 `pip install -r requirements.txt && pip install -e .`
+2. **检测并安装 Ollama**——未安装时自动通过 winget（Windows）/ Homebrew（macOS）/ 官方脚本（Linux）安装
+3. **启动 Ollama 服务**——确保 `ollama serve` 在后台运行
+4. **硬件检测与自适应配置**——自动检测 GPU/CPU/RAM，按显存分档选择推理参数（`num_ctx` / `num_gpu` / 量化等级）
+5. **拉取模型**——自动下载 `garrywhite109909/graduation-vuln-scanner:v5`（约 5 GB，Q4 量化）；若拉取失败则回退到官方 `qwen3:8b`
+6. **启动后端**——FastAPI 服务监听 `http://127.0.0.1:8765`
+7. **打开浏览器**——自动跳转到 `http://localhost:8765`
+
+> 首次启动因需下载模型（约 5 GB），耗时取决于网速，请耐心等待。后续启动通常 10 秒内完成。
+
+### 路径二：开发者 / 复现实验
+
+适合需要复现实验、修改代码或参与开发的用户。需手动管理 conda 环境。
+
+```bash
+git clone <repo-url> && cd Graduation-Project
+
+# 1. 创建并激活 conda 环境（推荐）
+conda create -n graproj python=3.11 -y
+conda activate graproj
+
+# 2. 安装依赖 + 注册核心包
+pip install -r requirements.txt
+pip install -e .
+
+# 3. 启动扫描器（与路径一相同的启动脚本，但使用当前 conda 环境）
+bash app/launcher/start_linux_macos.sh    # Linux / macOS
+app\launcher\start_windows.bat            # Windows
+
+# 4. 复现实验（详见「实验复现」章节）
+ollama pull qwen2.5-coder:7b              # 实验基座模型
+cd experiments/exp_01_basic_scan && python3 run_experiment.py
+```
+
+> **环境约定**：所有实验脚本（尤其 exp_03 / exp_04 RAG 相关）依赖 `chromadb`、`sentence-transformers` 等包，这些只在 `graproj` conda 环境中安装。请在运行任何实验前激活该环境，否则会出现 `ModuleNotFoundError`。
+
+### 手动启动（不用启动脚本）
+
+如果不想用启动脚本（例如已在 IDE 中配置好环境），可以手动分步启动：
+
+```bash
+# 1. 确保 Ollama 运行
+ollama serve &
+
+# 2. 确保模型已拉取
+ollama pull garrywhite109909/graduation-vuln-scanner:v5
+
+# 3. 启动后端
+uvicorn app.backend.main:app --host 127.0.0.1 --port 8765
+
+# 4. 浏览器访问
+open http://localhost:8765        # macOS
+xdg-open http://localhost:8765    # Linux
+start http://localhost:8765       # Windows
+```
+
+### 环境变量配置
+
+启动器和后端通过以下环境变量控制行为，按需设置：
+
+| 环境变量 | 默认值 | 说明 |
+|----------|--------|------|
+| `VULN_SCANNER_MODEL` | `garrywhite109909/graduation-vuln-scanner:v5` | Ollama 模型名 |
+| `VULN_SCANNER_FALLBACK_MODEL` | `qwen3:8b` | 主模型拉取失败时的回退模型 |
+| `VULN_SCANNER_RAG` | `0` | 设为 `1` 启用 RAG 知识库增强 |
+| `VULN_SCANNER_PREFILTER` | `1` | 设为 `0` 关闭传统工具预筛 |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama 服务地址 |
+| `VULN_SCANNER_NUM_CTX` | 自动检测 | 模型上下文窗口大小 |
+| `VULN_SCANNER_NUM_GPU` | 自动检测 | GPU 层数（0 = 纯 CPU） |
+| `VULN_SCANNER_NUM_THREAD` | 自动检测 | CPU 推理线程数 |
+
+***
+
+## 使用指南
+
+系统提供**四种**使用方式：**Web 界面**、**命令行工具**、**VS Code 插件**、**IntelliJ 插件**。四种方式暂时共享同一个后端服务，功能对等。
+
+### Web 界面
+
+启动后端后浏览器访问 `http://localhost:8765`，包含四个页面：
+
+#### 页面总览
+
+| 页面 | 路径 | 功能 |
+|------|------|------|
+| 仪表盘 | `/index.html` | 扫描历史统计、引擎健康状态、最近发现漏洞一览 |
+| 扫描工作台 | `/scan.html` | 核心扫描入口，支持四种输入方式 |
+| CWE 样本库 | `/cwe.html` | 16 类常见 CWE 漏洞的代码示例与修复方案（可搜索） |
+| 安全态势 | `/posture.html` | 安全态势总览 |
+
+#### 扫描工作台使用
+
+扫描工作台是核心功能页，提供四种扫描输入方式（Tab 切换）：
+
+**1. 粘贴代码**
+
+1. 选择「粘贴代码」Tab
+2. 在语言下拉框中选择代码语言（Python / JavaScript / TypeScript / Java / PHP / Go / HTML）
+3. 在文本框中粘贴源代码
+4. 点击「开始分析」按钮
+5. 等待 LLM 推理完成（单文件约 5-15 秒），结果区显示漏洞判定、CWE 类型、风险等级、漏洞说明与修复建议
+
+**2. 上传文件**
+
+1. 选择「上传文件」Tab
+2. 将文件拖拽到上传区域，或点击区域选择文件（支持多文件）
+3. 点击「开始分析」按钮
+4. 批量扫描时显示实时进度条（已扫描 / 总数），逐个文件返回结果
+5. 扫描完成后可点击「下载报告」按钮导出 Markdown 格式报告
+
+**3. URL 扫描**
+
+1. 选择「URL」Tab
+2. 输入目标站点 URL（如 `https://example.com`）
+3. 点击「开始分析」按钮
+4. 系统自动抓取页面中的 `<script>` 标签内容，逐个扫描
+5. 结果显示页面标题、发现脚本数、各脚本的漏洞分析
+
+**4. GitHub 仓库扫描**
+
+1. 选择「GitHub」Tab
+2. 输入仓库地址（如 `https://github.com/user/repo`）
+3. 设置最大扫描文件数（默认 20，大仓库建议限制）
+4. 点击「开始分析」按钮
+5. 系统浅克隆仓库 → 遍历代码文件 → 批量扫描，完成后显示汇总
+
+#### 高级选项
+
+在扫描工作台点击「高级选项」可展开：
+
+| 选项 | 说明 |
+|------|------|
+| 多模型投票 | 勾选后选择 ≥ 2 个模型，系统顺序加载各模型并投票聚合结果（更准但更慢） |
+| 外部工具扫描 | 勾选后同时调用 Bandit / Semgrep / Gitleaks / Trivy 做传统规则扫描，结果与 LLM 分析融合展示 |
+
+#### 结果展示
+
+每个文件的扫描结果包含：
+
+- **漏洞判定**：发现漏洞 / 安全 / 无法判定
+- **CWE 类型**：如 CWE-89 SQL 注入
+- **风险等级**：Critical / High / Medium / Low
+- **Source & Sink**：污点来源与触发点（如适用）
+- **漏洞说明**：自然语言解释漏洞原理
+- **修复建议**：可执行的修复代码或方案
+- **模型原始输出**：LLM 的完整 JSON 输出
+
+#### API 文档
+
+后端提供完整的 REST API，访问 `http://localhost:8765/docs` 查看 Swagger 交互文档。主要端点：
+
+| 方法 | 路径 | 功能 |
+|------|------|------|
+| GET | `/api/health` | 健康检查（Ollama + vLLM + 外部工具状态） |
+| GET | `/api/stats` | 仪表盘统计数据 |
+| POST | `/api/analyze` | 单文件分析（JSON body） |
+| POST | `/api/batch` | 批量扫描（文件上传，NDJSON 流式进度） |
+| POST | `/api/url-scan` | URL 抓取扫描 |
+| POST | `/api/github-scan` | GitHub 仓库扫描 |
+| POST | `/api/external-scan` | 外部工具扫描（Bandit/Semgrep/Gitleaks/Trivy） |
+| POST | `/api/verify-fix` | 修复建议验证（语法校验 + 危险模式检查） |
+| POST | `/api/multi-model-scan` | 多模型投票扫描 |
+| POST | `/api/vllm-analyze` | vLLM 推理后端单文件分析 |
+| GET | `/api/report` | 下载最近批量扫描的 Markdown 报告 |
+| POST | `/api/report/single` | 分析并下载单文件 Markdown 报告 |
+
+API 调用示例（以单文件分析为例）：
+
+```bash
+curl -X POST http://localhost:8765/api/analyze \
+  -H "Content-Type: application/json" \
+  -d '{
+    "code": "import sqlite3\ndef get_user(name):\n    c = sqlite3.connect(\"db\").cursor()\n    c.execute(\"SELECT * FROM users WHERE name='\''\" + name + \"'\''\")",
+    "language": "python",
+    "filename": "vuln.py"
+  }'
+```
+
+### 命令行工具 CLI
+
+CLI 工具直接复用 `Scanner` 引擎，**无需启动 FastAPI 后端**即可使用。适合脚本化批量扫描或 CI/CD 集成。
+
+```bash
+python -m app.launcher.vuln_scanner_cli <command> [options]
+```
+
+#### 命令一览
+
+| 命令 | 功能 | 示例 |
+|------|------|------|
+| `health` | 健康检查（Ollama 连接 + 模型可用性） | `python -m app.launcher.vuln_scanner_cli health` |
+| `scan <file>` | 扫描单个文件 | `python -m app.launcher.vuln_scanner_cli scan app/main.py` |
+| `batch <dir>` | 批量扫描目录下所有代码文件 | `python -m app.launcher.vuln_scanner_cli batch ./src --output report.md` |
+| `url <url>` | 扫描 URL 抓取的脚本 | `python -m app.launcher.vuln_scanner_cli url https://example.com` |
+| `github <repo>` | 扫描 GitHub 仓库（浅克隆） | `python -m app.launcher.vuln_scanner_cli github https://github.com/user/repo` |
+
+#### 全局参数
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `--model` | `garrywhite109909/graduation-vuln-scanner:v5` | Ollama 模型名 |
+| `--ollama-url` | `http://localhost:11434` | Ollama 服务地址 |
+| `--rag` | 关闭 | 启用 RAG 知识库增强（较慢但更准） |
+| `--format` | `text` | 输出格式：`text`（终端着色）或 `json`（结构化） |
+
+#### 常用示例
+
+```bash
+# 健康检查
+python -m app.launcher.vuln_scanner_cli health
+
+# 扫描单个文件，显示详细分析（含说明与修复建议）
+python -m app.launcher.vuln_scanner_cli scan app/main.py --verbose
+
+# 扫描单个文件，启用 RAG，输出 JSON 并保存
+python -m app.launcher.vuln_scanner_cli scan app/main.py --rag --format json --output result.json
+
+# 批量扫描目录，导出 Markdown 报告
+python -m app.launcher.vuln_scanner_cli batch ./src --output report.md
+
+# 批量扫描，限制最多 20 个文件，不递归子目录
+python -m app.launcher.vuln_scanner_cli batch ./src --limit 20 --no-recursive
+
+# 扫描 GitHub 仓库，最多 50 个文件
+python -m app.launcher.vuln_scanner_cli github https://github.com/user/repo --max-files 50 --output repo_report.md
+
+# 切换模型
+python -m app.launcher.vuln_scanner_cli --model qwen2.5-coder:7b scan app/main.py
+```
+
+#### 支持的文件类型
+
+`.py` `.js` `.ts` `.jsx` `.tsx` `.java` `.php` `.go` `.html` `.htm` `.vue` `.svelte`
+
+### VS Code 插件
+
+VS Code 插件提供编辑器内直接扫描、诊断标记和工作区批量扫描功能。
+
+#### 安装
+
+**方式 A：从源码安装（开发模式）**
+
+```bash
+cd app/vscode-extension
+npm install        # 如有依赖
+# 在 VS Code 中按 F5 启动扩展开发宿主调试
+```
+
+**方式 B：打包后安装**
+
+```bash
+cd app/vscode-extension
+npx vsce package   # 生成 vuln-scanner-0.2.0.vsix
+# 在 VS Code 扩展面板 → ⋯ → 从 VSIX 安装
+```
+
+#### 前置条件
+
+1. VS Code ≥ 1.80
+2. 后端服务已启动（`http://localhost:8765` 可访问），或通过设置指定后端地址
+
+#### 命令
+
+| 命令 | 触发方式 | 功能 |
+|------|----------|------|
+| AI 漏洞扫描: 分析当前文件 | 右键菜单 / 命令面板 / 编辑器标题栏图标 | 扫描当前打开的文件 |
+| AI 漏洞扫描: 批量扫描工作区 | 命令面板 | 扫描工作区所有代码文件 |
+| AI 漏洞扫描: 扫描指定文件夹 | 右键资源管理器中的文件夹 | 扫描指定目录 |
+| AI 漏洞扫描: 清除所有诊断标记 | 命令面板 | 清除编辑器中的波浪线标记 |
+
+#### 配置项
+
+在 VS Code 设置中搜索 `vulnScanner` 配置：
+
+| 配置项 | 默认值 | 说明 |
+|--------|--------|------|
+| `vulnScanner.backendUrl` | `http://localhost:8765` | 后端服务地址 |
+| `vulnScanner.useRag` | `false` | 是否启用 RAG 知识库增强 |
+| `vulnScanner.markDiagnostics` | `true` | 发现漏洞时在编辑器中标记波浪线 |
+| `vulnScanner.autoScanOnSave` | `false` | 保存文件时自动扫描（实验性） |
+| `vulnScanner.workspaceExclude` | `["**/node_modules/**", ...]` | 批量扫描时排除的 glob 模式 |
+| `vulnScanner.workspaceMaxFiles` | `50` | 批量扫描最多扫描文件数 |
+| `vulnScanner.requestTimeout` | `300000` | 单次请求超时时间（毫秒） |
+
+#### 使用流程
+
+1. 启动后端服务（见「快速开始」）
+2. 在 VS Code 中打开项目
+3. 打开任意代码文件 → 右键 → 「AI 漏洞扫描: 分析当前文件」
+4. 扫描结果以 Webview 面板展示；若启用诊断标记，漏洞行会显示波浪线
+5. 如需批量扫描：命令面板 → 「AI 漏洞扫描: 批量扫描工作区」
+
+### IntelliJ 插件
+
+IntelliJ 插件为毕业设计演示用桩代码，提供选中代码的扫描功能（结果以通知形式展示）。
+
+#### 前置条件
+
+1. **JDK 17+**（IntelliJ Platform 最低要求）
+2. **网络可访问**（Gradle 需下载 IntelliJ Platform SDK）
+3. **后端服务已启动**：`http://localhost:8765/api/health` 可访问
+
+#### 构建与调试
+
+**方式一：在 IntelliJ IDEA 中打开**
+
+1. 用 IntelliJ IDEA 打开 `app/intellij-extension/` 目录
+2. 等待 Gradle 同步完成
+3. 执行 Gradle 任务 `runIde` 启动沙盒 IDE
+4. 在沙盒 IDE 中打开代码文件 → 右键 → 「AI 漏洞扫描」
+
+**方式二：命令行构建**
+
+```bash
+cd app/intellij-extension
+./gradlew buildPlugin    # 生成插件 zip 到 build/distributions/
+./gradlew runIde         # 在沙盒 IDE 中运行调试
+```
+
+#### 使用方式
+
+1. 启动后端服务
+2. 在编辑器中选中要扫描的代码（未选中时扫描整个文件）
+3. 右键 → 「AI 漏洞扫描」（快捷键 `Ctrl+Shift+V`）
+4. 结果以气球通知形式弹出
+
+#### 配置
+
+后端地址硬编码在 `VulnScannerAction.java` 的 `BACKEND_URL` 常量中。如需修改，编辑该常量后重新构建：
+
+```java
+private static final String BACKEND_URL = "http://localhost:8765/api/analyze";
+```
+
+#### 与 VS Code 插件的差异
+
+| 特性 | VS Code 插件 | IntelliJ 插件 |
+|------|-------------|--------------|
+| 结果展示 | Webview 面板 | 通知（Notification） |
+| 诊断标记 | 波浪线诊断 | 暂未实现 |
+| 批量扫描 | 支持 | 暂未实现 |
+| 后端 API | `/api/analyze` | `/api/analyze` |
+
+> 完整的 IntelliJ 插件文档见 [app/intellij-extension/README.md](app/intellij-extension/README.md)。
 
 ***
 
@@ -523,7 +892,7 @@ LLM 单样本推理耗时高于传统工具，但输出包含自然语言解释�
 
 ***
 
-## 复现方式
+## 模型部署与版本管理
 
 ### 模型发布与部署（给别人用）
 
@@ -601,6 +970,8 @@ ollama push garrywhite109909/graduation-vuln-scanner:v5
 - 克隆/编译 `llama.cpp`
 - 转换为 `f16` GGUF，再量化为 `Q4_K_M`（约 4.7GB，**适配 8GB 显存**）
 - 生成 `Modelfile` 并执行 `ollama create`
+
+## 实验复现
 
 ### 环境准备（所有实验的前置步骤，只需执行一次）
 
@@ -813,6 +1184,55 @@ CI = [center - margin, center + margin]
 
 - **单次口径**：所有 run 拉平统计（如 42 样本 × 3 次 = 126 次判定），适合和 exp\_01\~03 历史数据对比
 - **多数表决口径**：每个样本 N 次投票后的最终判定，更贴近实际使用场景
+
+***
+
+## 故障排查
+
+### 启动相关
+
+| 问题 | 原因 | 解决方案 |
+|------|------|----------|
+| `ModuleNotFoundError: No module named 'app.launcher.bootstrap'` | 未在项目根目录 `Graduation-Project/` 下运行 | 确保 `cd Graduation-Project` 后再执行启动脚本；`start_windows.bat` 已内置 `cd /d "%~dp0\..\.."` 自动切到根目录 |
+| `pip install` 找不到 `requirements.txt` 或 `pyproject.toml` | 当前目录不是项目根目录 | `cd Graduation-Project` 后再 `pip install -r requirements.txt && pip install -e .` |
+| `ModuleNotFoundError: No module named 'fastapi'`（或 `chromadb` / `tree_sitter` 等） | 依赖未安装或未激活正确的 conda 环境 | 路径一：重新运行启动脚本（会自动安装）；路径二：`conda activate graproj` 后重新 `pip install -r requirements.txt` |
+| 启动器提示 `Ollama 自动安装失败` | winget/brew 不可用或网络问题 | 手动从 [ollama.com/download](https://ollama.com/download) 下载安装，安装后重启终端再运行启动脚本 |
+| 启动器提示 `Ollama 已安装但不在 PATH 中` | 安装后 PATH 未刷新 | 重启终端；或手动将 Ollama 安装路径加入系统 PATH |
+| 后端启动超时 | 端口 8765 被占用 | 检查端口：`netstat -ano \| findstr 8765`（Windows）/ `lsof -i :8765`（Linux/macOS），杀掉占用进程后重试 |
+
+### 模型相关
+
+| 问题 | 原因 | 解决方案 |
+|------|------|----------|
+| 模型下载超时或失败 | 网络不稳定或 Ollama Registry 不可达 | 手动重试：`ollama pull garrywhite109909/graduation-vuln-scanner:v5`；若持续失败可改用回退模型：`set VULN_SCANNER_MODEL=qwen3:8b` |
+| 扫描结果全为"无法判定" | 模型未正确加载或输出格式不匹配 | 运行 `python -m app.launcher.vuln_scanner_cli health` 检查模型可用性；确认模型名与 Ollama 中一致 |
+| 推理速度极慢（> 60s/文件） | 无 GPU 回退到 CPU 推理 | 检查启动日志中 `[硬件检测]` 行；CPU 模式约为 GPU 的 1/10 速度，属正常现象 |
+| OOM（显存溢出） | `num_ctx` 过大或显存不足 | 降低上下文窗口：创建 4K 版模型（见「模型部署与版本管理」§8GB 显存适配说明） |
+
+### RAG / 向量库相关
+
+| 问题 | 原因 | 解决方案 |
+|------|------|----------|
+| `ModuleNotFoundError: No module named 'chromadb'` | 未安装 RAG 依赖 | `pip install -r requirements.txt`（chromadb 在依赖列表中） |
+| RAG 扫描报错 `embedding model not found` | embedding 模型未缓存到本地 | 在有网络的环境执行一次：`python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('BAAI/bge-small-en-v1.5')"`；国内可用 `HF_ENDPOINT=https://hf-mirror.com` 镜像 |
+| RAG 向量库为空 | 未运行 `build_knowledge.py` 初始化知识库 | `cd experiments/exp_03_rag_knowledge/knowledge_data && python3 build_knowledge.py` |
+| 自定义 embedding 缓存路径 | 默认缓存路径 `~/.cache/huggingface/` 不可写 | `export CHROMA_EMBEDDING_MODEL_PATH=/path/to/local/model` |
+
+### 插件相关
+
+| 问题 | 原因 | 解决方案 |
+|------|------|----------|
+| VS Code 插件扫描无响应 | 后端未启动或地址不匹配 | 确认 `http://localhost:8765/api/health` 可访问；检查 VS Code 设置中 `vulnScanner.backendUrl` 是否正确 |
+| VS Code 插件请求超时 | 大文件推理耗时长 | 在设置中将 `vulnScanner.requestTimeout` 调大（默认 300000ms = 5 分钟） |
+| IntelliJ 插件编译失败 | JDK 版本低于 17 或 Gradle 同步失败 | 确认 JDK 17+；在 IDEA 中重新同步 Gradle |
+| IntelliJ 插件通知不弹出 | 后端地址不匹配 | 编辑 `VulnScannerAction.java` 中的 `BACKEND_URL` 常量后重新构建 |
+
+### IDE 报红（不影响运行）
+
+| 问题 | 原因 | 解决方案 |
+|------|------|----------|
+| VS Code / PyCharm 中大量红色错误标记 | Python 解释器选错、依赖未安装、模块路径未配置 | 1. 选择正确的 conda 环境解释器；2. 在项目根目录执行 `pip install -e .`；3. 在 `.vscode/settings.json` 中配置 `python.analysis.extraPaths` 指向项目根目录 |
+| 类型检查器报类型不匹配 | Pyright/mypy 严格模式误报 | 不影响运行，可在 `pyproject.toml` 中调整类型检查严格度 |
 
 ***
 
