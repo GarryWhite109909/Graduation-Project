@@ -140,7 +140,7 @@ def list_ollama_models() -> list[str]:
 
 
 def ensure_model_available(model: str) -> bool:
-    """确保模型已 pull。未 pull 则自动下载。"""
+    """确保模型已 pull。未 pull 则自动从 Ollama Registry 下载。"""
     models = list_ollama_models()
     # 精确匹配（Ollama 模型名含 tag，不需要模糊匹配）
     if model in models:
@@ -157,9 +157,11 @@ def ensure_model_available(model: str) -> bool:
             print(f"[启动器] 模型 {model} 下载完成。")
             return True
         print(f"[启动器] 模型下载失败（退出码 {result.returncode}）。")
+        print(f"[启动器] 请检查网络后重试，或手动运行：ollama pull {model}")
         return False
     except subprocess.TimeoutExpired:
-        print("[启动器] 模型下载超时。")
+        print("[启动器] 模型下载超时（30 分钟未完成）。")
+        print(f"[启动器] 请检查网络后重试，或手动运行：ollama pull {model}")
         return False
 
 

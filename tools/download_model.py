@@ -11,6 +11,9 @@
        --url https://github.com/GarryWhite109909/Graduation-Project/releases/download/v1.0/merged_v5-q4_k_m.gguf \
        --model graduation-vuln-scanner:v5
 
+国内网络加速：source=gguf 时，若 URL 指向 github.com，默认自动加 ghproxy 前缀
+（https://mirror.ghproxy.com/）加速下载。可用 --no-mirror 关闭。
+
 硬件自适应：脚本会自动检测 GPU 显存 / CPU 核数，动态生成 Modelfile 中的
 num_ctx / num_gpu / num_thread 参数。≥8GB 显存使用 num_ctx=8192，4-8GB 使用
 4096，<4GB 或无 GPU 时回退到 2048 并启用 CPU 推理。
@@ -43,9 +46,25 @@ def run(cmd: list[str], **kwargs) -> int:
     return subprocess.run(cmd, **kwargs).returncode
 
 
+def apply_ghproxy(url: str) -> str:
+    """对 GitHub URL 自动加 ghproxy 前缀以加速国内下载。
+
+    仅对 github.com 的下载链接生效（release assets / raw 文件）。
+    非 GitHub URL 原样返回。
+    """
+    if url.startswith("https://github.com/"):
+        mirrored = "https://mirror.ghproxy.com/" + url
+        print(f"[镜像] 检测到 GitHub URL，已自动加 ghproxy 前缀加速下载")
+        print(f"[镜像] 原址: {url}")
+        print(f"[镜像] 加速: {mirrored}")
+        print(f"[镜像] 若加速地址不可用，加 --no-mirror 关闭")
+        return mirrored
+    return url
+
+
 def download_gguf(url: str, out_path: Path) -> None:
     print(f"[下载] {url} -> {out_path}")
-    with urlopen(url) as resp, open(out_path, "wb") as f:
+    with urlopen(url, timeout=60) as resp, open(out_path, "wb") as f:
         total = int(resp.headers.get("content-length", 0))
         downloaded = 0
         chunk_size = 1024 * 1024
@@ -148,10 +167,13 @@ def pull_ollama(model: str) -> int:
     return run(["ollama", "pull", model])
 
 
-def create_from_gguf(url: str, model: str) -> int:
+def create_from_gguf(url: str, model: str, use_mirror: bool = True) -> int:
     if shutil.which("ollama") is None:
         print("[ERROR] 未找到 ollama 命令。请先安装：https://ollama.com/download")
         return 1
+
+    if use_mirror:
+        url = apply_ghproxy(url)
 
     with tempfile.TemporaryDirectory() as tmp:
         gguf_path = Path(tmp) / "model.gguf"
@@ -171,6 +193,12 @@ def main() -> int:
     )
     parser.add_argument("--model", default="graduation-vuln-scanner:v5", help="本地 Ollama 模型名")
     parser.add_argument("--url", help="GGUF 下载地址（source=gguf 时必填）")
+    parser.add_argument(
+        "--no-mirror",
+        action="store_true",
+        default=False,
+        help="关闭 ghproxy 加速，直接从原始 URL 下载（海外网络环境适用）",
+    )
     args = parser.parse_args()
 
     if args.source == "ollama":
@@ -179,7 +207,7 @@ def main() -> int:
         if not args.url:
             print("[ERROR] source=gguf 时必须指定 --url")
             return 1
-        return create_from_gguf(args.url, args.model)
+        return create_from_gguf(args.url, args.model, use_mirror=not args.no_mirror)
 
 
 if __name__ == "__main__":
