@@ -778,8 +778,65 @@
         }
 
         /* ==================== Health check ==================== */
+        // 深度 /api/health 是慢请求（Ollama + vLLM + 外部工具探测，最坏 30s+）。
+        // 为避免它在页面切换时仍占用浏览器连接（HTTP/1.1 同域仅 6 个并发），
+        // 用 AbortController 在 pagehide 时主动中止，并配合 sessionStorage 缓存
+        // （30s 内不重复请求）+ setTimeout 延迟启动，让页面先完成渲染。
+        var healthAbort = null;
+        var HEALTH_CACHE_TTL = 30000; // 30 秒
+
+        function applyHealthData(data) {
+          healthInfo = data;
+          var dot = document.querySelector('#health-status .badge-dot');
+          var statusText = document.querySelector('#health-status');
+          var engineInfo = document.getElementById('engine-info');
+
+          if (data.ollama_connected && data.model_available) {
+            dot.className = 'badge-dot on';
+            statusText.lastChild.textContent = ' Ollama 就绪';
+            engineInfo.textContent = '引擎: ' + (data.model || 'unknown');
+          } else if (data.vllm_connected) {
+            dot.className = 'badge-dot on';
+            statusText.lastChild.textContent = ' vLLM 就绪';
+            engineInfo.textContent = '引擎: vLLM';
+          } else {
+            dot.className = 'badge-dot off';
+            statusText.lastChild.textContent = ' 未就绪';
+            engineInfo.textContent = '引擎: 离线';
+          }
+
+          // Populate model checkboxes
+          var modelWrap = document.getElementById('model-checkboxes');
+          var models = data.available_models || [];
+          modelWrap.innerHTML = models.map(function (m) {
+            return '<label class="flex items-center gap-2 text-xs text-[var(--vuln-ink-2)] cursor-pointer"><input type="checkbox" value="' + escapeAttr(m) + '" class="model-cb accent-[var(--vuln-brand)]"> ' + escapeHtml(m) + '</label>';
+          }).join('') || '<p class="text-xs text-[var(--vuln-ink-3)]">无可用模型</p>';
+
+          // External tools info
+          var extInfo = document.getElementById('external-tools-info');
+          var tools = data.external_tools || [];
+          extInfo.classList.remove('hidden');
+          if (tools.length) {
+            extInfo.innerHTML = '已安装: ' + tools.map(escapeHtml).join(', ');
+          } else {
+            extInfo.innerHTML = '未检测到外部工具（Bandit/Semgrep/Gitleaks/Trivy），将返回空结果';
+          }
+        }
+
         function loadHealth() {
-          // 先用 live 探针快速确认后端已连接（毫秒级），深度检查完成前给用户即时反馈
+          // 1) 命中缓存则立即渲染（页面切换后回来时秒出）
+          try {
+            var cached = sessionStorage.getItem('health_cache');
+            if (cached) {
+              var obj = JSON.parse(cached);
+              if (Date.now() - obj.ts < HEALTH_CACHE_TTL) {
+                applyHealthData(obj.data);
+                return;
+              }
+            }
+          } catch (e) {}
+
+          // 2) 先用 live 探针快速确认后端已连接（毫秒级），给用户即时反馈
           fetch('/api/health/live').then(function (r) { return r.ok; }).then(function (ok) {
             if (!ok) return;
             var dot = document.querySelector('#health-status .badge-dot');
@@ -787,49 +844,29 @@
             if (dot) dot.className = 'badge-dot on';
             if (st) st.lastChild.textContent = ' 后端已连接，检测引擎…';
           }).catch(function () {});
-          // 深度健康检查：获取 Ollama/模型/外部工具信息（可能较慢，但不阻塞 UI）
-          fetch('/api/health').then(function (r) { return r.json(); }).then(function (data) {
-            healthInfo = data;
+
+          // 3) 深度健康检查：AbortController 包装，页面切换时立即中止释放连接
+          if (healthAbort) healthAbort.abort();
+          healthAbort = new AbortController();
+          fetch('/api/health', { signal: healthAbort.signal }).then(function (r) { return r.json(); }).then(function (data) {
+            healthAbort = null;
+            applyHealthData(data);
+            try { sessionStorage.setItem('health_cache', JSON.stringify({ ts: Date.now(), data: data })); } catch (e) {}
+          }).catch(function (err) {
+            healthAbort = null;
+            // 主动 abort 不算失败，静默处理（页面已切换）
+            if (err && err.name === 'AbortError') return;
             var dot = document.querySelector('#health-status .badge-dot');
-            var statusText = document.querySelector('#health-status');
-            var engineInfo = document.getElementById('engine-info');
-
-            if (data.ollama_connected && data.model_available) {
-              dot.className = 'badge-dot on';
-              statusText.lastChild.textContent = ' Ollama 就绪';
-              engineInfo.textContent = '引擎: ' + (data.model || 'unknown');
-            } else if (data.vllm_connected) {
-              dot.className = 'badge-dot on';
-              statusText.lastChild.textContent = ' vLLM 就绪';
-              engineInfo.textContent = '引擎: vLLM';
-            } else {
-              dot.className = 'badge-dot off';
-              statusText.lastChild.textContent = ' 未就绪';
-              engineInfo.textContent = '引擎: 离线';
-            }
-
-            // Populate model checkboxes
-            var modelWrap = document.getElementById('model-checkboxes');
-            var models = data.available_models || [];
-            modelWrap.innerHTML = models.map(function (m) {
-              return '<label class="flex items-center gap-2 text-xs text-[var(--vuln-ink-2)] cursor-pointer"><input type="checkbox" value="' + escapeAttr(m) + '" class="model-cb accent-[var(--vuln-brand)]"> ' + escapeHtml(m) + '</label>';
-            }).join('') || '<p class="text-xs text-[var(--vuln-ink-3)]">无可用模型</p>';
-
-            // External tools info
-            var extInfo = document.getElementById('external-tools-info');
-            var tools = data.external_tools || [];
-            extInfo.classList.remove('hidden');
-            if (tools.length) {
-              extInfo.innerHTML = '已安装: ' + tools.map(escapeHtml).join(', ');
-            } else {
-              extInfo.innerHTML = '未检测到外部工具（Bandit/Semgrep/Gitleaks/Trivy），将返回空结果';
-            }
-          }).catch(function () {
-            var dot = document.querySelector('#health-status .badge-dot');
-            dot.className = 'badge-dot off';
-            document.querySelector('#health-status').lastChild.textContent = ' 连接失败';
+            if (dot) dot.className = 'badge-dot off';
+            var st = document.querySelector('#health-status');
+            if (st) st.lastChild.textContent = ' 连接失败';
           });
         }
+
+        // 页面切换/隐藏时主动中止慢请求，立即释放浏览器连接
+        window.addEventListener('pagehide', function () {
+          if (healthAbort) { healthAbort.abort(); healthAbort = null; }
+        });
 
         /* ==================== Progress helpers ==================== */
         function showProgress(indeterminate, text) {
@@ -1817,9 +1854,11 @@
         /* ==================== Init ==================== */
         renderResults();
         loadScanResults();
-        loadHealth();
         loadDemoManifest();
         renderReportHistory();
+        // 延迟启动深度健康检查：让页面先把结果列表/历史等渲染完，
+        // 避免慢 fetch 与首屏渲染争抢浏览器连接，页面切换更顺滑。
+        setTimeout(loadHealth, 300);
 
         /* ---------- 报告 modal 事件 ---------- */
         var reportModal = document.getElementById('report-modal');

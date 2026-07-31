@@ -956,6 +956,9 @@
       });
 
     // 3) 状态指示器单独请求轻量探针（不阻塞数据加载）
+    // 深度 /api/health 作为兜底，用 AbortController 包装，页面切换时主动中止，
+    // 避免慢请求占用浏览器连接导致页面切换卡顿。
+    var statusAbort = null;
     fetch('/api/health/live')
       .then(function (res) { return res.ok ? res.json() : null; })
       .then(function (live) {
@@ -963,11 +966,21 @@
       })
       .catch(function () {
         // 轻量探针也失败，尝试深度健康检查作为兜底
-        return fetch('/api/health').then(function (r) { return r.ok ? r.json() : null; });
+        statusAbort = new AbortController();
+        return fetch('/api/health', { signal: statusAbort.signal })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .catch(function (err) {
+            if (err && err.name === 'AbortError') return null;
+            throw err;
+          });
       })
       .then(function (health) {
+        statusAbort = null;
         if (health) updateStatus(health);
       });
+    window.addEventListener('pagehide', function () {
+      if (statusAbort) { statusAbort.abort(); statusAbort = null; }
+    });
   }
 
   if (document.readyState === 'loading') {
