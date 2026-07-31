@@ -306,11 +306,11 @@ VS Code 插件提供编辑器内直接扫描、诊断标记和工作区批量扫
 
 **方式 A：从 VSIX 安装（推荐，普通用户）**
 
-1. 获取插件包 `vuln-scanner-1.2.0.vsix`（仓库已附带，或从开发者处获取）
+1. 下载插件包 [`releases/vuln-scanner-1.2.0.vsix`](releases/vuln-scanner-1.2.0.vsix)（仓库已附带，clone 后可直接使用）
 2. 打开 VS Code → 左侧扩展面板 → 右上角 `⋯` → **从 VSIX 安装**
 3. 选择 `.vsix` 文件 → 安装完成 → 重载窗口
 
-**方式 B：从源码安装（开发者）**
+**方式 B：从源码打包（开发者）**
 
 ```bash
 cd app/vscode-extension
@@ -367,7 +367,7 @@ IntelliJ 插件提供编辑器内选中代码的扫描功能，结果以气球�
 
 **从磁盘安装（唯一方式）**
 
-1. 获取插件包 `vuln-scanner-0.1.0.zip`（位于 `app/intellij-extension/build/distributions/`，或从开发者处获取）
+1. 下载插件包 [`releases/vuln-scanner-0.1.0.zip`](releases/vuln-scanner-0.1.0.zip)（仓库已附带，clone 后可直接使用）
 2. 打开 IntelliJ IDEA → `File` → `Settings` → `Plugins`
 3. 点击右上角齿轮图标 ⚙️ → **Install Plugin from Disk...**
 4. 选择 `vuln-scanner-0.1.0.zip` → 安装 → 重启 IDEA

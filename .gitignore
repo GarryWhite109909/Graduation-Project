@@ -30,6 +30,10 @@ gradle/wrapper/gradle-wrapper.jar
 *.vsix
 *.iml
 
+# releases 目录是正式发布的安装包,必须入库
+!releases/*.vsix
+!releases/*.zip
+
 # AI IDE 内部记录
 .trae/
 

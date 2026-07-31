@@ -5,7 +5,7 @@
 
 ## 安装
 
-1. 获取插件包 `vuln-scanner-0.1.0.zip`（位于 `app/intellij-extension/build/distributions/`，或从开发者处获取）
+1. 下载插件包 [`releases/vuln-scanner-0.1.0.zip`](../../releases/vuln-scanner-0.1.0.zip)（仓库已附带，clone 后可直接使用）
 2. 打开 IntelliJ IDEA → `File` → `Settings` → `Plugins`
 3. 点击右上角齿轮图标 ⚙️ → **Install Plugin from Disk...**
 4. 选择 `vuln-scanner-0.1.0.zip` → 安装 → 重启 IDEA
