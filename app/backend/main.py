@@ -166,10 +166,13 @@ async def health_live():
 
 
 @app.get("/api/health")
-async def health():
+def health():
     """深度健康检查：Ollama + vLLM 连接、模型可用性、外部工具安装情况、各层开关状态。
 
     供前端仪表盘使用（可能较慢，调用方需设置较长超时）。
+    注意：必须用普通 def（非 async def），否则同步阻塞调用会卡死 uvicorn 事件循环，
+    导致并发的 /api/health/live、静态资源等请求全部排队等待。
+    FastAPI 会自动把 def 端点放到线程池执行，不阻塞事件循环。
     """
     base = scanner.check_health()
 
