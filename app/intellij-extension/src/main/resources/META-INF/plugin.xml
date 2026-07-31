@@ -15,7 +15,7 @@
     ]]></description>
 
     <!-- 兼容的 IntelliJ Platform 版本范围 -->
-    <idea-version since-build="221" until-build="241.*"/>
+    <idea-version since-build="221" until-build="262.*"/>
 
     <!-- 依赖：核心平台 API（通知、动作、编辑器） -->
     <depends>com.intellij.modules.platform</depends>

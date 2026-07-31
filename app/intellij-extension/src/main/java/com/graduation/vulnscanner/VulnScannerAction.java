@@ -50,7 +50,7 @@ public class VulnScannerAction extends AnAction {
         VirtualFile file = e.getData(CommonDataKeys.VIRTUAL_FILE);
 
         if (project == null || editor == null) {
-            notify(project, "请先在编辑器中打开一个文件", NotificationType.WARNING);
+            showNotification(project, "请先在编辑器中打开一个文件", NotificationType.WARNING);
             return;
         }
 
@@ -65,7 +65,7 @@ public class VulnScannerAction extends AnAction {
         });
 
         if (code == null || code.trim().isEmpty()) {
-            notify(project, "文件内容为空，无可分析代码", NotificationType.WARNING);
+            showNotification(project, "文件内容为空，无可分析代码", NotificationType.WARNING);
             return;
         }
 
@@ -83,9 +83,9 @@ public class VulnScannerAction extends AnAction {
                 try {
                     String response = postJson(BACKEND_URL, requestBody);
                     String summary = parseResult(response);
-                    notify(project, summary, NotificationType.INFORMATION);
+                    showNotification(project, summary, NotificationType.INFORMATION);
                 } catch (IOException ex) {
-                    notify(project, "扫描失败：无法连接后端 (" + BACKEND_URL + ")。" +
+                    showNotification(project, "扫描失败：无法连接后端 (" + BACKEND_URL + ")。" +
                             "请确保后端服务已启动。\n详情：" + ex.getMessage(),
                             NotificationType.ERROR);
                 }
@@ -141,6 +141,9 @@ public class VulnScannerAction extends AnAction {
         try {
             conn.setRequestMethod("POST");
             conn.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+            // 调度器优先级标识：交互式单文件扫描为 HIGH 优先级，来源标识为 intellij
+            conn.setRequestProperty("X-Client-Type", "intellij");
+            conn.setRequestProperty("X-Scan-Scope", "single");
             conn.setConnectTimeout((int) TimeUnit.SECONDS.toMillis(10));
             conn.setReadTimeout(TIMEOUT_MS);
             conn.setDoOutput(true);
@@ -231,9 +234,9 @@ public class VulnScannerAction extends AnAction {
     }
 
     /**
-     * 弹出通知。
+     * 弹出通知（方法名不能叫 notify，否则与 Object#notify 冲突）。
      */
-    private void notify(Project project, String content, NotificationType type) {
+    private void showNotification(Project project, String content, NotificationType type) {
         NotificationGroupManager.getInstance()
                 .getNotificationGroup("AI 漏洞扫描器")
                 .createNotification(content, type)

@@ -7,8 +7,8 @@
 
 plugins {
     id("java")
-    // IntelliJ Platform Gradle Plugin 2.x（指定版本号需联网下载）
-    id("org.jetbrains.intellij") version "2.0.1"
+    // IntelliJ Platform Gradle Plugin 1.x（国内环境更稳定，毕业答辩够用）
+    id("org.jetbrains.intellij") version "1.17.4"
 }
 
 group = "com.graduation"
@@ -22,25 +22,30 @@ java {
 
 repositories {
     mavenCentral()
+    gradlePluginPortal()          // Gradle 官方插件仓库（org.jetbrains.intellij 在此）
+    // 阿里云镜像：加速普通依赖下载（国内环境）
+    maven { url = uri("https://maven.aliyun.com/repository/public") }
+    maven { url = uri("https://maven.aliyun.com/repository/gradle-plugin") }
+    // JetBrains 官方仓库（部分 SDK 包仍需从官方下载）
+    maven { url = uri("https://plugins.jetbrains.com/maven") }
 }
 
 intellij {
     // 目标 IDE 版本（与 plugin.xml 的 idea-version 保持一致）
-    version.set("2023.2")
-    type.set("IC") // IC = IntelliJ IDEA Community Edition
+    version = "2023.2"
+    type = "IC" // IC = IntelliJ IDEA Community Edition
 
     // 插件描述文件路径
-    pluginName.set("vuln-scanner")
+    pluginName = "vuln-scanner"
 
     // 无需额外插件依赖（仅用平台核心 API）
-    plugins.set(emptyList())
+    plugins = emptyList()
 }
 
 tasks {
-    // 禁止 patchPluginXml 自动改写 plugin.xml
     patchPluginXml {
         sinceBuild.set("221")
-        untilBuild.set("241.*")
+        untilBuild.set("262.*")
     }
 
     // 构建可分发插件 zip
