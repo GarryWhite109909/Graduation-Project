@@ -409,6 +409,11 @@ def recommend_config(hardware: dict) -> dict:
     )
 
     # NVIDIA GPU 分支：按显存分档
+    # q4_k_m 量化的 8B 模型权重约 4.7GB，加上 num_ctx 的 KV cache：
+    #   ≥8GB  → 全 GPU，num_ctx=8192
+    #   6-8GB → 全 GPU，num_ctx=4096（6GB 勉强够 4.7GB 权重 + KV cache）
+    #   4-6GB → 显存装不下，降级 CPU（避免 Ollama 反复试错 offload 导致启动卡住）
+    #   <4GB  → CPU
     if hardware.get("has_nvidia_gpu") and hardware.get("vram_mb"):
         vram = hardware["vram_mb"]
         if vram >= 8192:
@@ -416,10 +421,19 @@ def recommend_config(hardware: dict) -> dict:
                 "num_ctx": 8192, "num_gpu": -1, "num_thread": num_thread,
                 "quantization": "q4_k_m", "warning": None, "mode": "gpu",
             }
-        elif vram >= 4096:
+        elif vram >= 6144:
             return {
                 "num_ctx": 4096, "num_gpu": -1, "num_thread": num_thread,
                 "quantization": "q4_k_m", "warning": None, "mode": "gpu",
+            }
+        elif vram >= 4096:
+            return {
+                "num_ctx": 2048, "num_gpu": 0, "num_thread": num_thread,
+                "quantization": "q4_k_m",
+                "warning": (f"显存 {vram}MB 不足以全 GPU 加载 q4_k_m 8B 模型"
+                            f"（权重约 4.7GB + KV cache），降级 CPU 推理。"
+                            f"GPU 仍可用于其他任务，模型推理走 CPU（速度较慢但稳定）。"),
+                "mode": "cpu",
             }
         else:
             return {

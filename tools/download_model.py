@@ -15,8 +15,9 @@
 （https://mirror.ghproxy.com/）加速下载。可用 --no-mirror 关闭。
 
 硬件自适应：脚本会自动检测 GPU 显存 / CPU 核数，动态生成 Modelfile 中的
-num_ctx / num_gpu / num_thread 参数。≥8GB 显存使用 num_ctx=8192，4-8GB 使用
-4096，<4GB 或无 GPU 时回退到 2048 并启用 CPU 推理。
+num_ctx / num_gpu / num_thread 参数。≥8GB 显存使用 num_ctx=8192，6-8GB 使用
+4096，4-6GB 或无 GPU 时回退到 2048 并启用 CPU 推理（q4_k_m 8B 模型权重约
+4.7GB，4GB 显存装不下）。
 """
 
 from __future__ import annotations
@@ -84,7 +85,8 @@ def create_modelfile(gguf_path: Path, model_name: str) -> Path:
     """根据本机硬件自适应生成 Modelfile。
 
     - ≥8GB 显存：num_ctx=8192，全 GPU 层
-    - 4-8GB 显存：num_ctx=4096，全 GPU 层
+    - 6-8GB 显存：num_ctx=4096，全 GPU 层
+    - 4-6GB 显存：显存不足以装下 q4_k_m 8B 模型（4.7GB），降级 CPU（num_gpu=0）
     - <4GB 或无 GPU：num_ctx=2048，CPU 推理（num_gpu=0）
     - Apple Silicon：num_ctx=4096，Metal 加速（num_gpu=1）
     """
@@ -126,7 +128,7 @@ def create_modelfile(gguf_path: Path, model_name: str) -> Path:
         if config["num_ctx"] == 8192:
             hw_comment = "# 硬件适配：≥8GB 显存，Q4_K_M 约 4.7GB，num_ctx 8192 留足 activations 余量\n"
         else:
-            hw_comment = "# 硬件适配：4-8GB 显存，num_ctx 4096 平衡显存与上下文长度\n"
+            hw_comment = "# 硬件适配：6-8GB 显存，num_ctx 4096 平衡显存与上下文长度\n"
     elif config["mode"] == "apple_silicon":
         hw_comment = "# 硬件适配：Apple Silicon，Metal 加速（num_gpu=1），统一内存架构\n"
     else:
