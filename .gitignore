@@ -22,6 +22,7 @@ ENV/
 *.swo
 *~
 .DS_Store
+.gradle/
 
 # AI IDE 内部记录
 .trae/

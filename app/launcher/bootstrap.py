@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import socket
 import subprocess
 import sys
 import time
@@ -29,6 +30,62 @@ DEFAULT_MODEL = os.environ.get("VULN_SCANNER_MODEL", "garrywhite109909/graduatio
 FALLBACK_MODEL = os.environ.get("VULN_SCANNER_FALLBACK_MODEL", "qwen3:8b")
 # 后端端口
 PORT = 8765
+
+
+def is_port_in_use(port: int) -> bool:
+    """检测本机指定端口是否已被占用（仅判断 127.0.0.1）。"""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(2)
+        try:
+            s.bind(("127.0.0.1", port))
+            return False
+        except OSError:
+            return True
+
+
+def kill_process_on_port(port: int) -> bool:
+    """尝试终止占用指定端口的进程。Windows 用 netstat+taskkill；其他平台用 lsof/fuser。
+
+    仅在能确认 PID 时执行，避免误杀系统服务。
+    """
+    try:
+        if sys.platform == "win32":
+            result = subprocess.run(
+                ["netstat", "-ano"],
+                capture_output=True, text=True, timeout=5,
+            )
+            target_pid = None
+            for line in result.stdout.splitlines():
+                parts = line.split()
+                # 期望格式：Proto  Local Address  Foreign Address  State  PID
+                if (
+                    len(parts) >= 5
+                    and f":{port}" in parts[1]
+                    and parts[3] == "LISTENING"
+                ):
+                    target_pid = parts[-1]
+                    break
+            if target_pid and target_pid.isdigit():
+                print(f"[启动器] 端口 {port} 被 PID {target_pid} 占用，尝试释放...")
+                stop = subprocess.run(
+                    ["taskkill", "/F", "/PID", target_pid],
+                    capture_output=True, text=True, timeout=10,
+                )
+                return stop.returncode == 0
+        else:
+            # macOS/Linux：先尝试 lsof
+            result = subprocess.run(
+                ["lsof", "-ti", f"tcp:{port}"],
+                capture_output=True, text=True, timeout=5,
+            )
+            pid = result.stdout.strip().splitlines()[0] if result.stdout.strip() else None
+            if pid:
+                print(f"[启动器] 端口 {port} 被 PID {pid} 占用，尝试释放...")
+                stop = subprocess.run(["kill", "-9", pid], capture_output=True, text=True, timeout=5)
+                return stop.returncode == 0
+    except Exception as e:
+        print(f"[启动器] 释放端口 {port} 失败: {e}")
+    return False
 
 
 def check_ollama_installed() -> bool:
@@ -102,7 +159,11 @@ def try_install_ollama() -> bool:
 def ensure_ollama_running() -> bool:
     """确保 Ollama 服务在运行。未运行则尝试启动。"""
     try:
-        resp = requests.get("http://localhost:11434/api/tags", timeout=3)
+        resp = requests.get(
+            "http://localhost:11434/api/tags",
+            timeout=3,
+            proxies={"http": None, "https": None},
+        )
         return resp.status_code == 200
     except Exception:
         # 尝试后台启动 ollama serve
@@ -122,7 +183,11 @@ def ensure_ollama_running() -> bool:
                     stderr=subprocess.DEVNULL,
                 )
             time.sleep(3)
-            resp = requests.get("http://localhost:11434/api/tags", timeout=5)
+            resp = requests.get(
+                "http://localhost:11434/api/tags",
+                timeout=5,
+                proxies={"http": None, "https": None},
+            )
             return resp.status_code == 200
         except Exception as e:
             print(f"[启动器] 启动 Ollama 失败: {e}")
@@ -132,7 +197,11 @@ def ensure_ollama_running() -> bool:
 def list_ollama_models() -> list[str]:
     """列出已 pull 的模型。"""
     try:
-        resp = requests.get("http://localhost:11434/api/tags", timeout=5)
+        resp = requests.get(
+            "http://localhost:11434/api/tags",
+            timeout=5,
+            proxies={"http": None, "https": None},
+        )
         data = resp.json()
         return [m["name"] for m in data.get("models", [])]
     except Exception:
@@ -184,15 +253,36 @@ def start_backend(port: int = PORT) -> subprocess.Popen:
     return proc
 
 
-def wait_for_backend(port: int, timeout: int = 30) -> bool:
-    """等待后端就绪。"""
-    for _ in range(timeout):
+def wait_for_backend(port: int, timeout: int = 60, proc: subprocess.Popen | None = None) -> bool:
+    """等待后端就绪。
+
+    参数:
+        port: 后端监听端口。
+        timeout: 最大等待秒数（默认 60 秒）。
+        proc: 后端子进程对象；如果进程提前退出，立即返回失败。
+    """
+    for i in range(timeout):
+        # 若后端子进程已退出，不必等到超时
+        if proc is not None and proc.poll() is not None:
+            print(f"[启动器] 后端进程已退出（退出码 {proc.returncode}）。")
+            return False
+
         try:
-            resp = requests.get(f"http://127.0.0.1:{port}/api/health", timeout=2)
+            # 禁用代理访问本地回环地址，避免系统代理导致 localhost 请求失败
+            resp = requests.get(
+                f"http://127.0.0.1:{port}/api/health",
+                timeout=5,
+                proxies={"http": None, "https": None},
+            )
             if resp.status_code == 200:
+                print(f"[启动器] 后端健康检查通过（第 {i + 1}/{timeout} 次尝试）。")
                 return True
-        except Exception:
-            time.sleep(1)
+            print(f"[启动器] 后端健康检查返回 HTTP {resp.status_code}，继续等待...")
+        except Exception as e:
+            # 仅在前几次打印详细错误，避免刷屏
+            if i < 5 or i % 10 == 0:
+                print(f"[启动器] 后端健康检查第 {i + 1}/{timeout} 次失败: {e}")
+        time.sleep(1)
     return False
 
 
@@ -425,10 +515,33 @@ def main():
     print(f"[4/5] 模型就绪")
 
     # 5. 启动后端
+    # 5.1 端口占用检测：若被占用，先尝试释放残留进程
+    if is_port_in_use(PORT):
+        print(f"[启动器] 端口 {PORT} 已被占用，尝试释放残留进程...")
+        if not kill_process_on_port(PORT):
+            print(f"\n[错误] 端口 {PORT} 被占用且无法自动释放。")
+            print("  请手动关闭占用该端口的程序后重试。")
+            input("\n按回车键退出...")
+            return
+        # 等待端口释放
+        for _ in range(10):
+            if not is_port_in_use(PORT):
+                break
+            time.sleep(0.5)
+        if is_port_in_use(PORT):
+            print(f"\n[错误] 端口 {PORT} 释放后仍被占用，请手动检查。")
+            input("\n按回车键退出...")
+            return
+        print(f"[启动器] 端口 {PORT} 已释放。")
+
     backend_proc = start_backend(PORT)
-    if not wait_for_backend(PORT):
-        print(f"\n[错误] 后端启动超时。请检查端口 {PORT} 是否被占用。")
-        backend_proc.terminate()
+    if not wait_for_backend(PORT, proc=backend_proc):
+        print(f"\n[错误] 后端启动超时。请检查端口 {PORT} 是否被占用，或查看上方日志中的具体错误。")
+        try:
+            backend_proc.terminate()
+            backend_proc.wait(timeout=5)
+        except Exception:
+            pass
         input("\n按回车键退出...")
         return
 
