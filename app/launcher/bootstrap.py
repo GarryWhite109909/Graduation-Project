@@ -269,9 +269,11 @@ def wait_for_backend(port: int, timeout: int = 60, proc: subprocess.Popen | None
 
         try:
             # 禁用代理访问本地回环地址，避免系统代理导致 localhost 请求失败
+            # 使用轻量级存活探针 /api/health/live（即时返回，不调 Ollama/外部工具），
+            # 避免 /api/health 因 Ollama 预热耗时导致客户端超时
             resp = requests.get(
-                f"http://127.0.0.1:{port}/api/health",
-                timeout=5,
+                f"http://127.0.0.1:{port}/api/health/live",
+                timeout=3,
                 proxies={"http": None, "https": None},
             )
             if resp.status_code == 200:

@@ -155,9 +155,22 @@ _scan_stats: dict = {
 # ---------------------------------------------------------------------------
 # 健康检查
 # ---------------------------------------------------------------------------
+@app.get("/api/health/live")
+async def health_live():
+    """轻量级存活探针：仅确认 uvicorn 进程已就绪，不调用任何外部服务。
+
+    用于启动器 wait_for_backend 的就绪检测，避免 /api/health 因 Ollama 预热 /
+    外部工具探测耗时导致客户端超时。
+    """
+    return {"status": "alive"}
+
+
 @app.get("/api/health")
 async def health():
-    """健康检查：Ollama + vLLM 连接、模型可用性、外部工具安装情况、各层开关状态。"""
+    """深度健康检查：Ollama + vLLM 连接、模型可用性、外部工具安装情况、各层开关状态。
+
+    供前端仪表盘使用（可能较慢，调用方需设置较长超时）。
+    """
     base = scanner.check_health()
 
     # vLLM 推理后端探测
