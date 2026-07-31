@@ -428,19 +428,15 @@
       .badge-dot.on { background: var(--vuln-state-success); box-shadow: 0 0 6px rgba(52,168,83,0.5); }
       .badge-dot.off { background: var(--vuln-ink-3); }
 
-      /* === 灵动交互增强 — 弹跳/浮起/旋转 === */
-      .glass-card:hover { transform: translateY(-8px) scale(1.025) !important; box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), 0 20px 50px rgba(14,17,21,0.14) !important; }
-      .dark .glass-card:hover { box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 20px 50px rgba(0,0,0,0.4) !important; }
-      .result-card:hover { transform: translateY(-8px) scale(1.025) !important; }
-      .control-panel:hover { transform: translateY(-4px) scale(1.01) !important; }
-      button:hover { transform: translateY(-2px); }
-      button:active { transform: scale(0.92); }
-      a:active { transform: scale(0.93); }
-      .filter-chip:not(.active):hover { transform: translateY(-3px) scale(1.06) !important; box-shadow: 0 8px 20px rgba(66,133,244,0.18); }
-      .dark .filter-chip:not(.active):hover { box-shadow: 0 8px 20px rgba(252,44,80,0.18); }
-      .filter-chip.active { transform: scale(1.06); }
-      .icon-box:hover { transform: scale(1.15) rotate(-6deg) !important; }
-      .view-detail:hover { transform: translateX(4px); }
+      /* === 灵动交互增强 — 克制的反馈，避免阅读时文字晃动 === */
+      .glass-card:hover { box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), 0 12px 30px rgba(14,17,21,0.10) !important; }
+      .dark .glass-card:hover { box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 12px 30px rgba(0,0,0,0.3) !important; }
+      .result-card:hover { box-shadow: 0 8px 24px rgba(14,17,21,0.08); }
+      .dark .result-card:hover { box-shadow: 0 8px 24px rgba(0,0,0,0.25); }
+      button:active { transform: scale(0.97); }
+      a:active { transform: scale(0.97); }
+      .filter-chip:not(.active):hover { background: var(--vuln-surface-2); }
+      .icon-box:hover { transform: scale(1.06); }
 
       @media (prefers-reduced-motion: reduce) {
         *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
@@ -638,6 +634,32 @@
         </div>
       </section>
     </main>
+
+    <section class="results-panel mt-6" aria-label="报告历史">
+      <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <div class="flex items-center gap-3">
+          <h2 class="text-lg font-semibold text-[var(--vuln-ink)]">报告历史</h2>
+          <span id="report-history-count" class="text-xs text-[var(--vuln-ink-2)]">本地持久化，刷新不丢</span>
+        </div>
+        <button id="btn-clear-reports" type="button" class="hidden text-xs text-[var(--vuln-ink-3)] hover:text-[var(--vuln-state-error)] font-medium">清空全部</button>
+      </div>
+      <div id="report-history-list" class="space-y-2"></div>
+    </section>
+
+    <div id="report-modal" class="hidden fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50" role="dialog" aria-modal="true">
+      <div class="bg-[var(--vuln-surface)] border border-[var(--vuln-line)] rounded-xl max-w-4xl w-full max-h-[85vh] flex flex-col shadow-2xl">
+        <div class="flex items-center justify-between gap-3 p-4 border-b border-[var(--vuln-line)]">
+          <h3 id="report-modal-title" class="text-sm font-semibold text-[var(--vuln-ink)] truncate"></h3>
+          <div class="flex items-center gap-2">
+            <button id="report-modal-download" type="button" class="text-xs text-[var(--vuln-brand)] hover:underline font-medium">下载</button>
+            <button id="report-modal-close" type="button" class="text-[var(--vuln-ink-3)] hover:text-[var(--vuln-ink)] p-1" aria-label="关闭">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+          </div>
+        </div>
+        <pre id="report-modal-body" class="flex-1 overflow-auto p-4 text-xs text-[var(--vuln-ink-2)] whitespace-pre-wrap font-mono leading-relaxed"></pre>
+      </div>
+    </div>
 
     <div id="toast-container" class="fixed bottom-6 right-6 z-[100] flex flex-col gap-2 pointer-events-none"></div>
 
@@ -1486,10 +1508,12 @@
           return String(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         }
 
-        /* ==================== Result persistence ==================== */
+        /* ==================== Result & report persistence ==================== */
         var SCAN_RESULTS_KEY = 'vuln_scan_results_v1';
         var HISTORY_KEY = 'vuln_scan_history';
+        var REPORTS_KEY = 'vuln_scan_reports_v1';
         var MAX_HISTORY = 7;
+        var MAX_REPORTS = 20;
 
         function normalizeRisk(lvl) {
           if (!lvl) return 'info';
@@ -1549,6 +1573,7 @@
           try {
             localStorage.setItem(SCAN_RESULTS_KEY, JSON.stringify(scanResults));
             recordScanHistory();
+            saveReportToHistory();
           } catch (e) {
             console.warn('无法持久化扫描结果', e);
           }
@@ -1567,11 +1592,240 @@
           }
         }
 
+        /* ---------- 报告历史持久化（完整报告，刷新/重启不丢） ---------- */
+        function buildReportMarkdown() {
+          var ts = new Date().toLocaleString('zh-CN');
+          var lines = ['# 扫描报告', '', '**生成时间**：' + ts, '**文件数**：' + scanResults.length, ''];
+          var vulns = scanResults.filter(function (r) { return r && r.has_vulnerability === true; });
+          if (vulns.length) {
+            lines.push('## 漏洞清单');
+            lines.push('');
+            lines.push('| 文件 | 漏洞类型 | 风险等级 |');
+            lines.push('|---|---|---|');
+            vulns.forEach(function (r) {
+              lines.push('| ' + (r.filename || '—') + ' | ' + (r.vulnerability_type || '') + ' | ' + (r.risk_level || '') + ' |');
+            });
+            lines.push('');
+          }
+          lines.push('## 详细结果');
+          lines.push('');
+          scanResults.forEach(function (r) {
+            lines.push('### ' + (r.filename || '代码'));
+            if (r.has_vulnerability === true) {
+              lines.push('- **漏洞类型**：' + (r.vulnerability_type || ''));
+              lines.push('- **风险等级**：' + (r.risk_level || ''));
+              if (r.source && r.source !== 'N/A') lines.push('- **污染来源**：' + r.source);
+              if (r.sink && r.sink !== 'N/A') lines.push('- **触发点**：' + r.sink);
+              if (r.explanation) lines.push('', '**说明**：', r.explanation);
+              if (r.fix_suggestion && r.fix_suggestion !== 'no fix needed') lines.push('', '**修复建议**：', r.fix_suggestion);
+            } else if (r.has_vulnerability === false) {
+              lines.push('未发现漏洞。' + (r.explanation || ''));
+            } else {
+              lines.push('分析失败：' + (r.error || '未知错误'));
+            }
+            lines.push('');
+          });
+          return lines.join('\n');
+        }
+        function saveReportToHistory() {
+          var total = scanResults.length;
+          if (total === 0) return;
+          var findings = scanResults.filter(function (r) { return r && r.has_vulnerability === true; });
+          var report = {
+            id: 'r_' + Date.now(),
+            date: new Date().toISOString(),
+            source: activeTab || 'scan',
+            total_files: total,
+            vulnerable: findings.length,
+            safe: total - findings.length,
+            markdown: buildReportMarkdown(),
+            summary: findings.slice(0, 10).map(function (r) {
+              return { filename: r.filename || '—', vulnerability_type: r.vulnerability_type || '', risk_level: r.risk_level || '' };
+            })
+          };
+          try {
+            var reports = JSON.parse(localStorage.getItem(REPORTS_KEY) || '[]');
+            if (!Array.isArray(reports)) reports = [];
+            reports.unshift(report);
+            if (reports.length > MAX_REPORTS) reports = reports.slice(0, MAX_REPORTS);
+            localStorage.setItem(REPORTS_KEY, JSON.stringify(reports));
+            renderReportHistory();
+          } catch (e) {
+            console.warn('无法保存报告历史', e);
+          }
+        }
+        function deleteReport(id) {
+          try {
+            var reports = JSON.parse(localStorage.getItem(REPORTS_KEY) || '[]');
+            reports = reports.filter(function (r) { return r.id !== id; });
+            localStorage.setItem(REPORTS_KEY, JSON.stringify(reports));
+            renderReportHistory();
+          } catch (e) {}
+        }
+        function clearAllReports() {
+          if (!confirm('确定清空所有报告历史？此操作不可撤销。')) return;
+          try {
+            localStorage.removeItem(REPORTS_KEY);
+            renderReportHistory();
+            showToast('已清空报告历史', 'success');
+          } catch (e) {}
+        }
+        function downloadReportMarkdown(md, filename) {
+          var blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement('a');
+          a.href = url;
+          a.download = filename || 'scan-report.md';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+        }
+        function renderReportHistory() {
+          var container = document.getElementById('report-history-list');
+          if (!container) return;
+          var reports = [];
+          try { reports = JSON.parse(localStorage.getItem(REPORTS_KEY) || '[]'); } catch (e) {}
+          if (!Array.isArray(reports) || reports.length === 0) {
+            container.innerHTML = '<p class="text-xs text-[var(--vuln-ink-3)] text-center py-4">暂无报告历史，扫描后自动保存</p>';
+            var clearBtn = document.getElementById('btn-clear-reports');
+            if (clearBtn) clearBtn.classList.add('hidden');
+            return;
+          }
+          var clearBtn = document.getElementById('btn-clear-reports');
+          if (clearBtn) clearBtn.classList.remove('hidden');
+
+          var MAX_VISIBLE = 5;
+          var visible = reports.slice(0, MAX_VISIBLE);
+          var collapsed = reports.slice(MAX_VISIBLE);
+          var html = visible.map(function (r) { return reportHistoryItemHTML(r); }).join('');
+
+          if (collapsed.length > 0) {
+            html += '<div id="collapsed-reports" class="hidden space-y-2">' +
+              collapsed.map(function (r) { return reportHistoryItemHTML(r); }).join('') + '</div>';
+            html += '<button id="toggle-reports" type="button" class="w-full mt-2 py-1.5 text-xs font-medium text-[var(--vuln-brand)] border border-[var(--vuln-line)] rounded-md hover:bg-[var(--vuln-surface-2)] focus:outline-none">' +
+              '展开其余 ' + collapsed.length + ' 份报告' + '</button>';
+          }
+          container.innerHTML = html;
+          bindReportHistoryEvents();
+        }
+        function reportHistoryItemHTML(r) {
+          var d = new Date(r.date);
+          var dateStr = d.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+          var sevColor = r.vulnerable > 0 ? 'error' : 'success';
+          var sevText = r.vulnerable > 0 ? (r.vulnerable + ' 个漏洞') : '全部安全';
+          var sourceLabel = { paste: '粘贴', upload: '上传', url: 'URL', github: 'GitHub', demo: '演示' }[r.source] || r.source;
+          return '<article class="report-item glass-card rounded-lg p-3" data-id="' + r.id + '" style="cursor:pointer">' +
+            '<div class="flex items-center justify-between gap-2 mb-1">' +
+              '<span class="text-xs font-mono text-[var(--vuln-ink-3)]">' + dateStr + ' · ' + sourceLabel + '</span>' +
+              '<span class="text-xs font-medium px-2 py-0.5 rounded-full bg-[var(--vuln-state-' + sevColor + ')]/10 text-[var(--vuln-state-' + sevColor + ')]">' + sevText + '</span>' +
+            '</div>' +
+            '<div class="flex items-center gap-3 text-xs text-[var(--vuln-ink-2)]">' +
+              '<span>文件 ' + r.total_files + '</span>' +
+              '<span>·</span>' +
+              '<span>漏洞 ' + r.vulnerable + '</span>' +
+              '<span>·</span>' +
+              '<span>安全 ' + r.safe + '</span>' +
+            '</div>' +
+            '<div class="flex items-center gap-2 mt-2">' +
+              '<button type="button" class="view-report text-xs text-[var(--vuln-brand)] hover:underline font-medium" data-id="' + r.id + '">查看</button>' +
+              '<button type="button" class="dl-report text-xs text-[var(--vuln-ink-3)] hover:text-[var(--vuln-brand)] font-medium" data-id="' + r.id + '">下载</button>' +
+              '<button type="button" class="del-report text-xs text-[var(--vuln-ink-3)] hover:text-[var(--vuln-state-error)] font-medium" data-id="' + r.id + '">删除</button>' +
+            '</div>' +
+          '</article>';
+        }
+        function bindReportHistoryEvents() {
+          var container = document.getElementById('report-history-list');
+          if (!container) return;
+          var toggle = document.getElementById('toggle-reports');
+          if (toggle) {
+            toggle.addEventListener('click', function () {
+              var col = document.getElementById('collapsed-reports');
+              if (!col) return;
+              if (col.classList.contains('hidden')) {
+                col.classList.remove('hidden');
+                toggle.textContent = '收起多余报告';
+              } else {
+                col.classList.add('hidden');
+                toggle.textContent = '展开其余 ' + col.children.length + ' 份报告';
+              }
+            });
+          }
+          container.querySelectorAll('.view-report').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+              e.stopPropagation();
+              viewReport(btn.getAttribute('data-id'));
+            });
+          });
+          container.querySelectorAll('.dl-report').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+              e.stopPropagation();
+              var reports = [];
+              try { reports = JSON.parse(localStorage.getItem(REPORTS_KEY) || '[]'); } catch (err) {}
+              var r = reports.find(function (x) { return x.id === btn.getAttribute('data-id'); });
+              if (r) {
+                downloadReportMarkdown(r.markdown, 'report-' + r.date.replace(/[:.]/g, '-') + '.md');
+                showToast('报告已下载', 'success');
+              }
+            });
+          });
+          container.querySelectorAll('.del-report').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+              e.stopPropagation();
+              deleteReport(btn.getAttribute('data-id'));
+              showToast('报告已删除', 'success');
+            });
+          });
+          container.querySelectorAll('.report-item').forEach(function (item) {
+            item.addEventListener('click', function () {
+              viewReport(item.getAttribute('data-id'));
+            });
+          });
+        }
+        function viewReport(id) {
+          var reports = [];
+          try { reports = JSON.parse(localStorage.getItem(REPORTS_KEY) || '[]'); } catch (e) {}
+          var r = reports.find(function (x) { return x.id === id; });
+          if (!r) { showToast('报告不存在', 'warning'); return; }
+          var modal = document.getElementById('report-modal');
+          var title = document.getElementById('report-modal-title');
+          var body = document.getElementById('report-modal-body');
+          if (!modal || !title || !body) return;
+          var d = new Date(r.date);
+          title.textContent = '扫描报告 · ' + d.toLocaleString('zh-CN') + ' · ' + r.total_files + ' 文件 / ' + r.vulnerable + ' 漏洞';
+          body.textContent = r.markdown;
+          modal.classList.remove('hidden');
+        }
+
         /* ==================== Init ==================== */
         renderResults();
         loadScanResults();
         loadHealth();
         loadDemoManifest();
+        renderReportHistory();
+
+        /* ---------- 报告 modal 事件 ---------- */
+        var reportModal = document.getElementById('report-modal');
+        var reportModalClose = document.getElementById('report-modal-close');
+        var reportModalDownload = document.getElementById('report-modal-download');
+        var reportModalBody = document.getElementById('report-modal-body');
+        if (reportModalClose) {
+          reportModalClose.addEventListener('click', function () { reportModal.classList.add('hidden'); });
+        }
+        if (reportModal) {
+          reportModal.addEventListener('click', function (e) { if (e.target === reportModal) reportModal.classList.add('hidden'); });
+        }
+        if (reportModalDownload) {
+          reportModalDownload.addEventListener('click', function () {
+            var md = reportModalBody.textContent || '';
+            downloadReportMarkdown(md, 'report-' + Date.now() + '.md');
+            showToast('报告已下载', 'success');
+          });
+        }
+        var clearReportsBtn = document.getElementById('btn-clear-reports');
+        if (clearReportsBtn) {
+          clearReportsBtn.addEventListener('click', clearAllReports);
+        }
       })();
     </script>
 <link rel="stylesheet" href="./lively.css">
