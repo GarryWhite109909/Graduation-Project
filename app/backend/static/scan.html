@@ -1224,6 +1224,11 @@
             card.style.animation = '';
             card.style.animationDelay = (i * 60) + 'ms';
           });
+
+          // 通知 lively.js 装饰动态新增的元素（非阻塞）
+          if (window.refreshLively) {
+            requestAnimationFrame(window.refreshLively);
+          }
         }
 
         function resultSeverity(r) {
@@ -1708,6 +1713,9 @@
           }
           container.innerHTML = html;
           bindReportHistoryEvents();
+          if (window.refreshLively) {
+            requestAnimationFrame(window.refreshLively);
+          }
         }
         function reportHistoryItemHTML(r) {
           var d = new Date(r.date);

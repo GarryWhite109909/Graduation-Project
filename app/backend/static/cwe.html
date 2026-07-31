@@ -990,6 +990,9 @@
             if (idSpan) idSpan.parentElement.appendChild(badge);
           }
         });
+        if (window.refreshLively) {
+          requestAnimationFrame(window.refreshLively);
+        }
       }
 
       applyDetectedBadges();

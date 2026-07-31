@@ -1,13 +1,19 @@
 /* ======================================================================
-   lively.js — 灵动交互驱动（3D 倾斜 / 磁吸 / 避开 / 去同步悬浮）
+   lively.js — 灵动交互驱动（3D 倾斜 / 磁吸 / 避开）
    依赖 lively.css。仅在支持 hover 的指针设备上启用倾斜/磁吸/避开；
    尊重 prefers-reduced-motion。
+
+   性能优化要点：
+   - 移除全局 MutationObserver 与 setInterval 轮询，改为初始化时 + 显式刷新点执行
+   - pointermove 使用 requestAnimationFrame 节流，避免每事件都重算
+   - getBoundingClientRect 缓存一帧，降低强制重排成本
+   - 页面 unload / visibilitychange 时清理监听器与状态
    ====================================================================== */
 (function () {
   'use strict';
 
   var prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (prefersReduced) return; // CSS 已禁用动画，JS 不再介入
+  if (prefersReduced) return;
 
   var hasHover = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
 
@@ -21,7 +27,7 @@
 
   function rand(min, max) { return min + Math.random() * (max - min); }
 
-  /* ---- 给元素打标记 + 随机化浮动节奏（避免整齐划一） ---- */
+  /* ---- 给元素打标记 + 随机化浮动节奏 ---- */
   function decorate() {
     var els = document.querySelectorAll(TILT_SEL);
     for (var i = 0; i < els.length; i++) {
@@ -48,28 +54,24 @@
     }
   }
 
+  /* ---- 暴露全局刷新接口，页面动态渲染后主动调用 ---- */
+  window.refreshLively = decorate;
+
+  // 初始执行一次；后续由页面在需要时调用 window.refreshLively()
   decorate();
-  setInterval(decorate, 2500); // 兜底：捕获动态注入的卡片
 
-  // 监听 DOM 变化（扫描结果/CWE 筛选动态渲染），防抖刷新
-  var debounceTimer = null;
-  if (window.MutationObserver) {
-    new MutationObserver(function () {
-      if (debounceTimer) return;
-      debounceTimer = setTimeout(function () { debounceTimer = null; decorate(); }, 300);
-    }).observe(document.body, { childList: true, subtree: true });
-  }
-
-  if (!hasHover) return; // 触屏设备：保留 CSS 悬浮/入场，不启用倾斜/磁吸/避开
+  if (!hasHover) return;
 
   /* ---- 缓存避开元素列表 ---- */
   var dodgeEls = [];
   function refreshDodge() { dodgeEls = Array.prototype.slice.call(document.querySelectorAll('.lv-dodge')); }
   refreshDodge();
-  setInterval(refreshDodge, 2500);
+  // 页面可主动刷新
+  window.refreshLivelyDodge = refreshDodge;
 
   var tiltEl = null, magEl = null;
   var px = -9999, py = -9999, pTarget = null, ticking = false;
+  var lastMoveTime = 0;
 
   function climbTo(node, cls) {
     while (node && node !== document) {
@@ -81,7 +83,21 @@
 
   function onMove(e) {
     px = e.clientX; py = e.clientY; pTarget = e.target;
+    lastMoveTime = performance.now();
     if (!ticking) { ticking = true; requestAnimationFrame(tick); }
+  }
+
+  /* ---- 缓存 dodge rects，一帧内复用 ---- */
+  var dodgeRects = null;
+  function getDodgeRects() {
+    if (!dodgeRects) {
+      dodgeRects = [];
+      for (var i = 0; i < dodgeEls.length; i++) {
+        var r = dodgeEls[i].getBoundingClientRect();
+        if (r.width) dodgeRects.push({ el: dodgeEls[i], r: r });
+      }
+    }
+    return dodgeRects;
   }
 
   function tick() {
@@ -126,11 +142,11 @@
       }
     }
 
-    /* 3) 避开：图标在光标靠近时被推开 + 轻微放大 */
-    for (var i = 0; i < dodgeEls.length; i++) {
-      var el = dodgeEls[i];
-      var er = el.getBoundingClientRect();
-      if (!er.width) continue;
+    /* 3) 避开 */
+    var rects = getDodgeRects();
+    for (var i = 0; i < rects.length; i++) {
+      var item = rects[i];
+      var er = item.r;
       var ddx = (er.left + er.width / 2) - px;
       var ddy = (er.top + er.height / 2) - py;
       var dist = Math.sqrt(ddx * ddx + ddy * ddy);
@@ -138,15 +154,24 @@
       if (dist < RADIUS && dist > 0.5) {
         var force = 1 - dist / RADIUS;
         var push = force * 16;
-        el.style.setProperty('--dx', ((ddx / dist) * push).toFixed(2) + 'px');
-        el.style.setProperty('--dy', ((ddy / dist) * push).toFixed(2) + 'px');
-        el.style.setProperty('--ds', (1 + force * 0.28).toFixed(3));
-      } else if (el.style.getPropertyValue('--dx') !== '0px') {
-        el.style.setProperty('--dx', '0px');
-        el.style.setProperty('--dy', '0px');
-        el.style.setProperty('--ds', '1');
+        item.el.style.setProperty('--dx', ((ddx / dist) * push).toFixed(2) + 'px');
+        item.el.style.setProperty('--dy', ((ddy / dist) * push).toFixed(2) + 'px');
+        item.el.style.setProperty('--ds', (1 + force * 0.28).toFixed(3));
+      } else if (item.el.style.getPropertyValue('--dx') !== '0px') {
+        item.el.style.setProperty('--dx', '0px');
+        item.el.style.setProperty('--dy', '0px');
+        item.el.style.setProperty('--ds', '1');
       }
     }
+
+    // 本帧结束清除 rect 缓存
+    dodgeRects = null;
+
+    // 鼠标停止 100ms 后复位（避免留下悬停偏移）
+    var now = performance.now();
+    setTimeout(function () {
+      if (performance.now() - lastMoveTime >= 90) resetAll();
+    }, 100);
   }
 
   function resetAll() {
@@ -159,10 +184,21 @@
     }
   }
 
+  function cleanup() {
+    window.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerleave', resetAll);
+    window.removeEventListener('blur', resetAll);
+    resetAll();
+  }
+
   window.addEventListener('pointermove', onMove, { passive: true });
   document.addEventListener('pointerleave', resetAll);
   window.addEventListener('blur', resetAll);
   window.addEventListener('scroll', function () {
     if (tiltEl) { tiltEl.style.setProperty('--rx', '0deg'); tiltEl.style.setProperty('--ry', '0deg'); tiltEl = null; }
   }, { passive: true });
+  window.addEventListener('beforeunload', cleanup);
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) resetAll();
+  });
 })();

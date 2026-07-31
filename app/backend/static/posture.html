@@ -1253,6 +1253,9 @@
         setText('meta-repo-text', '全部历史扫描');
         setText('meta-time-text', relativeTime(lastDate));
         setText('meta-files-text', '累计扫描 ' + totalFiles + ' 个文件');
+        if (window.refreshLively) {
+          requestAnimationFrame(window.refreshLively);
+        }
         return true;
       }
 
