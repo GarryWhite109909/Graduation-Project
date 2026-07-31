@@ -130,8 +130,8 @@
 .vuln-font-mono { font-family: var(--vuln-font-mono); }
 
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.1/dist/index.global.js"></script>
-    <script src="https://unpkg.com/lucide@1.8.0/dist/umd/lucide.min.js"></script>
+    <script src="./lib/tailwind.global.js"></script>
+    <script src="./lib/lucide.min.js"></script>
     <style type="text/tailwindcss">
   @theme inline {
     --color-background: var(--vuln-background);
@@ -783,16 +783,11 @@
         el.className = 'status-loading inline-flex items-center gap-1.5 text-xs';
         el.innerHTML = '<span class="status-dot"></span><span class="status-text">检测后端中...</span>';
         try {
-          const ctrl = new AbortController();
-          const timer = setTimeout(function () { ctrl.abort(); }, 5000);
-          const res = await fetch(BACKEND_URL + '/api/health', { signal: ctrl.signal });
-          clearTimeout(timer);
+          // 改用轻量级 live 探针，无超时，与仪表盘/扫描工作台统一
+          const res = await fetch(BACKEND_URL + '/api/health/live');
           if (!res.ok) throw new Error('HTTP ' + res.status);
-          const data = await res.json();
           el.className = 'status-ok inline-flex items-center gap-1.5 text-xs';
-          let label = '后端已连接';
-          if (data && data.model) label += ' · ' + data.model;
-          el.innerHTML = '<span class="status-dot"></span><span class="status-text">' + escapeHtml(label) + '</span>';
+          el.innerHTML = '<span class="status-dot"></span><span class="status-text">后端已连接</span>';
           return true;
         } catch (e) {
           el.className = 'status-err inline-flex items-center gap-1.5 text-xs';

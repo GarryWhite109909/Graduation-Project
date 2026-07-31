@@ -151,9 +151,9 @@
     inject();
   }
 
-  // 捕获动态重渲染的导航（部分页面会重写 nav）
-  var mo = new MutationObserver(function () {
-    if (!document.getElementById('theme-toggle')) inject();
-  });
-  if (document.body) mo.observe(document.body, { childList: true, subtree: true });
+  // 注：已移除监听整个 body 的 MutationObserver。
+  // 原实现 observe(body, {subtree:true}) 会在 Tailwind 运行时重算 / AJAX 内容
+  // 加载时频繁触发 inject()，导致 justify-between 容器子元素在 3↔2 之间跳变，
+  // 表现为导航栏位置抖动（"莫名跳到最右侧"）。nav 为静态 HTML，按钮仅在
+  // DOMContentLoaded 时注入一次即可稳定布局。
 })();

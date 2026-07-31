@@ -124,8 +124,8 @@
 .vuln-font-mono { font-family: var(--vuln-font-mono); }
 
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.1/dist/index.global.js"></script>
-    <script src="https://unpkg.com/lucide@1.8.0/dist/umd/lucide.min.js"></script>
+    <script src="./lib/tailwind.global.js"></script>
+    <script src="./lib/lucide.min.js"></script>
     <style type="text/tailwindcss">
   @theme inline {
     --color-background: var(--vuln-background);
@@ -779,6 +779,15 @@
 
         /* ==================== Health check ==================== */
         function loadHealth() {
+          // 先用 live 探针快速确认后端已连接（毫秒级），深度检查完成前给用户即时反馈
+          fetch('/api/health/live').then(function (r) { return r.ok; }).then(function (ok) {
+            if (!ok) return;
+            var dot = document.querySelector('#health-status .badge-dot');
+            var st = document.querySelector('#health-status');
+            if (dot) dot.className = 'badge-dot on';
+            if (st) st.lastChild.textContent = ' 后端已连接，检测引擎…';
+          }).catch(function () {});
+          // 深度健康检查：获取 Ollama/模型/外部工具信息（可能较慢，但不阻塞 UI）
           fetch('/api/health').then(function (r) { return r.json(); }).then(function (data) {
             healthInfo = data;
             var dot = document.querySelector('#health-status .badge-dot');
