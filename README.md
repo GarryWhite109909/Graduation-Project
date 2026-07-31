@@ -304,35 +304,37 @@ VS Code 插件提供编辑器内直接扫描、诊断标记和工作区批量扫
 
 #### 安装
 
-**方式 A：从源码安装（开发模式）**
+**方式 A：从 VSIX 安装（推荐，普通用户）**
+
+1. 获取插件包 `vuln-scanner-1.2.0.vsix`（仓库已附带，或从开发者处获取）
+2. 打开 VS Code → 左侧扩展面板 → 右上角 `⋯` → **从 VSIX 安装**
+3. 选择 `.vsix` 文件 → 安装完成 → 重载窗口
+
+**方式 B：从源码安装（开发者）**
 
 ```bash
 cd app/vscode-extension
-npm install        # 如有依赖
-# 在 VS Code 中按 F5 启动扩展开发宿主调试
+npm install -g @vscode/vsce
+vsce package --allow-missing-repository   # 生成 vuln-scanner-1.2.0.vsix
 ```
 
-**方式 B：打包后安装**
-
-```bash
-cd app/vscode-extension
-npx vsce package   # 生成 vuln-scanner-1.2.0.vsix
-# 在 VS Code 扩展面板 → ⋯ → 从 VSIX 安装
-```
+再按方式 A 安装生成的 `.vsix`。
 
 #### 前置条件
 
 1. VS Code ≥ 1.80
-2. 后端服务已启动（`http://localhost:8765` 可访问），或通过设置指定后端地址
+2. **后端服务已启动并保持运行**：通过 `start_windows.bat` 启动后端（详见「快速开始」），插件所有扫描都依赖该后端，后端关闭则插件无法工作
 
 #### 命令
 
 | 命令 | 触发方式 | 功能 |
 |------|----------|------|
-| AI 漏洞扫描: 分析当前文件 | 右键菜单 / 命令面板 / 编辑器标题栏图标 | 扫描当前打开的文件 |
+| AI 漏洞扫描: 分析当前文件 | 右键编辑器 / 命令面板 / 编辑器标题栏盾牌图标 | 扫描当前打开的文件 |
 | AI 漏洞扫描: 批量扫描工作区 | 命令面板 | 扫描工作区所有代码文件 |
-| AI 漏洞扫描: 扫描指定文件夹 | 右键资源管理器中的文件夹 | 扫描指定目录 |
-| AI 漏洞扫描: 清除所有诊断标记 | 命令面板 | 清除编辑器中的波浪线标记 |
+| AI 漏洞扫描: 扫描指定文件夹 | 命令面板 | 弹窗选择文件夹后扫描 |
+| AI 漏洞扫描: 清除诊断标记 | 命令面板 | 清除编辑器中的波浪线标记 |
+
+> 打开命令面板：`Ctrl+Shift+P`（Windows/Linux）或 `Cmd+Shift+P`（macOS），搜索"漏洞扫描"即可看到全部命令。
 
 #### 配置项
 
@@ -350,60 +352,45 @@ npx vsce package   # 生成 vuln-scanner-1.2.0.vsix
 
 #### 使用流程
 
-1. 启动后端服务（见「快速开始」）
-2. 在 VS Code 中打开项目
-3. 打开任意代码文件 → 右键 → 「AI 漏洞扫描: 分析当前文件」
-4. 扫描结果以 Webview 面板展示；若启用诊断标记，漏洞行会显示波浪线
-5. 如需批量扫描：命令面板 → 「AI 漏洞扫描: 批量扫描工作区」
+1. 启动后端服务（双击 `start_windows.bat`，选 Web 模式 / 插件模式 / 全部均可，后端会常驻后台）
+2. 在 VS Code 中打开任意项目或单个代码文件
+3. 打开代码文件 → 右键 → 「AI 漏洞扫描: 分析当前文件」
+4. 扫描结果以 Webview 面板展示，包含漏洞判定、CWE 类型、风险等级、修复建议
+5. 若启用诊断标记，漏洞行会显示红色波浪线
+6. 如需批量扫描：命令面板 → 「AI 漏洞扫描: 批量扫描工作区」
 
 ### IntelliJ 插件
 
-IntelliJ 插件为毕业设计演示用桩代码，提供选中代码的扫描功能（结果以通知形式展示）。
+IntelliJ 插件提供编辑器内选中代码的扫描功能，结果以气球通知展示。
+
+#### 安装
+
+**从磁盘安装（唯一方式）**
+
+1. 获取插件包 `vuln-scanner-0.1.0.zip`（位于 `app/intellij-extension/build/distributions/`，或从开发者处获取）
+2. 打开 IntelliJ IDEA → `File` → `Settings` → `Plugins`
+3. 点击右上角齿轮图标 ⚙️ → **Install Plugin from Disk...**
+4. 选择 `vuln-scanner-0.1.0.zip` → 安装 → 重启 IDEA
 
 #### 前置条件
 
-1. **JDK 17+**（IntelliJ Platform 最低要求）
-2. **网络可访问**（Gradle 需下载 IntelliJ Platform SDK）
-3. **后端服务已启动**：`http://localhost:8765/api/health` 可访问
-
-#### 构建与调试
-
-**方式一：在 IntelliJ IDEA 中打开**
-
-1. 用 IntelliJ IDEA 打开 `app/intellij-extension/` 目录
-2. 等待 Gradle 同步完成
-3. 执行 Gradle 任务 `runIde` 启动沙盒 IDE
-4. 在沙盒 IDE 中打开代码文件 → 右键 → 「AI 漏洞扫描」
-
-**方式二：命令行构建**
-
-```bash
-cd app/intellij-extension
-./gradlew buildPlugin    # 生成插件 zip 到 build/distributions/
-./gradlew runIde         # 在沙盒 IDE 中运行调试
-```
+1. **IntelliJ IDEA**（Community 或 Ultimate 均可）
+2. **后端服务已启动并保持运行**：通过 `start_windows.bat` 启动后端（详见「快速开始」），插件所有扫描都依赖该后端，后端关闭则插件无法工作
 
 #### 使用方式
 
-1. 启动后端服务
-2. 在编辑器中选中要扫描的代码（未选中时扫描整个文件）
-3. 右键 → 「AI 漏洞扫描」（快捷键 `Ctrl+Shift+V`）
-4. 结果以气球通知形式弹出
-
-#### 配置
-
-后端地址硬编码在 `VulnScannerAction.java` 的 `BACKEND_URL` 常量中。如需修改，编辑该常量后重新构建：
-
-```java
-private static final String BACKEND_URL = "http://localhost:8765/api/analyze";
-```
+1. 启动后端服务（双击 `start_windows.bat`，选 Web 模式 / 插件模式 / 全部均可，后端会常驻后台）
+2. 在 IntelliJ IDEA 中打开任意项目或代码文件
+3. 在编辑器中**选中要扫描的代码**（未选中时扫描整个文件）
+4. 右键 → **AI 漏洞扫描**（或快捷键 `Ctrl+Shift+V`）
+5. 等待扫描完成，结果以气球通知形式弹出，显示漏洞类型、风险等级、触发点
 
 #### 与 VS Code 插件的差异
 
 | 特性 | VS Code 插件 | IntelliJ 插件 |
 |------|-------------|--------------|
-| 结果展示 | Webview 面板 | 通知（Notification） |
-| 诊断标记 | 波浪线诊断 | 暂未实现 |
+| 结果展示 | Webview 面板（详细） | 气球通知（摘要） |
+| 诊断标记 | 红色波浪线 | 暂未实现 |
 | 批量扫描 | 支持 | 暂未实现 |
 | 后端 API | `/api/analyze` | `/api/analyze` |
 

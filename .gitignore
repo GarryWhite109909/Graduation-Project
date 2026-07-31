@@ -24,6 +24,12 @@ ENV/
 .DS_Store
 .gradle/
 
+# 插件构建产物与 IDE 文件
+**/build/
+gradle/wrapper/gradle-wrapper.jar
+*.vsix
+*.iml
+
 # AI IDE 内部记录
 .trae/
 
