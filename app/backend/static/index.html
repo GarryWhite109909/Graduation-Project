@@ -921,16 +921,25 @@
     // 静态 fallback 圆环立即可交互（API 失败/空数据时仍保留交互）
     wireDonut(document.getElementById('chart-donut'), document.getElementById('donut-legend'));
 
+    // 1) 立即用 localStorage 历史数据渲染（秒级，不等待后端）
+    var histStats = computeStatsFromHistory();
+    if (histStats.total_files > 0 || histStats.recent_findings.length > 0) {
+      updateKpis(histStats);
+      updateDonut(histStats.recent_findings);
+      updateRecent(histStats.recent_findings);
+    }
+    updateFooterTime();
+
+    // 2) 异步请求后端统计补充/覆盖（不再阻塞等待 health）
     fetch('/api/stats')
       .then(function (res) {
         if (!res.ok) throw new Error('HTTP ' + res.status);
         return res.json();
       })
       .then(function (data) {
-        // 如果后端进程内统计为空（例如只做了粘贴扫描或重启过），回退到 localStorage 历史
+        // 后端进程内统计为空时（粘贴扫描/重启过），保留已渲染的 localStorage 数据
         var hasBackendData = (data.total_files || 0) > 0 || (data.total_vulnerable || 0) > 0 || (data.recent_findings || []).length > 0;
         if (!hasBackendData) {
-          var histStats = computeStatsFromHistory();
           if (histStats.total_files > 0 || histStats.recent_findings.length > 0) {
             data.total_files = histStats.total_files;
             data.total_vulnerable = histStats.total_vulnerable;
@@ -941,18 +950,23 @@
         updateKpis(data);
         updateDonut(data.recent_findings || []);
         updateRecent(data.recent_findings || []);
-        updateStatus(data.health || {});
-        updateFooterTime();
       })
       .catch(function () {
-        // 后端不可用：从 localStorage 历史恢复统计
         showError();
-        var histStats = computeStatsFromHistory();
-        if (histStats.total_files > 0 || histStats.recent_findings.length > 0) {
-          updateKpis(histStats);
-          updateDonut(histStats.recent_findings);
-          updateRecent(histStats.recent_findings);
-        }
+      });
+
+    // 3) 状态指示器单独请求轻量探针（不阻塞数据加载）
+    fetch('/api/health/live')
+      .then(function (res) { return res.ok ? res.json() : null; })
+      .then(function (live) {
+        if (live) updateStatus({ ollama_connected: true });
+      })
+      .catch(function () {
+        // 轻量探针也失败，尝试深度健康检查作为兜底
+        return fetch('/api/health').then(function (r) { return r.ok ? r.json() : null; });
+      })
+      .then(function (health) {
+        if (health) updateStatus(health);
       });
   }
 

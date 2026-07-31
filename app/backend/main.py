@@ -226,12 +226,13 @@ def _record_scan(batch: BatchResult) -> None:
 
 @app.get("/api/stats")
 def get_stats():
-    """仪表盘统计数据：扫描历史汇总 + 最近动态 + 健康状态。
+    """仪表盘统计数据：扫描历史汇总 + 最近动态。
 
     前端 index.html 调用此端点获取真实数据，替换静态占位。
     进程重启后统计清零，前端可用 localStorage 做历史持久化。
+    注意：此端点不调用 check_health（会阻塞等待 Ollama），健康状态由前端
+    单独请求 /api/health/live 获取，避免拖慢仪表盘数据加载。
     """
-    health = scanner.check_health()
     recent = _scan_stats["recent_scans"]
 
     # 从最近扫描中提取漏洞列表（用于"最近动态"）
@@ -254,7 +255,6 @@ def get_stats():
         "total_errors": _scan_stats["total_errors"],
         "recent_scans": recent,
         "recent_findings": recent_findings[:10],
-        "health": health,
     }
 
 
