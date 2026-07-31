@@ -32,12 +32,12 @@
       },
       {
         "command": "vulnScanner.scanFolder",
-        "title": "AI 漏洞扫描: 扫描指定文件夹",
+        "title": "AI 漏洞扫描: 扫描此文件夹",
         "icon": "$(folder)"
       },
       {
         "command": "vulnScanner.clearDiagnostics",
-        "title": "AI 漏洞扫描: 清除所有诊断标记",
+        "title": "AI 漏洞扫描: 清除诊断标记",
         "icon": "$(clear-all)"
       }
     ],
@@ -45,22 +45,14 @@
       "editor/context": [
         {
           "command": "vulnScanner.analyzeFile",
-          "when": "editorFocus",
-          "group": "vulnScanner@1"
+          "group": "2_vulnScanner@1"
         }
       ],
       "editor/title": [
         {
           "command": "vulnScanner.analyzeFile",
-          "when": "editorFocus",
+          "when": "editorIsOpen",
           "group": "navigation"
-        }
-      ],
-      "explorer/context": [
-        {
-          "command": "vulnScanner.scanFolder",
-          "when": "explorerResourceIsFolder",
-          "group": "vulnScanner@1"
         }
       ],
       "commandPalette": [

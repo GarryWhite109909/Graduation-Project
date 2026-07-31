@@ -68,16 +68,26 @@ function activate(context) {
 
   // ---- 命令注册 ----
 
-  // 1. 分析当前文件
+  // 1. 分析当前文件（支持编辑器内触发 / 资源管理器右键文件触发）
   const analyzeCmd = vscode.commands.registerCommand(
     "vulnScanner.analyzeFile",
-    async () => {
+    async (uri) => {
+      if (uri && uri.fsPath) {
+        // 资源管理器右键文件触发
+        try {
+          const doc = await vscode.workspace.openTextDocument(uri);
+          await analyzeDocument(doc, context);
+        } catch (e) {
+          vscode.window.showErrorMessage("无法打开文件: " + e.message);
+        }
+        return;
+      }
       const editor = vscode.window.activeTextEditor;
       if (!editor) {
         vscode.window.showWarningMessage("请先打开一个文件");
         return;
       }
-      await analyzeCurrentFile(editor, context);
+      await analyzeDocument(editor.document, context);
     }
   );
 
@@ -128,7 +138,7 @@ function activate(context) {
 
     event.waitUntil(
       (async () => {
-        const result = await callAnalyzeApi(event.document);
+        const result = await callAnalyzeApi(event.document, undefined, "single");
         if (result && !result.error) {
           applyDiagnostics(event.document, result);
         }
@@ -148,12 +158,11 @@ function isSupportedDoc(doc) {
 // ---------------------------------------------------------------------------
 // 单文件分析
 // ---------------------------------------------------------------------------
-async function analyzeCurrentFile(editor, context) {
+async function analyzeDocument(doc, context) {
   const config = vscode.workspace.getConfiguration("vulnScanner");
   const backendUrl = config.get("backendUrl", "http://localhost:8765");
   const useRag = config.get("useRag", false);
 
-  const doc = editor.document;
   const code = doc.getText();
   const filename = vscode.workspace.asRelativePath(doc.uri);
   const language = LANG_MAP[doc.languageId] || "text";
@@ -173,7 +182,7 @@ async function analyzeCurrentFile(editor, context) {
       cancellable: false,
     },
     async () => {
-      return await callAnalyzeApi(doc);
+      return await callAnalyzeApi(doc, undefined, "single");
     }
   );
 
@@ -196,8 +205,10 @@ async function analyzeCurrentFile(editor, context) {
 
 /**
  * 调用后端 /api/analyze
+ * @param scanScope 'single'（交互式,HIGH 优先级）/ 'batch'（批量,LOW 优先级）
+ *                  调度器据 X-Scan-Scope 分配优先级，X-Client-Type 标识来源为 vscode
  */
-function callAnalyzeApi(doc, overrideCode) {
+function callAnalyzeApi(doc, overrideCode, scanScope) {
   const config = vscode.workspace.getConfiguration("vulnScanner");
   const backendUrl = config.get("backendUrl", "http://localhost:8765");
   const useRag = config.get("useRag", false);
@@ -217,16 +228,20 @@ function callAnalyzeApi(doc, overrideCode) {
       use_rag: useRag,
     });
 
+    const headers = {
+      "Content-Type": "application/json",
+      "Content-Length": Buffer.byteLength(body),
+      "X-Client-Type": "vscode",
+    };
+    if (scanScope) headers["X-Scan-Scope"] = scanScope;
+
     const req = http.request(
       {
         hostname: parsed.hostname,
         port: parsed.port,
         path: parsed.pathname,
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Content-Length": Buffer.byteLength(body),
-        },
+        headers,
         timeout,
       },
       (res) => {
@@ -343,9 +358,9 @@ async function scanFolder(folderUri, context) {
 
         if (!code.trim()) continue;
 
-        // 调用分析（复用 callAnalyzeApi，传入虚拟 doc）
+        // 调用分析（复用 callAnalyzeApi，传入虚拟 doc；批量扫描标 batch 降为 LOW 优先级）
         const fakeDoc = { uri: fileUri, languageId: extToLangId(fileUri), getText: () => code };
-        const result = await callAnalyzeApi(fakeDoc, code);
+        const result = await callAnalyzeApi(fakeDoc, code, "batch");
 
         if (result.error) {
           outputChannel.appendLine(`  [✗] ${relName} — ${result.error}`);
