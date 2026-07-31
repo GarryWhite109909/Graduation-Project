@@ -499,37 +499,25 @@
       *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
     }
   </style>
-  <nav class="nav-glass fixed top-0 left-0 right-0 z-50 border-b border-[var(--vuln-line)]">
-    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-      <div class="flex h-16 items-center justify-between">
-        <a href="./index.html" class="flex items-center gap-3">
-          <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-            </svg>
-          </div>
-          <span class="text-lg font-semibold tracking-tight text-[var(--vuln-ink)]">VulnScanner</span>
-        </a>
-        <ul class="hidden items-center gap-1 md:flex">
-          <li>
-            <a id="nav-dashboard" data-dom-id="nav-dashboard" href="./index.html" class="text-sm font-medium text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] transition-colors px-3 py-2 rounded-md">仪表盘</a>
-          </li>
-          <li>
-            <a id="nav-scan" data-dom-id="nav-scan" href="./scan.html" class="text-sm font-medium text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] transition-colors px-3 py-2 rounded-md">扫描工作台</a>
-          </li>
-          <li>
-            <a id="nav-cwe" data-dom-id="nav-cwe" href="./cwe.html" class="text-sm font-medium text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] transition-colors px-3 py-2 rounded-md">CWE 样本库</a>
-          </li>
-          <li>
-            <a id="nav-posture" data-dom-id="nav-posture" href="./posture.html" aria-current="page" class="text-[var(--vuln-brand)] bg-[var(--vuln-brand)]/10 text-sm font-medium px-3 py-2 rounded-md">安全态势</a>
-          </li>
-        </ul>
-      </div>
+  <nav class="nav-glass fixed top-0 left-0 right-0 z-50 border-b border-[var(--vuln-line)]" aria-label="主导航">
+    <div class="max-w-[1440px] mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
+      <a href="./index.html" class="flex items-center gap-2">
+        <svg class="h-7 w-7 text-[var(--vuln-brand)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+        <span class="text-lg font-semibold text-[var(--vuln-ink)] tracking-tight">VulnScanner</span>
+      </a>
+      <ul class="flex items-center gap-1">
+        <li><a id="nav-dashboard" data-dom-id="nav-dashboard" href="./index.html" class="text-sm font-medium text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] transition-colors px-3 py-2 rounded-md">仪表盘</a></li>
+        <li><a id="nav-scan" data-dom-id="nav-scan" href="./scan.html" class="text-sm font-medium text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] transition-colors px-3 py-2 rounded-md">扫描工作台</a></li>
+        <li><a id="nav-cwe" data-dom-id="nav-cwe" href="./cwe.html" class="text-sm font-medium text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] transition-colors px-3 py-2 rounded-md">CWE 样本库</a></li>
+        <li><a id="nav-posture" data-dom-id="nav-posture" href="./posture.html" class="text-sm font-medium text-[var(--vuln-brand)] bg-[var(--vuln-brand)]/10 px-3 py-2 rounded-md" aria-current="page">安全态势</a></li>
+      </ul>
     </div>
   </nav>
 
   <main class="pt-24 pb-16">
-    <div class="mx-auto max-w-7xl space-y-8 px-4 sm:px-6 lg:px-8">
+    <div class="mx-auto max-w-[1440px] space-y-8 px-4 md:px-6">
       <section class="posture-header glass-card" aria-label="仓库分析头部">
         <div class="flex-1 min-w-[240px]">
           <div class="mb-2 flex items-center justify-between gap-3">

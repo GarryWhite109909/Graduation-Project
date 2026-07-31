@@ -205,7 +205,7 @@
         display: flex;
         gap: 24px;
         padding: 88px 24px 24px;
-        max-width: 1600px;
+        max-width: 1440px;
         margin: 0 auto;
       }
       .control-panel {
@@ -443,19 +443,19 @@
       }
     </style>
 
-    <nav class="nav-glass fixed top-0 left-0 right-0 z-50">
-      <div class="max-w-[1600px] mx-auto px-6 h-14 flex items-center justify-between">
-        <a href="./index.html" class="flex items-center gap-2 text-[var(--vuln-ink)] font-semibold">
-          <svg class="w-6 h-6 text-[var(--vuln-brand)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path>
+    <nav class="nav-glass fixed top-0 left-0 right-0 z-50 border-b border-[var(--vuln-line)]" aria-label="主导航">
+      <div class="max-w-[1440px] mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
+        <a href="./index.html" class="flex items-center gap-2">
+          <svg class="h-7 w-7 text-[var(--vuln-brand)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
           </svg>
-          <span>VulnScanner</span>
+          <span class="text-lg font-semibold text-[var(--vuln-ink)] tracking-tight">VulnScanner</span>
         </a>
         <ul class="flex items-center gap-1">
-          <li><a href="./index.html" class="text-sm font-medium text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] px-3 py-2 rounded-md">仪表盘</a></li>
-          <li><a href="./scan.html" class="text-[var(--vuln-brand)] bg-[var(--vuln-brand)]/10 text-sm font-medium px-3 py-2 rounded-md" aria-current="page">扫描工作台</a></li>
-          <li><a href="./cwe.html" class="text-sm font-medium text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] px-3 py-2 rounded-md">CWE 样本库</a></li>
-          <li><a href="./posture.html" class="text-sm font-medium text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] px-3 py-2 rounded-md">安全态势</a></li>
+          <li><a href="./index.html" class="text-sm font-medium text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] transition-colors px-3 py-2 rounded-md">仪表盘</a></li>
+          <li><a href="./scan.html" class="text-sm font-medium text-[var(--vuln-brand)] bg-[var(--vuln-brand)]/10 px-3 py-2 rounded-md" aria-current="page">扫描工作台</a></li>
+          <li><a href="./cwe.html" class="text-sm font-medium text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] transition-colors px-3 py-2 rounded-md">CWE 样本库</a></li>
+          <li><a href="./posture.html" class="text-sm font-medium text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] transition-colors px-3 py-2 rounded-md">安全态势</a></li>
         </ul>
       </div>
     </nav>
