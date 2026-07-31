@@ -614,9 +614,68 @@ def print_hardware_summary(hardware: dict, config: dict) -> None:
         print(f"[硬件检测] ⚠️ {config['warning']}")
 
 
-def main():
+def select_mode() -> str:
+    """交互式选择启动模式。
+
+    后端进程始终启动（Web 与插件共用同一后端），区别仅在于：
+        web    —— 启动后端 + 自动打开浏览器（仅用 Web 应用）
+        plugin —— 启动后端，不开浏览器（供 VSCode/IntelliJ 插件连接）
+        all    —— 启动后端 + 打开浏览器 + 打印插件连接说明（同时用 Web 与插件）
+
+    Returns:
+        "web" / "plugin" / "all"
+    """
     print("=" * 60)
-    print("  AI 漏洞扫描器 —— 启动中")
+    print("  AI 漏洞扫描器 —— 启动模式选择")
+    print("=" * 60)
+    print("  后端服务始终启动（Web 与插件共用同一后端）")
+    print("  [1] Web 模式    —— 后端 + 浏览器（仅用 Web 应用）")
+    print("  [2] 插件模式    —— 仅后端，不开浏览器（供编辑器插件连接）")
+    print("  [3] 全部        —— 后端 + 浏览器 + 插件提示（Web 与插件同时用）")
+    print("  [0] 退出")
+    print("-" * 60)
+    while True:
+        choice = input("请选择 [1/2/3/0]（默认 3）: ").strip()
+        if choice in ("", "3"):
+            return "all"
+        if choice == "1":
+            return "web"
+        if choice == "2":
+            return "plugin"
+        if choice == "0":
+            print("已取消启动。")
+            sys.exit(0)
+        print("[启动器] 无效输入，请重新选择。")
+
+
+def print_plugin_hint(port: int) -> None:
+    """打印编辑器插件连接说明（插件模式 / 全部模式使用）。"""
+    print()
+    print("-" * 60)
+    print("  编辑器插件连接说明")
+    print("-" * 60)
+    print(f"  后端地址：http://localhost:{port}")
+    print()
+    print("  ▸ VSCode 插件")
+    print("    1. 在 VSCode 中打开 app/vscode-extension/ 目录，按 F5 调试")
+    print("       （或用 vsce package 打包成 vsix 后安装）")
+    print("    2. 设置 vulnScanner.backendUrl = http://localhost:%d" % port)
+    print("    3. 右键编辑器 → “AI 漏洞扫描: 分析当前文件”")
+    print()
+    print("  ▸ IntelliJ 插件")
+    print("    1. 在 IntelliJ IDEA 中打开 app/intellij-extension/ 目录")
+    print("    2. 执行 Gradle 任务 runIde 启动沙盒 IDE")
+    print("    3. 选中代码 → 右键 → “AI 漏洞扫描”（Ctrl+Shift+V）")
+    print()
+    print("  ▸ 队列状态查询：GET  http://localhost:%d/api/queue/status" % port)
+    print("-" * 60)
+
+
+def main():
+    mode = select_mode()
+    print()
+    print("=" * 60)
+    print("  AI 漏洞扫描器 —— 启动中（模式: %s）" % mode)
     print("=" * 60)
 
     # 1. 检测 Ollama
@@ -701,15 +760,21 @@ def main():
         input("\n按回车键退出...")
         return
 
-    print(f"[5/5] 后端就绪，正在打开浏览器...")
+    # 6. 根据启动模式决定后续动作（后端已就绪，Web 与插件共用）
+    if mode in ("web", "all"):
+        print(f"[5/5] 后端就绪，正在打开浏览器...")
+        webbrowser.open(f"http://localhost:{PORT}")
+    else:
+        print(f"[5/5] 后端就绪（插件模式，不打开浏览器）")
 
-    # 6. 打开浏览器
-    webbrowser.open(f"http://localhost:{PORT}")
+    if mode in ("plugin", "all"):
+        print_plugin_hint(PORT)
 
     print(f"\n{'=' * 60}")
-    print(f"  AI 漏洞扫描器已启动")
+    print(f"  AI 漏洞扫描器已启动（模式: {mode}）")
     print(f"  访问地址：http://localhost:{PORT}")
     print(f"  API 文档：http://localhost:{PORT}/docs")
+    print(f"  队列状态：http://localhost:{PORT}/api/queue/status")
     print(f"  按 Ctrl+C 停止服务")
     print(f"{'=' * 60}\n")
 

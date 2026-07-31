@@ -929,7 +929,7 @@
           if (useMulti) {
             var models = getSelectedModels();
             if (models.length >= 2) {
-              promises.push(postJSON('/api/multi-model-scan', { code: code, language: lang, filename: filename, models: models }).then(function (d) {
+              promises.push(postJSON('/api/multi-model-scan', { code: code, language: lang, filename: filename, models: models }, 'single').then(function (d) {
                 d._kind = 'multi'; d._orig = code; d._lang = lang; return d;
               }));
             } else {
@@ -966,7 +966,7 @@
 
         function singleAnalyze(code, lang, filename, useVllm) {
           var url = useVllm ? '/api/vllm-analyze' : '/api/analyze';
-          return postJSON(url, { code: code, language: lang, filename: filename }).then(function (d) {
+          return postJSON(url, { code: code, language: lang, filename: filename }, 'single').then(function (d) {
             d._kind = useVllm ? 'vllm' : 'ollama'; d._orig = code; d._lang = lang; return d;
           });
         }
@@ -986,7 +986,7 @@
           selectedFiles.forEach(function (f) { formData.append('files', f); });
           formData.append('use_rag', '0');
 
-          fetch('/api/batch', { method: 'POST', body: formData }).then(function (resp) {
+          fetch('/api/batch', { method: 'POST', body: formData, headers: { 'X-Client-Type': 'web', 'X-Scan-Scope': 'batch' } }).then(function (resp) {
             if (!resp.ok) throw new Error('HTTP ' + resp.status);
             var reader = resp.body.getReader();
             var decoder = new TextDecoder();
@@ -1046,7 +1046,7 @@
           if (!url) { alert('请输入 URL'); return; }
           setBtnLoading(true);
           showProgress(true, '正在抓取站点并分析…');
-          postJSON('/api/url-scan', { url: url }).then(function (d) {
+          postJSON('/api/url-scan', { url: url }, 'batch').then(function (d) {
             setBtnLoading(false);
             if (d.error) { scanResults.push(errorResult(d.error, url)); }
             else {
@@ -1078,7 +1078,7 @@
           var maxFiles = parseInt(document.getElementById('max-files-input').value, 10) || 20;
           setBtnLoading(true);
           showProgress(true, '正在克隆仓库并扫描…（可能耗时数分钟）');
-          postJSON('/api/github-scan', { repo_url: repo, max_files: maxFiles }).then(function (d) {
+          postJSON('/api/github-scan', { repo_url: repo, max_files: maxFiles }, 'batch').then(function (d) {
             setBtnLoading(false);
             if (d.error) { scanResults.push(errorResult(d.error, repo)); }
             else if (d.summary && d.summary.results) {
@@ -1539,10 +1539,14 @@
         }
 
         /* ==================== Utils ==================== */
-        function postJSON(url, data) {
+        // scanScope: 'single'（交互式,HIGH 优先级）/ 'batch'（批量,LOW 优先级）
+        // 调度器据 X-Scan-Scope 分配优先级，X-Client-Type 标识来源
+        function postJSON(url, data, scanScope) {
+          var headers = { 'Content-Type': 'application/json', 'X-Client-Type': 'web' };
+          if (scanScope) headers['X-Scan-Scope'] = scanScope;
           return fetch(url, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: headers,
             body: JSON.stringify(data)
           }).then(function (r) {
             if (!r.ok) return r.json().then(function (d) { throw new Error(d.error || d.detail || ('HTTP ' + r.status)); });

@@ -21,6 +21,7 @@ FastAPI 后端入口 —— 漏洞扫描器 API。
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import shutil
@@ -30,7 +31,7 @@ import time
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, File, Form, UploadFile
+from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -38,7 +39,14 @@ from pydantic import BaseModel
 
 from app.backend.services.fetcher import fetch_url
 from app.backend.services.reporter import render_batch_markdown, render_single_markdown
-from app.backend.services.scanner import DEFAULT_MODEL, BatchResult, Scanner
+from app.backend.services.scanner import DEFAULT_MODEL, BatchResult, Scanner, SingleResult
+from app.backend.services.scheduler import (
+    PRIORITY_HIGH,
+    PRIORITY_LOW,
+    ScanScheduler,
+    resolve_client_id,
+    resolve_priority,
+)
 
 # 高级能力模块（外部工具扫描 / 修复验证 / 多模型投票 / vLLM 推理加速）
 from graduation_project.external_scanner import ExternalScanner
@@ -56,6 +64,17 @@ scanner = Scanner(
     use_rag=os.environ.get("VULN_SCANNER_RAG", "0") == "1",
     use_lite_prompt=True,  # SFT v5 必须用 LITE
     use_prefilter=os.environ.get("VULN_SCANNER_PREFILTER", "1") != "0",  # 默认启用预筛
+)
+
+# ---------------------------------------------------------------------------
+# 扫描请求调度器（单例）
+# ---------------------------------------------------------------------------
+# 在 FastAPI 与 Ollama 之间引入优先级队列：交互式扫描（HIGH）优先于批量扫描
+# （LOW），单工作线程与 Ollama 串行推理对齐。详见 services/scheduler.py。
+scheduler = ScanScheduler(
+    max_queue=int(os.environ.get("VULN_SCANNER_MAX_QUEUE", "50")),
+    max_per_client=int(os.environ.get("VULN_SCANNER_MAX_PER_CLIENT", "8")),
+    queue_timeout=float(os.environ.get("VULN_SCANNER_QUEUE_TIMEOUT", "600")),
 )
 
 # ---------------------------------------------------------------------------
@@ -137,6 +156,19 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+async def _bind_scheduler_loop() -> None:
+    """启动时把事件循环绑定到调度器，使其能回填 asyncio.Future 结果。"""
+    import asyncio
+    scheduler.bind_loop(asyncio.get_running_loop())
+
+
+@app.on_event("shutdown")
+async def _shutdown_scheduler() -> None:
+    """关闭时停止调度器工作线程。"""
+    scheduler.shutdown()
 
 # 最近一次批量扫描结果（供 /api/report 下载）
 _last_batch: Optional[BatchResult] = None
@@ -264,15 +296,35 @@ def get_stats():
 # ---------------------------------------------------------------------------
 # 单文件分析（代码粘贴）
 # ---------------------------------------------------------------------------
+async def _await_scan(future):
+    """等待调度器 future 完成。
+
+    Returns:
+        (result, None) 成功；或 (None, JSONResponse) 失败（队列满/超时/取消）。
+    """
+    try:
+        return await future, None
+    except Exception as e:
+        return None, JSONResponse({"error": str(e)}, status_code=503)
+
+
 @app.post("/api/analyze")
-def analyze(req: AnalyzeRequest):
-    # 同步路由（非 async）：FastAPI 自动放线程池，避免阻塞事件循环
-    result = scanner.scan_code(
-        code=req.code,
-        language=req.language,
-        filename=req.filename,
-        use_rag=req.use_rag,
+async def analyze(req: AnalyzeRequest, request: Request):
+    # 交互式单文件扫描：默认 HIGH 优先级；批量客户端可通过 X-Scan-Scope: batch 降级
+    client_id = resolve_client_id(request.headers.get("x-client-type"))
+    priority = resolve_priority(request.headers.get("x-scan-scope"), PRIORITY_HIGH)
+
+    _, future = scheduler.submit(
+        priority, client_id,
+        lambda: scanner.scan_code(
+            code=req.code, language=req.language,
+            filename=req.filename, use_rag=req.use_rag,
+        ),
+        description=f"analyze:{req.filename}",
     )
+    result, err = await _await_scan(future)
+    if err is not None:
+        return err
     return result.to_dict()
 
 
@@ -281,14 +333,17 @@ def analyze(req: AnalyzeRequest):
 # ---------------------------------------------------------------------------
 @app.post("/api/batch")
 async def batch_scan(
+    request: Request,
     files: list[UploadFile] = File(...),
     use_rag: str = Form("0"),
 ):
     """批量扫描上传的文件。
 
     返回 NDJSON 流（每行一个文件的结果），前端可逐行解析显示进度。
+    每个文件作为 LOW 优先级任务入队，自动让路于交互式扫描（HIGH）。
     """
     rag = use_rag == "1"
+    client_id = resolve_client_id(request.headers.get("x-client-type"), fallback="web")
     file_list = []
     for f in files:
         ext = Path(f.filename).suffix.lower()
@@ -296,13 +351,28 @@ async def batch_scan(
         content = (await f.read()).decode("utf-8", errors="replace")
         file_list.append((f.filename, lang, content))
 
-    def generate():
+    async def generate():
         global _last_batch
         batch = BatchResult(total_files=len(file_list))
         batch_start = time.time()
 
         for filename, lang, code in file_list:
-            r = scanner.scan_code(code, lang, filename, use_rag=rag)
+            # 每个文件单独入队（LOW），交互式扫描可插队
+            _, future = scheduler.submit(
+                PRIORITY_LOW, client_id,
+                lambda fn=filename, lg=lang, cd=code: scanner.scan_code(
+                    cd, lg, fn, use_rag=rag,
+                ),
+                description=f"batch:{filename}",
+            )
+            try:
+                r = await future
+            except Exception as e:
+                r = SingleResult(
+                    filename=filename, language=lang,
+                    has_vulnerability=None, error=str(e),
+                )
+
             batch.results.append(r)
             batch.scanned += 1
             if r.has_vulnerability is True:
@@ -332,12 +402,57 @@ async def batch_scan(
 
 
 # ---------------------------------------------------------------------------
+# 逐文件调度扫描（替代 Scanner.scan_files，支持优先级让路）
+# ---------------------------------------------------------------------------
+async def _scan_files_scheduled(
+    files: list[tuple[str, str, str]],
+    use_rag: Optional[bool],
+    client_id: str,
+    priority: int = PRIORITY_LOW,
+) -> BatchResult:
+    """逐文件提交到调度器，等待结果汇总。
+
+    批量场景（URL / GitHub / 工作区）每个文件以 LOW 优先级入队，
+    交互式扫描（HIGH）可随时插队，避免批量任务饿死单文件请求。
+    """
+    batch = BatchResult(total_files=len(files))
+    batch_start = time.time()
+    for filename, language, code in files:
+        _, future = scheduler.submit(
+            priority, client_id,
+            lambda fn=filename, lg=language, cd=code: scanner.scan_code(
+                cd, lg, fn, use_rag=use_rag,
+            ),
+            description=f"scan:{filename}",
+        )
+        try:
+            r = await future
+        except Exception as e:
+            r = SingleResult(
+                filename=filename, language=language,
+                has_vulnerability=None, error=str(e),
+            )
+        batch.results.append(r)
+        batch.scanned += 1
+        if r.has_vulnerability is True:
+            batch.vulnerable += 1
+        elif r.has_vulnerability is False:
+            batch.safe += 1
+        else:
+            batch.errors += 1
+    batch.total_duration = time.time() - batch_start
+    return batch
+
+
+# ---------------------------------------------------------------------------
 # URL 抓取扫描
 # ---------------------------------------------------------------------------
 @app.post("/api/url-scan")
-def url_scan(req: UrlScanRequest):
-    """抓取目标 URL 的所有脚本，逐个扫描。"""
-    fetch_result = fetch_url(req.url)
+async def url_scan(req: UrlScanRequest, request: Request):
+    """抓取目标 URL 的所有脚本，逐个扫描（LOW 优先级，让路交互式）。"""
+    client_id = resolve_client_id(request.headers.get("x-client-type"), fallback="web")
+    # fetch_url 是同步阻塞（requests），放线程池避免卡事件循环
+    fetch_result = await asyncio.to_thread(fetch_url, req.url)
 
     if fetch_result.error:
         return JSONResponse(
@@ -353,7 +468,7 @@ def url_scan(req: UrlScanRequest):
          s.language, s.content)
         for s in fetch_result.scripts
     ]
-    batch = scanner.scan_files(files, use_rag=req.use_rag)
+    batch = await _scan_files_scheduled(files, req.use_rag, client_id)
     global _last_batch
     _last_batch = batch
 
@@ -368,57 +483,69 @@ def url_scan(req: UrlScanRequest):
 # ---------------------------------------------------------------------------
 # GitHub 仓库扫描
 # ---------------------------------------------------------------------------
-@app.post("/api/github-scan")
-def github_scan(req: GithubScanRequest):
-    """clone GitHub 仓库 → 遍历代码文件 → 批量扫描。"""
-    # 浅克隆到临时目录
+def _clone_and_collect(req: GithubScanRequest) -> tuple[Optional[str], Optional[list], Optional[JSONResponse]]:
+    """同步：克隆仓库 + 遍历代码文件。放线程池执行，避免阻塞事件循环。
+
+    Returns:
+        (error_response, None, None) 失败；
+        (None, code_files, tmp_dir) 成功（tmp_dir 需调用方清理）。
+    """
     tmp_dir = tempfile.mkdtemp(prefix="vuln_scan_")
+    repo_name = req.repo_url.rstrip("/").split("/")[-1].replace(".git", "")
+    clone_target = os.path.join(tmp_dir, repo_name)
+
     try:
-        repo_name = req.repo_url.rstrip("/").split("/")[-1].replace(".git", "")
-        clone_target = os.path.join(tmp_dir, repo_name)
-
-        try:
-            result = subprocess.run(
-                ["git", "clone", "--depth", "1", req.repo_url, clone_target],
-                capture_output=True, text=True, timeout=120,
+        result = subprocess.run(
+            ["git", "clone", "--depth", "1", req.repo_url, clone_target],
+            capture_output=True, text=True, timeout=120,
+        )
+        if result.returncode != 0:
+            return None, None, JSONResponse(
+                {"error": f"git clone 失败: {result.stderr[:500]}"},
+                status_code=502,
             )
-            if result.returncode != 0:
-                return JSONResponse(
-                    {"error": f"git clone 失败: {result.stderr[:500]}"},
-                    status_code=502,
-                )
-        except subprocess.TimeoutExpired:
-            return JSONResponse({"error": "git clone 超时（120s）"}, status_code=504)
-        except FileNotFoundError:
-            return JSONResponse({"error": "系统未安装 git"}, status_code=500)
+    except subprocess.TimeoutExpired:
+        return None, None, JSONResponse({"error": "git clone 超时（120s）"}, status_code=504)
+    except FileNotFoundError:
+        return None, None, JSONResponse({"error": "系统未安装 git"}, status_code=500)
 
-        # 遍历代码文件
-        code_files = []
-        for root, _dirs, fnames in os.walk(clone_target):
-            # 跳过 .git / node_modules / vendor 等
-            if any(skip in root for skip in [".git", "node_modules", "vendor", "__pycache__"]):
+    code_files = []
+    for root, _dirs, fnames in os.walk(clone_target):
+        if any(skip in root for skip in [".git", "node_modules", "vendor", "__pycache__"]):
+            continue
+        for fname in fnames:
+            ext = Path(fname).suffix.lower()
+            if ext not in EXT_TO_LANG:
                 continue
-            for fname in fnames:
-                ext = Path(fname).suffix.lower()
-                if ext not in EXT_TO_LANG:
-                    continue
-                fpath = os.path.join(root, fname)
-                try:
-                    with open(fpath, "r", encoding="utf-8", errors="replace") as fp:
-                        content = fp.read()
-                    rel_path = os.path.relpath(fpath, clone_target)
-                    code_files.append((rel_path, EXT_TO_LANG[ext], content))
-                except Exception:
-                    continue
-                if len(code_files) >= req.max_files:
-                    break
+            fpath = os.path.join(root, fname)
+            try:
+                with open(fpath, "r", encoding="utf-8", errors="replace") as fp:
+                    content = fp.read()
+                rel_path = os.path.relpath(fpath, clone_target)
+                code_files.append((rel_path, EXT_TO_LANG[ext], content))
+            except Exception:
+                continue
             if len(code_files) >= req.max_files:
                 break
+        if len(code_files) >= req.max_files:
+            break
 
+    return tmp_dir, code_files, None
+
+
+@app.post("/api/github-scan")
+async def github_scan(req: GithubScanRequest, request: Request):
+    """clone GitHub 仓库 → 遍历代码文件 → 批量扫描（LOW 优先级）。"""
+    client_id = resolve_client_id(request.headers.get("x-client-type"), fallback="web")
+    tmp_dir, code_files, err = await asyncio.to_thread(_clone_and_collect, req)
+    if err is not None:
+        return err
+
+    try:
         if not code_files:
             return {"repo": req.repo_url, "message": "仓库中未找到支持的代码文件"}
 
-        batch = scanner.scan_files(code_files, use_rag=req.use_rag)
+        batch = await _scan_files_scheduled(code_files, req.use_rag, client_id)
         global _last_batch
         _last_batch = batch
         _record_scan(batch)
@@ -429,7 +556,8 @@ def github_scan(req: GithubScanRequest):
             "summary": batch.to_dict(),
         }
     finally:
-        shutil.rmtree(tmp_dir, ignore_errors=True)
+        if tmp_dir:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 # ---------------------------------------------------------------------------
@@ -530,27 +658,40 @@ def verify_fix(req: VerifyFixRequest):
 # 多模型投票扫描
 # ---------------------------------------------------------------------------
 @app.post("/api/multi-model-scan")
-def multi_model_scan(req: MultiModelRequest):
+async def multi_model_scan(req: MultiModelRequest, request: Request):
     """多模型交叉验证扫描：顺序加载各模型 → 投票聚合 → 返回 VoteResult。
 
     前端需传入 ≥2 个模型名；任一时刻显存只驻留单模型（keep_alive=0）。
+    走 Ollama，纳入调度器（交互式 HIGH 优先级）。
     """
     if len(req.models) < 2:
         return JSONResponse(
             {"error": "多模型投票至少需要 2 个模型，当前仅 " + str(len(req.models)) + " 个"},
             status_code=400,
         )
-    mms = MultiModelScanner(
-        models=req.models,
-        use_prefilter=True,
-        keep_alive=0,
+    client_id = resolve_client_id(request.headers.get("x-client-type"))
+    priority = resolve_priority(request.headers.get("x-scan-scope"), PRIORITY_HIGH)
+
+    def _run():
+        mms = MultiModelScanner(
+            models=req.models,
+            use_prefilter=True,
+            keep_alive=0,
+        )
+        return mms.scan_code(
+            code=req.code,
+            language=req.language,
+            filename=req.filename,
+            use_rag=req.use_rag,
+        )
+
+    _, future = scheduler.submit(
+        priority, client_id, _run,
+        description=f"multi-model:{req.filename}",
     )
-    result = mms.scan_code(
-        code=req.code,
-        language=req.language,
-        filename=req.filename,
-        use_rag=req.use_rag,
-    )
+    result, err = await _await_scan(future)
+    if err is not None:
+        return err
     return result.to_dict()
 
 
@@ -609,6 +750,36 @@ def vllm_analyze(req: VllmAnalyzeRequest):
         "duration": round(result["duration"], 2),
         "backend": "vllm",
     }
+
+
+# ---------------------------------------------------------------------------
+# 调度器队列管理（供 Web/插件查询排队状态、取消排队任务）
+# ---------------------------------------------------------------------------
+@app.get("/api/queue/status")
+def queue_status():
+    """返回当前调度队列状态：排队数、各优先级计数、当前执行任务、统计。
+
+    客户端可轮询此端点展示“前面还有 N 个任务”的提示。
+    """
+    return scheduler.status()
+
+
+@app.post("/api/queue/cancel/{task_id}")
+def queue_cancel(task_id: str):
+    """取消排队中的任务。正在执行的任务不可取消。
+
+    Returns:
+        {"canceled": true} 成功标记取消；
+        {"canceled": false, "reason": "..."} 任务不存在或正在执行。
+    """
+    ok = scheduler.cancel(task_id)
+    if ok:
+        return {"canceled": True, "task_id": task_id}
+    return JSONResponse(
+        {"canceled": False, "task_id": task_id,
+         "reason": "任务不存在或正在执行，无法取消"},
+        status_code=409,
+    )
 
 
 # ---------------------------------------------------------------------------

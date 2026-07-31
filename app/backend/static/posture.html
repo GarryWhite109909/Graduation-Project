@@ -1113,7 +1113,7 @@
         try {
           const res = await fetch(BACKEND_URL + '/api/github-scan', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-Client-Type': 'web', 'X-Scan-Scope': 'batch' },
             body: JSON.stringify({ repo_url: repoUrl, use_rag: false, max_files: 50 }),
             signal: ctrl.signal
           });
