@@ -203,4 +203,4 @@ user 消息包含两部分：
 | temperature | 0.5 | K3 已保守，温度可以低一点 |
 | max_tokens | 1024 | 硬限制，防止长链 |
 
-> 注：K3 思考模式始终开启（目前仅支持 `reasoning_effort: "max"`），API 响应中 `message.reasoning_content` 为思考链，`message.content` 为最终输出。训练数据只取 `content`，但计费含思考链 token。
+> 注：K3 思考模式始终开启（架构决定，无法关闭；`reasoning_effort` 支持 `low`/`high`/`max`，默认 `max`），API 响应中 `message.reasoning_content` 为思考链，`message.content` 为最终输出。训练数据只取 `content`，但计费含思考链 token。

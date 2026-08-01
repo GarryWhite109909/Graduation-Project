@@ -27,8 +27,8 @@
 #   MULTISEED=1       启用多种子训练 + 评估
 #   CVE_FIX=1         启用 CVE-fix held-out 测试集评估
 #   SEED=42           单种子训练的种子（默认 42）
-#   EPOCHS=3          训练轮数（默认 3，上次 5 轮在 epoch 3 后严重过拟合）
-#   LR=5e-5           学习率（默认 5e-5，2e-4 对 LoRA r=16 偏高）
+#   EPOCHS=2          训练轮数（默认 2；1万条蒸馏数据×2epoch，early stopping 兜底）
+#   LR=1e-4           学习率（默认 1e-4；QLoRA 标准值，配合 rsLoRA r=8）
 #
 # 注意：在真实终端运行（非 IDE 沙箱），需 GPU + 网络访问。
 # ============================================================================
@@ -40,8 +40,8 @@ AI_PYTHON="${AI_PYTHON:-python3}"
 GRAFROJ_PYTHON="${GRAFROJ_PYTHON:-python3}"
 MODEL_ID="Qwen/Qwen3-8B"  # SFT/QLoRA 用 Instruct 版本（train_qlora.py 默认值）
 
-# 训练超参（Phase 1 最佳配置：rsLoRA r=8 + lr=1e-4 + e=1，已验证最稳）
-EPOCHS="${EPOCHS:-1}"
+# 训练超参（最优配置：rsLoRA r=8 + lr=1e-4 + e=2，1万条蒸馏数据）
+EPOCHS="${EPOCHS:-2}"
 LORA_R="${LORA_R:-8}"
 LORA_ALPHA="${LORA_ALPHA:-16}"
 SEED="${SEED:-42}"
@@ -50,8 +50,9 @@ GRAD_ACCUM="${GRAD_ACCUM:-8}"
 LR="${LR:-1e-4}"
 USE_RSLORA="${USE_RSLORA:-1}"
 
-# 训练数据文件（train_chatml_v2.jsonl = 222 原始 + 400 蒸馏v2 + 49 补充 + 35 长尾CWE = 706 条）
-DATA_FILE="${PROJECT_ROOT}/experiments/exp_06_finetune/data/train_chatml_v2.jsonl"
+# 训练数据文件（当前最佳：train_chatml_v9_augmented.jsonl = 914 条 v9 增强集）
+# 蒸馏 v2 完成后改为：train_chatml_v9max.jsonl（914 + 9700 蒸馏 = ~10600 条）
+DATA_FILE="${PROJECT_ROOT}/experiments/exp_06_finetune/data/train_chatml_v9_augmented.jsonl"
 
 # Checkpoint 路径（与 train_qlora.py 输出目录规则一致，含 lr 段与 rsLoRA 标识）
 # 注意：LR 用 printf "%g" 格式化，与 train_qlora.py 的 {lr:g} 一致（1e-4 → 0.0001，1e-5 → 1e-05）

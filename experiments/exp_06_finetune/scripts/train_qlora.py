@@ -6,13 +6,13 @@
       Qwen/Qwen2.5-Coder-3B-Instruct（--model-id 指定，fp16 LoRA）
 方法：4bit NF4 量化 + LoRA（默认 r=8, alpha=16）+ 梯度检查点
 硬件：AMD Radeon RX 9060 XT 16GB + ROCm 7.2
-      7B 4bit 实测：加载 6GB，LoRA 挂载 10.9GB，前向+反向峰值 11.0GB（余量 6GB）
+      8B 4bit 实测：峰值 14.8GB（余量 1.2GB），batch=1 seq=2048 梯度检查点开启
 
 防过拟合措施：
   - 从训练集分 15% 作 dev，按 dev loss 选 best checkpoint
   - EarlyStoppingCallback：dev loss 连续 patience 轮不降则停
   - load_best_model_at_end=True：训练结束自动回滚到 best checkpoint
-  - 默认 epochs=3, lr=1e-4（v5 最优配置：rsLoRA r=8）
+  - 推荐 epochs=2, lr=1e-4（1万条蒸馏数据，rsLoRA r=8 + early stopping）
 
 用法（在 AI conda 环境中运行，需 GPU 访问）：
   # 自定义数据训练：与 v5 相同配置，仅数据不同
@@ -143,12 +143,12 @@ def try_4bit_quant(use_4bit: bool) -> BitsAndBytesConfig | None:
 
 def main():
     parser = argparse.ArgumentParser(description="QLoRA 微调 Qwen3-8B")
-    parser.add_argument("--epochs", type=int, default=1,
-                        help="训练轮数（默认 1；7B baseline 已 90.8%%，多轮易负蒸馏覆盖原知识）")
+    parser.add_argument("--epochs", type=int, default=2,
+                        help="训练轮数（默认 2；1万条蒸馏数据×2epoch，early stopping 兜底）")
     parser.add_argument("--batch-size", type=int, default=1, help="每设备 batch size")
     parser.add_argument("--grad-accum", type=int, default=8, help="梯度累积步数")
-    parser.add_argument("--lr", type=float, default=1e-5,
-                        help="学习率（默认 1e-5；模型已较好，lr 过大会覆盖预训练知识）")
+    parser.add_argument("--lr", type=float, default=1e-4,
+                        help="学习率（默认 1e-4；QLoRA 标准值，配合 rsLoRA r=8）")
     parser.add_argument("--lora-r", type=int, default=8,
                         help="LoRA rank（默认 8；r=16 干预过强，r=8 足以学补盲样本）")
     parser.add_argument("--lora-alpha", type=int, default=16,

@@ -12,9 +12,16 @@
 【核心原则】
 1. 基于证据：每个漏洞必须锚定到具体行号，禁止凭空臆造 API 参数或行为
 2. 克制报告：只在确有漏洞时报告。你在内存类漏洞上有"量高但近半误报"的已知问题，本次必须克制——宁可漏报也不要误报
-3. 推理简洁：CoT 最多 5 步，每步一句话锚定行号。禁止"边想边说还反复修改"
+3. 推理简洁：CoT 最多 5 步，每步必须以"第X行"或"line X"开头锚定行号（如"第12行 free()后未置NULL"），不超过 30 字，禁止 Markdown 加粗。禁止"边想边说还反复修改"
 4. 防御识别：必须显式评估 sink 前的防御措施是否有效，不能只看到 source→sink 就报漏洞
 5. 负样本配比：每生成 1 条漏洞样本，必须生成 3 条同类无漏洞样本
+6. 负样本否定推理：负样本不得只说"无漏洞"，必须显式列出已检查的 2-3 个风险点（锚定行号），并用假设验证说明为何安全（"假设恶意输入 X，追踪到 sink Y，被防御 Z 阻断"）
+7. 推理路径多样化：禁止每条都用"source→sink→数据流→防御→结论"同一种路径，按下方【推理路径多样化】3 种路径交替使用
+8. 长度控制（硬性约束，按漏洞类型分档）：
+   - 单函数漏洞（注入/XSS/硬编码等）：代码≤25行，CoT 每步≤60字，总输出≤600 token
+   - 跨函数漏洞（UAF/Double Free/NPD 等）：代码≤35行，CoT 每步≤70字，总输出≤800 token
+   - 总输出上限 900 token（约 2700 字符），超出时删减代码行数而非 CoT
+   - 禁止 Markdown 加粗，禁止完整程序（只含漏洞核心函数）
 
 【CWE 归因规则】
 - 注入类按 sink 区分：SQL execute → CWE-89；shell/os.system → CWE-78；eval/exec → CWE-95/94；LDAP search → CWE-90；template render → CWE-1336/CWE-94；HTTP header → CWE-113
@@ -31,6 +38,29 @@
 
 JSON 字段（统一 schema，与 GLM/Kimi 一致）：has_vulnerability / vulnerability_type / risk_level / cvss_vector / cvss_score / source / sink / explanation / fix_suggestion
 负样本 has_vulnerability=false，vulnerability_type="none"，cvss_vector="N/A"，cvss_score=0.0，其余字段为 "N/A" 或 "no fix needed"。
+
+【推理路径多样化——8B 模型需要多种推理路径防止模板化】
+CoT 必须按以下 3 种路径之一组织，交替使用（禁止每条都用路径 A）：
+
+路径 A（数据流优先，适合注入类 / source→sink 明确的漏洞）：
+1. 识别 source（用户可控输入，锚定行号）
+2. 识别 sink（危险函数，锚定行号）
+3. 追踪数据流 source→sink
+4. 评估防御是否有效
+5. 结论
+
+路径 B（模式识别优先，适合密码学 / 配置 / 硬编码 / 缺失控制类）：
+1. 识别代码匹配的 CWE 模式（如"字符串拼接 + execute = CWE-89 模式"）
+2. 锚定关键行号验证模式成立
+3. 排除反例（是否有有效防御使模式不成立）
+4. 结论
+
+路径 C（假设验证优先，适合负样本 / 防御迷惑样本）：
+1. 假设恶意输入（如 uid=' OR 1=1 --）
+2. 追踪恶意输入到 sink 的路径
+3. 判断防御是否阻断该路径
+4. 若阻断则无漏洞，若未阻断则漏洞
+5. 结论
 
 【CVSS 3.1 向量格式】
 格式：CVSS:3.1/AV:{N|A|L|P}/AC:{L|H}/PR:{N|L|H}/UI:{N|R}/S:{U|C}/C:{H|L|N}/I:{H|L|N}/A:{H|L|N}
@@ -141,7 +171,7 @@ CWE 覆盖：CWE-78 命令注入 / CWE-798 硬编码凭证 / CWE-276 不安全�
 
 ---
 
-## 输出格式示例（漏洞样本）
+## 输出格式示例（漏洞样本——路径 A 数据流优先）
 
 ```
 分析过程：
@@ -166,15 +196,40 @@ CWE 覆盖：CWE-78 命令注入 / CWE-798 硬编码凭证 / CWE-276 不安全�
 ```
 ```
 
-## 输出格式示例（负样本）
+## 输出格式示例（漏洞样本——路径 B 模式识别优先）
 
 ```
 分析过程：
-1. 第 12 行 request.args.get('id') 获取用户输入
-2. 第 13 行 int(uid) 强制类型转换，非数字输入会被拒绝
-3. 第 14 行 cursor.execute 使用 %s 参数化查询，无字符串拼接
-4. 已检查：输入类型转换 + 参数化查询，source 到 sink 无可利用路径
-5. 无漏洞
+1. 代码匹配 CWE-798 硬编码凭证模式：变量名含 key/secret/password 且赋值为字符串字面量
+2. 第 1 行 AWS_ACCESS_KEY = "AKIAIOSFODNN7EXAMPLE" 确为字面量赋值，非环境变量
+3. 第 4 行 boto3.client 直接使用该字面量，无 KMS/Secrets Manager 中转
+4. 排除反例：未发现 os.environ/配置文件读取，模式成立
+5. CWE-798 硬编码凭证，High
+
+```json
+{
+  "has_vulnerability": true,
+  "vulnerability_type": "CWE-798 硬编码凭证",
+  "risk_level": "High",
+  "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+  "cvss_score": 7.5,
+  "source": "第 1 行 AWS_ACCESS_KEY 字面量",
+  "sink": "boto3.client(aws_access_key_id=AWS_ACCESS_KEY)",
+  "explanation": "源码字面量 AWS_ACCESS_KEY → boto3.client，无环境变量/KMS 中转",
+  "fix_suggestion": "从环境变量读取：os.environ['AWS_ACCESS_KEY_ID']"
+}
+```
+```
+
+## 输出格式示例（负样本——路径 C 假设验证 + 否定推理）
+
+```
+分析过程：
+1. 第 12 行 request.args.get('id') 是 source，用户可控
+2. 假设恶意输入 uid=' OR 1=1 --，追踪数据流
+3. 第 13 行 int(uid) 强制类型转换，' OR 1=1 -- 触发 ValueError 被拒
+4. 第 14 行 cursor.execute 用 %s 占位符，uid 作为参数传入而非拼接，DB 视为字面量无法逃逸
+5. 已检查：类型转换 + 参数化查询双防御，假设输入被阻断，无漏洞
 
 ```json
 {
