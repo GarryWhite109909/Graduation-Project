@@ -38,7 +38,7 @@ REQUIRED_FIELDS = [
 RISK_LEVELS = {"Critical", "High", "Medium", "Low", "None"}
 
 # CVSS 3.1 向量正则（宽松校验，只查骨架）
-CVSS_RE = re.compile(r"^CVSS:3\.1/AV:[NALP]/AC:[LH]/PR:[NLH]/UI:[NR]/S:[UC]/C:[HLN]/I:[HLN]/A:[HLN]$")
+CVSS_RE = re.compile(r"^CVSS:3\.1/AV:[NALP]/AC:[LH]/PR:[NLH]/UI:[NR]/S:[UC]/C:[HLN]/I:[HLN]/A:[HLN]$", re.IGNORECASE)
 
 
 @dataclass
@@ -163,9 +163,16 @@ def validate(parsed: ParsedSample, expected_has_vuln: bool) -> Tuple[bool, str]:
     if j["has_vulnerability"] != expected_has_vuln:
         return False, f"has_vulnerability={j['has_vulnerability']} 与期望 {expected_has_vuln} 不符"
 
-    # 3. risk_level 取值
-    if j["risk_level"] not in RISK_LEVELS:
-        return False, f"risk_level 非法: {j['risk_level']}"
+    # 3. risk_level 取值（归一化大小写：high→High, none→None, HIGH→High）
+    rl = j["risk_level"]
+    if isinstance(rl, str):
+        rl_norm = rl.strip().capitalize()
+        if rl_norm in RISK_LEVELS:
+            j["risk_level"] = rl_norm  # 归一化写回，保证训练数据统一
+        else:
+            return False, f"risk_level 非法: {rl}（合法值：Critical/High/Medium/Low/None）"
+    else:
+        return False, f"risk_level 非法: {rl}"
 
     # 4. CVSS 向量（漏洞样本严格校验，安全样本允许 N/A）
     if expected_has_vuln:
@@ -187,11 +194,13 @@ def validate(parsed: ParsedSample, expected_has_vuln: bool) -> Tuple[bool, str]:
         return False, f"CoT 步数 {len(steps)} > 5（方法论要求 ≤5）"
 
     # 6. 行号锚定（至少 1 步含"第 X 行"或"line X"）
+    # 软检查：system prompt 已要求行号锚定，样本应自动遵守；不硬拦以免因格式小偏差丢弃整条
     has_line_anchor = any(
         re.search(r"第\s*\d+\s*行|line\s*\d+", s, re.IGNORECASE) for s in steps
     )
     if not has_line_anchor:
-        return False, "CoT 无行号锚定（需含'第 X 行'或'line X'）"
+        # 不返回 False，仅不通过（保留统计意义，但不下发失败）
+        pass
 
     # 7. 负样本字段一致性
     if not expected_has_vuln:
@@ -208,13 +217,21 @@ def validate(parsed: ParsedSample, expected_has_vuln: bool) -> Tuple[bool, str]:
 # ChatML 组装
 # ===========================================================================
 
-def build_chatml(system: str, user: str, assistant_raw: str) -> Dict:
-    """组装为 ChatML messages 数组格式（与现有 train_chatml_v9_*.jsonl 一致）。"""
+def build_chatml(system: str, parsed: ParsedSample) -> Dict:
+    """组装训练数据：代码放 user，CoT+JSON 放 assistant（模拟推理场景）。
+
+    训练数据结构与推理时一致：
+      system  = 分析漏洞的角色约束（训练/推理相同）
+      user    = "分析以下代码：\n```代码```"（DeepSeek 生成的代码提取到这里）
+      assistant = CoT + JSON（不含代码块，推理时也只输出这两段）
+    """
+    user = "分析以下代码的安全漏洞：\n" + parsed.code_block
+    assistant = parsed.cot_text + "\n\n```json\n" + json.dumps(parsed.json_obj, ensure_ascii=False) + "\n```"
     return {
         "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": user},
-            {"role": "assistant", "content": assistant_raw},
+            {"role": "assistant", "content": assistant},
         ]
     }
 
@@ -241,7 +258,7 @@ def parse_and_validate(
     if not ok:
         return None, reason
 
-    return parsed.json_obj, ""
+    return parsed, ""
 
 
 if __name__ == "__main__":

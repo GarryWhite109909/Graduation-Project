@@ -33,10 +33,10 @@ DEEPSEEK_CHAT_URL = f"{DEEPSEEK_BASE_URL}/v1/chat/completions"
 DEEPSEEK_CONCURRENCY = 8
 # thinking 关闭：实测 V4-Flash 思考链 4096+ token 仍吃满 max_tokens，content 为空。
 # system prompt 已规定推理路径（A/B/C）+ ≤5步约束，模型按指令执行即可，不需要自己"想"。
-# 关闭后 temperature 生效（0.7 增加输出多样性），max_tokens 2048 足够三段式输出。
+# 关闭后 temperature 生效（0.7 增加输出多样性），max_tokens 3072 给复杂样本（60+行代码）留余量。
 DEEPSEEK_THINKING = "disabled"
 DEEPSEEK_TEMPERATURE = 0.7
-DEEPSEEK_MAX_TOKENS = 2048
+DEEPSEEK_MAX_TOKENS = 3072
 
 # ---------------------------------------------------------------------------
 # Kimi K3（Moonshot）

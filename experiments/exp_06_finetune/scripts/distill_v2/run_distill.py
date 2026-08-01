@@ -43,9 +43,41 @@ from config import (
     MAX_RETRIES, REQUEST_TIMEOUT, RETRY_BACKOFF,
     DATA_DIR, PROGRESS_DIR, check_api_keys,
 )
-from prompts import DEEPSEEK_SYSTEM, build_deepseek_user, KIMI_SYSTEM, build_kimi_user
+from prompts import DEEPSEEK_DISTILL_SYSTEM, STUDENT_SYSTEM, build_deepseek_user, KIMI_SYSTEM, build_kimi_user
 from task_specs import PACKS, PackDef, generate_tasks, _self_check
 from validate_sample import parse_and_validate, build_chatml
+
+
+# ===========================================================================
+# API 调用
+# ===========================================================================
+
+# ===========================================================================
+# Token 用量统计（线程安全）
+# ===========================================================================
+_token_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+_usage_lock = Lock()
+
+
+def _update_usage(usage_data: dict):
+    """线程安全地累加 token 用量。"""
+    if not usage_data:
+        return
+    with _usage_lock:
+        _token_usage["prompt_tokens"] += usage_data.get("prompt_tokens", 0)
+        _token_usage["completion_tokens"] += usage_data.get("completion_tokens", 0)
+        _token_usage["total_tokens"] += usage_data.get("total_tokens", 0)
+
+
+def print_usage_stats():
+    """打印累计 token 用量与估算费用。"""
+    p = _token_usage["prompt_tokens"]
+    c = _token_usage["completion_tokens"]
+    t = _token_usage["total_tokens"]
+    # DeepSeek V4-Flash 价格：输入 ¥0.5/M，输出 ¥2/M（缓存命中 ¥0.1/M）
+    cost = p / 1_000_000 * 0.5 + c / 1_000_000 * 2
+    print(f"\n  Token 用量: 输入 {p:,} | 输出 {c:,} | 总计 {t:,}")
+    print(f"  估算费用: ¥{cost:.2f}（按无缓存全价）")
 
 
 # ===========================================================================
@@ -81,6 +113,7 @@ def call_deepseek(system: str, user: str) -> tuple:
         resp.raise_for_status()
         data = resp.json()
         content = data["choices"][0]["message"]["content"]
+        _update_usage(data.get("usage"))
         return content, None
     except requests.exceptions.HTTPError as e:
         body = ""
@@ -125,6 +158,7 @@ def call_kimi(system: str, user: str) -> tuple:
         content = msg.get("content", "")
         if not content:
             return None, "K3 返回 content 为空（可能只有 reasoning_content）"
+        _update_usage(data.get("usage"))
         return content, None
     except requests.exceptions.HTTPError as e:
         body = ""
@@ -158,27 +192,33 @@ def process_task(task) -> tuple:
         (chatml_dict, None)         成功
         (None, error_reason)        失败（已重试 MAX_RETRIES 次）
     """
-    # 选 system + user builder
+    # 教师 system（调 API 用）+ 学生 system（组装训练数据用）
+    student_system = STUDENT_SYSTEM  # 训练+推理一致，跨模型统一
     if task.model == "deepseek":
-        system = DEEPSEEK_SYSTEM
+        distill_system = DEEPSEEK_DISTILL_SYSTEM
         user = build_deepseek_user(task.template, task)
     else:  # kimi
-        system = KIMI_SYSTEM
+        distill_system = KIMI_SYSTEM
         user = build_kimi_user(task.template, task)
 
     last_error = ""
+    last_reason = ""  # 简短原因，用于重试时告知模型
     for attempt in range(1, MAX_RETRIES + 2):  # 初次 + MAX_RETRIES 次重试
-        content, err = call_api(task.model, system, user)
+        retry_user = user
+        if attempt > 1 and last_reason:
+            retry_user = user + f"\n\n注意：上次尝试的校验失败原因：{last_reason}。请严格按三段式格式输出，确保 JSON 格式正确。"
+        content, err = call_api(task.model, distill_system, retry_user)
         if err:
             last_error = f"[attempt {attempt}] API 调用失败: {err}"
+            last_reason = f"API 调用失败: {err}"
             if attempt <= MAX_RETRIES:
                 time.sleep(RETRY_BACKOFF * attempt)
             continue
 
         # 解析 + 校验
-        json_obj, vreason = parse_and_validate(content, expected_has_vuln=task.has_vuln)
-        if json_obj is not None:
-            chatml = build_chatml(system, user, content)
+        parsed, vreason = parse_and_validate(content, expected_has_vuln=task.has_vuln)
+        if parsed is not None:
+            chatml = build_chatml(student_system, parsed)
             # 附带元数据（训练时不消费，供审计用）
             chatml["_meta"] = {
                 "task_id": task.task_id,
@@ -192,7 +232,8 @@ def process_task(task) -> tuple:
             }
             return chatml, None
 
-        last_error = f"[attempt {attempt}] 校验失败: {vreason}"
+        last_error = f"[attempt {attempt}] 校验失败: {vreason}\n原始输出(前800字):\n{content[:800]}"
+        last_reason = f"校验失败: {vreason}"
         if attempt <= MAX_RETRIES:
             print(f"    [{task.task_id}] attempt {attempt}/{MAX_RETRIES+1} 失败: {vreason}", flush=True)
             time.sleep(RETRY_BACKOFF * attempt)
@@ -304,7 +345,7 @@ def run_pack(pack: PackDef, workers: int = None, limit: int = None, verbose: boo
             if verbose and chatml is not None:
                 content = chatml["messages"][2]["content"]
                 token_est = len(content) // 3
-                sweet = "✅甜点区" if 200 <= token_est <= 350 else ("⚠️过短" if token_est < 200 else "⚠️过长")
+                sweet = "✅合理" if 300 <= token_est <= 1000 else ("⚠️偏短" if token_est < 300 else "⚠️偏长")
                 print(f"\n  ── {task.task_id} | token≈{token_est} {sweet} ──")
                 print("  " + content.replace("\n", "\n  ")[:1200])
                 print()
@@ -412,6 +453,7 @@ def main():
     print("-" * 60)
     print(f"{'合计':<24} {g_total:>6} {g_success:>8} {g_failed:>8} {g_skipped:>8}")
     print(f"\n耗时: {elapsed/60:.1f} 分钟")
+    print_usage_stats()
     print(f"最终合并: python merge_to_chatml.py")
 
 
