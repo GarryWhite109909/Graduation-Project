@@ -75,15 +75,21 @@ class PrefilterResult:
     Attributes:
         has_obvious_vuln: 是否命中明显漏洞特征
         has_obvious_safe: 是否命中明显安全特征
-        matched_rules: 命中的规则名列表（漏洞规则在前，安全规则在后）
+        has_secret_marker: 是否命中"硬编码凭证痕迹"标记。标记命中不直接判漏洞
+            （硬编码凭证的 CWE 归因准确率低，易误报），而是用于"抑制安全判定"
+            ——有凭证痕迹时 prefilter 不判安全，强制 LLM 复核，防止含漏洞代码
+            被安全规则误判为安全后短路放行。
+        matched_rules: 命中的规则名列表（漏洞规则在前，安全规则在后，标记最后）
         preliminary_verdict: 初步判定。
-            - has_obvious_safe 且 not has_obvious_vuln → False（安全）
             - has_obvious_vuln 且 not has_obvious_safe → True（漏洞）
-            - 否则（两者都命中或都没命中）→ None（交 LLM）
+            - has_secret_marker 为 True 时 → 不判 False（安全），回落到 None
+            - has_obvious_safe 且 not has_obvious_vuln 且 not has_secret_marker → False（安全）
+            - 否则 → None（交 LLM）
         confidence: 置信度 "high" / "medium" / "low"
     """
     has_obvious_vuln: bool
     has_obvious_safe: bool
+    has_secret_marker: bool = False
     matched_rules: list[str] = field(default_factory=list)
     preliminary_verdict: Optional[bool] = None
     confidence: str = "low"
@@ -91,7 +97,8 @@ class PrefilterResult:
     def __repr__(self) -> str:
         verdict_str = {True: "漏洞", False: "安全", None: "待定(交LLM)"}[self.preliminary_verdict]
         return (f"PrefilterResult(vuln={self.has_obvious_vuln}, safe={self.has_obvious_safe}, "
-                f"verdict={verdict_str}, confidence={self.confidence}, rules={self.matched_rules})")
+                f"marker={self.has_secret_marker}, verdict={verdict_str}, "
+                f"confidence={self.confidence}, rules={self.matched_rules})")
 
 
 # ---------------------------------------------------------------------------
@@ -112,6 +119,10 @@ class Prefilter:
         self.vuln_rules: list[_Rule] = self._build_vuln_rules()
         # 安全特征规则（命中任一即视为"明显安全"，除非同时命中漏洞特征）
         self.safe_rules: list[_Rule] = self._build_safe_rules()
+        # 硬编码凭证痕迹标记（不判漏洞，仅抑制安全判定，强制 LLM 复核）
+        self.secret_markers: list[_Rule] = self._build_secret_markers()
+        # 长文件阈值：超过此行数的代码不判安全（避免长文件中隐藏漏洞被安全规则误判放行）
+        self.longfile_threshold: int = 150
 
     # ------------------------------------------------------------------
     # 规则构建
@@ -171,19 +182,12 @@ class Prefilter:
             category="vuln",
         ))
 
-        # --- 硬编码敏感信息（字面量赋值，非 os.environ / os.getenv）---
-        # 模式天然排除环境变量：要求等号后紧跟引号字面量，
-        # os.environ["X"] / os.getenv("X") 等号后是标识符，不会命中
-        rules.append(_Rule(
-            name="hardcoded_secret",
-            patterns=[re.compile(
-                r"\b(?:password|passwd|pwd|api[_-]?key|api[_-]?secret|apikey|"
-                r"secret|secret[_-]?key|client[_-]?secret|token|"
-                r"access[_-]?token|auth[_-]?token)\s*=\s*['\"][^'\"]{3,}['\"]",
-                IC,
-            )],
-            category="vuln",
-        ))
+        # --- 硬编码敏感信息规则已移除 ---
+        # 原 hardcoded_secret 漏洞规则精度过低：在合成集 8 次命中里 8 次都是把
+        # Flask 的 app.secret_key（框架必需配置）误判为硬编码凭证漏洞，CWE 归因
+        # 全错（命中 CWE-798，实际是 IDOR/CSRF/JWT 等主漏洞）。现降级为
+        # "安全判定抑制标记"（见 _build_secret_markers）：命中时不再判漏洞，
+        # 仅用于阻止 prefilter 判安全（强制 LLM 复核），避免误报 + 误放行。
 
         # --- 不安全反序列化 ---
         rules.append(_Rule(
@@ -248,17 +252,40 @@ class Prefilter:
             category="safe",
         ))
 
-        # --- 环境变量读取（非硬编码）---
-        rules.append(_Rule(
-            name="env_var",
-            patterns=[
-                re.compile(r"os\.environ\s*\[", IC),
-                re.compile(r"os\.getenv\s*\(", IC),
-            ],
-            category="safe",
-        ))
+        # --- 环境变量读取规则已移除 ---
+        # 原 env_var 安全规则把"代码含 os.getenv"判为安全，但 os.getenv 的存在
+        # 并不证明代码无漏洞（cve_fix_0003 同时含 os.getenv 与 eval 注入，被误判
+        # 安全后短路 LLM 放行漏洞）。环境变量读取不足以作为"整体安全"的强特征，
+        # 移除后这类样本回落到 None 交 LLM 复核，更稳妥。
 
         return rules
+
+    def _build_secret_markers(self) -> list[_Rule]:
+        """构建"硬编码凭证痕迹"标记规则。
+
+        定位与漏洞规则不同：标记命中 *不* 直接判 True（硬编码凭证的 CWE 归因
+        准确率在合成集实测为 0/8，会把 Flask app.secret_key 等误报为 CWE-798），
+        而是用于"抑制安全判定"——一旦发现硬编码凭证痕迹，prefilter 不再判安全，
+        强制 LLM 复核，防止含漏洞代码被安全规则误判为安全后短路放行
+        （如 cve_fix_0018 硬编码凭证漏洞被 parameterized_query 误判安全）。
+
+        修复 \b 词边界 bug：原 \\b 要求关键字前是词边界（\\w 与非 \\w 交界），
+        但 DB_PASSWORD、HL7_API_KEY 等下划线前缀的关键字，PASSWORD/API 前是
+        下划线（属 \\w），不构成 \\b，导致 cve_fix_0018 等真实硬编码凭证漏匹配。
+        改用负向后行断言 (?<![A-Za-z0-9])：仅排除"字母/数字"前缀（避免误匹配
+        mypassword 这类变量名），允许下划线/点号/行首前缀正确命中。
+        """
+        IC = re.IGNORECASE
+        return [_Rule(
+            name="hardcoded_secret_marker",
+            patterns=[re.compile(
+                r"(?<![A-Za-z0-9])(?:password|passwd|pwd|api[_-]?key|api[_-]?secret|apikey|"
+                r"secret|secret[_-]?key|client[_-]?secret|token|"
+                r"access[_-]?token|auth[_-]?token)\s*=\s*['\"][^'\"]{3,}['\"]",
+                IC,
+            )],
+            category="vuln",  # 语义上属漏洞痕迹，但 scan 内不据此判 True
+        )]
 
     # ------------------------------------------------------------------
     # 公共 API
@@ -280,6 +307,7 @@ class Prefilter:
             return PrefilterResult(
                 has_obvious_vuln=False,
                 has_obvious_safe=False,
+                has_secret_marker=False,
                 matched_rules=[],
                 preliminary_verdict=None,
                 confidence="low",
@@ -288,32 +316,51 @@ class Prefilter:
         matched: list[str] = []
         has_vuln = False
         has_safe = False
+        has_marker = False
 
-        # 先跑漏洞规则，再跑安全规则（matched_rules 顺序：漏洞在前，安全在后）
+        # 长文件护栏：超过阈值行数时不跑安全规则（避免长文件中隐藏漏洞被安全
+        # 规则误判放行，如 hard_longfile_01/02 前半段参数化查询掩盖末尾隐藏漏洞）
+        is_long = code.count("\n") + 1 > self.longfile_threshold
+
+        # 先跑漏洞规则，再跑安全规则（长文件跳过），最后跑凭证标记
+        # （matched_rules 顺序：漏洞在前，安全在中，标记最后）
         for rule in self.vuln_rules:
             if rule.match(code):
                 has_vuln = True
                 matched.append(rule.name)
-        for rule in self.safe_rules:
+        if not is_long:
+            for rule in self.safe_rules:
+                if rule.match(code):
+                    has_safe = True
+                    matched.append(rule.name)
+        for rule in self.secret_markers:
             if rule.match(code):
-                has_safe = True
+                has_marker = True
                 matched.append(rule.name)
 
-        # 初步判定
-        if has_safe and not has_vuln:
-            verdict: Optional[bool] = False
-        elif has_vuln and not has_safe:
-            verdict = True
+        # 初步判定（优先级：明确漏洞 > 凭证标记抑制安全 > 明确安全 > 交 LLM）
+        if has_vuln and not has_safe:
+            # 命中漏洞特征且无安全特征 → 判漏洞
+            verdict: Optional[bool] = True
+        elif has_marker:
+            # 有硬编码凭证痕迹 → 不判安全（强制 LLM 复核），无论是否命中安全特征
+            verdict = None
+        elif has_safe and not has_vuln:
+            # 仅命中安全特征（且无凭证痕迹）→ 判安全
+            verdict = False
         else:
-            # 两者都命中（矛盾，模糊）或都没命中（无强烈特征）→ 交 LLM
+            # 漏洞与安全都命中（矛盾）或都没命中 → 交 LLM
             verdict = None
 
-        # 置信度
-        if has_vuln ^ has_safe:
-            # 恰好命中一类 → 高置信
+        # 置信度：与 verdict 对齐——明确判定为 high，弃权时按特征强度给 medium/low
+        if verdict is not None:
+            # 明确判定（True 漏洞 / False 安全）→ 高置信
             confidence = "high"
         elif has_vuln and has_safe:
-            # 矛盾特征共存 → 中置信（需 LLM 裁决）
+            # 矛盾特征共存（需 LLM 裁决）→ 中置信
+            confidence = "medium"
+        elif has_marker:
+            # 有凭证痕迹抑制了安全判定（交 LLM 复核）→ 中置信
             confidence = "medium"
         else:
             # 无任何强烈特征 → 低置信
@@ -322,6 +369,7 @@ class Prefilter:
         return PrefilterResult(
             has_obvious_vuln=has_vuln,
             has_obvious_safe=has_safe,
+            has_secret_marker=has_marker,
             matched_rules=matched,
             preliminary_verdict=verdict,
             confidence=confidence,
@@ -370,9 +418,12 @@ if __name__ == "__main__":
         ("路径拼接open(漏洞)",
          'f = open("/data/" + filename)',
          True, "high"),
-        ("硬编码口令(漏洞)",
+        ("硬编码口令(标记→不判漏洞,交LLM)",
          'password = "admin12345"',
-         True, "high"),
+         None, "medium"),
+        ("DB_PASSWORD下划线前缀(标记,验证词边界修复)",
+         'DB_PASSWORD = "s3cr3t_pwd_2024"',
+         None, "medium"),
         ("pickle反序列化(漏洞)",
          "data = pickle.loads(request.data)",
          True, "high"),
@@ -396,12 +447,12 @@ if __name__ == "__main__":
         ("yaml.safe_load(安全)",
          "cfg = yaml.safe_load(stream)",
          False, "high"),
-        ("os.environ(安全)",
+        ("os.environ(env_var规则已移除→交LLM)",
          'api_key = os.environ["API_KEY"]',
-         False, "high"),
-        ("os.getenv(安全)",
+         None, "low"),
+        ("os.getenv(env_var规则已移除→交LLM)",
          'api_key = os.getenv("API_KEY", "default")',
-         False, "high"),
+         None, "low"),
 
         # --- 模糊 / 无特征 ---
         ("模糊:参数化+硬编码(待定)",
