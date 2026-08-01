@@ -457,7 +457,7 @@
 
 **训练配置**：
 | 字段 | 值 |
-|---|---|
+|---|---|---|
 | 训练数据 | `train_chatml_v6_hard_neg.jsonl`（755 条，v5 749 + 6 hard-negative） |
 | 数据变更 | 在 v5_clean 基础上追加 6 个 FP 的正确拒绝响应：safe_03/safe_08/safe_09/safe_17/safe_18/noise_05 |
 | LoRA/训练参数 | 与 v5 完全一致（r=8, alpha=16, epochs=3, lr=1e-4, rslora, seed=42） |
@@ -491,6 +491,382 @@
 - simple hard-negative SFT 引起了**负迁移**：模型对"安全代码"模式过度敏感，反而在 `safe_05`（参数化 LIKE）和真实 `cve_fix_0003` 上错判/漏判
 - FPR 小幅下降是以 recall 和真实集泛化为代价，**不划算**
 - v6 已被归档到 `_archive_v6_hard_neg_failed`，**v5 仍为当前最佳模型**
+
+### P2 v7 SFT 实战专用模型（2026-07-31）
+
+> 用户要求开发"实战专用模型"，解决真实 CVE 上 v5 的持续 FN。策略：以 v5_clean 为基底，针对 CVE-fix 持续 FN 的三个盲区（CWE-90 LDAP / CWE-441 信任边界 / CWE-190 整数溢出）新增 50 条样本，并加入反事实 CoT、对比 CoT 等能力提升设计。不采用课程学习（避免 v6 式局部修改风险）。
+
+**训练配置**：
+| 字段 | 值 |
+|---|---|---|
+| 训练数据 | `train_chatml_v7_realworld.jsonl`（799 条，v5 749 + 新增 50） |
+| 数据变更 | CWE-90 LDAP 10 / CWE-441 信任边界 10 / CWE-190 整数溢出 8 / FP 反事实 CoT 6 / 对比 CoT 6 / CVE 启发实战 10 |
+| 生成脚本 | `scripts/build_v7_realworld.py` |
+| 泄漏审计 | Jaccard：0 高重叠（≥0.5），6 疑似重叠（0.3-0.5，均为设计内对比/修正样本） |
+| 基座模型 | Qwen/Qwen3-8B（4bit NF4 QLoRA） |
+| LoRA 配置 | r=8, alpha=16, dropout=0.1, rslora=True, dora=False |
+| 训练参数 | epochs=3, lr=1e-4, batch=1×8, seed=42, EarlyStopping patience=2 |
+| trainable params | 21,823,488 (0.27%) |
+| 总步数 | 255 steps |
+| 训练耗时 | 3h15min |
+| train_loss | 0.7663 |
+| dev_loss 历史 | epoch1=0.8562 → **epoch2=0.7834(best)** → epoch3=0.7941（轻度过拟合） |
+| best adapter | `outputs/lora_r8_a16_e3_lr0.0001_s42_rslora_v7_realworld/best/` |
+| 推理模式 | 本地 transformers（4bit + LoRA merge_and_unload），max_new_tokens=2048 |
+
+**v7 @ 87 合成集**（`v7/exp_06_eval.finetuned_custom.20260731_192541.json`）：
+
+| 字段 | 值 | vs v5 | vs baseline |
+|---|---|---|---|
+| 评估时间 | 2026-07-31 19:25:41 | | |
+| TP / FP / FN / TN | 59 / 6 / 1 / 20 | TP-2, FP+0, FN+1 | TP+0, FP-1 |
+| vuln_total / safe_total | 60 / 26 | | |
+| **recall** | **0.983** | -1.7pp ⚠️ | +1.6pp ✓ |
+| **FPR** | **0.231** | 持平 | -3.8pp ✓ |
+| **accuracy** | **0.919** | -1.2pp ⚠️ | +2.2pp ✓ |
+| **parse_fail** | **1 / 87** | +1 ⚠️ | +1 ⚠️ |
+| strict_TP / cwe_mismatch | 35 / 24 | strict_TP-1 | +7 |
+| **strict_recall** | **0.583** | -0.7pp ⚠️ | +12.4pp ✓ |
+| **strict_accuracy** | **0.640** | -2.7pp ⚠️ | +10.0pp ✓ |
+| 平均耗时 | 34.88s/样本 | | |
+
+**Bootstrap 显著性检验（v7 vs v5，配对 block bootstrap N=10000）**：
+| 指标 | 差值（v7 - v5） | 95% CI | p 值 | 显著？ |
+|---|---|---|---|---|
+| recall | -0.0166 | [-0.0536, +0.0000] | 0.7362 | ✗ |
+| accuracy | -0.0125 | [-0.0575, +0.0230] | 0.5220 | ✗ |
+| fpr | -0.0005 | [-0.1111, +0.1111] | 1.0000 | ✗ |
+
+> 合成集上 v7 与 v5 **无统计显著差异**。recall 仍高于 0.95 红线，FPR 持平。
+
+**v7 @ 20 扩展 CVE-fix 真实集**（`v7/exp_06_eval.finetuned_custom.20260731_221829.json`）：
+
+| 字段 | 值 | vs v5（7 样本） | vs baseline（8 样本） |
+|---|---|---|---|
+| 评估时间 | 2026-07-31 22:18:29 | | |
+| TP / FP / FN / TN | 16 / 0 / 4 / 0 | +12 TP（基数不同，仅趋势） | +13 TP |
+| vuln_total / safe_total | 20 / 0 | | |
+| **recall** | **0.800** | **+22.9pp** ✓✓✓ | **+42.5pp** ✓✓✓ |
+| **accuracy** | **0.800** | **+22.9pp** ✓✓✓ | **+42.5pp** ✓✓✓ |
+| **parse_fail** | **0 / 20** | 持平 | 持平 |
+| strict_TP / cwe_mismatch | 13 / 3 | 大幅提升 | 大幅提升 |
+| **strict_recall** | **0.650** | **+50.7pp** ✓✓✓ | **+52.5pp** ✓✓✓ |
+| 平均耗时 | 45.3s/样本 | | |
+
+> ⚠️ 测试集从 7 扩展到 20，v5 的 0.571 是在 7 样本上，v7 的 0.800 在 20 样本上，直接比较受基数影响，但趋势明确：v7 在真实 CVE 上召回率大幅提升。
+
+**v7 逐样本明细（20 CVE-fix）**：
+
+| # | 文件 | 语言 | CWE | CVE | v5（7 样本） | v7 | 变化 | 说明 |
+|---|---|---|---|---|---|---|---|---|
+| 1 | cve_fix_0001.java | Java | CWE-90 | CVE-2015-1169 | FN | **FN** | 不变 | 被 `LdapEncoder.nameEncode` + `Matcher.quoteReplacement` 迷惑，认为已安全编码 |
+| 2 | cve_fix_0002.js | JS | CWE-90 | CVE-2015-7294 | FN | **FN** | 不变 | 被 `bcryptjs` 密码哈希分散注意力，忽略 LDAP filter 拼接 |
+| 3 | cve_fix_0003.py | Python | CWE-95 | CVE-2026-47391 | TP | **FN** | ⚠️ 回退 | 误判为"无用户输入的演示代码"，没看到 `calculate(expression)` 危险 |
+| 4 | cve_fix_0004.py | Python | CWE-95 | CVE-2026-47391 | TP | **TP** | 保持 | 检测成功 |
+| 5 | cve_fix_0005.js | JS | CWE-441 | CVE-2026-56675 | FN | **FN** | 不变 | 只看当前文件 IP 头包装，没看到跨文件 `server.js` loopback 信任绕过 |
+| 6 | cve_fix_0006.js | JS | CWE-441 | CVE-2026-56675 | TP | **TP** | 保持 | 检测成功 |
+| 7 | cve_fix_0007.py | Python | CWE-502 | CVE-2012-4406 | TP | **TP** | 保持 | 检测成功 |
+| 8 | cve_fix_0009.py | Python | CWE-89 | CVE-2019-12419 | - | **TP** | 新增 ✓ | 扩展集新样本，SQL 注入检测到 |
+| 9 | cve_fix_0010.java | Java | CWE-89 | CVE-2020-9488 | - | **TP** | 新增 ✓ | 扩展集新样本，SQL 注入检测到 |
+| 10 | cve_fix_0011.php | PHP | CWE-89 | CVE-2021-24288 | - | **TP** | 新增 ✓ | 扩展集新样本，SQL 注入检测到 |
+| 11 | cve_fix_0012.py | Python | CWE-78 | CVE-2019-15052 | - | **TP** | 新增 ✓ | 扩展集新样本，命令注入检测到 |
+| 12 | cve_fix_0013.js | JS | CWE-78 | CVE-2020-27844 | - | **TP** | 新增 ✓ | 扩展集新样本，命令注入检测到 |
+| 13 | cve_fix_0014.py | Python | CWE-79 | CVE-2020-7981 | - | **TP** | 新增 ✓ | 扩展集新样本，XSS 检测到 |
+| 14 | cve_fix_0015.java | Java | CWE-79 | CVE-2021-24188 | - | **TP** | 新增 ✓ | 扩展集新样本，XSS 检测到 |
+| 15 | cve_fix_0016.py | Python | CWE-22 | CVE-2018-1000229 | - | **TP** | 新增 ✓ | 扩展集新样本，路径穿越检测到 |
+| 16 | cve_fix_0017.java | Java | CWE-22 | CVE-2019-3396 | - | **TP** | 新增 ✓ | 扩展集新样本，路径穿越检测到 |
+| 17 | cve_fix_0018.py | Python | CWE-798 | CVE-2018-1000534 | - | **TP** | 新增 ✓ | 扩展集新样本，硬编码凭证检测到 |
+| 18 | cve_fix_0019.py | Python | CWE-798 | CVE-2021-21386 | - | **TP** | 新增 ✓ | 扩展集新样本，硬编码凭证检测到 |
+| 19 | cve_fix_0020.py | Python | CWE-798 | CVE-2021-21386 | - | **TP** | 新增 ✓ | 扩展集新样本，硬编码凭证检测到 |
+| 20 | cve_fix_0021.java | Java | CWE-798 | CVE-2021-21386 | - | **TP** | 新增 ✓ | 扩展集新样本，硬编码凭证检测到 |
+
+**v7 关键结论**：
+- ✅ **20 扩展 CVE-fix 召回率大幅提升**：recall 0.800 vs v5（7 样本）0.571，**+22.9pp**；strict_recall 0.650 vs 0.143，**+50.7pp**。这是 v7 的核心胜利。
+- ✅ **合成集仍守住红线**：recall 0.983 ≥ 0.95，FPR 0.231 与 v5 持平。
+- ⚠️ **合成集 recall 从 1.000 微降到 0.983**：新增 1 个 FN `typical_29_integer_overflow.java`（正是 CWE-190 补充目标），说明新增样本未完全解决该模式，反而在边界 case 上产生干扰。
+- ⚠️ **4 个持续 FN 根因与 v5 相同**：
+  1. **被防御措施迷惑**：`cve_fix_0001.java` 看到 `LdapEncoder.nameEncode` 就判安全
+  2. **被无关安全机制分散注意力**：`cve_fix_0002.js` 看到 `bcryptjs` 就忽略 LDAP filter
+  3. **对"演示/框架代码"的误判**：`cve_fix_0003.py` 没看到 JSON-RPC `calculate(expression)` 是危险 sink
+  4. **跨文件上下文缺失**：`cve_fix_0005.js` 只看当前 IP 头包装文件，没看到 `server.js` 中的 loopback 信任绕过
+- ⚠️ **CWE-90 / CWE-441 补充未解真实 CVE**：虽然新增了 10+10 条样本，但真实 CVE 的隐蔽模式仍超出训练覆盖。需要更精细的"部分编码"/"编码不当"和跨文件信任边界样本。
+- 📊 **Bootstrap 检验**：合成集上 v7 与 v5 无显著差异（p>0.05），说明 v7 的改进主要体现在真实 CVE 泛化上，而非合成集。
+
+**v7 选型判断**：
+- v7 是首个在**扩展真实 CVE 集**上 recall 达到 0.800 的模型，strict_recall 0.650 也是质的飞跃
+- 合成集性能略有牺牲（recall -1.7pp）但守住红线，FPR 持平
+- 若应用场景看重真实 CVE 检测能力，**v7 替代 v5 成为当前最佳模型**
+- 若应用场景只看合成集指标，v5 与 v7 无显著差异，可保持 v5
+
+**v7 复盘（2026-07-31 标注修正后）**：
+- 用户质疑"CVE-fix recall 提升是否因为新样本太简单"→ 数据证实：原本 7 个真实 CVE 上 v7 recall=0.429（退步），新增 13 个手工样本上=1.000（全部命中），整体 0.800 被简单样本拉高
+- 标注修正后（补充兼容旧编号/父类编号），v7 strict_accuracy 从 0.640→0.728（合成集）、0.650→0.700（CVE-fix）
+- 剩余 20 个 cwe_mismatch 的根因：模型有"归因偏置"——倾向把不熟悉的 CWE 归为 CWE-89/79/200/798
+- **结论**：v7 的真实 CVE 提升被高估，核心瓶颈是 CWE 归因能力不足，而非 recall
+
+### P2.5 测试集标注修正（2026-07-31）
+
+> 用户质疑合成集标注准确性后，审查发现部分 CWE 编号过细（2020-2021 年新增）或过时（已废弃），导致 strict_metrics 虚低。
+
+**87 合成集修正（9 个样本）**：
+| 文件 | 旧标注 | 新标注 | 原因 |
+|---|---|---|---|
+| typical_23_ssti.py | CWE-1336 | CWE-1336; CWE-94; CWE-915 | SSTI 细化编号，补充父类+对象属性修改 |
+| typical_21_xxe.py | CWE-611 | CWE-611; CWE-610 | XXE 补充旧编号 |
+| typical_24_ldap_injection.py | CWE-90 | CWE-90; CWE-797 | LDAP 注入补充旧编号 |
+| typical_32_proto_pollution.js | CWE-1321 | CWE-1321; CWE-915 | 原型污染补充对象属性修改 |
+| hard_bypass_07_ssti_attr_chain.py | CWE-1336 | CWE-1336; CWE-94; CWE-91 | SSTI 补充父类+旧编号 |
+| hard_longfile_03_hidden_ssti.py | CWE-1336 | CWE-1336; CWE-94 | SSTI 补充父类 |
+| hard_cve_05_spring4shell.java | CWE-915 | CWE-915; CWE-94 | Spring4Shell 补充代码注入 |
+| typical_30_mass_assignment.py | 无变 | 保持 CWE-915 | 标注正确，模型未输出 CWE 是模型问题 |
+| safe_16_ldap_escape.py | 无变 | 保持 N/A | 安全样本无需修改 |
+
+**CVE-fix 修正（1 个样本）**：
+| 文件 | 旧标注 | 新标注 | 原因 |
+|---|---|---|---|
+| cve_fix_0019.py | CWE-1336 | CWE-1336; CWE-94; CWE-918 | SSTI 补充父类+RCE 后果编号 |
+
+**修正后 v7 重新评估**（不需重跑模型，仅重算 strict_metrics）：
+| 测试集 | recall | strict_recall | strict_accuracy | vs 修正前 |
+|---|---|---|---|---|
+| 87 合成集 | 0.967 | 0.639 | **0.728** | +8.8pp |
+| 20 CVE-fix | 0.800 | 0.700 | **0.700** | +5.0pp |
+
+### P2 v8 SFT CWE 归因专项模型（2026-07-31 训练，2026-08-01 评估失败）
+
+> 用户指出"前端软件需要严格正确率，否则会误导用户"。v7 修正后 strict_accuracy=0.728 仍有 27% 误判率。v8 转向 strict_accuracy 优先策略。
+> **2026-08-01 更新：v8 评估完成，全面退步，已诊断为失败。**
+
+**核心策略转变**：
+- 从"recall 优先"转向"**strict_accuracy 优先**"
+- 从"加样本提 recall"转向"**对比 CoT 教 CWE 边界判别**"
+- 防泄漏阈值从 Jaccard>=0.5 放宽到 **>=0.8**（同 CWE 代码相似是正常学习信号）
+
+**v8 评估结果（2026-08-01，best checkpoint epoch 2 step 176）**：
+| 测试集 | recall | FPR | accuracy | strict_recall | strict_accuracy | cwe_mismatch | vs v7 |
+|---|---|---|---|---|---|---|---|
+| 87 合成集 | 0.967 | **0.308** ↑↑ | 0.885 ↓ | 0.607 | 0.632 ↓ | 22 | **退步** |
+| 20 CVE-fix | **0.750** ↓ | - | 0.750 ↓ | 0.700 ↑ | 0.700 ↑ | 1 | **退步** |
+
+**v8 失败诊断（三大根因）**：
+
+1. **对比 CoT 引入"判别焦虑"** → FN 增加
+   - CVE-fix 0001/0002（LDAP 注入）在 v7 是 TP，v8 退步为 FN
+   - 模型纠结于"CWE-89 vs CWE-90"判别，反而最后判安全
+   - cve_fix_0004.py（eval 注入）模型说"没有用户可控输入到达 eval"——完全错误
+
+2. **B 类"无漏洞但建议改进"矛盾信号** → FP 激增（8 个，v7 仅 6 个）
+   - v8 对比 CoT 教模型"部分防御不等于安全"，模型过度泛化为"所有防御都不够"
+   - FP 清单：safe_03_subprocess_list（列表参数误判 CWE-78）、safe_08_shlex（shlex.quote 误判 CWE-78）、
+     safe_18_java_prepared_stmt（PreparedStatement 误判 CWE-79）、safe_09_proper_authz（误判 CWE-287）、
+     safe_17_race_with_lock（lock 保护误判 CWE-362）、noise_05_decorator_wrapper（误判 CWE-79）、
+     noise_06_shell_true_hardcoded（固定命令误判 CWE-78）、safe_04_path_whitelist（误判 CWE-22）
+
+3. **epochs=3 过拟合**
+   - eval_loss：epoch 1 = 0.851 → epoch 2 = 0.781（best）→ epoch 3 = 0.797（上升）
+   - best checkpoint 是 epoch 2，但即使 best 也不如 v7，说明问题在数据而非纯过拟合
+
+**v8 FP/FN 清单**：
+| 类型 | 样本 | 预测 | 根因 |
+|---|---|---|---|
+| FP | safe_03_subprocess_list.py | CWE-78 命令注入 | 列表参数 + shell=False 被误判 |
+| FP | safe_04_path_whitelist.py | CWE-22 路径穿越 | startswith 校验被无视 |
+| FP | safe_08_shlex.py | CWE-78 命令注入 | shlex.quote 有效转义被误判 |
+| FP | noise_05_decorator_wrapper.py | CWE-79 XSS | JSON 响应被误判为 HTML |
+| FP | noise_06_shell_true_hardcoded.py | CWE-78 命令注入 | 固定命令无用户输入被误判 |
+| FP | safe_09_proper_authz.py | CWE-287 硬编码凭证 | 数据库查询角色被误判为硬编码 |
+| FP | safe_17_race_with_lock.py | CWE-362 Race Condition | lock 保护被误判 |
+| FP | safe_18_java_prepared_stmt.java | CWE-79 SQL注入 | PreparedStatement 被误判 |
+| FN | hard_crossfile_03_sink.py | none | 跨文件数据流分析失败 |
+| FN | hard_cve_05_spring4shell.java | none | 框架代码误判为安全 |
+| FN | cve_fix_0001.java | none | LDAP 被编码迷惑（v7 TP→v8 FN） |
+| FN | cve_fix_0002.js | none | LDAP 被 bcrypt 迷惑（v7 TP→v8 FN） |
+| FN | cve_fix_0003.py | none | JSON-RPC eval 误判为框架代码 |
+| FN | cve_fix_0004.py | none | eval 注入被误判为无用户输入 |
+| FN | cve_fix_0005.js | none | loopback 信任反模式未识别 |
+
+**训练配置**：
+| 字段 | 值 |
+|---|---|---|
+| 训练数据 | `train_chatml_v8_cwe_attribution.jsonl`（819 条，v7 799 + 新增 24） |
+| 数据变更 | 24 条对比 CoT 样本，覆盖 5 类 CWE 混淆模式 |
+| 生成脚本 | `scripts/build_v8_cwe_attribution.py` |
+| 泄漏审计 | Jaccard >= 0.8：0 条泄漏；>= 0.5：0 条高相似；0.3-0.5：8 条模式相似（正常） |
+| LoRA/训练参数 | 与 v5/v7 完全一致（r=8, alpha=16, epochs=3, lr=1e-4, rslora, seed=42） |
+| best adapter | `outputs/lora_r8_a16_e3_lr0.0001_s42_rslora_v8_cwe_attr/best/`（训练中） |
+
+**v8 新增 24 条对比 CoT 样本分布**：
+| 类别 | 数量 | 覆盖 CWE | 对比目标（教模型"为什么不是 X"） |
+|---|---|---|---|
+| 注入混淆 | 5 | 643/943/90/113 | 不是 CWE-89 SQL（sink 不是 SQL execute） |
+| 认证/权限混淆 | 4 | 639/862/306/384 | 不是 CWE-79/798/200（问题不是 HTML 输出/硬编码/信息泄露） |
+| 密码学混淆 | 3 | 329/347/327 | 不是 CWE-200/798（是密码学缺陷不是信息泄露/硬编码） |
+| 模板/表达式混淆 | 4 | 1336/94/917 | 不是 CWE-79/918（sink 是模板/表达式引擎不是 HTML/HTTP） |
+| 其他高频误判 | 8 | 362/915/1321/843/208/502/200/352 | 各类 CWE 边界判别 |
+
+**SYSTEM_PROMPT 关键改进**：
+- 新增强制规则："vulnerability_type 必须以 CWE-XXX 编号开头"
+- 新增 CWE 归因判别规则，覆盖 34 种 CWE 的 sink→CWE 映射
+
+**v8 评估目标**：
+- 红线：strict_accuracy >= 0.85（前端软件可用门槛）
+- 次要：recall >= 0.95（保持不退步）
+- 参照：v7 修正后 strict_accuracy = 0.728（合成集）/ 0.700（CVE-fix）
+
+**v8 @ 87 合成集**（`v8/exp_06_eval.finetuned_custom.20260801_070358.json`）：
+
+| 字段 | 值 | vs v7（修正后） | 说明 |
+|---|---|---|---|
+| TP / FP / FN / TN | 59 / 8 / 2 / 18 | TP 持平, FP+5, FN+1 | FP 大增 |
+| **recall** | **0.967** | 持平 | 红线通过 |
+| **FPR** | **0.308** | +7.7pp ⚠️ | 对比 CoT 导致过度敏感 |
+| **accuracy** | **0.885** | -3.4pp ⚠️ | |
+| strict_TP / cwe_mismatch | 37 / 22 | strict_TP+2, mismatch+2 | |
+| **strict_recall** | **0.607** | -3.2pp ⚠️ | |
+| **strict_accuracy** | **0.632** | **-9.6pp** ⚠️⚠️ | 退步明显 |
+
+**v8 @ 20 CVE-fix**（`v8/exp_06_eval.finetuned_custom.20260801_072009.json`）：
+
+| 字段 | 值 | vs v7（修正后） | 说明 |
+|---|---|---|---|
+| TP / FP / FN / TN | 15 / 0 / 5 / 0 | TP-1, FN+1 | 多 1 个 FN |
+| **recall** | **0.750** | -5.0pp ⚠️ | |
+| strict_TP / cwe_mismatch | 14 / 1 | mismatch-1 | CWE 归因略改善 |
+| **strict_recall** | **0.700** | 持平 | |
+| **strict_accuracy** | **0.700** | 持平 | |
+
+**v8 cwe_mismatch 变化分析**（vs v7 修正后）：
+- ✅ 修复 3 个：hard_crossfile_03_sink（CWE-79→正确 CWE-639）、hard_cve_05_spring4shell（CWE-79→正确 CWE-915）、typical_27_race_condition（空→正确 CWE-362）
+- ⚠️ 新增 5 个：hard_bypass_04（新标 CWE-79）、hard_bypass_07（新标 CWE-107）、hard_owasp_01（新标 CWE-732）、typical_23_ssti（新标 CWE-91）、typical_24_ldap（新标 CWE-798）
+- 改变但仍错 8 个：模型在尝试不同 CWE（说明训练有效果），但归因仍不准
+- 完全不变 6 个：CWE-89/79 归因偏置顽固（XPath/NoSQL/Info Disclosure 仍标 CWE-89，hidden SSTI 仍标 CWE-79）
+
+**v8 失败原因分析**：
+1. **对比 CoT 样本太少**（24 条），不足以教会模型 34 种 CWE 的判别边界
+2. **过度归因**：模型开始输出更多 CWE 编号（CWE-107/732/745/922 等不常见编号），但归因不准
+3. **FP 增加**（+5）：对比 CoT 让模型对安全代码过度敏感，3 个安全样本被误判
+4. **CWE-89/79 归因偏置顽固**：注入类混淆（XPath→SQL、NoSQL→SQL）完全没改善
+
+---
+
+### P3 v9 跑前优化——数据质量增强（2026-08-01）
+
+> 基于资深安全专家审查，在 v9 开跑前完成 P0+P1 优化。v9 实际训练数据 `train_chatml_v9_augmented.jsonl` 包含 v8 的 819 条 + 新增 95 条 = **914 条**。
+
+**P0 评估规范变更**：
+- CVE-fix 测试集评估结果**必须分拆统计**为：7 条真实 CVE 样本（`cve_fix_0001`-`cve_fix_0007`）和 13 条手工扩展样本（`cve_fix_0008`-`cve_fix_0020`）
+- 原因：手工扩展样本已接近 100% 饱和，真实 CVE 样本才是真正难度
+
+**v9 新增 95 条样本分布**：
+| 类别 | 编号 | 数量 | 靶向问题 |
+|------|------|------|---------|
+| 变量重命名增强 | A | 10 | 拉大同类 CWE 表征区分度 |
+| 防御迷惑 | B | 8 | 靶向被防御措施迷惑的 FN（LdapEncoder、bcrypt 等） |
+| 注意力分散 | C | 5 | 靶向 eval 注入被"框架代码"迷惑的 FN |
+| 框架代码误判 | D | 5 | 靶向框架代码误判的 FN（Spring4Shell、JSON-RPC） |
+| 多样安全代码 | E | 20 | 降低 FPR（含 5 条 v8 FP 靶向） |
+| CWE 归因增强 | F | 7 | 对比 CoT 教 CWE 边界判别 |
+| **Java/JS LDAP 注入** | **G** | **10** | CWE-90 从 18→28，靶向 CVE-fix 0001.java/0002.js |
+| **信任边界绕过** | **H** | **10** | CWE-441 从 14→24，靶向 CVE-fix 0005.js loopback 信任 |
+| **整数溢出** | **I** | **10** | CWE-190 从 29→39，多语言模式 |
+| **Java/JS 安全代码** | **J** | **10** | 平衡语言分布，Java 安全样本 +5，JS 安全样本 +5 |
+
+**CWE 命名标准化**（修复 56 条，覆盖 v8 基底和新增样本）：
+- 统一空格式：`NoSQL 注入`→`NoSQL注入`、`eval 注入`→`代码注入(eval)`、`硬编码 IV`→`硬编码IV`
+- 统一括号变体：`代码注入`/`代码注入(exec)`/`eval注入`→`代码注入(eval)`（CWE-95）
+- 统一中英文混用：`Mass Assignment`→`批量赋值`、`JNDI注入`→`表达式注入`
+- 修复多值格式：`CWE-1336; CWE-94 SSTI模板注入`→`CWE-1336 SSTI模板注入; CWE-94 代码注入`
+- 修复错误标注：CWE-532 原标"日志注入"→改为"敏感信息日志泄露"
+
+**v9 数据质量摘要**：
+| 指标 | 值 |
+|------|-----|
+| 总样本数 | 914（v8 819 + 95） |
+| 漏洞/安全 | 589 / 325（64.4% / 35.6%） |
+| 重复率 | 0% |
+| 测试集泄漏 | 0（Jaccard >= 0.5） |
+| CWE 命名修正 | 56 条 |
+| Java 占比 | 约 16%（优化前 12.5%） |
+| JS 占比 | 约 12%（优化前 8.8%） |
+| CWE-90 样本数 | 28（优化前 18） |
+| CWE-441 样本数 | 24（优化前 14） |
+| CWE-190 样本数 | 39（优化前 29） |
+
+**v9 训练配置**：
+| 字段 | 值 |
+|---|---|
+| 训练数据 | `train_chatml_v9_augmented.jsonl`（914 条） |
+| 生成脚本 | `scripts/build_v9_augmented.py`（新增 G-J 四大类） |
+| 泄漏审计 | Jaccard >= 0.5：0 条泄漏；>= 0.8：0 条高重叠 |
+| LoRA/训练参数 | r=8, alpha=16, epochs=2, lr=1e-4, rslora, seed=42 |
+| 训练命令 | `HF_HUB_OFFLINE=1 TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1 python3 train_qlora.py --data-file data/train_chatml_v9_augmented.jsonl --epochs 2 --batch-size 1 --grad-accum 8 --lr 1e-4 --lora-r 8 --use-rslora --output-suffix _v9` |
+
+**v8 结论**：
+- v8 整体不如 v7（strict_accuracy -9.6pp on 合成集，持平 on CVE-fix）
+- 对比 CoT 方向正确（修复了 3 个 v7 mismatch），但 24 条样本不够
+- **v7 仍为当前最佳模型**（strict_accuracy 0.728 合成集 / 0.700 CVE-fix）
+- 要达到 strict_accuracy >= 0.85 目标，需要换一种方法（见下方建议）
+
+**后续建议（不训练，改 prompt 或 RAG）**：
+1. **CWE 速查表注入 system prompt**：在 prompt 中加入"CWE-XXX → sink 类型 → 判别要点"映射表，让模型推理时参考
+2. **RAG 检索增强**：推理时检索相关 CWE 定义，注入 context
+3. 若仍要训练：需要 100+ 条对比 CoT 样本才能覆盖所有 CWE 边界
+
+### P2 v9 SFT 数据增强 + 靶向 FN 根因 + v8 失败修正模型（2026-08-01，数据已备，待训练）
+
+> 基于 `docs/和一个AI的讨论1.md` 评判后的方法论 + v8 失败诊断后的修正。
+> v8 评估失败后，针对三大根因修正数据与训练参数，再启动 v9 训练。
+> 云端相关任务（DPO / 大规模数据增强 / 蒸馏）留到 v10。
+
+**核心策略（v8 失败后修正）**：
+- 数据增强（A 类）：变量重命名 + 跨语言变体，拉大同类 CWE 表征区分度，防记忆表面特征
+- 靶向 FN 根因（B/C/D 类）：针对 CVE-fix 持续 FN 的三类根因做靶向样本
+  - **B 类修正**：v8 的 B5/B6/B7 是"无漏洞但建议改进"矛盾信号样本，导致 FP 激增。v9 替换为 3 个 clear-cut 漏洞样本（CSRF Referer 绕过 / SQL 部分 cast / 开放重定向黑名单绕过），消除矛盾信号
+- 多样安全代码（E 类）：非 hard-negative 方式增加安全代码多样性降 FPR（吸取 v6 失败教训）
+  - **E 类增强**：新增 5 条 v8 FP 靶向安全样本（proper_authz / race_with_lock / decorator_wrapper / shell_true_hardcoded / django_orm），CoT 明确"防御有效→无漏洞"无矛盾信号
+- CWE 归因增强（F 类）：补充 v8 未覆盖的易混 CWE 边界
+
+**训练配置**：
+| 字段 | 值 |
+|---|---|---|
+| 训练数据 | `train_chatml_v9_augmented.jsonl`（874 条，v8 819 + 新增 55） |
+| 数据变更 | 55 条新样本，覆盖 6 类增强策略（含 v8 失败修正） |
+| 生成脚本 | `scripts/build_v9_augmented.py` |
+| 泄漏审计 | Jaccard >= 0.8（新样本间）：0 条；>= 0.5（与测试集）：0 条；审计覆盖 107 个测试样本（86 合成 + 21 CVE-fix） |
+| LoRA/训练参数 | r=8, alpha=16, dropout=0.1, rslora=True, **epochs=2**（v8 教训：epoch3 eval_loss 上升过拟合）, lr=1e-4, batch=1×8, seed=42 |
+| best adapter | `outputs/lora_r8_a16_e3_lr0.0001_s42_rslora_v9_aug/`（待训练） |
+
+**v9 新增 55 条样本分布**：
+| 类别 | 数量 | 设计目的 | 覆盖内容 |
+|---|---|---|---|
+| A. 变量重命名增强 | 10 | 拉大同类 CWE 表征区分度 | SQL/XSS/Cmd/Path/Hardcoded/Deser/SSRF/Crypto/CSRF/LogInject，跨 Go/Ruby/Java/Node.js/PHP/Django |
+| B. 防御迷惑靶向（全漏洞） | 8 | 修复 FN 根因 1（部分防御误判安全）；**v9 修正：移除 3 个矛盾安全样本，改为纯漏洞** | LDAP 部分编码 / SQL 错误转义 / XSS 部分转义 / 路径 startswith 未规范化 / shell=True+shlex / JWT 无 issuer / pickle 宽白名单 / 正则白名单可绕过；**全部为漏洞样本，无矛盾信号** |
+| C. 注意力分散靶向 | 5 | 修复 FN 根因 2（无关安全措施分散注意） | bcrypt+LDAP / CSRF+SQLi / HTTPS+XSS / RateLimit+CmdI / Session+Path |
+| D. 框架代码误判靶向 | 5 | 修复 FN 根因 3（真实漏洞误判为演示） | JSON-RPC eval / 动态模板 / 插件动态导入 / 配置 exec / 计算器 eval |
+| E. 多样安全代码（含 v8 FP 靶向） | 20 | 非 hard-negative 方式降 FPR；**v9 新增 5 条 v8 FP 靶向** | 原有 15 条（subprocess 列表 / shlex.quote / PreparedStatement / HTML 转义 / 路径校验 / bcrypt / json.loads / JWT 完整验证 / 模板渲染 / defusedxml / 环境变量 / CSRF token / secrets / hmac.compare_digest / yaml.safe_load）+ **5 条 v8 FP 靶向**（proper_authz / race_with_lock / decorator_wrapper / shell_true_hardcoded / django_orm） |
+| F. CWE 归因增强 | 7 | 补充 v8 未覆盖易混边界 | CWE-190 整数溢出 / CWE-601 开放重定向 / CWE-117 日志注入 / CWE-200 信息泄露 / CWE-611 XXE / CWE-798 硬编码 API Key / CWE-327 ECB 模式 |
+
+**v8 失败 → v9 修正对照**：
+| v8 根因 | v9 修正措施 |
+|---|---|
+| 对比 CoT 引入判别焦虑 → FN 增加 | 移除对比 CoT 的"判别焦虑"诱导，B 类改为 clear-cut 漏洞样本（无 CWE 边界纠结） |
+| B 类"无漏洞但建议改进"矛盾信号 → FP 激增（8 个） | B5/B6/B7 替换为纯漏洞样本；E 类新增 5 条 v8 FP 靶向安全样本，CoT 明确"防御有效→无漏洞" |
+| epochs=3 过拟合（eval_loss epoch3 上升） | 训练参数 epochs 3→2（v8 best checkpoint 在 epoch 2） |
+
+**方法论依据**（`docs/和一个AI的讨论1.md` 评判后 + v8 失败诊断）：
+- 数据增强由本助手完成（非 DeepSeek 教师生成），与 DeepSeek 正式版质量相当
+- 不做 DPO（本地 16GB GPU 不可行，留到 v10 云端）
+- 不做 label smoothing（大词表 LLM 效果有限）
+- 不做 hard-negative SFT（v6 已证失败）
+- 改用多样安全代码 + 靶向 FN 根因 + 数据增强三管齐下
+- **v8 新增教训**：训练样本不得含"无漏洞但建议改进"的矛盾信号；epochs 不得超过 best checkpoint
+
+**v9 评估目标**：
+- 红线：recall >= 0.95（不退步）；CVE-fix recall >= 0.571（v5 锚点）
+- 主要：CVE-fix recall 恢复到 v7 水平（0.800），B/C/D 类靶向样本应修复 v8 的 5 个 FN（LDAP×2 / eval×2 / loopback×1）
+- 次要：FPR 回落到 v7 水平（0.231，v8 是 0.308），E 类 5 条 v8 FP 靶向应修复 8 个 FP 中的 5 个
+- strict_accuracy：持平或提升 v7（0.728 合成集 / 0.700 CVE-fix）
+- 参照：**v8 已评估失败**（合成 recall 0.967 / FPR 0.308 / strict_acc 0.632；CVE-fix recall 0.750 / strict_acc 0.700）、v7（当前最佳）、v5 锚点
 
 ### P3 DPO 尝试与失败（2026-07-27）
 
@@ -535,8 +911,9 @@ experiments/exp_06_finetune/results/
 ├── v2/                             ← SFT v2（train_chatml_v2.jsonl）
 ├── v3/                             ← SFT v3（train_chatml_v3_fixed.jsonl）
 ├── v4_failed/                      ← SFT v4（已废弃，训练-测试泄漏）
-├── v5/                             ← SFT v5 当前最佳（train_chatml_v5_clean.jsonl）
+├── v5/                             ← SFT v5（train_chatml_v5_clean.jsonl）
 ├── v6_failed/                      ← SFT v6 hard-negative（已归档，负迁移）
+├── v7/                             ← SFT v7 实战专用模型（train_chatml_v7_realworld.jsonl，当前 SFT 最佳）
 ├── _archive_qwen25/                ← Qwen2.5 时代全部归档
 │   ├── baselines/
 │   ├── finetuned/

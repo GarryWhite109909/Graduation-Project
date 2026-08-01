@@ -1,13 +1,16 @@
 # exp_06_finetune/data/ 数据字典
 
-> 整理日期：2026-07-23（Qwen3-8B 重构 P0 完成后），2026-07-26 更新（v5_clean 入册）
+> 整理日期：2026-07-23（Qwen3-8B 重构 P0 完成后），2026-07-26 更新（v5_clean 入册），2026-07-31 更新（v7_realworld + v8_cwe_attribution 入册），**2026-08-01 更新（v9_augmented 跑前优化，914 条，CWE 命名标准化）**
 > 整理人：自动归档脚本 + 手工标注
 
 ## 一、当前在用（SFT/DPO 训练直接消费）
 
 | 文件 | 行数 | 用途 | 生成方式 |
 |---|---|---|---|
-| `train_chatml_v5_clean.jsonl` | 749 | **SFT 训练最终数据**（v5，当前最佳） | 基于 v4 清洗 100 个测试集泄漏/近泄漏样本 + 新增 10 条弱密码学样本 |
+| `train_chatml_v9_augmented.jsonl` | 914 | **v9 增强训练数据**（2026-08-01，跑前优化后，待训练） | v8_cwe_attribution 819 + 95 条新样本（A:变量重命名 10 / B:防御迷惑 8 / C:注意力分散 5 / D:框架代码误判 5 / E:安全代码 20 / F:CWE归因 7 / G:Java/JS LDAP注入 10 / H:信任边界绕过 10 / I:整数溢出 10 / J:Java/JS安全 10），由 `build_v9_augmented.py` 生成；CWE 命名标准化修正 56 条；Jaccard 泄漏审计覆盖 107 个测试样本，0 泄漏（>=0.5），新样本间 0 高重叠（>=0.8） |
+| `train_chatml_v8_cwe_attribution.jsonl` | 819 | **v8 CWE 归因专项 SFT 训练数据**（2026-07-31，训练中） | v7_realworld 799 + 24 条对比 CoT 样本（注入混淆 5 / 认证权限混淆 4 / 密码学混淆 3 / 模板表达式混淆 4 / 其他高频误判 8），由 `build_v8_cwe_attribution.py` 生成，Jaccard 泄漏审计 0 泄漏（阈值 0.8） |
+| `train_chatml_v7_realworld.jsonl` | 799 | **v7 实战专用 SFT 训练数据**（2026-07-31，v8 基底） | v5_clean 749 + 50 条新增样本（CWE-90 LDAP 10 / CWE-441 信任边界 10 / CWE-190 整数溢出 8 / FP 反事实 CoT 6 / 对比 CoT 6 / CVE 启发实战 10），由 `build_v7_realworld.py` 生成，Jaccard 泄漏审计 0 高重叠 |
+| `train_chatml_v5_clean.jsonl` | 749 | **SFT 训练数据**（v5，v7 基底） | 基于 v4 清洗 100 个测试集泄漏/近泄漏样本 + 新增 10 条弱密码学样本 |
 | `dpo_merged.jsonl` | 104 | DPO 数据（本地未使用） | `merge_dpo_data.py` 合并 v1+v3+expansion+fp_v5 后去重；**本地 16GB GPU 无法训练 8B DPO** |
 
 ## 二、上游资产（已合并到上述最终数据，保留供重生成）
@@ -28,7 +31,7 @@
 
 | 文件 | 行数 | 状态 | 说明 |
 |---|---|---|---|
-| `train_chatml_v7.jsonl` | 757 | **v7 实验数据（未发布，仅供参考）** | 基于 v5_clean，针对 7 个 FP + 1 个 FN 做替换式增强（非 hard-negative 追加），避免 v6 负迁移。v7 模型未发布，v5 仍为当前唯一已发布版本 |
+| `train_chatml_v7.jsonl` | 757 | **v7 早期实验数据（已被 v7_realworld 替代）** | `build_v7_dataset.py` 生成的早期版本，仅追加 8 条样本，覆盖不足。已被 `train_chatml_v7_realworld.jsonl`（799 条，50 新增样本）替代 |
 | `train_chatml_v6_hard_neg.jsonl` | 755 | 已归档为失败尝试 | v5_clean + 6 个 FP 正确拒绝 CoT。**引起负迁移**：CVE-fix recall 从 57.1% 掉到 42.9%，新增 `cve_fix_0003.py` FN；合成集 recall 从 100% 掉到 98.4% |
 | `_archive_failed/train_chatml_v4_LEAKED_DO_NOT_USE.jsonl` | 839 | **已归档为泄漏数据，严禁复用** | v3 + CoT 清单化修复 + 7 条 CWE-441 样本。**含测试集泄漏**（3 精确匹配 + 63 高重叠变体），不可用于可信评估 |
 | `train_chatml_v3_fixed.jsonl` | 832 | 已被 v4 替代 | v3 修复 CWE 标注冲突 + 107 条 CoT 重写 + 9 条 LDAP 补充 |
@@ -113,3 +116,19 @@ PYTHONPATH=. python3 \
 - DPO 本地不可行（2026-07-27）：
   - 8bit 量化 OOM 黑屏；4bit 量化 DPO 双前向梯度失效（grad_norm=0，loss=ln(2) 不下降）
   - `dpo_merged.jsonl` / `dpo_fp_pairs_v5.jsonl` 保留但未使用；若换 24GB+ GPU 可直接复用
+- `train_chatml_v7_realworld.jsonl` 实战专用训练数据（2026-07-31）：
+  - v5_clean 749 + 50 条新增样本，针对 CVE-fix 持续 FN 的三个盲区（CWE-90 LDAP / CWE-441 信任边界 / CWE-190 整数溢出）
+  - 能力提升设计：(a) 反事实 CoT（FP 修正，教逻辑推理"去掉防御会怎样"）；(b) 对比 CoT（易混 CWE 判别，教语义理解）；(c) CVE 启发实战样本（隐蔽漏洞模式，教真实代码语义理解）；(d) 严格 JSON schema（字符输出能力）
+  - Jaccard 泄漏审计：0 高重叠（>=0.5），6 疑似重叠（0.3-0.5，均为设计内的对比/修正样本）
+  - 训练配置与 v5 一致（r=8, alpha=16, epochs=3, lr=1e-4, rslora），避免 v6 负迁移风险
+- `train_chatml_v9_augmented.jsonl` 增强训练数据（2026-08-01）：
+  - v8_cwe_attribution 819 + 50 条新样本，基于修正后方法论（见 `docs/和一个AI的讨论1.md` 评判）
+  - 六类新增样本设计：
+    - (A) 变量重命名增强 10 条：对已有 CWE 模式做等价变换（变量重命名 + 跨语言变体：Go/Ruby/Java/Node.js/PHP），拉大同类 CWE 表征区分度，防记忆表面特征
+    - (B) 防御迷惑靶向 8 条：针对 CVE-fix FN 根因 1（看到部分防御就判安全），含 LDAP 部分编码 / SQL 错误转义 / XSS 部分转义 / 路径 startswith 未规范化 / 正则白名单可绕过等；其中 3 条为"防御有效但模式脆弱"的安全样本（教模型区分有效防御 vs 脆弱模式）
+    - (C) 注意力分散靶向 5 条：针对 CVE-fix FN 根因 2（被无关安全措施分散注意），含 bcrypt+LDAP / CSRF+SQLi / HTTPS+XSS / RateLimit+CmdI / Session+Path；CoT 显式写出"X 防御有效但与 Y 漏洞无关"
+    - (D) 框架代码误判靶向 5 条：针对 CVE-fix FN 根因 3（真实漏洞误判为演示代码），含 JSON-RPC eval / 动态模板 / 插件动态导入 / 配置 exec / 计算器 eval
+    - (E) 多样安全代码 15 条：非 hard-negative 方式增加安全代码多样性降 FPR，覆盖 subprocess 列表参数 / shlex.quote / PreparedStatement / HTML 转义 / 路径校验 / bcrypt / json.loads / JWT 完整验证 / 模板渲染 / defusedxml / 环境变量凭证 / CSRF token / secrets / hmac.compare_digest / yaml.safe_load
+    - (F) CWE 归因增强 7 条：补充 v8 未覆盖的易混边界（CWE-190 整数溢出 / CWE-601 开放重定向 / CWE-117 日志注入 / CWE-200 信息泄露 / CWE-611 XXE / CWE-798 硬编码 API Key / CWE-327 ECB 模式）
+  - 泄漏审计：修复了原脚本指向 `exp_04_hard_samples/` 顶层（仅含脚本）的 bug，改为正确检查 `exp_04_hard_samples/samples/`（86 合成）+ `exp_06_finetune/testset_cve_fix/`（21 CVE-fix），共 107 个测试样本，0 泄漏（>=0.5）
+  - 训练配置与 v8 一致（r=8, alpha=16, epochs=3, lr=1e-4, rslora），待 v8 训练完成后启动

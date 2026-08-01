@@ -1,0 +1,933 @@
+{
+  "data_file": "/home/zane/文档/code/毕业设计/experiments/exp_06_finetune/data/train_chatml_v9_augmented.jsonl",
+  "total_samples": 914,
+  "thresholds": {
+    "max_steps": 5,
+    "max_tokens": 590
+  },
+  "stats": {
+    "steps_mean": 3.0054704595185995,
+    "steps_max": 9,
+    "cot_tokens_mean": 140.8765864332604,
+    "cot_tokens_max": 405.6,
+    "over_step_count": 114,
+    "over_token_count": 0,
+    "no_verdict_count": 0,
+    "inconsistent_count": 0,
+    "problematic_count": 114
+  },
+  "problematic_indices": [
+    {
+      "index": 15,
+      "steps": 6,
+      "cot_tokens": 132,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 581,
+      "steps": 6,
+      "cot_tokens": 138,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 582,
+      "steps": 6,
+      "cot_tokens": 128,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 583,
+      "steps": 6,
+      "cot_tokens": 118,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 587,
+      "steps": 6,
+      "cot_tokens": 127,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 589,
+      "steps": 6,
+      "cot_tokens": 114,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 590,
+      "steps": 6,
+      "cot_tokens": 122,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 593,
+      "steps": 6,
+      "cot_tokens": 124,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 594,
+      "steps": 6,
+      "cot_tokens": 138,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 596,
+      "steps": 7,
+      "cot_tokens": 131,
+      "issues": [
+        "steps=7>5"
+      ]
+    },
+    {
+      "index": 597,
+      "steps": 6,
+      "cot_tokens": 134,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 598,
+      "steps": 6,
+      "cot_tokens": 137,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 599,
+      "steps": 6,
+      "cot_tokens": 134,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 600,
+      "steps": 6,
+      "cot_tokens": 160,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 601,
+      "steps": 7,
+      "cot_tokens": 145,
+      "issues": [
+        "steps=7>5"
+      ]
+    },
+    {
+      "index": 602,
+      "steps": 6,
+      "cot_tokens": 120,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 605,
+      "steps": 6,
+      "cot_tokens": 129,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 634,
+      "steps": 6,
+      "cot_tokens": 188,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 635,
+      "steps": 6,
+      "cot_tokens": 162,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 637,
+      "steps": 6,
+      "cot_tokens": 145,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 638,
+      "steps": 6,
+      "cot_tokens": 146,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 639,
+      "steps": 6,
+      "cot_tokens": 180,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 645,
+      "steps": 6,
+      "cot_tokens": 160,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 646,
+      "steps": 6,
+      "cot_tokens": 168,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 647,
+      "steps": 7,
+      "cot_tokens": 181,
+      "issues": [
+        "steps=7>5"
+      ]
+    },
+    {
+      "index": 648,
+      "steps": 6,
+      "cot_tokens": 215,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 649,
+      "steps": 7,
+      "cot_tokens": 194,
+      "issues": [
+        "steps=7>5"
+      ]
+    },
+    {
+      "index": 650,
+      "steps": 6,
+      "cot_tokens": 207,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 651,
+      "steps": 9,
+      "cot_tokens": 285,
+      "issues": [
+        "steps=9>5"
+      ]
+    },
+    {
+      "index": 652,
+      "steps": 9,
+      "cot_tokens": 386,
+      "issues": [
+        "steps=9>5"
+      ]
+    },
+    {
+      "index": 653,
+      "steps": 6,
+      "cot_tokens": 372,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 654,
+      "steps": 9,
+      "cot_tokens": 295,
+      "issues": [
+        "steps=9>5"
+      ]
+    },
+    {
+      "index": 655,
+      "steps": 9,
+      "cot_tokens": 337,
+      "issues": [
+        "steps=9>5"
+      ]
+    },
+    {
+      "index": 656,
+      "steps": 6,
+      "cot_tokens": 325,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 657,
+      "steps": 6,
+      "cot_tokens": 331,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 659,
+      "steps": 6,
+      "cot_tokens": 367,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 666,
+      "steps": 6,
+      "cot_tokens": 206,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 667,
+      "steps": 6,
+      "cot_tokens": 242,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 668,
+      "steps": 6,
+      "cot_tokens": 290,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 669,
+      "steps": 6,
+      "cot_tokens": 306,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 670,
+      "steps": 6,
+      "cot_tokens": 260,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 671,
+      "steps": 6,
+      "cot_tokens": 345,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 672,
+      "steps": 6,
+      "cot_tokens": 351,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 673,
+      "steps": 6,
+      "cot_tokens": 364,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 674,
+      "steps": 6,
+      "cot_tokens": 406,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 675,
+      "steps": 6,
+      "cot_tokens": 354,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 676,
+      "steps": 6,
+      "cot_tokens": 340,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 677,
+      "steps": 6,
+      "cot_tokens": 307,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 678,
+      "steps": 6,
+      "cot_tokens": 308,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 679,
+      "steps": 7,
+      "cot_tokens": 352,
+      "issues": [
+        "steps=7>5"
+      ]
+    },
+    {
+      "index": 680,
+      "steps": 7,
+      "cot_tokens": 385,
+      "issues": [
+        "steps=7>5"
+      ]
+    },
+    {
+      "index": 681,
+      "steps": 6,
+      "cot_tokens": 230,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 682,
+      "steps": 6,
+      "cot_tokens": 205,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 683,
+      "steps": 6,
+      "cot_tokens": 212,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 684,
+      "steps": 6,
+      "cot_tokens": 234,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 685,
+      "steps": 6,
+      "cot_tokens": 205,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 686,
+      "steps": 6,
+      "cot_tokens": 206,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 687,
+      "steps": 6,
+      "cot_tokens": 252,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 688,
+      "steps": 6,
+      "cot_tokens": 250,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 689,
+      "steps": 6,
+      "cot_tokens": 264,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 690,
+      "steps": 6,
+      "cot_tokens": 198,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 691,
+      "steps": 6,
+      "cot_tokens": 256,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 692,
+      "steps": 6,
+      "cot_tokens": 266,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 693,
+      "steps": 6,
+      "cot_tokens": 270,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 694,
+      "steps": 6,
+      "cot_tokens": 225,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 695,
+      "steps": 6,
+      "cot_tokens": 225,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 696,
+      "steps": 6,
+      "cot_tokens": 273,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 697,
+      "steps": 6,
+      "cot_tokens": 259,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 698,
+      "steps": 6,
+      "cot_tokens": 243,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 699,
+      "steps": 6,
+      "cot_tokens": 170,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 700,
+      "steps": 6,
+      "cot_tokens": 180,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 701,
+      "steps": 6,
+      "cot_tokens": 320,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 702,
+      "steps": 6,
+      "cot_tokens": 267,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 703,
+      "steps": 6,
+      "cot_tokens": 279,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 704,
+      "steps": 6,
+      "cot_tokens": 295,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 705,
+      "steps": 6,
+      "cot_tokens": 229,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 706,
+      "steps": 6,
+      "cot_tokens": 262,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 707,
+      "steps": 6,
+      "cot_tokens": 246,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 710,
+      "steps": 6,
+      "cot_tokens": 373,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 714,
+      "steps": 6,
+      "cot_tokens": 332,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 715,
+      "steps": 6,
+      "cot_tokens": 333,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 716,
+      "steps": 6,
+      "cot_tokens": 348,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 717,
+      "steps": 6,
+      "cot_tokens": 307,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 718,
+      "steps": 6,
+      "cot_tokens": 321,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 719,
+      "steps": 6,
+      "cot_tokens": 128,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 720,
+      "steps": 6,
+      "cot_tokens": 150,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 721,
+      "steps": 6,
+      "cot_tokens": 137,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 722,
+      "steps": 6,
+      "cot_tokens": 130,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 723,
+      "steps": 6,
+      "cot_tokens": 140,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 745,
+      "steps": 6,
+      "cot_tokens": 142,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 746,
+      "steps": 7,
+      "cot_tokens": 231,
+      "issues": [
+        "steps=7>5"
+      ]
+    },
+    {
+      "index": 747,
+      "steps": 6,
+      "cot_tokens": 198,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 748,
+      "steps": 6,
+      "cot_tokens": 148,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 749,
+      "steps": 6,
+      "cot_tokens": 119,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 750,
+      "steps": 6,
+      "cot_tokens": 141,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 751,
+      "steps": 6,
+      "cot_tokens": 149,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 752,
+      "steps": 6,
+      "cot_tokens": 127,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 765,
+      "steps": 6,
+      "cot_tokens": 166,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 773,
+      "steps": 6,
+      "cot_tokens": 185,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 774,
+      "steps": 6,
+      "cot_tokens": 162,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 775,
+      "steps": 6,
+      "cot_tokens": 203,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 777,
+      "steps": 6,
+      "cot_tokens": 154,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 778,
+      "steps": 6,
+      "cot_tokens": 168,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 785,
+      "steps": 6,
+      "cot_tokens": 182,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 786,
+      "steps": 6,
+      "cot_tokens": 245,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 787,
+      "steps": 6,
+      "cot_tokens": 197,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 788,
+      "steps": 6,
+      "cot_tokens": 169,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 790,
+      "steps": 6,
+      "cot_tokens": 195,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 792,
+      "steps": 6,
+      "cot_tokens": 155,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 829,
+      "steps": 6,
+      "cot_tokens": 172,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 842,
+      "steps": 6,
+      "cot_tokens": 160,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 843,
+      "steps": 6,
+      "cot_tokens": 188,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 845,
+      "steps": 6,
+      "cot_tokens": 173,
+      "issues": [
+        "steps=6>5"
+      ]
+    },
+    {
+      "index": 846,
+      "steps": 6,
+      "cot_tokens": 163,
+      "issues": [
+        "steps=6>5"
+      ]
+    }
+  ]
+}
