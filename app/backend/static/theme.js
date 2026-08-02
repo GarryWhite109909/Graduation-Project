@@ -1,10 +1,11 @@
 /* ======================================================================
-   theme.js — 深浅主题切换
+   theme.js — Nivis 深浅主题切换（统一版）
    - 默认深色（首次访问无偏好时）
    - localStorage 持久化（key: vuln-theme）
    - 跨标签页/窗口实时同步（storage 事件）
-   - 尊重系统 prefers-color-scheme（仅首次访问时作默认参考）
-   - 在导航栏注入切换按钮，图标随主题切换（月/日）
+   - 图标随主题切换（月/日），即时更新
+   - 不再动态注入按钮：所有页面静态写好 <button id="theme-toggle">
+   - 统一管理设置抽屉里的 [data-theme-btn] 选项
    - 为避免 FOUC（首屏闪烁），在 <head> 内尽早调用 initThemeEarly()
    ====================================================================== */
 (function () {
@@ -32,8 +33,6 @@
   function resolveInitial() {
     var s = getStored();
     if (s === DARK || s === LIGHT) return s;
-    // 无存储：默认深色（产品默认）。如需跟随系统，取消下行注释。
-    // if (window.matchMedia('(prefers-color-scheme: light)').matches) return LIGHT;
     return DARK;
   }
 
@@ -42,7 +41,7 @@
     applyTheme(resolveInitial());
   };
 
-  /* ---- 按钮注入 + 交互 ---- */
+  /* ---- 图标 ---- */
   var ICON_SUN =
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
     '<circle cx="12" cy="12" r="4"/>' +
@@ -60,24 +59,22 @@
     return theme === DARK ? '切换到浅色模式' : '切换到深色模式';
   }
 
-  /* ---- 切换主题：优先 View Transitions API（整页 cross-fade），降级为瞬切 ---- */
+  /* ---- 切换主题：优先 View Transitions API，降级为瞬切 ---- */
   function doSwitch(next) {
     applyTheme(next);
     setStored(next);
     syncButton();
+    syncDrawerOpts();
   }
 
   function switchTheme() {
     var next = currentTheme() === DARK ? LIGHT : DARK;
-    // 标记过渡中，供 CSS 用更慢的 transition
     document.body.classList.add('theme-transitioning');
     var done = function () {
-      // 过渡结束后清理标记
       setTimeout(function () { document.body.classList.remove('theme-transitioning'); }, 600);
     };
 
     if (document.startViewTransition) {
-      // 现代浏览器：整页快照 cross-fade，玻璃/背景平滑过渡
       var transition = document.startViewTransition(function () { doSwitch(next); });
       if (transition && transition.finished) {
         transition.finished.then(done, done);
@@ -85,24 +82,12 @@
         done();
       }
     } else {
-      // 降级：直接切换，靠 CSS transition 平滑
       doSwitch(next);
       done();
     }
   }
 
-  function buildButton() {
-    var btn = document.createElement('button');
-    btn.type = 'button';
-    btn.id = 'theme-toggle';
-    btn.setAttribute('aria-label', btnLabel(currentTheme()));
-    btn.title = btnLabel(currentTheme());
-    btn.className = 'theme-toggle-btn';
-    btn.innerHTML = btnIcon(currentTheme());
-    btn.addEventListener('click', switchTheme);
-    return btn;
-  }
-
+  /* ---- 同步右上角按钮 ---- */
   function syncButton() {
     var btn = document.getElementById('theme-toggle');
     if (!btn) return;
@@ -112,18 +97,61 @@
     btn.title = btnLabel(t);
   }
 
-  function inject() {
-    if (document.getElementById('theme-toggle')) { syncButton(); return; }
-    // 优先插到主导航 ul 之后；找不到则回退到 body
-    var nav = document.querySelector('nav.nav-glass, nav[aria-label="主导航"]');
-    var container = nav ? nav.querySelector('.flex.items-center.justify-between') : null;
-    if (container) {
-      var btn = buildButton();
-      // 放到容器末尾（导航链接之后）
-      container.appendChild(btn);
-    } else {
-      document.body.appendChild(buildButton());
-    }
+  /* ---- 绑定右上角按钮（仅一次） ---- */
+  function bindButton() {
+    var btn = document.getElementById('theme-toggle');
+    if (!btn || btn.__nivisBound) return;
+    btn.__nivisBound = true;
+    btn.addEventListener('click', switchTheme);
+  }
+
+  /* ---- 同步设置抽屉里的主题选项 ---- */
+  function syncDrawerOpts() {
+    var isDark = currentTheme() === DARK;
+    document.querySelectorAll('[data-theme-btn]').forEach(function (b) {
+      var v = b.getAttribute('data-theme-btn');
+      var active = (v === DARK && isDark) || (v === LIGHT && !isDark);
+      b.style.background = active ? 'var(--vuln-brand)' : 'transparent';
+      b.style.color = active ? 'var(--vuln-brand-ink)' : 'var(--vuln-ink-2)';
+    });
+  }
+
+  /* ---- 绑定设置抽屉主题选项（仅一次，带 View Transition 渐变） ---- */
+  function bindDrawerOpts() {
+    document.querySelectorAll('[data-theme-btn]').forEach(function (b) {
+      if (b.__nivisBound) return;
+      b.__nivisBound = true;
+      b.addEventListener('click', function () {
+        var v = b.getAttribute('data-theme-btn');
+        var next = v === DARK ? DARK : LIGHT;
+        if (next === currentTheme()) return; /* 相同主题不重复切换 */
+
+        document.body.classList.add('theme-transitioning');
+        var done = function () {
+          setTimeout(function () { document.body.classList.remove('theme-transitioning'); }, 600);
+        };
+
+        if (document.startViewTransition) {
+          var transition = document.startViewTransition(function () { doSwitch(next); });
+          if (transition && transition.finished) {
+            transition.finished.then(done, done);
+          } else {
+            done();
+          }
+        } else {
+          doSwitch(next);
+          done();
+        }
+      });
+    });
+  }
+
+  /* ---- 初始化 ---- */
+  function init() {
+    bindButton();
+    syncButton();
+    bindDrawerOpts();
+    syncDrawerOpts();
   }
 
   /* ---- 跨标签页同步 ---- */
@@ -131,6 +159,7 @@
     if (e.key === STORAGE_KEY && (e.newValue === DARK || e.newValue === LIGHT)) {
       applyTheme(e.newValue);
       syncButton();
+      syncDrawerOpts();
     }
   });
 
@@ -140,20 +169,15 @@
       if (!getStored()) {
         applyTheme(resolveInitial());
         syncButton();
+        syncDrawerOpts();
       }
     });
   }
 
-  /* ---- DOM 就绪后注入按钮 ---- */
+  /* ---- DOM 就绪后绑定 ---- */
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', inject);
+    document.addEventListener('DOMContentLoaded', init);
   } else {
-    inject();
+    init();
   }
-
-  // 注：已移除监听整个 body 的 MutationObserver。
-  // 原实现 observe(body, {subtree:true}) 会在 Tailwind 运行时重算 / AJAX 内容
-  // 加载时频繁触发 inject()，导致 justify-between 容器子元素在 3↔2 之间跳变，
-  // 表现为导航栏位置抖动（"莫名跳到最右侧"）。nav 为静态 HTML，按钮仅在
-  // DOMContentLoaded 时注入一次即可稳定布局。
 })();

@@ -4,132 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script>(function(){try{var k='vuln-theme',s=localStorage.getItem(k),t=(s==='light'||s==='dark')?s:'dark';document.documentElement.classList.remove('light','dark');document.documentElement.classList.add(t);}catch(e){document.documentElement.classList.add('dark');}})();</script>
-    <title>仪表盘</title>
-    <style id="theme-vars">
-/* Vuln Scanner UI — Google-style clean analytical dashboard tokens */
-/* Light mode: white-paper clarity with #4285f4 primary; Dark mode: editorial high-contrast with #fc2c50 primary */
-
-:root {
-  /* Neutral scale — light mode */
-  --vuln-bg: #ffffff;
-  --vuln-surface: #ffffff;
-  --vuln-surface-2: #f9f9fa;
-  --vuln-ink: #0e1115;
-  --vuln-ink-2: #7f8d9f;
-  --vuln-ink-3: #b0b8c2;
-  --vuln-line: #ebebeb;
-
-  /* Brand primary — Google blue */
-  --vuln-brand: #4285f4;
-  --vuln-brand-ink: #ffffff;
-  --vuln-brand-50: #eff6ff;
-  --vuln-brand-100: #dbeafe;
-  --vuln-brand-200: #bfdbfe;
-  --vuln-brand-300: #93c5fd;
-  --vuln-brand-400: #60a5fa;
-  --vuln-brand-500: #4285f4;
-  --vuln-brand-600: #2563eb;
-  --vuln-brand-700: #1d4ed8;
-
-  /* Semantic state colors — Google palette */
-  --vuln-state-success: #34a853;
-  --vuln-state-warning: #fbbc05;
-  --vuln-state-error: #ea4335;
-  --vuln-state-info: #4285f4;
-
-  /* Semantic aliases required by head contract */
-  --vuln-background: var(--vuln-bg);
-  --vuln-foreground: var(--vuln-ink);
-  --vuln-card: var(--vuln-surface);
-  --vuln-card-foreground: var(--vuln-ink);
-  --vuln-popover: var(--vuln-surface-2);
-  --vuln-popover-foreground: var(--vuln-ink);
-  --vuln-primary: var(--vuln-brand);
-  --vuln-primary-foreground: var(--vuln-brand-ink);
-  --vuln-muted: var(--vuln-surface-2);
-  --vuln-muted-foreground: var(--vuln-ink-2);
-  --vuln-border: var(--vuln-line);
-  --vuln-input: #e2e3e4;
-  --vuln-ring: var(--vuln-brand-500);
-  --vuln-radius-small: 4px;
-  --vuln-radius-medium: 8px;
-  --vuln-radius-large: 12px;
-
-  /* Spacing */
-  --vuln-s-1: 4px;
-  --vuln-s-2: 8px;
-  --vuln-s-3: 12px;
-  --vuln-s-4: 16px;
-  --vuln-s-5: 24px;
-  --vuln-s-6: 32px;
-  --vuln-s-7: 48px;
-  --vuln-s-8: 80px;
-
-  /* Typography — DM Sans for UI, JetBrains Mono for code/data */
-  --vuln-font-sans: DM Sans, "Noto Sans SC", "PingFang SC", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
-  --vuln-font-mono: JetBrains Mono, "Cascadia Code", Consolas, Monaco, "Courier New", monospace;
-
-  /* Shadows — flat, border-led hierarchy */
-  --vuln-shadow-1: 0 1px 2px rgba(14, 17, 21, 0.03);
-  --vuln-shadow-2: 0 1px 3px rgba(14, 17, 21, 0.05);
-  --vuln-shadow-3: 0 4px 12px rgba(14, 17, 21, 0.05);
-}
-
-/* Dark mode — editorial high-contrast */
-.dark {
-  /* Neutral scale */
-  --vuln-bg: #161616;
-  --vuln-surface: #1d1d1c;
-  --vuln-surface-2: #2e2e2e;
-  --vuln-ink: #eff1f4;
-  --vuln-ink-2: #949494;
-  --vuln-ink-3: #707070;
-  --vuln-line: #404040;
-
-  /* Brand primary — electric red */
-  --vuln-brand: #fc2c50;
-  --vuln-brand-ink: #ffffff;
-  --vuln-brand-50: #4a2026;
-  --vuln-brand-100: #5c2830;
-  --vuln-brand-200: #7a333e;
-  --vuln-brand-300: #a34452;
-  --vuln-brand-400: #d14f62;
-  --vuln-brand-500: #fc2c50;
-  --vuln-brand-600: #ff4d6d;
-  --vuln-brand-700: #ff6b85;
-
-  /* Semantic state colors */
-  --vuln-state-success: #baf6f0;
-  --vuln-state-warning: #fbeb35;
-  --vuln-state-error: #f1204a;
-  --vuln-state-info: #2dccd3;
-
-  /* Semantic aliases */
-  --vuln-background: var(--vuln-bg);
-  --vuln-foreground: var(--vuln-ink);
-  --vuln-card: var(--vuln-surface);
-  --vuln-card-foreground: var(--vuln-ink);
-  --vuln-popover: var(--vuln-surface-2);
-  --vuln-popover-foreground: var(--vuln-ink);
-  --vuln-primary: var(--vuln-brand);
-  --vuln-primary-foreground: var(--vuln-brand-ink);
-  --vuln-muted: var(--vuln-surface-2);
-  --vuln-muted-foreground: var(--vuln-ink-2);
-  --vuln-border: var(--vuln-line);
-  --vuln-input: #000000;
-  --vuln-ring: #ffffff;
-
-  /* Shadows remain flat */
-  --vuln-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --vuln-shadow-2: 0 1px 3px rgba(0, 0, 0, 0.05);
-  --vuln-shadow-3: 0 4px 12px rgba(0, 0, 0, 0.05);
-}
-
-/* Base typography classes */
-.vuln-font-sans { font-family: var(--vuln-font-sans); }
-.vuln-font-mono { font-family: var(--vuln-font-mono); }
-
-    </style>
+    <title>Nivis · 仪表盘</title>
+    <link rel="stylesheet" href="./design-tokens.css">
     <script src="./lib/tailwind.global.js"></script>
     <script src="./lib/lucide.min.js"></script>
     <style type="text/tailwindcss">
@@ -147,9 +23,9 @@
     --color-border: var(--vuln-border);
     --color-input: var(--vuln-input);
     --color-ring: var(--vuln-ring);
-    --radius-sm: var(--vuln-radius-small);
-    --radius-md: var(--vuln-radius-medium);
-    --radius-lg: var(--vuln-radius-large);
+    --radius-sm: var(--vuln-radius-sm);
+    --radius-md: var(--vuln-radius-md);
+    --radius-lg: var(--vuln-radius-lg);
   }
   @layer base {
     body { background: var(--vuln-background); color: var(--vuln-foreground); }
@@ -157,468 +33,345 @@
     th { @apply whitespace-nowrap; }
   }
     </style>
-    <style id="semantic-token-fallback">
-      .bg-background { background-color: var(--vuln-background); }
-      .text-background { color: var(--vuln-background); }
-      .border-background { border-color: var(--vuln-background); }
-      .ring-background { --tw-ring-color: var(--vuln-background); }
-      .bg-foreground { background-color: var(--vuln-foreground); }
-      .text-foreground { color: var(--vuln-foreground); }
-      .border-foreground { border-color: var(--vuln-foreground); }
-      .ring-foreground { --tw-ring-color: var(--vuln-foreground); }
-      .bg-card { background-color: var(--vuln-card); }
-      .text-card { color: var(--vuln-card); }
-      .border-card { border-color: var(--vuln-card); }
-      .ring-card { --tw-ring-color: var(--vuln-card); }
-      .bg-card-foreground { background-color: var(--vuln-card-foreground); }
-      .text-card-foreground { color: var(--vuln-card-foreground); }
-      .border-card-foreground { border-color: var(--vuln-card-foreground); }
-      .ring-card-foreground { --tw-ring-color: var(--vuln-card-foreground); }
-      .bg-popover { background-color: var(--vuln-popover); }
-      .text-popover { color: var(--vuln-popover); }
-      .border-popover { border-color: var(--vuln-popover); }
-      .ring-popover { --tw-ring-color: var(--vuln-popover); }
-      .bg-popover-foreground { background-color: var(--vuln-popover-foreground); }
-      .text-popover-foreground { color: var(--vuln-popover-foreground); }
-      .border-popover-foreground { border-color: var(--vuln-popover-foreground); }
-      .ring-popover-foreground { --tw-ring-color: var(--vuln-popover-foreground); }
-      .bg-primary { background-color: var(--vuln-primary); }
-      .text-primary { color: var(--vuln-primary); }
-      .border-primary { border-color: var(--vuln-primary); }
-      .ring-primary { --tw-ring-color: var(--vuln-primary); }
-      .bg-primary-foreground { background-color: var(--vuln-primary-foreground); }
-      .text-primary-foreground { color: var(--vuln-primary-foreground); }
-      .border-primary-foreground { border-color: var(--vuln-primary-foreground); }
-      .ring-primary-foreground { --tw-ring-color: var(--vuln-primary-foreground); }
-      .bg-muted { background-color: var(--vuln-muted); }
-      .text-muted { color: var(--vuln-muted); }
-      .border-muted { border-color: var(--vuln-muted); }
-      .ring-muted { --tw-ring-color: var(--vuln-muted); }
-      .bg-muted-foreground { background-color: var(--vuln-muted-foreground); }
-      .text-muted-foreground { color: var(--vuln-muted-foreground); }
-      .border-muted-foreground { border-color: var(--vuln-muted-foreground); }
-      .ring-muted-foreground { --tw-ring-color: var(--vuln-muted-foreground); }
-      .bg-border { background-color: var(--vuln-border); }
-      .text-border { color: var(--vuln-border); }
-      .border-border { border-color: var(--vuln-border); }
-      .ring-border { --tw-ring-color: var(--vuln-border); }
-      .bg-input { background-color: var(--vuln-input); }
-      .text-input { color: var(--vuln-input); }
-      .border-input { border-color: var(--vuln-input); }
-      .ring-input { --tw-ring-color: var(--vuln-input); }
-      .bg-ring { background-color: var(--vuln-ring); }
-      .text-ring { color: var(--vuln-ring); }
-      .border-ring { border-color: var(--vuln-ring); }
-      .ring-ring { --tw-ring-color: var(--vuln-ring); }
-    </style>
-    <style>
-      .no-scrollbar::-webkit-scrollbar { display: none; }
-      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-      [data-icon] {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        -webkit-mask-size: contain;
-        mask-size: contain;
-        -webkit-mask-repeat: no-repeat;
-        mask-repeat: no-repeat;
-        -webkit-mask-position: center;
-        mask-position: center;
-        background-color: currentColor;
-      }
-    </style>
+    <!-- semantic-token-fallback 和全局滚动条样式已移入 design-tokens.css -->
     <link rel="stylesheet" href="./lively.css">
 </head>
-<body class="min-h-screen font-sans antialiased flex flex-col">
-<style id="critical-layout">
-  .vuln-kpi-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 1rem;
-  }
-  .vuln-bento {
-    display: grid;
-    grid-template-columns: 2fr 1fr;
-    gap: 1rem;
-  }
-  .vuln-bento-main {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 1rem;
-  }
-  @media (max-width: 1024px) {
-    .vuln-bento { grid-template-columns: 1fr; }
-    .vuln-bento-main { grid-template-columns: 1fr; }
-  }
-  .vuln-chart svg { width: 100%; height: auto; display: block; }
-</style>
-
-    <style id="enhanced-effects">
-      :root {
-        --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-        --ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
-        --dur-fast: 150ms;
-        --dur-normal: 350ms;
-        --dur-slow: 600ms;
-      }
-
-      body {
-        background: radial-gradient(ellipse at top, rgba(66,133,244,0.03), transparent 60%);
-      }
-      .dark body {
-        background: radial-gradient(ellipse at top, rgba(252,44,80,0.04), transparent 60%);
-      }
-
-      @keyframes fadeUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
-      @keyframes shimmer { from { transform: translateX(-100%); } to { transform: translateX(200%); } }
-      @keyframes pulseBorder { 0%, 100% { border-color: var(--vuln-line); } 50% { border-color: var(--vuln-brand-300); } }
-
-      .glass-card {
+<body class="min-h-screen font-sans antialiased">
+    <style id="page-recipe">
+      /* === 卡片层级 — 克制版，透明度梯度建立层次 === */
+      .card-primary {
         background: rgba(255,255,255,0.72);
-        backdrop-filter: blur(24px) saturate(180%);
-        -webkit-backdrop-filter: blur(24px) saturate(180%);
-        border: 1px solid rgba(255,255,255,0.5);
-        box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), 0 8px 32px rgba(14,17,21,0.06);
-        transition: transform var(--dur-normal) var(--ease-spring), box-shadow var(--dur-normal) var(--ease-smooth), border-color var(--dur-normal) var(--ease-smooth);
+        backdrop-filter: blur(20px) saturate(150%);
+        -webkit-backdrop-filter: blur(20px) saturate(150%);
+        border: 1px solid var(--vuln-line);
+        box-shadow: var(--vuln-shadow-2);
+        border-radius: var(--vuln-radius-lg);
       }
-      .glass-card:hover {
-        transform: translateY(-4px) scale(1.005);
-        box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), 0 12px 40px rgba(14,17,21,0.10);
-      }
-      .dark .glass-card {
-        background: rgba(29,29,28,0.72);
+      .dark .card-primary {
+        background: rgba(30,30,30,0.72);
         border: 1px solid rgba(255,255,255,0.08);
-        box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 8px 32px rgba(0,0,0,0.2);
       }
-      .dark .glass-card:hover {
-        box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 12px 40px rgba(0,0,0,0.35);
+      .card-secondary {
+        background: var(--vuln-surface);
+        border: 1px solid var(--vuln-line);
+        box-shadow: var(--vuln-shadow-1);
+        border-radius: var(--vuln-radius-lg);
       }
-
-      .nav-glass {
-        background: rgba(255,255,255,0.8) !important;
-        backdrop-filter: blur(32px) saturate(200%);
-        -webkit-backdrop-filter: blur(32px) saturate(200%);
+      .dark .card-secondary {
+        border: 1px solid rgba(255,255,255,0.06);
       }
-      .dark .nav-glass { background: rgba(22,22,22,0.8) !important; }
-
-      button {
-        transition: transform var(--dur-fast) var(--ease-spring), background-color var(--dur-normal) var(--ease-smooth), color var(--dur-normal) var(--ease-smooth), box-shadow var(--dur-normal) var(--ease-smooth), opacity var(--dur-fast) var(--ease-smooth);
+      .card-tertiary {
+        background: var(--vuln-surface-2);
+        border: 1px solid var(--vuln-line-2);
+        border-radius: var(--vuln-radius-lg);
       }
-      button:active { transform: scale(0.96); }
-      a { transition: transform var(--dur-fast) var(--ease-spring), color var(--dur-normal) var(--ease-smooth), background-color var(--dur-normal) var(--ease-smooth); }
-      a:active { transform: scale(0.96); }
-
-      .icon-box {
-        width: 44px; height: 44px; border-radius: 12px;
-        display: inline-flex; align-items: center; justify-content: center;
-        background: linear-gradient(135deg, rgba(66,133,244,0.12), rgba(66,133,244,0.04));
-        border: 1px solid rgba(66,133,244,0.12);
-        backdrop-filter: blur(8px);
-        -webkit-backdrop-filter: blur(8px);
-        flex-shrink: 0;
-        transition: transform var(--dur-normal) var(--ease-spring);
-      }
-      .icon-box:hover { transform: scale(1.08) rotate(-3deg); }
-      .dark .icon-box {
-        background: linear-gradient(135deg, rgba(252,44,80,0.12), rgba(252,44,80,0.04));
-        border: 1px solid rgba(252,44,80,0.12);
+      .dark .card-tertiary {
+        border: 1px solid rgba(255,255,255,0.04);
       }
 
-      .kpi-card { animation: fadeUp 0.5s var(--ease-spring) both; }
-      .bento-card { animation: fadeUp 0.5s var(--ease-spring) both; }
-      .quick-entry { animation: fadeUp 0.4s var(--ease-spring) both; }
+      /* === 动效 — 弹性弹起 + 延迟退出丝滑跟随，使用 lively.css 的 spring/bounce 曲线 === */
+      .card-primary, .card-secondary, .card-tertiary {
+        transition: transform 320ms var(--lv-spring, cubic-bezier(0.34,1.56,0.64,1)) var(--lv-out-delay),
+                    border-color 250ms var(--lv-smooth, ease) var(--lv-out-delay),
+                    box-shadow 320ms var(--lv-spring, cubic-bezier(0.34,1.56,0.64,1)) var(--lv-out-delay);
+      }
+      .card-primary:hover, .card-secondary:hover, .card-tertiary:hover { transition-delay: 0ms; }
+      .card-primary:hover {
+        transform: translateY(-4px);
+        border-color: color-mix(in srgb, var(--vuln-brand) 30%, var(--vuln-line));
+        box-shadow: 0 10px 28px rgba(11,15,20,0.10);
+      }
+      .card-secondary:hover {
+        transform: translateY(-3px);
+        border-color: color-mix(in srgb, var(--vuln-brand) 20%, var(--vuln-line));
+      }
+      .card-tertiary:hover { transform: translateY(-2px); }
 
-      ::-webkit-scrollbar { width: 8px; height: 8px; }
-      ::-webkit-scrollbar-track { background: transparent; }
-      ::-webkit-scrollbar-thumb { background: var(--vuln-ink-3); border-radius: 4px; }
-      ::-webkit-scrollbar-thumb:hover { background: var(--vuln-ink-2); }
+      /* button / a 统一由 lively.css 管理 */
 
-      :focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(66,133,244,0.2); }
-      .dark :focus-visible { box-shadow: 0 0 0 3px rgba(252,44,80,0.25); }
-
-      /* === 灵动交互增强 — 弹跳/浮起/旋转 === */
-      .glass-card:hover { transform: translateY(-8px) scale(1.025) !important; box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), 0 20px 50px rgba(14,17,21,0.14) !important; }
-      .dark .glass-card:hover { box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 20px 50px rgba(0,0,0,0.4) !important; }
-      .kpi-card:hover { transform: translateY(-6px) scale(1.03) !important; }
-      .bento-card:hover { transform: translateY(-6px) scale(1.02) !important; }
-      .quick-entry:hover { transform: translateY(-4px) !important; }
-      button:hover { transform: translateY(-2px); }
-      button:active { transform: scale(0.92); }
-      a:active { transform: scale(0.93); }
-      .filter-chip:not(.active):hover { transform: translateY(-3px) scale(1.06) !important; box-shadow: 0 8px 20px rgba(66,133,244,0.18); }
-      .dark .filter-chip:not(.active):hover { box-shadow: 0 8px 20px rgba(252,44,80,0.18); }
-      .filter-chip.active { transform: scale(1.06); }
-      .icon-box:hover { transform: scale(1.15) rotate(-6deg) !important; }
-      .view-detail:hover { transform: translateX(4px); }
-
+      .animate-in { animation: fadeUp 0.5s var(--lv-bounce, cubic-bezier(0.22,1,0.36,1)) backwards; }
       @media (prefers-reduced-motion: reduce) {
-        *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+        .animate-in { animation: none; }
+        .card-primary:hover, .card-secondary:hover, .card-tertiary:hover { transform: none; }
       }
+
+      /* === Bento 布局 === */
+      .bento-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; align-items: start; }
+      .bento-main { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+      .bento-side { position: sticky; top: 88px; }
+      @media (max-width: 1024px) {
+        .bento-grid { grid-template-columns: 1fr; }
+        .bento-main { grid-template-columns: 1fr; }
+        .bento-side { position: static; }
+      }
+
+      /* nav-item / logo / 品牌名 / 导航按钮样式统一在 lively.css */
+
+      /* === KPI === */
+      .kpi-icon {
+        width: 36px; height: 36px; border-radius: var(--vuln-radius-md);
+        display: inline-flex; align-items: center; justify-content: center;
+        background: color-mix(in srgb, var(--kc) 12%, transparent);
+        color: var(--kc); flex-shrink: 0;
+      }
+
+      /* === 风险徽章 — 左边框 + 文字色 === */
+      .risk-badge {
+        display: inline-flex; align-items: center; justify-content: center;
+        background: transparent; border-left: 3px solid var(--rc);
+        color: var(--rc); padding: 2px 8px; font-size: 12px; font-weight: 500;
+        border-radius: 0 4px 4px 0; width: 52px; flex-shrink: 0;
+      }
+
+      /* === Donut 联动（过渡统一由 lively.css 管理，此处仅覆盖 active 态） === */
+      .donut-seg.hl { stroke-width: 18; filter: drop-shadow(0 0 8px var(--sc)); }
+      #chart-donut:hover .donut-seg.hl { opacity: 1; }
+      .legend-item { display: flex; align-items: center; gap: 8px; padding: 5px 0; opacity: 0.85; transition: opacity 200ms var(--lv-smooth) var(--lv-out-delay), transform 280ms var(--lv-spring) var(--lv-out-delay); cursor: pointer; }
+      .legend-item .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+      .legend-item .count { font-variant-numeric: tabular-nums; }
+      .legend-item.hl { transition-delay: 0ms; opacity: 1; transform: translateX(4px); color: var(--vuln-ink); font-weight: 600; }
+
+      /* === 快捷入口 === */
+      .icon-box {
+        width: 40px; height: 40px; border-radius: var(--vuln-radius-md);
+        display: inline-flex; align-items: center; justify-content: center;
+        background: color-mix(in srgb, var(--vuln-brand) 10%, transparent);
+        color: var(--vuln-brand); flex-shrink: 0;
+      }
+      .quick-entry {
+        display: flex; align-items: center; gap: 12px; padding: 10px;
+        border-radius: var(--vuln-radius-md); border: 1px solid transparent;
+        transition: border-color 200ms ease var(--lv-out-delay), background-color 200ms ease var(--lv-out-delay), transform 200ms ease var(--lv-out-delay);
+      }
+      .quick-entry:hover {
+        transition-delay: 0ms;
+        border-color: color-mix(in srgb, var(--vuln-brand) 30%, transparent);
+        background-color: color-mix(in srgb, var(--vuln-brand) 6%, transparent);
+        transform: translateY(-1px);
+      }
+      .quick-entry .arrow { color: var(--vuln-ink-3); transition: transform 200ms ease var(--lv-out-delay), color 200ms ease var(--lv-out-delay); flex-shrink: 0; display: inline-flex; }
+      .quick-entry:hover .arrow { transition-delay: 0ms; color: var(--vuln-brand); transform: translateX(2px); }
+
+      .num-tabular { font-variant-numeric: tabular-nums; }
     </style>
 
-<nav class="nav-glass fixed top-0 left-0 right-0 z-50 border-b border-[var(--vuln-line)]" aria-label="主导航">
-  <div class="max-w-[1440px] mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
-    <div class="flex items-center gap-2">
-      <svg class="h-7 w-7 text-[var(--vuln-brand)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-      </svg>
-      <span class="text-lg font-semibold text-[var(--vuln-ink)] tracking-tight">VulnScanner</span>
-    </div>
-    <ul class="flex items-center gap-1">
-      <li><a id="nav-dashboard" data-dom-id="nav-dashboard" href="./index.html" class="text-sm font-medium text-[var(--vuln-brand)] bg-[var(--vuln-brand)]/10 px-3 py-2 rounded-md" aria-current="page">仪表盘</a></li>
-      <li><a id="nav-scan" data-dom-id="nav-scan" href="./scan.html" class="text-sm font-medium text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] transition-colors px-3 py-2 rounded-md">扫描工作台</a></li>
-      <li><a id="nav-cwe" data-dom-id="nav-cwe" href="./cwe.html" class="text-sm font-medium text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] transition-colors px-3 py-2 rounded-md">CWE 样本库</a></li>
-      <li><a id="nav-posture" data-dom-id="nav-posture" href="./posture.html" class="text-sm font-medium text-[var(--vuln-ink-2)] hover:text-[var(--vuln-ink)] transition-colors px-3 py-2 rounded-md">安全态势</a></li>
-    </ul>
-  </div>
-</nav>
-
-<main class="flex-1 pt-24 pb-12 px-4 md:px-6 max-w-[1440px] mx-auto w-full">
-  <div id="api-warning" class="hidden mb-4 rounded-lg border border-[var(--vuln-state-warning)] bg-[var(--vuln-state-warning)]/10 px-4 py-3 text-sm text-[var(--vuln-ink)]" role="alert">
-    <span class="font-medium">后端服务未连接，显示为静态数据</span>
-  </div>
-  <header class="mb-6">
-    <div class="flex items-center gap-3 flex-wrap">
-      <h1 class="text-2xl font-semibold text-[var(--vuln-ink)]">仪表盘</h1>
-      <span id="backend-status" class="inline-flex items-center gap-1.5 text-xs text-[var(--vuln-ink-2)]">
-        <span style="width:8px;height:8px;border-radius:50%;background:var(--vuln-ink-3);display:inline-block;"></span>
-        <span>检测中...</span>
-      </span>
-    </div>
-    <p class="text-sm text-[var(--vuln-ink-2)] mt-1">实时掌握代码安全状态与扫描趋势</p>
-  </header>
-
-  <section class="vuln-kpi-grid mb-6" aria-label="核心指标">
-    <article class="glass-card kpi-card rounded-xl border border-[var(--vuln-line)] p-5" style="box-shadow: var(--vuln-shadow-2); animation-delay: 0ms;">
-      <div class="flex items-center justify-between mb-3">
-        <span class="text-sm font-medium text-[var(--vuln-ink-2)]">本月扫描</span>
-        <svg class="h-5 w-5 text-[var(--vuln-brand)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-          <polyline points="22 4 12 14.01 9 11.01"/>
-        </svg>
-      </div>
-      <div class="flex items-baseline gap-2">
-        <span id="kpi-scans" class="text-3xl font-semibold text-[var(--vuln-ink)]">—</span>
-        <span id="kpi-scans-sub" class="inline-flex items-center text-xs font-medium text-[var(--vuln-ink-2)]"></span>
-      </div>
-    </article>
-    <article class="glass-card kpi-card rounded-xl border border-[var(--vuln-line)] p-5" style="box-shadow: var(--vuln-shadow-2); animation-delay: 60ms;">
-      <div class="flex items-center justify-between mb-3">
-        <span class="text-sm font-medium text-[var(--vuln-ink-2)]">高危漏洞</span>
-        <svg class="h-5 w-5 text-[var(--vuln-state-error)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-          <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-        </svg>
-      </div>
-      <div class="flex items-baseline gap-2">
-        <span id="kpi-vuln" class="text-3xl font-semibold text-[var(--vuln-state-error)]">—</span>
-        <span id="kpi-vuln-sub" class="inline-flex items-center text-xs font-medium text-[var(--vuln-ink-2)]"></span>
-      </div>
-    </article>
-    <article class="glass-card kpi-card rounded-xl border border-[var(--vuln-line)] p-5" style="box-shadow: var(--vuln-shadow-2); animation-delay: 120ms;">
-      <div class="flex items-center justify-between mb-3">
-        <span class="text-sm font-medium text-[var(--vuln-ink-2)]">修复率</span>
-        <svg class="h-5 w-5 text-[var(--vuln-state-success)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-          <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
-        </svg>
-      </div>
-      <div class="flex items-baseline gap-2">
-        <span id="kpi-fix" class="text-3xl font-semibold text-[var(--vuln-ink)]">—</span>
-        <span id="kpi-fix-sub" class="inline-flex items-center text-xs font-medium text-[var(--vuln-ink-2)]"></span>
-      </div>
-    </article>
-    <article class="glass-card kpi-card rounded-xl border border-[var(--vuln-line)] p-5" style="box-shadow: var(--vuln-shadow-2); animation-delay: 180ms;">
-      <div class="flex items-center justify-between mb-3">
-        <span class="text-sm font-medium text-[var(--vuln-ink-2)]">平均风险分</span>
-        <svg class="h-5 w-5 text-[var(--vuln-state-warning)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-          <circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>
-        </svg>
-      </div>
-      <div class="flex items-baseline gap-2">
-        <span id="kpi-risk" class="text-3xl font-semibold text-[var(--vuln-ink)]">—</span>
-        <span id="kpi-risk-sub" class="inline-flex items-center text-xs font-medium text-[var(--vuln-ink-2)]"></span>
-      </div>
-    </article>
-  </section>
-
-  <section class="vuln-bento" aria-label="态势与动态">
-    <div class="vuln-bento-main">
-      <article class="glass-card bento-card rounded-xl border border-[var(--vuln-line)] p-5" style="box-shadow: var(--vuln-shadow-2); animation-delay: 200ms;">
-        <h2 class="text-sm font-semibold text-[var(--vuln-ink)] mb-4">风险分布</h2>
-        <div class="vuln-chart flex items-center justify-center gap-6">
-          <svg id="chart-donut" viewBox="0 0 120 120" role="img" aria-label="风险分布 donut 图">
-            <circle cx="60" cy="60" r="50" fill="none" stroke="var(--vuln-surface-2)" stroke-width="12"/>
-            <text id="donut-center-num" x="60" y="58" text-anchor="middle" fill="var(--vuln-ink)" font-size="16" font-weight="700">—</text>
-            <text id="donut-center-label" x="60" y="74" text-anchor="middle" fill="var(--vuln-ink-2)" font-size="10">风险</text>
-          </svg>
-          <ul id="donut-legend" class="space-y-2 text-xs" aria-hidden="true">
-            <li class="flex items-center gap-2 text-[var(--vuln-ink-3)]"><span class="inline-block w-2.5 h-2.5 rounded-full" style="background:var(--vuln-surface-2)"></span>暂无数据</li>
-          </ul>
+    <!-- 固定顶部导航 -->
+    <nav class="nav-glass fixed top-0 left-0 right-0 z-50 border-b border-[var(--vuln-line)]" aria-label="主导航">
+      <div class="max-w-[1440px] mx-auto px-6 h-16 flex items-center justify-between">
+        <div class="flex items-center gap-8">
+          <a href="./index.html" class="flex items-center gap-2.5">
+            <span class="nivis-logo" aria-hidden="true">
+              <img src="./logo/图标logo.png" class="logo-light" alt="" width="33" height="33">
+              <img src="./logo/图标logo深色版.png" class="logo-dark" alt="" width="33" height="33">
+            </span>
+            <img src="./logo/文字logo.png" class="nivis-wordmark logo-light" alt="Nivis" height="22">
+            <img src="./logo/文字logo深色版.png" class="nivis-wordmark logo-dark" alt="Nivis" height="22">
+          </a>
+          <div class="hidden md:flex items-center gap-1">
+            <a href="./index.html" class="nav-item active">仪表盘</a>
+            <a href="./scan.html" class="nav-item">扫描工作台</a>
+            <a href="./cwe.html" class="nav-item">CWE 样本库</a>
+            <a href="./posture.html" class="nav-item">安全态势</a>
+          </div>
         </div>
-      </article>
-
-      <article class="glass-card bento-card rounded-xl border border-[var(--vuln-line)] p-5" style="box-shadow: var(--vuln-shadow-2); animation-delay: 260ms;">
-        <h2 class="text-sm font-semibold text-[var(--vuln-ink)] mb-4">扫描趋势（近 7 日）</h2>
-        <div class="vuln-chart">
-          <svg id="chart-trend" viewBox="0 0 320 140" role="img" aria-label="近 7 日扫描趋势">
-            <defs>
-              <linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="var(--vuln-brand)" stop-opacity="0.35"/>
-                <stop offset="100%" stop-color="var(--vuln-brand)" stop-opacity="0"/>
-              </linearGradient>
-            </defs>
-            <line x1="32" y1="110" x2="304" y2="110" stroke="var(--vuln-line)"/>
-            <line x1="32" y1="10" x2="32" y2="110" stroke="var(--vuln-line)"/>
-            <text x="160" y="70" text-anchor="middle" fill="var(--vuln-ink-3)" font-size="12">暂无历史数据，完成首次扫描后将显示趋势</text>
-          </svg>
+        <div class="flex items-center gap-2">
+          <button id="settings-open" class="nav-btn" type="button" aria-label="设置">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </button>
+          <button id="theme-toggle" class="nav-btn" type="button" aria-label="切换主题"></button>
         </div>
-      </article>
+      </div>
+    </nav>
 
-      <article class="glass-card bento-card rounded-xl border border-[var(--vuln-line)] p-5" style="box-shadow: var(--vuln-shadow-2); animation-delay: 320ms;">
-        <h2 class="text-sm font-semibold text-[var(--vuln-ink)] mb-4">最近动态</h2>
-        <ol id="recent-list" class="space-y-4">
-          <li class="text-sm text-[var(--vuln-ink-3)] text-center py-8">暂无最近动态，完成首次扫描后将显示</li>
-        </ol>
-      </article>
+    <!-- 主内容容器 -->
+    <div class="max-w-[1440px] mx-auto px-6 pt-24 pb-8">
+      <!-- 页头 -->
+      <header class="mb-8 animate-in" style="animation-delay:0ms">
+        <div class="flex items-center gap-3 flex-wrap">
+          <h1 class="text-2xl font-semibold tracking-tight" style="color: var(--vuln-ink)">仪表盘</h1>
+          <span id="health-indicator" class="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span class="health-dot is-loading"></span>
+            <span class="health-text">检测中</span>
+          </span>
+        </div>
+        <p class="text-sm text-muted-foreground mt-1">实时掌握代码安全状态与扫描趋势</p>
+      </header>
+
+      <!-- KPI 核心指标区 -->
+      <section id="kpi-section" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+        <div class="card-primary p-6 animate-in" style="animation-delay:0ms">
+          <div class="flex items-center gap-2.5 mb-4">
+            <span class="kpi-icon" style="--kc: var(--vuln-state-info)">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/></svg>
+            </span>
+            <span class="text-xs font-medium text-muted-foreground">近期扫描</span>
+          </div>
+          <div class="text-5xl font-bold tracking-tight num-tabular" style="color: var(--vuln-ink); line-height:1.1" id="kpi-scans">—</div>
+          <p class="text-xs text-muted-foreground mt-2" id="kpi-scans-sub">次扫描</p>
+        </div>
+
+        <div class="card-primary p-6 animate-in" style="animation-delay:60ms">
+          <div class="flex items-center gap-2.5 mb-4">
+            <span class="kpi-icon" style="--kc: var(--vuln-state-error)">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+            </span>
+            <span class="text-xs font-medium text-muted-foreground">漏洞待修复</span>
+          </div>
+          <div class="text-5xl font-bold tracking-tight num-tabular" style="color: var(--vuln-state-error); line-height:1.1" id="kpi-vuln">—</div>
+          <p class="text-xs text-muted-foreground mt-2" id="kpi-vuln-sub">待修复</p>
+        </div>
+
+        <div class="card-primary p-6 animate-in" style="animation-delay:120ms">
+          <div class="flex items-center gap-2.5 mb-4">
+            <span class="kpi-icon" style="--kc: var(--vuln-state-success)">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>
+            </span>
+            <span class="text-xs font-medium text-muted-foreground">安全文件占比</span>
+          </div>
+          <div class="flex items-baseline gap-1">
+            <span class="text-5xl font-bold tracking-tight num-tabular" style="color: var(--vuln-ink); line-height:1.1" id="kpi-fix">—</span>
+          </div>
+          <p class="text-xs text-muted-foreground mt-2" id="kpi-fix-sub">安全文件占比</p>
+        </div>
+
+        <div class="card-primary p-6 animate-in" style="animation-delay:180ms">
+          <div class="flex items-center gap-2.5 mb-4">
+            <span class="kpi-icon" style="--kc: var(--vuln-state-warning)">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></svg>
+            </span>
+            <span class="text-xs font-medium text-muted-foreground">平均风险权重</span>
+          </div>
+          <div class="flex items-baseline gap-1.5">
+            <span class="text-5xl font-bold tracking-tight num-tabular" style="color: var(--vuln-state-warning); line-height:1.1" id="kpi-risk">—</span>
+            <span class="text-sm text-muted-foreground">/10</span>
+          </div>
+          <p class="text-xs text-muted-foreground mt-2" id="kpi-risk-sub">中等风险水平</p>
+        </div>
+      </section>
+
+      <!-- API 警告 -->
+      <div id="api-warning" class="hidden mb-4 rounded-[var(--vuln-radius-md)] border border-[var(--vuln-state-warning)] bg-[color-mix(in_srgb,var(--vuln-state-warning)_10%,transparent)] px-4 py-3 text-sm" style="color: var(--vuln-ink)" role="alert">
+        <span class="font-medium">后端服务未连接，显示为静态数据</span>
+      </div>
+
+      <!-- Bento 主区 -->
+      <div class="bento-grid">
+        <div class="bento-main">
+          <!-- 风险分布 donut -->
+          <div id="chart-donut-card" class="card-primary p-6 animate-in" style="animation-delay:240ms">
+            <div class="flex items-center justify-between mb-5">
+              <h3 class="text-sm font-semibold" style="color: var(--vuln-ink)">风险分布</h3>
+              <span class="text-xs text-muted-foreground" id="donut-total-label">共 0 项</span>
+            </div>
+            <div class="flex flex-col sm:flex-row items-center gap-6">
+              <div class="relative flex-shrink-0" style="width:160px;height:160px">
+                <svg id="chart-donut" viewBox="0 0 120 120" width="160" height="160" role="img" aria-label="风险分布环形图">
+                  <circle cx="60" cy="60" r="50" fill="none" stroke="var(--vuln-surface-2)" stroke-width="12"/>
+                  <text id="donut-center-num" x="60" y="58" text-anchor="middle" fill="var(--vuln-ink)" font-size="20" font-weight="700">—</text>
+                  <text id="donut-center-label" x="60" y="74" text-anchor="middle" fill="var(--vuln-ink-2)" font-size="11">风险</text>
+                </svg>
+              </div>
+              <ul id="donut-legend" class="flex-1 w-full text-sm" style="color: var(--vuln-ink)">
+                <li class="legend-item" style="color: var(--vuln-ink-3)"><span class="dot" style="background: var(--vuln-surface-2)"></span><span class="flex-1">暂无数据</span></li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- 扫描趋势折线图 -->
+          <div id="chart-trend-card" class="card-primary p-6 animate-in" style="animation-delay:300ms">
+            <div class="flex items-center justify-between mb-5">
+              <h3 class="text-sm font-semibold" style="color: var(--vuln-ink)">扫描活动趋势</h3>
+              <span class="text-xs text-muted-foreground">近 7 次扫描</span>
+            </div>
+            <div style="width:100%">
+              <svg id="chart-trend" viewBox="0 0 320 140" style="width:100%;height:auto;display:block" role="img" aria-label="扫描趋势折线图">
+                <line x1="30" y1="115" x2="310" y2="115" stroke="var(--vuln-line)"/>
+                <text x="160" y="75" text-anchor="middle" fill="var(--vuln-ink-3)" font-size="12">暂无历史数据，完成首次扫描后将显示趋势</text>
+              </svg>
+            </div>
+          </div>
+
+          <!-- 最近动态列表 -->
+          <div id="recent-list-card" class="card-secondary p-6 animate-in" style="animation-delay:360ms; grid-column: span 2;">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-sm font-semibold" style="color: var(--vuln-ink)">最近动态</h3>
+              <a href="./scan.html" class="text-xs text-muted-foreground hover:text-foreground transition-colors">查看全部</a>
+            </div>
+            <ul id="recent-list" class="space-y-3">
+              <li class="text-sm text-muted-foreground text-center py-8">暂无最近动态，完成首次扫描后将显示</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- 侧栏：快捷入口 -->
+        <aside class="bento-side">
+          <div id="quick-entries" class="card-tertiary p-6 animate-in" style="animation-delay:420ms">
+            <h3 class="text-sm font-semibold mb-4" style="color: var(--vuln-ink)">快捷入口</h3>
+            <div class="space-y-2">
+              <a href="./scan.html" class="quick-entry">
+                <span class="icon-box">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 18 6-6-6-6"/><path d="M8 6l-6 6 6 6"/></svg>
+                </span>
+                <div class="flex-1 min-w-0">
+                  <div class="text-sm font-medium" style="color: var(--vuln-ink)">粘贴代码分析</div>
+                  <div class="text-xs text-muted-foreground">即时检测代码片段</div>
+                </div>
+                <span class="arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span>
+              </a>
+              <a href="./scan.html" class="quick-entry">
+                <span class="icon-box">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
+                </span>
+                <div class="flex-1 min-w-0">
+                  <div class="text-sm font-medium" style="color: var(--vuln-ink)">上传文件扫描</div>
+                  <div class="text-xs text-muted-foreground">批量上传项目文件</div>
+                </div>
+                <span class="arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span>
+              </a>
+              <a href="./posture.html" class="quick-entry">
+                <span class="icon-box">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.5-.5-5.5-.5-8 1.5-1.96-.5-3-.5-3-.5-.28 1.15-.28 2.35 0 3.5A5.4 5.4 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-7-1-7.5-3"/></svg>
+                </span>
+                <div class="flex-1 min-w-0">
+                  <div class="text-sm font-medium" style="color: var(--vuln-ink)">仓库安全态势</div>
+                  <div class="text-xs text-muted-foreground">接入仓库持续监控</div>
+                </div>
+                <span class="arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span>
+              </a>
+            </div>
+          </div>
+        </aside>
+      </div>
     </div>
 
-    <aside class="glass-card bento-card rounded-xl border border-[var(--vuln-line)] p-5" style="box-shadow: var(--vuln-shadow-2); animation-delay: 380ms;">
-      <h2 class="text-sm font-semibold text-[var(--vuln-ink)] mb-4">快捷入口</h2>
-      <div class="grid gap-3">
-        <a id="cta-quick-paste" data-dom-id="cta-quick-paste" href="./scan.html" class="group flex items-center gap-4 rounded-lg border border-[var(--vuln-line)] bg-[var(--vuln-surface-2)] p-4 hover:border-[var(--vuln-brand)] hover:bg-[var(--vuln-brand)]/5 transition-all duration-300">
-          <div class="icon-box" style="width:40px;height:40px;">
-            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
-            </svg>
-          </div>
-          <div class="min-w-0">
-            <h3 class="text-sm font-medium text-[var(--vuln-ink)] group-hover:text-[var(--vuln-brand)]">粘贴代码分析</h3>
-            <p class="text-xs text-[var(--vuln-ink-2)] mt-0.5">直接输入源码进行 AI 检测</p>
-          </div>
-          <svg class="ml-auto h-4 w-4 text-[var(--vuln-ink-3)] group-hover:text-[var(--vuln-brand)] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
-        </a>
-        <a id="cta-quick-upload" data-dom-id="cta-quick-upload" href="./scan.html" class="group flex items-center gap-4 rounded-lg border border-[var(--vuln-line)] bg-[var(--vuln-surface-2)] p-4 hover:border-[var(--vuln-brand)] hover:bg-[var(--vuln-brand)]/5 transition-all duration-300">
-          <div class="icon-box" style="width:40px;height:40px;">
-            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
-            </svg>
-          </div>
-          <div class="min-w-0">
-            <h3 class="text-sm font-medium text-[var(--vuln-ink)] group-hover:text-[var(--vuln-brand)]">上传文件扫描</h3>
-            <p class="text-xs text-[var(--vuln-ink-2)] mt-0.5">支持 ZIP、JS、Python、Java 等格式</p>
-          </div>
-          <svg class="ml-auto h-4 w-4 text-[var(--vuln-ink-3)] group-hover:text-[var(--vuln-brand)] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
-        </a>
-        <a id="cta-quick-github" data-dom-id="cta-quick-github" href="./posture.html" class="group flex items-center gap-4 rounded-lg border border-[var(--vuln-line)] bg-[var(--vuln-surface-2)] p-4 hover:border-[var(--vuln-brand)] hover:bg-[var(--vuln-brand)]/5 transition-all duration-300">
-          <div class="icon-box" style="width:40px;height:40px;">
-            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/>
-            </svg>
-          </div>
-          <div class="min-w-0">
-            <h3 class="text-sm font-medium text-[var(--vuln-ink)] group-hover:text-[var(--vuln-brand)]">GitHub 仓库安全态势</h3>
-            <p class="text-xs text-[var(--vuln-ink-2)] mt-0.5">查看仓库级依赖与暴露面分析</p>
-          </div>
-          <svg class="ml-auto h-4 w-4 text-[var(--vuln-ink-3)] group-hover:text-[var(--vuln-brand)] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
-        </a>
+    <!-- 设置抽屉由 nivis-common.js 自动注入 -->
+
+    <!-- 页脚 -->
+    <footer class="border-t border-border mt-8 py-6">
+      <div class="max-w-[1440px] mx-auto px-6 text-xs text-muted-foreground flex flex-col sm:flex-row justify-between gap-2">
+        <span>Nivis · AI 代码漏洞静态分析平台 · 数据仅用于本地安全分析</span>
+        <span id="footer-updated">—</span>
       </div>
-    </aside>
-  </section>
-</main>
+    </footer>
 
-<footer class="border-t border-[var(--vuln-line)] bg-[var(--vuln-bg)] py-6 mt-auto">
-  <div class="max-w-[1440px] mx-auto px-4 md:px-6 text-xs text-[var(--vuln-ink-3)] flex flex-col sm:flex-row justify-between gap-2">
-    <span>AI 漏洞扫描平台 · 数据仅用于本地安全分析</span>
-    <span id="footer-updated">—</span>
-  </div>
-</footer>
-
-<script>lucide.createIcons();</script>
-<script>
+    <script>lucide.createIcons();</script>
+    <script src="./nivis-common.js"></script>
+    <script>
 (function () {
   'use strict';
 
-  var HISTORY_KEY = 'vuln_scan_history';
-  var MAX_HISTORY = 7;
+  var HISTORY_KEY = window.NivisUtil.HISTORY_KEY;
+  var MAX_HISTORY = window.NivisUtil.MAX_HISTORY;
 
-  /* ---------- 工具函数 ---------- */
-  function escapeHtml(str) {
-    if (str === null || str === undefined) return '';
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
-  }
-
-  function setText(id, val) {
-    var el = document.getElementById(id);
-    if (el) el.textContent = val;
-  }
-
-  function setHTML(id, html) {
-    var el = document.getElementById(id);
-    if (el) el.innerHTML = html;
-  }
-
-  function formatNumber(n) {
-    return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  }
-
-  /* ---------- risk_level 归一化（与 posture.html 一致） ---------- */
-  function normalizeRisk(level) {
-    if (!level) return 'info';
-    var s = String(level).toLowerCase().trim();
-    if (s === 'critical' || s === '严重' || s === '危急' || s.indexOf('crit') !== -1) return 'critical';
-    if (s === 'high' || s === '高危' || s === '高' || s.indexOf('high') !== -1) return 'high';
-    if (s === 'medium' || s === '中危' || s === '中' || s === 'moderate' || s.indexOf('med') !== -1) return 'medium';
-    if (s === 'low' || s === '低危' || s === '低' || s.indexOf('low') !== -1) return 'low';
-    return 'info';
-  }
-
-  function riskWeight(lvl) {
-    if (lvl === 'critical') return 10;
-    if (lvl === 'high') return 7;
-    if (lvl === 'medium') return 5;
-    if (lvl === 'low') return 2;
-    return 1;
-  }
-
-  function riskBadge(lvl) {
-    if (lvl === 'critical') return { label: '严重', color: 'var(--vuln-state-error)' };
-    if (lvl === 'high') return { label: '高危', color: 'var(--vuln-state-error)' };
-    if (lvl === 'medium') return { label: '中危', color: 'var(--vuln-state-warning)' };
-    if (lvl === 'low') return { label: '低危', color: 'var(--vuln-state-success)' };
-    return { label: '信息', color: 'var(--vuln-state-info)' };
-  }
-
-  function relativeTime(ts) {
-    if (!ts) return '';
-    var d = new Date(ts);
-    if (isNaN(d.getTime())) return '';
-    var diff = Date.now() - d.getTime();
-    if (diff < 0) diff = 0;
-    var sec = Math.floor(diff / 1000);
-    if (sec < 60) return sec + ' 秒前';
-    var min = Math.floor(sec / 60);
-    if (min < 60) return min + ' 分钟前';
-    var hr = Math.floor(min / 60);
-    if (hr < 24) return hr + ' 小时前';
-    var day = Math.floor(hr / 24);
-    if (day < 30) return day + ' 天前';
-    return d.toLocaleDateString('zh-CN');
-  }
-
-  /* ---------- localStorage 历史记录（与 posture.html 同 key） ---------- */
-  function getHistory() {
-    try {
-      var raw = localStorage.getItem(HISTORY_KEY);
-      if (!raw) return [];
-      var arr = JSON.parse(raw);
-      return Array.isArray(arr) ? arr : [];
-    } catch (e) { return []; }
-  }
+  /* 工具函数引用共享模块 nivis-common.js */
+  var escapeHtml = window.NivisUtil.escapeHtml.bind(window.NivisUtil);
+  var setText = window.NivisUtil.setText.bind(window.NivisUtil);
+  var formatNumber = window.NivisUtil.formatNumber.bind(window.NivisUtil);
+  var normalizeRisk = window.NivisUtil.normalizeRisk.bind(window.NivisUtil);
+  var riskWeight = window.NivisUtil.riskWeight.bind(window.NivisUtil);
+  var riskBadge = window.NivisUtil.riskBadge.bind(window.NivisUtil);
+  var relativeTime = window.NivisUtil.relativeTime.bind(window.NivisUtil);
+  var getHistory = window.NivisUtil.getHistory.bind(window.NivisUtil);
 
   function computeStatsFromHistory() {
     var hist = getHistory();
@@ -630,368 +383,302 @@
       var safe = entry.safe != null ? entry.safe : 0;
       if (!tf && Array.isArray(entry.results)) {
         tf = entry.results.length;
-        vuln = entry.results.filter(function (r) { return r && r.has_vulnerability === true; }).length;
+        vuln = entry.results.filter(function(r){return r&&r.has_vulnerability===true;}).length;
         safe = tf - vuln;
       }
-      totalFiles += tf;
-      totalVuln += vuln;
-      totalSafe += safe;
+      totalFiles += tf; totalVuln += vuln; totalSafe += safe;
       if (Array.isArray(entry.results)) {
-        entry.results.forEach(function (r) {
+        entry.results.forEach(function(r) {
           if (r && r.has_vulnerability === true) {
-            findings.push({
-              filename: r.filename,
-              vulnerability_type: r.vulnerability_type,
-              risk_level: r.risk_level,
-              timestamp: entry.date
-            });
+            findings.push({ filename: r.filename, vulnerability_type: r.vulnerability_type, risk_level: r.risk_level, timestamp: entry.date });
           }
         });
       }
     });
-    findings.sort(function (a, b) { return new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime(); });
-    return {
-      total_files: totalFiles,
-      total_vulnerable: totalVuln,
-      total_safe: totalSafe,
-      recent_findings: findings.slice(0, 10)
-    };
+    findings.sort(function(a,b){return new Date(b.timestamp||0).getTime()-new Date(a.timestamp||0).getTime();});
+    return { total_files: totalFiles, total_vulnerable: totalVuln, total_safe: totalSafe, recent_findings: findings.slice(0,10) };
   }
 
-  /* ---------- KPI 卡片 ---------- */
   function updateKpis(data) {
     var totalFiles = data.total_files || 0;
     var totalVuln = data.total_vulnerable || 0;
     var totalSafe = data.total_safe || 0;
-
-    // 本月扫描 -> total_files，副标题改为 "次扫描"
     setText('kpi-scans', formatNumber(totalFiles));
-    setHTML('kpi-scans-sub', '次扫描');
-
-    // 高危漏洞 -> total_vulnerable（红色）
+    setText('kpi-scans-sub', '次扫描');
     setText('kpi-vuln', formatNumber(totalVuln));
-    setHTML('kpi-vuln-sub', '');
-
-    // 修复率 -> total_safe/(total_safe+total_vulnerable)*100，分母为 0 时显示 "—"
+    setText('kpi-vuln-sub', totalVuln > 0 ? '待修复' : '暂无漏洞');
     var denom = totalSafe + totalVuln;
-    var fixRate = denom > 0 ? Math.round((totalSafe / denom) * 100) : null;
-    setText('kpi-fix', fixRate === null ? '—' : (fixRate + '%'));
-    setHTML('kpi-fix-sub', '');
-
-    // 平均风险分 -> 基于 recent_findings 的严重度权重均值，无数据时显示 "—"
+    var fixRate = denom > 0 ? Math.round((totalSafe/denom)*100) : null;
+    setText('kpi-fix', fixRate === null ? '—' : fixRate + '%');
+    setText('kpi-fix-sub', fixRate === null ? '暂无数据' : '安全文件 / 总文件');
     var findings = data.recent_findings || [];
     var avgScore = null;
     if (Array.isArray(findings) && findings.length > 0) {
-      var sum = 0;
-      for (var i = 0; i < findings.length; i++) {
-        sum += riskWeight(normalizeRisk(findings[i].risk_level));
-      }
-      avgScore = (sum / findings.length).toFixed(1);
+      var sum = 0; for (var i=0;i<findings.length;i++) sum += riskWeight(normalizeRisk(findings[i].risk_level));
+      avgScore = (sum/findings.length).toFixed(1);
     }
     setText('kpi-risk', avgScore === null ? '—' : avgScore);
-    setHTML('kpi-risk-sub', '');
+    setText('kpi-risk-sub', avgScore === null ? '暂无数据' : (parseFloat(avgScore)>=6?'高风险水平':parseFloat(avgScore)>=4?'中等风险水平':'低风险水平'));
   }
 
-  /* ---------- donut 交互绑定（静态 fallback 与动态数据共用） ---------- */
-  function wireDonut(svg, legend) {
-    if (!svg) return;
-    var segEls = svg.querySelectorAll('.donut-seg');
-    if (!segEls.length) return;
-    var centerNum = svg.querySelector('#donut-center-num');
-    var centerLabel = svg.querySelector('#donut-center-label');
-    var legendItems = legend ? legend.querySelectorAll('li') : [];
-    // 捕获当前中心文字作为复位态（静态为 "40/风险"，动态为 "总数/风险"）
-    var resetNum = centerNum ? centerNum.textContent : '';
-    var resetLabel = centerLabel ? centerLabel.textContent : '';
-    function resetCenter() {
-      if (centerNum) centerNum.textContent = resetNum;
-      if (centerLabel) centerLabel.textContent = resetLabel;
-    }
-    function highlight(el) {
-      var idx = parseInt(el.getAttribute('data-seg'), 10);
-      if (centerNum) centerNum.textContent = el.getAttribute('data-pct') + '%';
-      if (centerLabel) centerLabel.textContent = el.getAttribute('data-label') + ' ' + el.getAttribute('data-value');
-      el.classList.add('donut-seg-active');
-      legendItems.forEach(function (l, i) {
-        if (i === idx) l.classList.add('legend-active'); else l.classList.remove('legend-active');
-      });
-    }
-    function clearAll() {
-      segEls.forEach(function (o) { o.classList.remove('donut-seg-active'); });
-      legendItems.forEach(function (l) { l.classList.remove('legend-active'); });
-    }
-    segEls.forEach(function (el) {
-      if (el.dataset.donutBound) return; // 防重复绑定
-      el.dataset.donutBound = '1';
-      el.addEventListener('mouseenter', function () { highlight(el); });
-      el.addEventListener('mouseleave', function () {
-        el.classList.remove('donut-seg-active');
-        var idx = parseInt(el.getAttribute('data-seg'), 10);
-        if (legendItems[idx]) legendItems[idx].classList.remove('legend-active');
-        resetCenter();
-      });
-      // 触屏支持：点击切换高亮（hover 在触屏不可靠）
-      el.addEventListener('click', function () {
-        if (el.classList.contains('donut-seg-active')) {
-          clearAll();
-          resetCenter();
-        } else {
-          clearAll();
-          highlight(el);
-        }
-      });
-    });
-  }
-
-  /* ---------- 风险分布 donut 图 ---------- */
+  /* Donut */
   function updateDonut(findings) {
     var svg = document.getElementById('chart-donut');
     var legend = document.getElementById('donut-legend');
+    var totalLabel = document.getElementById('donut-total-label');
     var counts = { high: 0, medium: 0, low: 0, info: 0 };
     if (Array.isArray(findings)) {
-      for (var i = 0; i < findings.length; i++) {
+      for (var i=0;i<findings.length;i++) {
         var lvl = normalizeRisk(findings[i].risk_level);
-        if (lvl === 'critical' || lvl === 'high') counts.high++;
-        else if (lvl === 'medium') counts.medium++;
-        else if (lvl === 'low') counts.low++;
+        if (lvl==='critical'||lvl==='high') counts.high++;
+        else if (lvl==='medium') counts.medium++;
+        else if (lvl==='low') counts.low++;
         else counts.info++;
       }
     }
-    var total = counts.high + counts.medium + counts.low + counts.info;
+    var total = counts.high+counts.medium+counts.low+counts.info;
     var segments = [
       { value: counts.high, color: 'var(--vuln-state-error)', label: '高危' },
       { value: counts.medium, color: 'var(--vuln-state-warning)', label: '中危' },
       { value: counts.low, color: 'var(--vuln-state-success)', label: '低危' },
       { value: counts.info, color: 'var(--vuln-state-info)', label: '信息' }
     ];
+    if (totalLabel) totalLabel.textContent = '共 ' + total + ' 项';
 
     if (svg) {
-      var r = 50;
-      var C = 2 * Math.PI * r;
       var inner = '<circle cx="60" cy="60" r="50" fill="none" stroke="var(--vuln-surface-2)" stroke-width="12"/>';
       if (total > 0) {
-        var offset = 0;
-        for (var j = 0; j < segments.length; j++) {
-          var seg = segments[j];
-          if (seg.value === 0) continue;
-          var len = (seg.value / total) * C;
-          var pct = Math.round((seg.value / total) * 100);
-          inner += '<circle class="donut-seg" data-seg="' + j + '" data-label="' + escapeHtml(seg.label) + '" data-value="' + seg.value + '" data-pct="' + pct + '" cx="60" cy="60" r="50" fill="none" stroke="' + seg.color + '" stroke-width="12" stroke-dasharray="' + len.toFixed(2) + ' ' + (C - len).toFixed(2) + '" stroke-dashoffset="' + (-offset).toFixed(2) + '" transform="rotate(-90 60 60)" style="cursor:pointer;"/>';
+        var R = 50, C = 2*Math.PI*R, offset = 0;
+        for (var j=0;j<segments.length;j++) {
+          var seg = segments[j]; if (seg.value===0) continue;
+          var len = (seg.value/total)*C;
+          inner += '<circle class="donut-seg" data-seg="'+j+'" cx="60" cy="60" r="50" fill="none" stroke="'+seg.color+'" stroke-width="12" stroke-dasharray="'+len.toFixed(2)+' '+(C-len).toFixed(2)+'" stroke-dashoffset="'+(-offset).toFixed(2)+'" transform="rotate(-90 60 60)" style="--sc:'+seg.color+';cursor:pointer;"/>';
           offset += len;
         }
       }
-      inner += '<text id="donut-center-num" x="60" y="58" text-anchor="middle" fill="var(--vuln-ink)" font-size="16" font-weight="700">' + (total > 0 ? total : '—') + '</text>';
-      inner += '<text id="donut-center-label" x="60" y="74" text-anchor="middle" fill="var(--vuln-ink-2)" font-size="10">风险</text>';
+      inner += '<text id="donut-center-num" x="60" y="58" text-anchor="middle" fill="var(--vuln-ink)" font-size="20" font-weight="700">'+(total>0?total:'—')+'</text>';
+      inner += '<text id="donut-center-label" x="60" y="74" text-anchor="middle" fill="var(--vuln-ink-2)" font-size="11">风险</text>';
       svg.innerHTML = inner;
-      svg.setAttribute('aria-label', '风险分布 donut 图：高危 ' + counts.high + '、中危 ' + counts.medium + '、低危 ' + counts.low + '、信息 ' + counts.info);
-
-      // 先渲染图例，再绑定段交互，确保 legendItems 引用的是最新节点
-      var legendItems = [];
-      if (legend) {
-        var li = '';
-        for (var k = 0; k < segments.length; k++) {
-          var s = segments[k];
-          var pct = total > 0 ? Math.round((s.value / total) * 100) : 0;
-          li += '<li class="flex items-center gap-2 text-[var(--vuln-ink-2)]"><span class="inline-block w-2.5 h-2.5 rounded-full" style="background:' + s.color + '"></span>' + escapeHtml(s.label) + ' ' + pct + '%</li>';
-        }
-        legend.innerHTML = li;
-        legendItems = legend.querySelectorAll('li');
+      svg.setAttribute('aria-label', '风险分布：高危 '+counts.high+'、中危 '+counts.medium+'、低危 '+counts.low+'、信息 '+counts.info);
+    }
+    if (legend) {
+      var li = '';
+      for (var k=0;k<segments.length;k++) {
+        var s = segments[k];
+        li += '<li class="legend-item" data-seg="'+k+'"><span class="dot" style="background:'+s.color+'"></span><span class="flex-1">'+s.label+'</span><span class="count" style="color:var(--vuln-ink-2)">'+s.value+'</span></li>';
       }
-
-      // 段交互：hover 放大外凸 + 中心文字切换 + 图例联动（含触屏点击）
-      wireDonut(svg, legend);
+      legend.innerHTML = li;
+      wireDonutLegend();
     }
   }
 
-  /* ---------- 扫描趋势折线图（localStorage） ---------- */
+  function wireDonutLegend() {
+    var svg = document.getElementById('chart-donut');
+    var legend = document.getElementById('donut-legend');
+    if (!svg||!legend) return;
+    var segs = svg.querySelectorAll('.donut-seg');
+    var legs = legend.querySelectorAll('.legend-item');
+    var centerNum = svg.querySelector('#donut-center-num');
+    var centerLabel = svg.querySelector('#donut-center-label');
+    var resetNum = centerNum ? centerNum.textContent : '';
+    var resetLabel = centerLabel ? centerLabel.textContent : '';
+    function setHl(i, on) {
+      segs.forEach(function(s){ if(s.getAttribute('data-seg')===i){ if(on)s.classList.add('hl');else s.classList.remove('hl'); } });
+      legs.forEach(function(l){ if(l.getAttribute('data-seg')===i){ if(on)l.classList.add('hl');else l.classList.remove('hl'); } });
+      if (on && centerNum && centerLabel) {
+        var seg = segmentsByIndex(i);
+        if (seg) {
+          var pct = total_ > 0 ? Math.round(seg.value/total_*100) : 0;
+          centerNum.textContent = pct+'%';
+          centerLabel.textContent = seg.label+' '+seg.value;
+        }
+      } else if (centerNum && centerLabel) {
+        centerNum.textContent = resetNum;
+        centerLabel.textContent = resetLabel;
+      }
+    }
+    var total_ = 0, segmentsByIndex_ = {};
+    function segmentsByIndex(i){ return segmentsByIndex_[i]; }
+    segs.forEach(function(s){
+      var i = s.getAttribute('data-seg');
+      var val = parseInt(s.getAttribute('stroke-dasharray'));
+      segmentsByIndex_[i] = { value: 0, label: '' };
+      s.addEventListener('mouseenter', function(){ setHl(i, true); });
+      s.addEventListener('mouseleave', function(){ setHl(i, false); });
+    });
+    legs.forEach(function(l){
+      var i = l.getAttribute('data-seg');
+      l.addEventListener('mouseenter', function(){ setHl(i, true); });
+      l.addEventListener('mouseleave', function(){ setHl(i, false); });
+    });
+  }
+
+  /* Trend chart */
   function updateTrend() {
     var svg = document.getElementById('chart-trend');
     if (!svg) return;
     var hist = getHistory();
     if (!hist.length) {
-      svg.innerHTML = '<text x="160" y="75" text-anchor="middle" fill="var(--vuln-ink-3)" font-size="12">暂无历史数据，完成首次扫描后将显示趋势</text>';
-      svg.setAttribute('aria-label', '近 7 日扫描趋势：暂无历史数据');
+      svg.innerHTML = '<line x1="30" y1="115" x2="310" y2="115" stroke="var(--vuln-line)"/><text x="160" y="75" text-anchor="middle" fill="var(--vuln-ink-3)" font-size="12">暂无历史数据，完成首次扫描后将显示趋势</text>';
       return;
     }
     var data = hist.slice(-MAX_HISTORY);
-    var left = 32, right = 304, top = 10, bottom = 110;
-    var w = right - left;
-    var maxTotal = 1;
-    for (var i = 0; i < data.length; i++) {
-      if ((data[i].total || 0) > maxTotal) maxTotal = data[i].total || 0;
-    }
-    var stepX = data.length > 1 ? w / (data.length - 1) : 0;
-    var pts = [];
-    var circles = '';
-    var dateLabels = '';
-    for (var p = 0; p < data.length; p++) {
-      var x = data.length > 1 ? left + p * stepX : (left + right) / 2;
-      var y = bottom - ((data[p].total || 0) / maxTotal) * (bottom - top);
-      pts.push(x.toFixed(1) + ',' + y.toFixed(1));
-      circles += '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="3" fill="var(--vuln-brand)"/>';
+    var left=30, right=310, top=10, bottom=115;
+    var w = right-left, maxTotal=1;
+    for (var i=0;i<data.length;i++) if ((data[i].total||0)>maxTotal) maxTotal = data[i].total||0;
+    var stepX = data.length>1 ? w/(data.length-1) : 0;
+    var pts=[], circles='', dateLabels='';
+    for (var p=0;p<data.length;p++) {
+      var x = data.length>1 ? left+p*stepX : (left+right)/2;
+      var y = bottom-((data[p].total||0)/maxTotal)*(bottom-top);
+      pts.push(x.toFixed(1)+','+y.toFixed(1));
+      circles += '<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="2.5" fill="var(--vuln-brand)"/>';
       var dd = new Date(data[p].date);
       if (!isNaN(dd.getTime())) {
-        var mm = String(dd.getMonth() + 1).padStart(2, '0');
-        var dy = String(dd.getDate()).padStart(2, '0');
-        dateLabels += '<text x="' + x.toFixed(1) + '" y="128" text-anchor="middle" fill="var(--vuln-ink-3)" font-size="10">' + mm + '-' + dy + '</text>';
+        var mm = String(dd.getMonth()+1).padStart(2,'0'), dy = String(dd.getDate()).padStart(2,'0');
+        dateLabels += '<text x="'+x.toFixed(1)+'" y="130" text-anchor="middle" fill="var(--vuln-ink-3)" font-size="9">'+mm+'-'+dy+'</text>';
       }
     }
-    var inner = '';
-    inner += '<defs><linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--vuln-brand)" stop-opacity="0.35"/><stop offset="100%" stop-color="var(--vuln-brand)" stop-opacity="0"/></linearGradient></defs>';
-    inner += '<line x1="' + left + '" y1="' + bottom + '" x2="' + right + '" y2="' + bottom + '" stroke="var(--vuln-line)"/>';
-    inner += '<line x1="' + left + '" y1="' + top + '" x2="' + left + '" y2="' + bottom + '" stroke="var(--vuln-line)"/>';
-    if (pts.length >= 2) {
-      var lastX = data.length > 1 ? left + (data.length - 1) * stepX : (left + right) / 2;
-      inner += '<path d="M' + pts[0] + ' L' + pts.slice(1).join(' L') + ' L' + lastX.toFixed(1) + ',' + bottom + ' L' + left.toFixed(1) + ',' + bottom + ' Z" fill="url(#trendGradient)"/>';
-      inner += '<polyline points="' + pts.join(' ') + '" fill="none" stroke="var(--vuln-brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
+    var inner = '<defs><linearGradient id="trendGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--vuln-brand)" stop-opacity="0.35"/><stop offset="100%" stop-color="var(--vuln-brand)" stop-opacity="0"/></linearGradient></defs>';
+    inner += '<line x1="30" y1="10" x2="310" y2="10" stroke="var(--vuln-line)" stroke-dasharray="2 4"/>';
+    inner += '<line x1="30" y1="115" x2="310" y2="115" stroke="var(--vuln-line)"/>';
+    inner += '<text x="4" y="13" font-size="9" fill="var(--vuln-ink-3)">'+maxTotal+'</text>';
+    inner += '<text x="4" y="118" font-size="9" fill="var(--vuln-ink-3)">0</text>';
+    if (pts.length>=2) {
+      var lastX = data.length>1 ? left+(data.length-1)*stepX : (left+right)/2;
+      inner += '<path d="M'+pts[0]+' L'+pts.slice(1).join(' L')+' L'+lastX.toFixed(1)+',115 L30,115 Z" fill="url(#trendGrad)"/>';
+      inner += '<polyline points="'+pts.join(' ')+'" fill="none" stroke="var(--vuln-brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
     }
-    inner += circles;
-    inner += dateLabels;
-    inner += '<text x="4" y="14" fill="var(--vuln-ink-3)" font-size="10">' + maxTotal + '</text>';
-    inner += '<text x="16" y="114" fill="var(--vuln-ink-3)" font-size="10">0</text>';
+    inner += circles + dateLabels;
     svg.innerHTML = inner;
-    svg.setAttribute('aria-label', '近 ' + data.length + ' 日扫描次数趋势折线图');
   }
 
-  /* ---------- 最近动态列表 ---------- */
+  /* Recent list */
   function updateRecent(findings) {
-    var ol = document.getElementById('recent-list');
-    if (!ol) return;
-    if (!Array.isArray(findings) || !findings.length) {
-      ol.innerHTML = '<li class="text-sm text-[var(--vuln-ink-3)]">暂无最近动态</li>';
+    var ul = document.getElementById('recent-list');
+    if (!ul) return;
+    if (!Array.isArray(findings)||!findings.length) {
+      ul.innerHTML = '<li class="text-sm text-muted-foreground text-center py-8">暂无最近动态</li>';
       return;
     }
     var items = '';
-    var n = Math.min(findings.length, 8);
-    for (var i = 0; i < n; i++) {
-      var f = findings[i] || {};
+    var n = Math.min(findings.length, 5);
+    for (var i=0;i<n;i++) {
+      var f = findings[i]||{};
       var lvl = normalizeRisk(f.risk_level);
       var badge = riskBadge(lvl);
-      var fname = escapeHtml(f.filename || '未知文件');
-      var vtype = escapeHtml(f.vulnerability_type || '未知漏洞');
+      var fname = escapeHtml(f.filename||'未知文件');
+      var vtype = escapeHtml(f.vulnerability_type||'未知漏洞');
       var ts = escapeHtml(relativeTime(f.timestamp));
-      items += '<li class="flex gap-3">'
-        + '<span class="mt-1.5 inline-flex h-2 w-2 rounded-full shrink-0" style="background:' + badge.color + '"></span>'
-        + '<div class="min-w-0">'
-        + '<div class="flex items-center gap-2 flex-wrap">'
-        + '<span class="text-xs font-medium px-1.5 py-0.5 rounded" style="background:' + badge.color + '1a;color:' + badge.color + '">' + badge.label + '</span>'
-        + '<span class="text-xs text-[var(--vuln-ink-3)]">' + ts + '</span>'
-        + '</div>'
-        + '<p class="text-sm text-[var(--vuln-ink)] mt-1 truncate">在 <span class="font-mono text-[var(--vuln-ink-2)]">' + fname + '</span> 发现 ' + vtype + '</p>'
-        + '</div>'
+      items += '<li class="flex items-center gap-3">'
+        + '<span class="risk-badge" style="--rc:'+badge.color+'">'+badge.label+'</span>'
+        + '<span class="font-mono text-sm flex-1 truncate" style="color:var(--vuln-ink)">'+fname+'</span>'
+        + '<span class="text-sm text-muted-foreground hidden sm:inline">'+vtype+'</span>'
+        + '<span class="text-xs text-muted-foreground flex-shrink-0">'+ts+'</span>'
         + '</li>';
     }
-    ol.innerHTML = items;
+    ul.innerHTML = items;
   }
 
-  /* ---------- 后端连接状态指示 ---------- */
+  /* Status */
   function updateStatus(health) {
-    var el = document.getElementById('backend-status');
+    var el = document.getElementById('health-indicator');
     if (!el) return;
     var ok = !!(health && health.ollama_connected);
-    var dotColor = ok ? 'var(--vuln-state-success)' : 'var(--vuln-state-error)';
+    var level = ok ? 'ok' : 'err';
     var label = ok ? '后端已连接' : '后端未连接';
     if (ok && health.model) label += ' · ' + health.model;
-    el.innerHTML = '<span style="width:8px;height:8px;border-radius:50%;background:' + dotColor + ';display:inline-block;"></span><span>' + escapeHtml(label) + '</span>';
+    el.innerHTML = '<span class="health-dot is-'+level+'"></span><span class="health-text">'+escapeHtml(label)+'</span>';
   }
+  function showError() { var b = document.getElementById('api-warning'); if (b) b.classList.remove('hidden'); }
 
-  function showError() {
-    var banner = document.getElementById('api-warning');
-    if (banner) banner.classList.remove('hidden');
-    var el = document.getElementById('backend-status');
-    if (el) {
-      el.innerHTML = '<span style="width:8px;height:8px;border-radius:50%;background:var(--vuln-state-error);display:inline-block;"></span><span>后端未连接</span>';
-    }
-  }
-
-  /* ---------- 页脚更新时间 ---------- */
   function updateFooterTime() {
     var el = document.getElementById('footer-updated');
     if (!el) return;
-    var d = new Date();
-    var pad = function (n) { return String(n).padStart(2, '0'); };
-    var str = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ' CST';
-    el.textContent = '数据更新于 ' + str;
+    var d = new Date(), pad = function(n){return String(n).padStart(2,'0');};
+    el.textContent = '数据更新于 '+d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes())+' CST';
   }
 
-  /* ---------- 初始化 ---------- */
   function init() {
-    // 趋势图来自 localStorage，与后端无关，先渲染
     updateTrend();
-    // 静态 fallback 圆环立即可交互（API 失败/空数据时仍保留交互）
-    wireDonut(document.getElementById('chart-donut'), document.getElementById('donut-legend'));
-
-    // 1) 立即用 localStorage 历史数据渲染（秒级，不等待后端）
+    updateFooterTime();
     var histStats = computeStatsFromHistory();
-    if (histStats.total_files > 0 || histStats.recent_findings.length > 0) {
+    if (histStats.total_files>0 || histStats.recent_findings.length>0) {
       updateKpis(histStats);
       updateDonut(histStats.recent_findings);
       updateRecent(histStats.recent_findings);
+    } else {
+      updateKpis({total_files:0,total_vulnerable:0,total_safe:0,recent_findings:[]});
+      updateDonut([]);
+      updateRecent([]);
     }
-    updateFooterTime();
 
-    // 2) 异步请求后端统计补充/覆盖（不再阻塞等待 health）
-    fetch('/api/stats')
-      .then(function (res) {
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        return res.json();
-      })
-      .then(function (data) {
-        // 后端进程内统计为空时（粘贴扫描/重启过），保留已渲染的 localStorage 数据
-        var hasBackendData = (data.total_files || 0) > 0 || (data.total_vulnerable || 0) > 0 || (data.recent_findings || []).length > 0;
-        if (!hasBackendData) {
-          if (histStats.total_files > 0 || histStats.recent_findings.length > 0) {
-            data.total_files = histStats.total_files;
-            data.total_vulnerable = histStats.total_vulnerable;
-            data.total_safe = histStats.total_safe;
-            data.recent_findings = histStats.recent_findings;
-          }
-        }
-        updateKpis(data);
-        updateDonut(data.recent_findings || []);
-        updateRecent(data.recent_findings || []);
-      })
-      .catch(function () {
-        showError();
-      });
-
-    // 3) 状态指示器单独请求轻量探针（不阻塞数据加载）
-    // 深度 /api/health 作为兜底，用 AbortController 包装，页面切换时主动中止，
-    // 避免慢请求占用浏览器连接导致页面切换卡顿。
+    var statsAbort = new AbortController();
     var statusAbort = null;
-    fetch('/api/health/live')
-      .then(function (res) { return res.ok ? res.json() : null; })
-      .then(function (live) {
-        if (live) updateStatus({ ollama_connected: true });
+    fetch('/api/stats', {signal: statsAbort.signal})
+      .then(function(res){ if(!res.ok) throw new Error('HTTP '+res.status); return res.json(); })
+      .then(function(data){
+        // 仪表盘显示所有分析过的代码的数据。
+        // localStorage 包含所有来源（粘贴/上传/URL/GitHub/演示）且持久化，优先采用。
+        // 后端 stats 不含单文件 /api/analyze，仅作 localStorage 为空时的补充。
+        if (histStats.total_files === 0 && histStats.recent_findings.length === 0) {
+          updateKpis(data);
+          updateDonut(data.recent_findings||[]);
+          updateRecent(data.recent_findings||[]);
+        }
       })
-      .catch(function () {
-        // 轻量探针也失败，尝试深度健康检查作为兜底
+      .catch(function(err){ if (err && err.name === 'AbortError') return; showError(); });
+
+    /* 验证响应是否为真正的 JSON API（防止静态服务器返回 HTML 时误判为已连接） */
+    function isApiJson(res) {
+      var ct = res.headers.get('content-type') || '';
+      return res.ok && ct.indexOf('application/json') !== -1;
+    }
+    /* 直接设置状态点 + 文案（level: ok/warn/err） */
+    function setStatus(level, label) {
+      var el = document.getElementById('health-indicator');
+      if (!el) return;
+      el.innerHTML = '<span class="health-dot is-'+level+'"></span><span class="health-text">'+escapeHtml(label)+'</span>';
+    }
+    /* 后端 = bat/sh 脚本启动的进程（/api/health/live）
+       引擎 = 本地下载的模型（/api/health 的 ollama_connected + model）
+       两个维度独立检测，文案同时体现。 */
+    fetch('/api/health/live', {signal: statsAbort.signal})
+      .then(function(res){ return isApiJson(res) ? res.json() : null; })
+      .then(function(live){
+        if (!live || !live.status) { setStatus('err','后端未连接'); return null; }
+        setStatus('loading','后端已连接 · 检测引擎…');
         statusAbort = new AbortController();
-        return fetch('/api/health', { signal: statusAbort.signal })
-          .then(function (r) { return r.ok ? r.json() : null; })
-          .catch(function (err) {
-            if (err && err.name === 'AbortError') return null;
-            throw err;
+        return fetch('/api/health', {signal: statusAbort.signal})
+          .then(function(r){ return isApiJson(r) ? r.json() : null; })
+          .then(function(health){
+            statusAbort = null;
+            if (!health) { setStatus('warn','后端已连接 · 引擎检测失败'); return; }
+            if (health.ollama_connected || health.vllm_connected) {
+              var m = health.model || (health.vllm_connected ? 'vLLM' : 'unknown');
+              setStatus('ok', '后端已连接 · 引擎就绪 · ' + m);
+            } else {
+              setStatus('warn','后端已连接 · 引擎未就绪');
+            }
           });
       })
-      .then(function (health) {
+      .catch(function(err){
         statusAbort = null;
-        if (health) updateStatus(health);
+        if (err && err.name === 'AbortError') return;
+        setStatus('err','后端未连接');
       });
-    window.addEventListener('pagehide', function () {
-      if (statusAbort) { statusAbort.abort(); statusAbort = null; }
+    window.addEventListener('pagehide',function(){
+      if(statsAbort){try{statsAbort.abort();}catch(e){}statsAbort=null;}
+      if(statusAbort){statusAbort.abort();statusAbort=null;}
     });
   }
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
-  }
+  } else { init(); }
 })();
-</script>
-<link rel="stylesheet" href="./lively.css">
-<script src="./lively.js" defer></script>
-<script src="./theme.js" defer></script>
+    </script>
+    <script src="./lively.js" defer></script>
+    <script src="./theme.js" defer></script>
 </body>
 </html>

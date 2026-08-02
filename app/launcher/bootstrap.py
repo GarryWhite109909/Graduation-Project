@@ -100,19 +100,22 @@ def try_install_ollama() -> bool:
     if sys.platform == "win32":
         # Windows: 优先 winget
         if shutil.which("winget"):
-            print("[启动器] 使用 winget 安装 Ollama...")
+            print("[启动器] 使用 winget 安装 Ollama（下载约 1.5GB，含安装过程）...")
             try:
                 result = subprocess.run(
                     ["winget", "install", "Ollama.Ollama",
                      "--accept-source-agreements", "--accept-package-agreements"],
-                    timeout=600,
+                    timeout=1800,  # 30 分钟：覆盖慢速下载 + 安装
                 )
                 if result.returncode == 0 and check_ollama_installed():
                     print("[启动器] Ollama 安装完成。")
                     return True
                 print(f"[启动器] winget 退出码 {result.returncode}。")
             except subprocess.TimeoutExpired:
-                print("[启动器] winget 安装超时。")
+                print("[启动器] winget 安装超时（30 分钟未完成）。")
+                print("[启动器] 可能是网络较慢，建议：")
+                print("  1. 直接重试本启动器（winget 会续传已下载的部分）")
+                print("  2. 或手动下载安装：https://ollama.com/download")
         else:
             print("[启动器] 未检测到 winget，无法自动安装。")
         webbrowser.open("https://ollama.com/download")
@@ -125,14 +128,15 @@ def try_install_ollama() -> bool:
             try:
                 result = subprocess.run(
                     ["brew", "install", "ollama"],
-                    timeout=600,
+                    timeout=1800,  # 30 分钟
                 )
                 if result.returncode == 0 and check_ollama_installed():
                     print("[启动器] Ollama 安装完成。")
                     return True
                 print(f"[启动器] brew 退出码 {result.returncode}。")
             except subprocess.TimeoutExpired:
-                print("[启动器] brew 安装超时。")
+                print("[启动器] brew 安装超时（30 分钟未完成）。")
+                print("[启动器] 可能是网络较慢，建议手动安装：https://ollama.com/download")
         else:
             print("[启动器] 未检测到 brew，无法自动安装。")
         webbrowser.open("https://ollama.com/download")
@@ -144,14 +148,15 @@ def try_install_ollama() -> bool:
         try:
             result = subprocess.run(
                 ["bash", "-c", "curl -fsSL https://ollama.com/install.sh | sh"],
-                timeout=600,
+                timeout=1800,  # 30 分钟
             )
             if result.returncode == 0 and check_ollama_installed():
                 print("[启动器] Ollama 安装完成。")
                 return True
             print(f"[启动器] 安装脚本退出码 {result.returncode}。")
         except subprocess.TimeoutExpired:
-            print("[启动器] 安装超时。")
+            print("[启动器] 安装超时（30 分钟未完成）。")
+            print("[启动器] 可能是网络较慢，建议手动安装：https://ollama.com/download")
         webbrowser.open("https://ollama.com/download")
         return False
 
@@ -220,7 +225,7 @@ def ensure_model_available(model: str) -> bool:
     try:
         result = subprocess.run(
             ["ollama", "pull", model],
-            timeout=1800,  # 30 分钟超时
+            timeout=5400,  # 90 分钟：5GB 模型 + 慢速网络
         )
         if result.returncode == 0:
             print(f"[启动器] 模型 {model} 下载完成。")
@@ -229,8 +234,9 @@ def ensure_model_available(model: str) -> bool:
         print(f"[启动器] 请检查网络后重试，或手动运行：ollama pull {model}")
         return False
     except subprocess.TimeoutExpired:
-        print("[启动器] 模型下载超时（30 分钟未完成）。")
-        print(f"[启动器] 请检查网络后重试，或手动运行：ollama pull {model}")
+        print("[启动器] 模型下载超时（90 分钟未完成）。")
+        print("[启动器] 可能是网络较慢，下次启动会断点续传，请重试。")
+        print(f"[启动器] 或手动运行：ollama pull {model}")
         return False
 
 

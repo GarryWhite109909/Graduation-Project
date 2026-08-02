@@ -471,6 +471,7 @@ async def url_scan(req: UrlScanRequest, request: Request):
     batch = await _scan_files_scheduled(files, req.use_rag, client_id)
     global _last_batch
     _last_batch = batch
+    _record_scan(batch)
 
     return {
         "url": req.url,

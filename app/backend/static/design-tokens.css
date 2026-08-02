@@ -1,0 +1,245 @@
+/* ======================================================================
+   design-tokens.css — Nivis 克制版设计 Token（全站共享）
+   品牌：蓝绿渐变猫头鹰（夜视守护）
+   设计哲学：专业的安全工具应该是隐形的。数据 > 装饰。
+   本文件由 4 个 HTML 页面共享，取代各自内联的 <style id="theme-vars"> 块。
+   ====================================================================== */
+
+:root {
+  /* === 中性色阶 — 浅色模式 === */
+  --vuln-bg: #ffffff;
+  --vuln-surface: #ffffff;
+  --vuln-surface-2: #f7f8fa;
+  --vuln-surface-3: #eef0f3;
+  --vuln-ink: #0b0f14;
+  --vuln-ink-2: #5a6573;
+  --vuln-ink-3: #9aa4b2;
+  --vuln-line: #e4e7ec;
+  --vuln-line-2: #f0f2f5;
+
+  /* === 品牌主色 — Nivis 蓝绿（浅色） === */
+  --vuln-brand: #48b0cf;
+  --vuln-brand-ink: #ffffff;
+  --vuln-brand-50: #eef8fb;
+  --vuln-brand-100: #d5f0f7;
+  --vuln-brand-200: #a8e0ed;
+  --vuln-brand-300: #7bd0e3;
+  --vuln-brand-400: #5ec3d9;
+  --vuln-brand-500: #48b0cf;
+  --vuln-brand-600: #2f9bbf;
+  --vuln-brand-700: #1e7ea0;
+  --vuln-brand-teal: #7dcfb8;
+  --vuln-brand-gradient: linear-gradient(135deg, #5ab0d4 0%, #7dcfb8 100%);
+
+  /* === 语义状态色 === */
+  --vuln-state-success: #34a853;
+  --vuln-state-warning: #f9ab00;
+  --vuln-state-error: #ea4335;
+  --vuln-state-info: #48b0cf;
+
+  /* === 语义别名 === */
+  --vuln-background: var(--vuln-bg);
+  --vuln-foreground: var(--vuln-ink);
+  --vuln-card: var(--vuln-surface);
+  --vuln-card-foreground: var(--vuln-ink);
+  --vuln-popover: var(--vuln-surface-2);
+  --vuln-popover-foreground: var(--vuln-ink);
+  --vuln-primary: var(--vuln-brand);
+  --vuln-primary-foreground: var(--vuln-brand-ink);
+  --vuln-muted: var(--vuln-surface-2);
+  --vuln-muted-foreground: var(--vuln-ink-2);
+  --vuln-border: var(--vuln-line);
+  --vuln-input: #d8dce2;
+  --vuln-ring: var(--vuln-brand);
+  --vuln-radius-small: 6px;
+  --vuln-radius-medium: 10px;
+  --vuln-radius-large: 14px;
+
+  /* === 圆角阶 === */
+  --vuln-radius-sm: 6px;
+  --vuln-radius-md: 10px;
+  --vuln-radius-lg: 14px;
+
+  /* === 间距 === */
+  --vuln-s-1: 4px;
+  --vuln-s-2: 8px;
+  --vuln-s-3: 12px;
+  --vuln-s-4: 16px;
+  --vuln-s-5: 24px;
+  --vuln-s-6: 32px;
+  --vuln-s-7: 48px;
+  --vuln-s-8: 80px;
+
+  /* === 字体 === */
+  --vuln-font-sans: "DM Sans", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
+  --vuln-font-mono: "JetBrains Mono", "Cascadia Code", Consolas, Monaco, monospace;
+
+  /* === 排版 === */
+  --vuln-text-display: 56px;
+  --vuln-text-headline: 28px;
+  --vuln-text-body: 15px;
+  --vuln-text-caption: 12px;
+
+  /* === 阴影 — 扁平，边框主导 === */
+  --vuln-shadow-1: 0 1px 2px rgba(11, 15, 20, 0.04);
+  --vuln-shadow-2: 0 2px 8px rgba(11, 15, 20, 0.06);
+  --vuln-shadow-3: 0 8px 24px rgba(11, 15, 20, 0.08);
+
+  /* === 动效 — 收敛 === */
+  --vuln-ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --vuln-dur-fast: 150ms;
+  --vuln-dur-normal: 250ms;
+}
+
+/* === 深色模式 — 产品默认 === */
+.dark {
+  --vuln-bg: #0d0d0d;
+  --vuln-surface: #161616;
+  --vuln-surface-2: #1e1e1e;
+  --vuln-surface-3: #282828;
+  --vuln-ink: #f0f1f3;
+  --vuln-ink-2: #8b8b8b;
+  --vuln-ink-3: #5c5c5c;
+  --vuln-line: #2a2a2a;
+  --vuln-line-2: #222222;
+
+  /* === 品牌主色 — 深色模式酒红色（与黑色搭配） === */
+  --vuln-brand: #d4405d;
+  --vuln-brand-ink: #ffffff;
+  --vuln-brand-50: #2a0f16;
+  --vuln-brand-100: #3d1820;
+  --vuln-brand-200: #5a1f2e;
+  --vuln-brand-300: #7a2940;
+  --vuln-brand-400: #a8334a;
+  --vuln-brand-500: #d4405d;
+  --vuln-brand-600: #e85570;
+  --vuln-brand-700: #f06b85;
+  --vuln-brand-teal: #e85570;
+  --vuln-brand-gradient: linear-gradient(135deg, #d4405d 0%, #e85570 100%);
+
+  --vuln-state-success: #3dd68c;
+  --vuln-state-warning: #fbbf24;
+  --vuln-state-error: #f14a5e;
+  --vuln-state-info: #38bdf8;
+
+  --vuln-input: #333333;
+
+  --vuln-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --vuln-shadow-2: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --vuln-shadow-3: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+/* === Tailwind 语义 token 映射（全站共享，取代各页面内联 semantic-token-fallback） === */
+.bg-background { background-color: var(--vuln-background); }
+.text-background { color: var(--vuln-background); }
+.border-background { border-color: var(--vuln-background); }
+.ring-background { --tw-ring-color: var(--vuln-background); }
+.bg-foreground { background-color: var(--vuln-foreground); }
+.text-foreground { color: var(--vuln-foreground); }
+.border-foreground { border-color: var(--vuln-foreground); }
+.ring-foreground { --tw-ring-color: var(--vuln-foreground); }
+.bg-card { background-color: var(--vuln-card); }
+.text-card { color: var(--vuln-card); }
+.border-card { border-color: var(--vuln-card); }
+.ring-card { --tw-ring-color: var(--vuln-card); }
+.bg-card-foreground { background-color: var(--vuln-card-foreground); }
+.text-card-foreground { color: var(--vuln-card-foreground); }
+.border-card-foreground { border-color: var(--vuln-card-foreground); }
+.ring-card-foreground { --tw-ring-color: var(--vuln-card-foreground); }
+.bg-popover { background-color: var(--vuln-popover); }
+.text-popover { color: var(--vuln-popover); }
+.border-popover { border-color: var(--vuln-popover); }
+.ring-popover { --tw-ring-color: var(--vuln-popover); }
+.bg-popover-foreground { background-color: var(--vuln-popover-foreground); }
+.text-popover-foreground { color: var(--vuln-popover-foreground); }
+.border-popover-foreground { border-color: var(--vuln-popover-foreground); }
+.ring-popover-foreground { --tw-ring-color: var(--vuln-popover-foreground); }
+.bg-primary { background-color: var(--vuln-primary); }
+.text-primary { color: var(--vuln-primary); }
+.border-primary { border-color: var(--vuln-primary); }
+.ring-primary { --tw-ring-color: var(--vuln-primary); }
+.bg-primary-foreground { background-color: var(--vuln-primary-foreground); }
+.text-primary-foreground { color: var(--vuln-primary-foreground); }
+.border-primary-foreground { border-color: var(--vuln-primary-foreground); }
+.ring-primary-foreground { --tw-ring-color: var(--vuln-primary-foreground); }
+.bg-muted { background-color: var(--vuln-muted); }
+.text-muted { color: var(--vuln-muted); }
+.border-muted { border-color: var(--vuln-muted); }
+.ring-muted { --tw-ring-color: var(--vuln-muted); }
+.bg-muted-foreground { background-color: var(--vuln-muted-foreground); }
+.text-muted-foreground { color: var(--vuln-muted-foreground); }
+.border-muted-foreground { border-color: var(--vuln-muted-foreground); }
+.ring-muted-foreground { --tw-ring-color: var(--vuln-muted-foreground); }
+.bg-border { background-color: var(--vuln-border); }
+.text-border { color: var(--vuln-border); }
+.border-border { border-color: var(--vuln-border); }
+.ring-border { --tw-ring-color: var(--vuln-border); }
+.bg-input { background-color: var(--vuln-input); }
+.text-input { color: var(--vuln-input); }
+.border-input { border-color: var(--vuln-input); }
+.ring-input { --tw-ring-color: var(--vuln-input); }
+.bg-ring { background-color: var(--vuln-ring); }
+.text-ring { color: var(--vuln-ring); }
+.border-ring { border-color: var(--vuln-ring); }
+.ring-ring { --tw-ring-color: var(--vuln-ring); }
+
+/* === 全局滚动条 === */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+[data-icon] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  background-color: currentColor;
+}
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--vuln-ink-3); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--vuln-ink-2); }
+
+/* === 严重等级筛选 chip 共享样式（scan / cwe / posture 三页统一） === */
+.filter-chip { transition: all var(--vuln-dur-normal, 250ms) cubic-bezier(0.34, 1.56, 0.64, 1) var(--lv-out-delay, 120ms); }
+.filter-chip.active[data-severity="all"],
+.filter-chip.active[data-sev-filter="all"] { background: var(--vuln-brand) !important; color: var(--vuln-brand-ink) !important; border-color: var(--vuln-brand) !important; }
+.filter-chip.active[data-severity="high"],
+.filter-chip.active[data-sev-filter="high"] { background: var(--vuln-state-error) !important; color: #fff !important; border-color: var(--vuln-state-error) !important; }
+.filter-chip.active[data-severity="medium"],
+.filter-chip.active[data-sev-filter="medium"] { background: var(--vuln-state-warning) !important; color: #1a1a1a !important; border-color: var(--vuln-state-warning) !important; }
+.filter-chip.active[data-severity="low"],
+.filter-chip.active[data-sev-filter="low"] { background: var(--vuln-state-success) !important; color: #fff !important; border-color: var(--vuln-state-success) !important; }
+.filter-chip.active[data-severity="info"],
+.filter-chip.active[data-sev-filter="info"] { background: var(--vuln-state-info) !important; color: #fff !important; border-color: var(--vuln-state-info) !important; }
+.filter-chip:not(.active):hover {
+  transition-delay: 0ms;
+  transform: translateY(-2px);
+}
+.filter-chip:not(.active)[data-severity="high"]:hover,
+.filter-chip:not(.active)[data-sev-filter="high"]:hover {
+  border-color: var(--vuln-state-error) !important; color: var(--vuln-state-error) !important;
+  background: color-mix(in srgb, var(--vuln-state-error) 8%, var(--vuln-surface-2)) !important;
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--vuln-state-error) 30%, transparent) !important;
+}
+.filter-chip:not(.active)[data-severity="medium"]:hover,
+.filter-chip:not(.active)[data-sev-filter="medium"]:hover {
+  border-color: var(--vuln-state-warning) !important; color: var(--vuln-state-warning) !important;
+  background: color-mix(in srgb, var(--vuln-state-warning) 8%, var(--vuln-surface-2)) !important;
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--vuln-state-warning) 30%, transparent) !important;
+}
+.filter-chip:not(.active)[data-severity="low"]:hover,
+.filter-chip:not(.active)[data-sev-filter="low"]:hover {
+  border-color: var(--vuln-state-success) !important; color: var(--vuln-state-success) !important;
+  background: color-mix(in srgb, var(--vuln-state-success) 8%, var(--vuln-surface-2)) !important;
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--vuln-state-success) 30%, transparent) !important;
+}
+.filter-chip:not(.active)[data-severity="info"]:hover,
+.filter-chip:not(.active)[data-sev-filter="info"]:hover {
+  border-color: var(--vuln-state-info) !important; color: var(--vuln-state-info) !important;
+  background: color-mix(in srgb, var(--vuln-state-info) 8%, var(--vuln-surface-2)) !important;
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--vuln-state-info) 30%, transparent) !important;
+}
