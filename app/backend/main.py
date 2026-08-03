@@ -501,14 +501,14 @@ def _clone_and_collect(req: GithubScanRequest) -> tuple[Optional[str], Optional[
             capture_output=True, text=True, timeout=120,
         )
         if result.returncode != 0:
-            return None, None, JSONResponse(
+            return tmp_dir, None, JSONResponse(
                 {"error": f"git clone 失败: {result.stderr[:500]}"},
                 status_code=502,
             )
     except subprocess.TimeoutExpired:
-        return None, None, JSONResponse({"error": "git clone 超时（120s）"}, status_code=504)
+        return tmp_dir, None, JSONResponse({"error": "git clone 超时（120s）"}, status_code=504)
     except FileNotFoundError:
-        return None, None, JSONResponse({"error": "系统未安装 git"}, status_code=500)
+        return tmp_dir, None, JSONResponse({"error": "系统未安装 git"}, status_code=500)
 
     code_files = []
     for root, _dirs, fnames in os.walk(clone_target):
@@ -539,10 +539,11 @@ async def github_scan(req: GithubScanRequest, request: Request):
     """clone GitHub 仓库 → 遍历代码文件 → 批量扫描（LOW 优先级）。"""
     client_id = resolve_client_id(request.headers.get("x-client-type"), fallback="web")
     tmp_dir, code_files, err = await asyncio.to_thread(_clone_and_collect, req)
-    if err is not None:
-        return err
 
     try:
+        if err is not None:
+            return err
+
         if not code_files:
             return {"repo": req.repo_url, "message": "仓库中未找到支持的代码文件"}
 
@@ -578,13 +579,23 @@ async def download_report():
 
 
 @app.post("/api/report/single")
-def download_single_report(req: AnalyzeRequest):
-    """分析并返回单文件 Markdown 报告。"""
-    r = scanner.scan_code(
-        code=req.code, language=req.language,
-        filename=req.filename, use_rag=req.use_rag,
+async def download_single_report(req: AnalyzeRequest, request: Request):
+    """分析并返回单文件 Markdown 报告（与 /api/analyze 一样走调度器，避免插队）。"""
+    client_id = resolve_client_id(request.headers.get("x-client-type"))
+    priority = resolve_priority(request.headers.get("x-scan-scope"), PRIORITY_HIGH)
+
+    _, future = scheduler.submit(
+        priority, client_id,
+        lambda: scanner.scan_code(
+            code=req.code, language=req.language,
+            filename=req.filename, use_rag=req.use_rag,
+        ),
+        description=f"report/single:{req.filename}",
     )
-    md = render_single_markdown(r)
+    result, err = await _await_scan(future)
+    if err is not None:
+        return err
+    md = render_single_markdown(result)
     return StreamingResponse(
         iter([md.encode("utf-8")]),
         media_type="text/markdown",

@@ -112,6 +112,114 @@
         else counts.info++;
       }
       return counts;
+    },
+
+    /* 趋势图交互：鼠标移动时显示平行于 y 轴的虚线，靠近数据点时吸附。
+       config: { svg, points: [{x,y,data}], left, right, top, bottom, formatTip: fn(data)->string } */
+    attachTrendHover: function (config) {
+      var svg = config.svg;
+      if (!svg || svg.__nivisHoverBound) return;
+      svg.__nivisHoverBound = true;
+      var SVG_NS = 'http://www.w3.org/2000/svg';
+      var points = config.points || [];
+      var left = config.left, right = config.right, top = config.top, bottom = config.bottom;
+      var formatTip = config.formatTip || function (d) { return ''; };
+
+      // 创建交互层（一个 <g> 容器，pointer-events: none，不干扰已有元素）
+      var layer = document.createElementNS(SVG_NS, 'g');
+      layer.setAttribute('pointer-events', 'none');
+      layer.style.pointerEvents = 'none';
+
+      var guideLine = document.createElementNS(SVG_NS, 'line');
+      guideLine.setAttribute('stroke', 'var(--vuln-ink-3)');
+      guideLine.setAttribute('stroke-width', '1.5');
+      guideLine.setAttribute('stroke-dasharray', '4 4');
+      guideLine.setAttribute('opacity', '0');
+      guideLine.setAttribute('y1', top);
+      guideLine.setAttribute('y2', bottom);
+      layer.appendChild(guideLine);
+
+      var tipRect = document.createElementNS(SVG_NS, 'rect');
+      tipRect.setAttribute('fill', 'var(--vuln-surface)');
+      tipRect.setAttribute('stroke', 'var(--vuln-line)');
+      tipRect.setAttribute('rx', '6');
+      tipRect.setAttribute('opacity', '0');
+      layer.appendChild(tipRect);
+
+      var tipText = document.createElementNS(SVG_NS, 'text');
+      tipText.setAttribute('fill', 'var(--vuln-ink)');
+      tipText.setAttribute('font-size', '12');
+      tipText.setAttribute('opacity', '0');
+      layer.appendChild(tipText);
+
+      svg.appendChild(layer);
+
+      // 用 createSVGPoint + getScreenCTM 做坐标转换，Chrome/Firefox/Safari 都可靠
+      function clientToSvgX(clientX) {
+        var pt = svg.createSVGPoint();
+        pt.x = clientX;
+        pt.y = 0;
+        var ctm = svg.getScreenCTM();
+        if (!ctm) {
+          // 回退：用 viewBox 比例计算
+          var rect = svg.getBoundingClientRect();
+          var vb = svg.viewBox.baseVal;
+          if (!vb || vb.width === 0) return clientX - rect.left;
+          return (clientX - rect.left) / rect.width * vb.width;
+        }
+        var svgPt = pt.matrixTransform(ctm.inverse());
+        return svgPt.x;
+      }
+
+      function showTip(x, content) {
+        tipText.textContent = content;
+        tipText.setAttribute('opacity', '1');
+        tipText.setAttribute('text-anchor', 'middle');
+        // 估算文字宽度（中文约 12px/字，英文约 7px/字，取折中）
+        var tw = content.length * 9 + 16;
+        tipRect.setAttribute('width', tw);
+        tipRect.setAttribute('height', '22');
+        tipRect.setAttribute('x', x - tw / 2);
+        tipRect.setAttribute('y', top - 26);
+        tipRect.setAttribute('opacity', '1');
+        tipText.setAttribute('x', x);
+        tipText.setAttribute('y', top - 11);
+      }
+      function hideAll() {
+        guideLine.setAttribute('opacity', '0');
+        tipRect.setAttribute('opacity', '0');
+        tipText.setAttribute('opacity', '0');
+      }
+
+      svg.addEventListener('mousemove', function (e) {
+        var mx = clientToSvgX(e.clientX);
+        if (mx < left || mx > right) { hideAll(); return; }
+        // 找最近的数据点（X 方向），距离小于 stepX*0.6 时吸附
+        var nearest = null, minDist = Infinity;
+        for (var i = 0; i < points.length; i++) {
+          if (points[i] == null) continue;
+          var d = Math.abs(points[i].x - mx);
+          if (d < minDist) { minDist = d; nearest = points[i]; }
+        }
+        var stepX = points.length > 1 ? (right - left) / (points.length - 1) : 0;
+        var snapDist = Math.max(stepX * 0.6, 20);
+        var snapX;
+        if (nearest && minDist < snapDist) {
+          snapX = nearest.x;
+        } else {
+          snapX = Math.max(left, Math.min(right, mx));
+        }
+        guideLine.setAttribute('x1', snapX);
+        guideLine.setAttribute('x2', snapX);
+        guideLine.setAttribute('opacity', '0.7');
+        if (nearest && minDist < snapDist) {
+          showTip(snapX, formatTip(nearest.data));
+        } else {
+          tipRect.setAttribute('opacity', '0');
+          tipText.setAttribute('opacity', '0');
+        }
+      });
+      svg.addEventListener('mouseleave', hideAll);
     }
   };
 
@@ -214,16 +322,14 @@
           </section>\
           <section>\
             <h3 class="text-xs font-semibold uppercase tracking-wider mb-3" style="color: var(--vuln-ink-3)">连接</h3>\
-            <div class="space-y-3">\
-              <div>\
-                <label class="text-xs font-medium block mb-1.5" style="color: var(--vuln-ink-2)">后端地址</label>\
-                <input id="setting-backend-url" type="text" value="" placeholder="http://localhost:8765" class="w-full px-3 py-2 rounded-md text-sm outline-none transition-colors" style="background: var(--vuln-surface-2); border: 1px solid var(--vuln-line); color: var(--vuln-ink);">\
+            <div class="space-y-2">\
+              <div class="flex items-center justify-between p-3 rounded-lg" style="background: var(--vuln-surface-2);">\
+                <div>\
+                  <div class="text-sm font-medium" style="color: var(--vuln-ink)">后端地址与模型</div>\
+                  <div class="text-xs mt-0.5" style="color: var(--vuln-ink-3)">由启动器自动检测与配置，前端不可更改</div>\
+                </div>\
+                <a href="https://ollama.com/download" target="_blank" rel="noopener" class="text-xs px-3 py-1 rounded-md transition-colors" style="background: var(--vuln-surface-3); color: var(--vuln-ink-2); text-decoration: none;">Ollama</a>\
               </div>\
-              <div>\
-                <label class="text-xs font-medium block mb-1.5" style="color: var(--vuln-ink-2)">模型</label>\
-                <input id="setting-model" type="text" value="" placeholder="garrywhite109909/graduation-vuln-scanner:v5" class="w-full px-3 py-2 rounded-md text-sm outline-none transition-colors" style="background: var(--vuln-surface-2); border: 1px solid var(--vuln-line); color: var(--vuln-ink);">\
-              </div>\
-              <button id="setting-save" class="w-full py-2 rounded-md text-sm font-medium transition-colors" style="background: var(--vuln-brand); color: var(--vuln-brand-ink);">保存连接设置</button>\
             </div>\
           </section>\
           <section>\
@@ -277,6 +383,7 @@
       var self = this;
       var overlay, drawer, btnOpen, btnClose;
       var opened = false;
+      var closeTimer = null;   /* 保存 close 的隐藏延时句柄，open 时清掉，避免"关→快开"被残留定时器隐藏 */
 
       function ensureRefs() {
         overlay = document.getElementById('settings-overlay');
@@ -285,30 +392,14 @@
         btnClose = document.getElementById('settings-close');
       }
 
-      function syncThemeOpt() {
-        var isDark = document.documentElement.classList.contains('dark');
-        document.querySelectorAll('.theme-opt').forEach(function (b) {
-          var v = b.getAttribute('data-theme-btn');
-          var active = (v === 'dark' && isDark) || (v === 'light' && !isDark);
-          b.style.background = active ? 'var(--vuln-brand)' : 'transparent';
-          b.style.color = active ? 'var(--vuln-brand-ink)' : 'var(--vuln-ink-2)';
-        });
-      }
-
       function open() {
         ensureRefs();
         if (!overlay || opened) return;
         opened = true;
+        if (closeTimer) { clearTimeout(closeTimer); closeTimer = null; }  /* 取消尚未执行的隐藏 */
         overlay.classList.remove('hidden');
-        try {
-          var bu = localStorage.getItem('nivis-backend-url');
-          var md = localStorage.getItem('nivis-model');
-          var buEl = document.getElementById('setting-backend-url');
-          var mdEl = document.getElementById('setting-model');
-          if (buEl) buEl.value = bu || '';
-          if (mdEl) mdEl.value = md || '';
-        } catch (e) {}
-        syncThemeOpt();
+        // 主题选项的高亮由 theme.js 的 syncDrawerOpts() 负责，这里不重复同步
+        if (window.syncDrawerOpts) window.syncDrawerOpts();
         requestAnimationFrame(function () { if (drawer) drawer.style.transform = 'translateX(0)'; });
         document.body.style.overflow = 'hidden';
       }
@@ -319,7 +410,11 @@
         opened = false;
         if (drawer) drawer.style.transform = 'translateX(100%)';
         document.body.style.overflow = '';
-        setTimeout(function () { overlay.classList.add('hidden'); }, 300);
+        if (closeTimer) clearTimeout(closeTimer);
+        closeTimer = setTimeout(function () {
+          overlay.classList.add('hidden');
+          closeTimer = null;
+        }, 300);
       }
 
       /* 延迟绑定：等 DOM 中存在按钮后再绑 */
@@ -339,21 +434,7 @@
         }
       }
 
-      /* 保存按钮 */
-      document.addEventListener('click', function (e) {
-        var saveBtn = e.target.closest('#setting-save');
-        if (!saveBtn) return;
-        try {
-          var buEl = document.getElementById('setting-backend-url');
-          var mdEl = document.getElementById('setting-model');
-          var bu = buEl ? buEl.value.trim() : '';
-          var md = mdEl ? mdEl.value.trim() : '';
-          if (bu) localStorage.setItem('nivis-backend-url', bu);
-          if (md) localStorage.setItem('nivis-model', md);
-          saveBtn.textContent = '已保存';
-          setTimeout(function () { saveBtn.textContent = '保存连接设置'; }, 1500);
-        } catch (e) {}
-      });
+      /* 保存按钮逻辑已移除：后端地址与模型由启动器配置，前端 localStorage 中的值不会被任何代码读取 */
 
       document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
 

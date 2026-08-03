@@ -292,11 +292,11 @@ class Scanner:
             r.chunk_count = slice_result.chunk_count
             chunk_results.append(r)
 
-        # 合并：任一 chunk 有漏洞 → 整文件有漏洞
+        # 合并：任一 chunk 有漏洞 → 整文件有漏洞；任一 chunk 报错且无漏洞 → 整文件报错
         if len(chunk_results) == 1:
             return chunk_results[0]
 
-        # 多 chunk：取风险最高的
+        # 多 chunk：取风险最高的；但若有 error 且无漏洞，整文件判 error（避免部分失败被误判为安全）
         risk_order = {"critical": 4, "high": 3, "medium": 2, "low": 1, "none": 0}
         merged = chunk_results[0]
         merged.filename = filename
@@ -308,6 +308,21 @@ class Scanner:
             ):
                 merged = cr
                 merged.filename = filename
+
+        # 合并后修正：若整体无漏洞但存在报错 chunk，标记为 error（None）而非安全（False）
+        if not merged.has_vulnerability:
+            has_error_chunk = any(
+                cr.has_vulnerability is None or cr.error
+                for cr in chunk_results
+            )
+            if has_error_chunk:
+                err_msgs = [
+                    (cr.error or cr.chunk_name or "unknown")
+                    for cr in chunk_results
+                    if (cr.has_vulnerability is None or cr.error)
+                ]
+                merged.has_vulnerability = None
+                merged.error = "部分 chunk 分析失败: " + "; ".join(err_msgs)
         return merged
 
     def _analyze_chunk(
@@ -394,34 +409,6 @@ class Scanner:
             raw_output=result["text"],
             duration=duration,
         )
-
-    def scan_files(
-        self,
-        files: list[tuple[str, str, str]],  # (filename, language, code)
-        use_rag: Optional[bool] = None,
-    ) -> BatchResult:
-        """批量扫描多个文件。
-
-        Args:
-            files: [(filename, language, code), ...]
-            use_rag: 是否启用 RAG
-        """
-        batch = BatchResult(total_files=len(files))
-        batch_start = time.time()
-
-        for filename, language, code in files:
-            r = self.scan_code(code, language, filename, use_rag=use_rag)
-            batch.results.append(r)
-            batch.scanned += 1
-            if r.has_vulnerability is True:
-                batch.vulnerable += 1
-            elif r.has_vulnerability is False:
-                batch.safe += 1
-            else:
-                batch.errors += 1
-
-        batch.total_duration = time.time() - batch_start
-        return batch
 
     def unload(self):
         """卸载模型释放显存。"""

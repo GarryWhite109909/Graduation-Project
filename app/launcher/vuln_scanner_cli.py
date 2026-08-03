@@ -294,7 +294,7 @@ def cmd_scan(args: argparse.Namespace) -> int:
 
     if result.error:
         return 1
-    return 0 if result.has_vulnerability is False else 0  # 扫描成功即返回 0
+    return 0  # 扫描成功即返回 0
 
 
 def cmd_batch(args: argparse.Namespace) -> int:
@@ -536,6 +536,14 @@ def cmd_github(args: argparse.Namespace) -> int:
 # 参数解析
 # ---------------------------------------------------------------------------
 def build_parser() -> argparse.ArgumentParser:
+    # 共享参数：通过 parents 机制让子命令也接受 --model / --rag / --format 等参数
+    # 这样 `vuln-scanner scan file.py --rag` 和 `vuln-scanner --rag scan file.py` 都能生效
+    shared = argparse.ArgumentParser(add_help=False)
+    shared.add_argument("--model", default=None, help=f"Ollama 模型名（默认 {DEFAULT_MODEL}）")
+    shared.add_argument("--ollama-url", default=None, help="Ollama 服务地址（默认 http://localhost:11434）")
+    shared.add_argument("--rag", action="store_true", help="启用 RAG 知识库增强（较慢但更准）")
+    shared.add_argument("--format", choices=["text", "json"], default="text", help="输出格式（默认 text）")
+
     parser = argparse.ArgumentParser(
         prog="vuln-scanner",
         description="AI 漏洞扫描器命令行工具 —— 基于 LLM 的代码安全审计",
@@ -549,26 +557,23 @@ def build_parser() -> argparse.ArgumentParser:
   %(prog)s url https://example.com             扫描网页脚本
   %(prog)s github https://github.com/user/repo 扫描 GitHub 仓库
         """.strip(),
+        parents=[shared],
     )
-    parser.add_argument("--model", default=None, help=f"Ollama 模型名（默认 {DEFAULT_MODEL}）")
-    parser.add_argument("--ollama-url", default=None, help="Ollama 服务地址（默认 http://localhost:11434）")
-    parser.add_argument("--rag", action="store_true", help="启用 RAG 知识库增强（较慢但更准）")
-    parser.add_argument("--format", choices=["text", "json"], default="text", help="输出格式（默认 text）")
 
     sub = parser.add_subparsers(dest="command", required=True, metavar="<command>")
 
     # health
-    p_health = sub.add_parser("health", help="健康检查（Ollama 连接 + 模型可用性）")
+    sub.add_parser("health", help="健康检查（Ollama 连接 + 模型可用性）", parents=[shared])
 
     # scan
-    p_scan = sub.add_parser("scan", help="扫描单个文件")
+    p_scan = sub.add_parser("scan", help="扫描单个文件", parents=[shared])
     p_scan.add_argument("file", help="待扫描的文件路径")
     p_scan.add_argument("--language", default=None, help="覆盖语言检测（如 python/javascript）")
     p_scan.add_argument("--output", "-o", default=None, help="报告输出路径（.md 或 .json）")
     p_scan.add_argument("--verbose", "-v", action="store_true", help="显示详细分析说明与修复建议")
 
     # batch
-    p_batch = sub.add_parser("batch", help="批量扫描目录下所有代码文件")
+    p_batch = sub.add_parser("batch", help="批量扫描目录下所有代码文件", parents=[shared])
     p_batch.add_argument("directory", help="待扫描的目录路径")
     p_batch.add_argument("--output", "-o", default=None, help="报告输出路径（.md 或 .json）")
     p_batch.add_argument("--no-recursive", action="store_true", help="不递归子目录")
@@ -576,12 +581,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_batch.add_argument("--verbose", "-v", action="store_true", help="显示每个文件的详细分析")
 
     # url
-    p_url = sub.add_parser("url", help="扫描 URL 抓取的脚本")
+    p_url = sub.add_parser("url", help="扫描 URL 抓取的脚本", parents=[shared])
     p_url.add_argument("url", help="目标 URL")
     p_url.add_argument("--output", "-o", default=None, help="报告输出路径（.md 或 .json）")
 
     # github
-    p_github = sub.add_parser("github", help="扫描 GitHub 仓库（浅克隆）")
+    p_github = sub.add_parser("github", help="扫描 GitHub 仓库（浅克隆）", parents=[shared])
     p_github.add_argument("repo_url", help="GitHub 仓库 URL")
     p_github.add_argument("--output", "-o", default=None, help="报告输出路径（.md 或 .json）")
     p_github.add_argument("--max-files", type=int, default=50, help="最多扫描文件数（默认 50）")

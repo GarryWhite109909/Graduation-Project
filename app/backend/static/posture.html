@@ -7,7 +7,6 @@
     <title>Nivis · 安全态势</title>
     <link rel="stylesheet" href="./design-tokens.css">
     <script src="./lib/tailwind.global.js"></script>
-    <script src="./lib/lucide.min.js"></script>
     <style type="text/tailwindcss">
   @theme inline {
     --color-background: var(--vuln-background);
@@ -41,7 +40,7 @@
       .posture-header {
         display: flex;
         flex-wrap: wrap;
-        align-items: flex-end;
+        align-items: stretch;
         gap: 16px;
         padding: 24px;
         background-color: var(--vuln-surface);
@@ -77,51 +76,29 @@
         grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
         gap: 24px;
       }
-      /* 评分与图表区：趋势图 1.5 倍宽 + 2 倍高放左侧，评分卡片和严重等级分布放右侧 */
+      /* === 评分与图表区 — 12 栅格错落版：8/4 → 5/7 → 7/5 === */
       .posture-grid {
         display: grid;
-        grid-template-columns: 1.5fr 1fr;
-        grid-template-rows: 1fr 1fr;
+        grid-template-columns: repeat(12, 1fr);
         gap: 24px;
         align-items: stretch;
       }
-      .posture-grid .posture-trend-card {
-        grid-row: 1 / span 2;
-        display: flex;
-        flex-direction: column;
-      }
+      .posture-grid > .pcol-8 { grid-column: span 8; }
+      .posture-grid > .pcol-7 { grid-column: span 7; }
+      .posture-grid > .pcol-5 { grid-column: span 5; }
+      .posture-grid > .pcol-4 { grid-column: span 4; }
+      .posture-grid > .is-flex-col { display: flex; flex-direction: column; }
       .posture-grid .posture-trend-card svg {
-        flex: 1;
-        min-height: 0;
         width: 100%;
-        height: 100%;
-      }
-      .posture-grid .score-card {
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-      }
-      .posture-grid .chart-card {
-        display: flex;
-        flex-direction: column;
-      }
-      .posture-grid .chart-card svg {
-        flex: 1;
-        min-height: 0;
+        height: auto;
+        display: block;
       }
       @media (max-width: 1024px) {
-        .posture-grid {
-          grid-template-columns: 1fr;
-          grid-template-rows: auto;
-        }
-        .posture-grid .posture-trend-card {
-          grid-row: auto;
-          min-height: 280px;
-        }
-        .posture-grid .score-card,
-        .posture-grid .chart-card {
-          min-height: 240px;
-        }
+        .posture-grid { grid-template-columns: 1fr; }
+        .posture-grid > .pcol-8,
+        .posture-grid > .pcol-7,
+        .posture-grid > .pcol-5,
+        .posture-grid > .pcol-4 { grid-column: span 1; }
       }
       .chart-card {
         background-color: var(--vuln-surface);
@@ -231,26 +208,18 @@
       .rem-btn-info { background-color: rgba(88,166,255,0.12); color: #58a6ff; }
     </style>
   <style id="enhanced-effects">
-    :root {
-      --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-      --ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
-      --dur-fast: 150ms;
-      --dur-normal: 350ms;
-      --dur-slow: 600ms;
-    }
-
-    @keyframes fadeUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
-    @keyframes shimmer { from { transform: translateX(-100%); } to { transform: translateX(200%); } }
+    /* :root 变量、@keyframes fadeUp/shimmer/pulseBorder、::-webkit-scrollbar、prefers-reduced-motion
+       均已统一到 lively.css 全局，此处仅保留页面特有样式 */
 
     /* .glass-card / .nav-glass / button / a 统一由 lively.css 管理，此处不再覆盖 */
 
-    .posture-header { animation: fadeUp 0.5s var(--ease-spring) backwards; }
-    .score-card { animation: fadeUp 0.5s var(--ease-spring) 0.1s backwards; }
-    .chart-card-anim { animation: fadeUp 0.5s var(--ease-spring) 0.3s backwards; }
-    .remediation-section { animation: fadeUp 0.5s var(--ease-spring) 0.4s backwards; }
+    .posture-header { animation: fadeUp 0.5s var(--lv-bounce) backwards; }
+    .score-card { animation: fadeUp 0.5s var(--lv-bounce) backwards; }
+    .chart-card-anim { animation: fadeUp 0.5s var(--lv-bounce) backwards; }
+    .remediation-section { animation: fadeUp 0.5s var(--lv-bounce) backwards; }
 
     .remediation-table tbody tr {
-      transition: opacity 0.2s var(--ease-smooth), transform 0.2s var(--ease-smooth);
+      transition: opacity 0.2s var(--lv-smooth), transform 0.2s var(--lv-smooth);
     }
     .remediation-table tbody tr.filtered-out {
       opacity: 0;
@@ -260,32 +229,23 @@
       visibility: hidden;
     }
 
-    ::-webkit-scrollbar { width: 8px; height: 8px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: var(--vuln-ink-3); border-radius: 4px; }
-    ::-webkit-scrollbar-thumb:hover { background: var(--vuln-ink-2); }
-
     /* :focus-visible / button / a / .glass-card / .icon-box 统一由 lively.css 管理 */
 
     /* posture 卡片专属弹起（覆盖 glass-card 默认的 -4px）+ 延迟退出丝滑跟随 */
     .score-card, .chart-card {
-      transition: transform 320ms var(--ease-spring) var(--lv-out-delay),
-                  border-color 250ms var(--ease-smooth) var(--lv-out-delay),
-                  box-shadow 320ms var(--ease-spring) var(--lv-out-delay);
+      transition: transform 320ms var(--lv-spring) var(--lv-out-delay),
+                  border-color 250ms var(--lv-smooth) var(--lv-out-delay),
+                  box-shadow 320ms var(--lv-spring) var(--lv-out-delay);
     }
     .score-card:hover, .chart-card:hover {
       transition-delay: 0ms;
       transform: translateY(-4px);
     }
-    .view-detail { transition: transform 280ms var(--ease-spring) var(--lv-out-delay), color 200ms var(--ease-smooth) var(--lv-out-delay); }
+    .view-detail { transition: transform 280ms var(--lv-spring) var(--lv-out-delay), color 200ms var(--lv-smooth) var(--lv-out-delay); }
     .view-detail:hover { transition-delay: 0ms; transform: translateX(5px); }
-    .filter-chip { transition: all var(--dur-normal) var(--ease-spring) var(--lv-out-delay); }
+    .filter-chip { transition: all 350ms var(--lv-spring) var(--lv-out-delay); }
     .filter-chip.active { background: var(--vuln-brand) !important; color: var(--vuln-brand-ink) !important; border-color: var(--vuln-brand) !important; }
     .filter-chip:not(.active):hover { transition-delay: 0ms; background: var(--vuln-surface-2); transform: translateY(-3px); }
-
-    @media (prefers-reduced-motion: reduce) {
-      *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
-    }
   </style>
   <nav class="nav-glass fixed top-0 left-0 right-0 z-50 border-b border-[var(--vuln-line)]" aria-label="主导航">
     <div class="max-w-[1440px] mx-auto px-6 h-16 flex items-center justify-between">
@@ -316,7 +276,7 @@
 
   <main class="pt-24 pb-8">
     <div class="mx-auto max-w-[1440px] space-y-8 px-6">
-      <section class="posture-header glass-card" aria-label="仓库分析头部">
+      <section class="posture-header glass-card" aria-label="仓库分析头部" style="animation-delay:0ms">
         <div class="flex-1 min-w-[240px]">
           <div class="mb-2 flex items-center justify-between gap-3">
             <label for="input-repo" class="block text-sm font-medium text-[var(--vuln-ink-2)]">目标仓库</label>
@@ -325,21 +285,23 @@
               <span class="health-text">检测中</span>
             </span>
           </div>
-          <input id="input-repo" type="text" value="" placeholder="输入仓库地址，例如 github.com/owner/repo" class="w-full rounded-md border border-[var(--vuln-line)] bg-[var(--vuln-surface-2)] px-4 py-2.5 text-sm text-[var(--vuln-ink)] placeholder:text-[var(--vuln-ink-3)] focus:outline-none focus:ring-2 focus:ring-[var(--vuln-brand)]" />
-          <p class="text-xs text-[var(--vuln-ink-3)] mt-1">输入仓库地址后点击"前往扫描"，将在扫描工作台中分析</p>
+          <div class="flex gap-3 items-stretch">
+            <input id="input-repo" type="text" value="" placeholder="输入仓库地址，例如 github.com/owner/repo" class="flex-1 rounded-md border border-[var(--vuln-line)] bg-[var(--vuln-surface-2)] px-4 py-2.5 text-sm text-[var(--vuln-ink)] placeholder:text-[var(--vuln-ink-3)] focus:outline-none focus:ring-2 focus:ring-[var(--vuln-brand)]" />
+            <button id="btn-analyze-repo" type="button" class="inline-flex items-center gap-2 rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-[var(--vuln-brand-600)] transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--vuln-brand)] whitespace-nowrap shrink-0">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="8"/>
+                <path d="m21 21-4.35-4.35"/>
+              </svg>
+              <span class="btn-text">前往扫描</span>
+              <span class="btn-spinner hidden" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="animate-spin">
+                  <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+                </svg>
+              </span>
+            </button>
+          </div>
+          <p class="text-xs text-[var(--vuln-ink-3)] mt-1.5">输入仓库地址后点击"前往扫描"，将在扫描工作台中分析</p>
         </div>
-        <button id="btn-analyze-repo" type="button" class="inline-flex items-center gap-2 rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-[var(--vuln-brand-600)] transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--vuln-brand)]">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="11" cy="11" r="8"/>
-            <path d="m21 21-4.35-4.35"/>
-          </svg>
-          <span class="btn-text">前往扫描</span>
-          <span class="btn-spinner hidden" aria-hidden="true">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="animate-spin">
-              <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
-            </svg>
-          </span>
-        </button>
         <div class="repo-meta">
           <span id="meta-repo" class="inline-flex items-center gap-1.5 text-sm text-[var(--vuln-ink-2)]">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -368,19 +330,19 @@
       </section>
 
       <section class="posture-grid" aria-label="评分与图表">
-        <!-- 安全评分趋势（大，左侧，跨两行） -->
-        <div class="chart-card glass-card chart-card-anim posture-trend-card">
+        <!-- 安全评分趋势（第一行左侧，趋势图不变） -->
+        <div class="chart-card glass-card chart-card-anim posture-trend-card pcol-8 is-flex-col" style="animation-delay:80ms">
           <div class="mb-4 flex items-center justify-between">
             <h3 class="text-sm font-semibold text-[var(--vuln-ink)]">安全评分趋势</h3>
             <span id="trend-count" class="rounded-full bg-[var(--vuln-surface-2)] px-2.5 py-0.5 text-xs font-medium text-[var(--vuln-ink-2)]">近 7 次</span>
           </div>
-          <svg id="chart-trend" viewBox="0 0 480 420" role="img" aria-label="安全评分趋势折线图">
-            <text x="240" y="210" text-anchor="middle" fill="var(--vuln-ink-3)" font-size="13">暂无仓库扫描数据，分析仓库后将显示趋势</text>
+          <svg id="chart-trend" viewBox="0 0 640 256" role="img" aria-label="安全评分趋势折线图" style="width:100%;height:auto;display:block">
+            <text x="320" y="125" text-anchor="middle" fill="var(--vuln-ink-3)" font-size="13">暂无仓库扫描数据，分析仓库后将显示趋势</text>
           </svg>
         </div>
 
-        <!-- 评分卡片（右上） -->
-        <div class="glass-card score-card rounded-2xl border border-[var(--vuln-line)] p-6">
+        <!-- 安全态势评分（第一行右侧） -->
+        <div class="glass-card score-card chart-card-anim pcol-4 is-flex-col justify-center rounded-2xl border border-[var(--vuln-line)] p-6" style="animation-delay:140ms">
           <h2 class="mb-4 text-center text-base font-semibold text-[var(--vuln-ink)]">安全态势评分</h2>
           <div class="flex justify-center">
             <div id="score-ring" class="score-ring" role="img" aria-label="安全态势评分">
@@ -398,19 +360,75 @@
           <p id="score-desc" class="mt-4 text-center text-sm text-[var(--vuln-ink-2)]">完成扫描后将显示综合风险评估。</p>
         </div>
 
-        <!-- 严重等级分布（右下） -->
-        <div class="chart-card glass-card chart-card-anim">
+        <!-- 严重等级分布（第二行左侧） -->
+        <div id="chart-severity-card" class="chart-card glass-card chart-card-anim pcol-5 is-flex-col" style="animation-delay:200ms">
           <div class="mb-4 flex items-center justify-between">
             <h3 class="text-sm font-semibold text-[var(--vuln-ink)]">严重等级分布</h3>
             <span id="severity-total" class="rounded-full bg-[var(--vuln-surface-2)] px-2.5 py-0.5 text-xs font-medium text-[var(--vuln-ink-2)]">共 0 个</span>
           </div>
-          <svg id="chart-severity" viewBox="0 0 320 220" role="img" aria-label="严重等级分布柱状图">
+          <svg id="chart-severity" viewBox="0 0 320 220" role="img" aria-label="严重等级分布柱状图" class="flex-1" style="min-height:0">
             <text x="160" y="110" text-anchor="middle" fill="var(--vuln-ink-3)" font-size="12">暂无数据，完成扫描后将显示</text>
           </svg>
         </div>
+
+        <!-- 漏洞类型分布（第二行右侧 · 新增） -->
+        <div id="chart-type-card" class="chart-card glass-card chart-card-anim pcol-7 is-flex-col" style="animation-delay:260ms">
+          <div class="mb-4 flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-[var(--vuln-ink)]">漏洞类型分布</h3>
+            <span id="type-total" class="rounded-full bg-[var(--vuln-surface-2)] px-2.5 py-0.5 text-xs font-medium text-[var(--vuln-ink-2)]">共 0 类</span>
+          </div>
+          <ul id="type-dist-list" class="flex-1 flex flex-col justify-center gap-3">
+            <li class="text-sm text-center py-8" style="color:var(--vuln-ink-3)">暂无数据，完成扫描后将显示</li>
+          </ul>
+        </div>
+
+        <!-- 高危文件清单（第三行左侧 · 新增） -->
+        <div id="top-files-card" class="chart-card glass-card chart-card-anim pcol-7 is-flex-col" style="animation-delay:320ms">
+          <div class="mb-4 flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-[var(--vuln-ink)]">高危文件清单</h3>
+            <span id="top-files-count" class="rounded-full bg-[var(--vuln-surface-2)] px-2.5 py-0.5 text-xs font-medium text-[var(--vuln-ink-2)]">0 个文件</span>
+          </div>
+          <ul id="top-files-list" class="flex-1 flex flex-col justify-center gap-2">
+            <li class="text-sm text-center py-8" style="color:var(--vuln-ink-3)">暂无数据，完成扫描后将显示</li>
+          </ul>
+        </div>
+
+        <!-- 扫描概览（第三行右侧 · 新增） -->
+        <div id="scan-summary-card" class="chart-card glass-card chart-card-anim pcol-5 is-flex-col" style="animation-delay:380ms">
+          <div class="mb-4 flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-[var(--vuln-ink)]">扫描概览</h3>
+          </div>
+          <div class="flex-1 flex flex-col justify-center gap-4">
+            <div class="flex items-center justify-between">
+              <span class="text-sm" style="color:var(--vuln-ink-2)">累计扫描</span>
+              <span id="sum-scans" class="text-lg font-bold num-tabular" style="color:var(--vuln-ink)">0</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-sm" style="color:var(--vuln-ink-2)">累计文件</span>
+              <span id="sum-files" class="text-lg font-bold num-tabular" style="color:var(--vuln-ink)">0</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-sm" style="color:var(--vuln-ink-2)">漏洞文件</span>
+              <span id="sum-vuln" class="text-lg font-bold num-tabular" style="color:var(--vuln-state-error)">0</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-sm" style="color:var(--vuln-ink-2)">安全文件</span>
+              <span id="sum-safe" class="text-lg font-bold num-tabular" style="color:var(--vuln-state-success)">0</span>
+            </div>
+            <div class="pt-3" style="border-top:1px solid var(--vuln-line)">
+              <div class="flex items-center justify-between mb-1.5">
+                <span class="text-xs" style="color:var(--vuln-ink-3)">安全文件占比</span>
+                <span id="sum-safe-rate" class="text-xs font-semibold num-tabular" style="color:var(--vuln-ink-2)">—</span>
+              </div>
+              <div class="h-2 rounded-full overflow-hidden" style="background:var(--vuln-surface-2)">
+                <div id="sum-safe-bar" class="h-full rounded-full transition-all duration-700" style="width:0%;background:var(--vuln-brand)"></div>
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
 
-      <section aria-label="优先修复清单" class="remediation-section">
+      <section aria-label="优先修复清单" class="remediation-section" style="animation-delay:440ms">
         <div class="mb-4 flex items-center justify-between flex-wrap gap-3">
           <h2 class="text-base font-semibold text-[var(--vuln-ink)]">优先修复清单</h2>
           <div class="flex flex-wrap gap-2" role="group" aria-label="严重等级筛选">
@@ -450,7 +468,6 @@
 
   <div id="toast-container" class="toast-container" aria-live="polite"></div>
 
-  <script>lucide.createIcons();</script>
   <script src="./nivis-common.js"></script>
   <script>
     (function () {
@@ -487,7 +504,7 @@
         { kw: ['反序列化', 'deserialization'], cwe: 'CWE-502' },
         { kw: ['ssrf'], cwe: 'CWE-918' },
         { kw: ['csrf'], cwe: 'CWE-352' },
-        { kw: ['ssti'], cwe: 'CWE-1333' },
+        { kw: ['ssti'], cwe: 'CWE-1336' },
         { kw: ['xxe'], cwe: 'CWE-611' },
         { kw: ['硬编码', 'hardcoded', '凭证', '密码硬编码', 'credential'], cwe: 'CWE-798' },
         { kw: ['弱加密', 'weak crypto', 'weak encryption', 'insecure crypto'], cwe: 'CWE-327' },
@@ -650,7 +667,7 @@
         });
         const countEl = document.getElementById('trend-count');
         if (!hist.length) {
-          svg.innerHTML = '<text x="240" y="210" text-anchor="middle" fill="var(--vuln-ink-3)" font-size="13">暂无仓库扫描数据，分析仓库后将显示趋势</text>';
+          svg.innerHTML = '<text x="320" y="125" text-anchor="middle" fill="var(--vuln-ink-3)" font-size="13">暂无仓库扫描数据，分析仓库后将显示趋势</text>';
           svg.setAttribute('aria-label', '安全评分趋势：暂无仓库扫描数据');
           if (countEl) countEl.textContent = '近 0 次';
           return;
@@ -661,13 +678,14 @@
         for (let i = 0; i < pad; i++) points.push(null);
         for (let i = 0; i < hist.length; i++) points.push(hist[i]);
 
-        const left = 50, right = 460, top = 40, bottom = 360;
+        // 与仪表盘趋势图等大：viewBox 640x256，绘制区域 left=40, right=620, top=30, bottom=216
+        const left = 40, right = 620, top = 30, bottom = 216;
         const stepX = (right - left) / (MAX_HISTORY - 1);
         const maxScore = 100;
         let validPts = [];
+        let hoverPts = [];
         let circles = '';
         let placeholders = '';
-        let scoreLabels = '';
         for (let i = 0; i < points.length; i++) {
           const p = points[i];
           const x = left + i * stepX;
@@ -676,6 +694,7 @@
           } else {
             const y = bottom - (p.score / maxScore) * (bottom - top);
             validPts.push({ x: x, y: y, score: p.score });
+            hoverPts.push({ x: x, y: y, data: p });
             circles += '<circle cx="' + x + '" cy="' + y + '" r="6" fill="var(--vuln-brand)"/>';
             circles += '<text x="' + x + '" y="' + (y - 14) + '" text-anchor="middle" fill="var(--vuln-ink)" font-size="13" font-weight="600">' + p.score + '</text>';
           }
@@ -687,7 +706,7 @@
           const tickVal = yTicks[i];
           const tickY = bottom - (tickVal / maxScore) * (bottom - top);
           inner += '<line x1="' + left + '" y1="' + tickY + '" x2="' + right + '" y2="' + tickY + '" stroke="var(--vuln-line)" stroke-width="1" stroke-dasharray="2 4" opacity="0.5"/>';
-          inner += '<text x="' + (left - 10) + '" y="' + (tickY + 4) + '" text-anchor="end" fill="var(--vuln-ink-3)" font-size="11">' + tickVal + '</text>';
+          inner += '<text x="' + (left - 8) + '" y="' + (tickY + 4) + '" text-anchor="end" fill="var(--vuln-ink-3)" font-size="11">' + tickVal + '</text>';
         }
         // X 轴基线
         inner += '<line x1="' + left + '" y1="' + bottom + '" x2="' + right + '" y2="' + bottom + '" stroke="var(--vuln-line)" stroke-width="1.5"/>';
@@ -705,10 +724,21 @@
         }
         inner += circles;
         // X 轴标签
-        inner += '<text x="' + left + '" y="395" fill="var(--vuln-ink-3)" font-size="11">较早</text>';
-        inner += '<text x="' + right + '" y="395" text-anchor="end" fill="var(--vuln-ink-3)" font-size="11">最近</text>';
+        inner += '<text x="' + left + '" y="246" fill="var(--vuln-ink-3)" font-size="11">较早</text>';
+        inner += '<text x="' + right + '" y="246" text-anchor="end" fill="var(--vuln-ink-3)" font-size="11">最近</text>';
         svg.innerHTML = inner;
         svg.setAttribute('aria-label', '安全评分趋势曲线图');
+        // 接入鼠标交互（虚线 + 数据点吸附 + Tooltip）
+        window.NivisUtil.attachTrendHover({
+          svg: svg,
+          points: hoverPts,
+          left: left, right: right, top: top, bottom: bottom,
+          formatTip: function (d) {
+            var dd = new Date(d.date);
+            var ds = isNaN(dd.getTime()) ? '?' : (dd.getMonth() + 1) + '/' + dd.getDate();
+            return ds + ' · 评分 ' + (d.score != null ? d.score : '?');
+          }
+        });
       }
 
       /* ---------- 修复清单表格 ---------- */
@@ -732,7 +762,13 @@
           return r && r.has_vulnerability === true;
         });
         if (!vulns.length) {
-          tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--vuln-state-success);font-size:14px;">未发现漏洞 🎉</td></tr>';
+          /* 区分"未扫描过"与"扫描后无漏洞"两种空态 */
+          var hasData = (window.__postureHasData === true);
+          var msg = hasData
+            ? '未发现漏洞 🎉'
+            : '暂无扫描数据，请先在上方输入仓库地址或前往扫描工作台。';
+          var color = hasData ? 'var(--vuln-state-success)' : 'var(--vuln-ink-3)';
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:32px;color:'+color+';font-size:14px;">'+msg+'</td></tr>';
           return;
         }
         const order = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
@@ -758,68 +794,127 @@
         tbody.innerHTML = html;
       }
 
-      /* ---------- 更新整个看板 ---------- */
-      function updateDashboard(summary, repo) {
-        if (!summary) return;
-        const counts = aggregateResults(summary.results);
-
-        const score = calcScore(counts);
-        const grade = scoreGrade(score);
-        const sc = scoreColors(score);
-        setText('score-value', score);
-        setText('score-grade', grade);
-        const gradeEl = document.getElementById('score-grade');
-        if (gradeEl) {
-          gradeEl.style.color = sc.fg;
-          gradeEl.style.backgroundColor = sc.bg;
-        }
-
-        const high = counts.critical + counts.high;
-        const total = high + counts.medium + counts.low + counts.info;
-        let desc = '未发现明显漏洞，保持良好的安全实践。';
-        if (high > 0) {
-          desc = '存在 ' + high + ' 个高危漏洞，建议优先修复高风险问题。';
-        } else if (counts.medium > 0) {
-          desc = '存在 ' + counts.medium + ' 个中危漏洞，建议尽快修复。';
-        } else if (total > 0) {
-          desc = '发现 ' + total + ' 个低风险问题，可按计划修复。';
-        }
-        setText('score-desc', desc);
-
-        animateRing(score, sc.stroke);
-
-        const ring = document.getElementById('score-ring');
-        if (ring) ring.setAttribute('aria-label', '安全态势评分 ' + score + ' 分，等级 ' + grade);
-
-        renderSeverityChart(counts);
-        renderRemediation(summary.results);
-
-        setText('meta-repo-text', repo || '');
-        setText('meta-time-text', '刚刚');
-        const allResults = Array.isArray(summary.results) ? summary.results : [];
-        const fileCount = summary.scanned != null ? summary.scanned : (summary.total_files || allResults.length);
-        setText('meta-files-text', '扫描 ' + fileCount + ' 个文件');
-
-        const vulnCount = allResults.filter(function (r) { return r && r.has_vulnerability === true; }).length;
-        const safeCount = allResults.length - vulnCount;
-        saveHistory({
-          date: new Date().toISOString(),
-          score: score,
-          total: total,
-          total_files: fileCount,
-          vulnerable: vulnCount,
-          safe: safeCount,
-          source: 'github',
-          results: allResults.slice(0, 20).map(function (r) {
-            return {
-              filename: r.filename || '—',
-              has_vulnerability: r.has_vulnerability,
-              vulnerability_type: r.vulnerability_type || '',
-              risk_level: r.risk_level || ''
-            };
-          })
+      /* ---------- 漏洞类型分布（新增卡片） ---------- */
+      function renderTypeDist(results) {
+        var list = document.getElementById('type-dist-list');
+        var totalEl = document.getElementById('type-total');
+        if (!list) return;
+        var vulns = (Array.isArray(results) ? results : []).filter(function (r) {
+          return r && r.has_vulnerability === true;
         });
-        renderTrendChart();
+        var map = {};
+        vulns.forEach(function (r) {
+          var t = (r.vulnerability_type || '').trim() || '未分类';
+          map[t] = (map[t] || 0) + 1;
+        });
+        var arr = Object.keys(map).map(function (k) { return { type: k, count: map[k] }; });
+        arr.sort(function (a, b) { return b.count - a.count; });
+        if (totalEl) totalEl.textContent = '共 ' + arr.length + ' 类';
+        if (!arr.length) {
+          list.innerHTML = '<li class="text-sm text-center py-8" style="color:var(--vuln-ink-3)">暂无数据，完成扫描后将显示</li>';
+          return;
+        }
+        var top = arr.slice(0, 6);
+        var maxCount = top[0].count;
+        var typeColors = [
+          'var(--vuln-state-error)',
+          'var(--vuln-state-warning)',
+          'var(--vuln-brand)',
+          'var(--vuln-state-info)',
+          'var(--vuln-state-success)',
+          'var(--vuln-ink-2)'
+        ];
+        var html = '';
+        top.forEach(function (item, idx) {
+          var pct = Math.max(10, Math.round((item.count / maxCount) * 100));
+          var cwe = mapCwe(item.type);
+          var hasCwe = cwe !== item.type;
+          var label = hasCwe ? cwe : item.type;
+          var color = typeColors[idx % typeColors.length];
+          html += '<li class="flex items-center gap-3">';
+          html += '<div class="flex-shrink-0 w-32 min-w-0">';
+          html += '<div class="text-xs font-semibold truncate" title="' + escapeHtml(item.type) + '" style="color:var(--vuln-ink)">' + escapeHtml(label) + '</div>';
+          if (hasCwe) html += '<div class="text-[11px] truncate" style="color:var(--vuln-ink-3)">' + escapeHtml(item.type) + '</div>';
+          html += '</div>';
+          html += '<div class="flex-1 h-2.5 rounded-full overflow-hidden" style="background:var(--vuln-surface-2)">';
+          html += '<div class="h-full rounded-full" style="width:' + pct + '%;background:' + color + ';transition:width 600ms var(--lv-spring)"></div>';
+          html += '</div>';
+          html += '<span class="text-xs font-bold num-tabular shrink-0 w-7 text-right" style="color:var(--vuln-ink)">' + item.count + '</span>';
+          html += '</li>';
+        });
+        list.innerHTML = html;
+      }
+
+      /* ---------- 高危文件清单（新增卡片） ---------- */
+      function renderTopFiles(results) {
+        var list = document.getElementById('top-files-list');
+        var countEl = document.getElementById('top-files-count');
+        if (!list) return;
+        var vulns = (Array.isArray(results) ? results : []).filter(function (r) {
+          return r && r.has_vulnerability === true;
+        });
+        var highVulns = vulns.filter(function (r) {
+          var lvl = normalizeRisk(r.risk_level);
+          return lvl === 'critical' || lvl === 'high';
+        });
+        if (!highVulns.length) {
+          if (countEl) countEl.textContent = '0 个文件';
+          var msg = vulns.length ? '当前无高危文件' : '暂无数据，完成扫描后将显示';
+          list.innerHTML = '<li class="text-sm text-center py-8" style="color:var(--vuln-ink-3)">' + msg + '</li>';
+          return;
+        }
+        var fileMap = {};
+        highVulns.forEach(function (r) {
+          var f = r.filename || '—';
+          if (!fileMap[f]) fileMap[f] = { file: f, count: 0 };
+          fileMap[f].count++;
+        });
+        var fileArr = Object.keys(fileMap).map(function (k) { return fileMap[k]; });
+        fileArr.sort(function (a, b) { return b.count - a.count; });
+        if (countEl) countEl.textContent = fileArr.length + ' 个文件';
+        var top = fileArr.slice(0, 6);
+        var html = '';
+        top.forEach(function (item, idx) {
+          var name = item.file;
+          var parts = name.split('/');
+          var base = parts[parts.length - 1] || name;
+          var dir = parts.length > 1 ? parts.slice(0, -1).join('/') + '/' : '';
+          html += '<li class="flex items-center gap-3 px-3 py-2.5 rounded-lg" style="background:var(--vuln-surface-2)">';
+          html += '<span class="flex-shrink-0 w-6 h-6 inline-flex items-center justify-center rounded-md text-[11px] font-bold" style="background:rgba(239,68,68,0.15);color:#ef4444">' + (idx + 1) + '</span>';
+          html += '<div class="flex-1 min-w-0">';
+          html += '<div class="text-sm font-mono truncate" title="' + escapeHtml(name) + '" style="color:var(--vuln-ink)">' + escapeHtml(base) + '</div>';
+          if (dir) html += '<div class="text-[11px] truncate font-mono" style="color:var(--vuln-ink-3)">' + escapeHtml(dir) + '</div>';
+          html += '</div>';
+          html += '<span class="sev-badge sev-high shrink-0">高危</span>';
+          html += '<span class="text-xs font-semibold num-tabular shrink-0" style="color:var(--vuln-ink-2)">' + item.count + ' 处</span>';
+          html += '</li>';
+        });
+        list.innerHTML = html;
+      }
+
+      /* ---------- 扫描概览（新增卡片） ---------- */
+      function computeScanSummary() {
+        var hist = getHistory().filter(function (e) { return e.source === 'github'; });
+        var scans = hist.length;
+        var files = 0, vuln = 0, safe = 0;
+        hist.forEach(function (e) {
+          files += e.total_files != null ? e.total_files : (e.total || 0);
+          vuln += e.vulnerable != null ? e.vulnerable : 0;
+          safe += e.safe != null ? e.safe : 0;
+        });
+        return { scans: scans, files: files, vuln: vuln, safe: safe };
+      }
+
+      function renderScanSummary(stats) {
+        stats = stats || { scans: 0, files: 0, vuln: 0, safe: 0 };
+        setText('sum-scans', String(stats.scans || 0));
+        setText('sum-files', String(stats.files || 0));
+        setText('sum-vuln', String(stats.vuln || 0));
+        setText('sum-safe', String(stats.safe || 0));
+        var rate = stats.files > 0 ? Math.round((stats.safe / stats.files) * 100) : 0;
+        setText('sum-safe-rate', stats.files > 0 ? (rate + '%') : '—');
+        var bar = document.getElementById('sum-safe-bar');
+        if (bar) bar.style.width = rate + '%';
       }
 
       /* ---------- 仓库分析（跳转扫描工作台） ---------- */
@@ -921,13 +1016,13 @@
 
         renderSeverityChart(counts);
         renderRemediation(allResults);
+        renderTypeDist(allResults);
+        renderTopFiles(allResults);
+        renderScanSummary(computeScanSummary());
 
         setText('meta-repo-text', '仓库扫描历史');
         setText('meta-time-text', relativeTime(lastDate));
         setText('meta-files-text', '累计扫描 ' + totalFiles + ' 个文件');
-        if (window.refreshLively) {
-          requestAnimationFrame(window.refreshLively);
-        }
         return true;
       }
 
@@ -948,13 +1043,17 @@
 
         // 优先用 localStorage 历史数据渲染；没有数据时才显示默认空状态
         const loaded = loadDashboardFromHistory();
+        window.__postureHasData = loaded;   /* renderRemediation 据此区分两种空态 */
         if (!loaded) {
           animateRing(0);
           setText('score-value', '—');
           setText('score-grade', '—');
           setText('score-desc', '暂无仓库扫描数据，请在下方输入 GitHub 仓库地址进行分析。');
           renderSeverityChart({ critical: 0, high: 0, medium: 0, low: 0, info: 0 });
-          renderRemediation([]);
+          renderRemediation([]);   /* __postureHasData=false：显示"暂无扫描数据" */
+          renderTypeDist([]);
+          renderTopFiles([]);
+          renderScanSummary();
         }
 
         // 趋势图：从 localStorage 渲染
@@ -975,7 +1074,6 @@
     })();
   </script>
 
-<script src="./lively.js" defer></script>
 <script src="./theme.js" defer></script>
 </body>
 </html>

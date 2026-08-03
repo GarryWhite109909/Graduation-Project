@@ -49,7 +49,7 @@ from typing import Any, Callable, Optional
 
 # 优先级常量（数值小 = 优先级高，与 heapq 最小堆一致）
 PRIORITY_HIGH = 0      # 交互式单文件 / 多模型扫描
-PRIORITY_NORMAL = 1    # 预留（文件夹扫描等中等场景）
+PRIORITY_NORMAL = 1    # 默认优先级（resolve_priority 的兜底值，队列状态统计也用到）
 PRIORITY_LOW = 2       # 批量扫描（工作区 / URL / GitHub）
 
 # 优先级标签（供 /api/queue/status 展示）

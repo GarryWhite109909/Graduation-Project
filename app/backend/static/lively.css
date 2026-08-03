@@ -12,6 +12,13 @@
   /* 延迟退出：鼠标移出后动画延迟 120ms 才回弹，形成"跟随鼠标流动"的丝滑感。
      :hover 状态用 transition-delay:0ms 覆盖，保证移入即时响应。 */
   --lv-out-delay: 120ms;
+
+  /* 别名：供各页面 enhanced-effects 内联样式引用，避免重复定义 */
+  --ease-spring: var(--lv-spring);
+  --ease-smooth: var(--lv-smooth);
+  --dur-fast: 150ms;
+  --dur-normal: 350ms;
+  --dur-slow: 600ms;
 }
 
 /* ---- 防抖动：滚动条占位固定，切换页面不横向位移 ---- */
@@ -57,6 +64,9 @@ body {
   from { opacity: 0; transform: translateY(20px) scale(0.97); }
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
+/* 全局共享 keyframes：各页面 enhanced-effects 不再重复定义 */
+@keyframes shimmer { from { transform: translateX(-100%); } to { transform: translateX(200%); } }
+@keyframes pulseBorder { 0%, 100% { border-color: var(--vuln-line); } 50% { border-color: var(--vuln-brand-300); } }
 
 /* ---- 克制版玻璃卡片（为 scan/cwe/posture 页面提供兼容） ---- */
 .glass-card {
@@ -96,34 +106,7 @@ body {
   -webkit-backdrop-filter: blur(20px) saturate(150%);
 }
 
-/* ---- 主题切换按钮（克制版） ---- */
-.theme-toggle-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: 36px;
-  height: 36px;
-  border-radius: var(--vuln-radius-md, 10px);
-  border: 1px solid var(--vuln-line, #e4e7ec);
-  background: transparent;
-  color: var(--vuln-ink-2, #5a6573);
-  cursor: pointer;
-  transition: background-color 200ms var(--lv-smooth),
-              color 200ms var(--lv-smooth),
-              border-color 200ms var(--lv-smooth),
-              transform 150ms ease;
-}
-.theme-toggle-btn svg { width: 18px; height: 18px; }
-.theme-toggle-btn:hover {
-  color: var(--vuln-brand);
-  border-color: color-mix(in srgb, var(--vuln-brand) 30%, var(--vuln-line));
-  background: color-mix(in srgb, var(--vuln-brand) 6%, transparent);
-}
-.theme-toggle-btn:active { transform: scale(0.95); }
-.dark .theme-toggle-btn {
-  border-color: rgba(255,255,255,0.1);
-}
+/* ---- 主题切换按钮样式已与 .nav-btn 统一，不再单独定义 .theme-toggle-btn ---- */
 
 /* ---- 基础按钮/链接过渡 ---- */
 button {
@@ -148,34 +131,6 @@ a { transition: color 200ms var(--lv-smooth), background-color 200ms var(--lv-sm
   transform: scale(1.08);
   background: color-mix(in srgb, var(--vuln-brand) 15%, transparent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--vuln-brand) 10%, transparent);
-}
-
-/* ---- KPI / Bento 卡片入场 ---- */
-.kpi-card, .bento-card {
-  animation: fadeUp 0.5s var(--lv-bounce) backwards;
-}
-
-/* ---- 禁用旧版灵动效果（lv-tilt/lv-magnetic/lv-dodge 全部降级为静态） ---- */
-.lv-tilt, .lv-magnetic, .lv-dodge {
-  transform: none !important;
-  translate: 0 0 !important;
-  animation: none !important;
-  transition: background-color 200ms var(--lv-smooth) var(--lv-out-delay),
-              color 200ms var(--lv-smooth) var(--lv-out-delay),
-              border-color 200ms var(--lv-smooth) var(--lv-out-delay),
-              box-shadow 280ms var(--lv-spring) var(--lv-out-delay) !important;
-}
-.lv-tilt:hover {
-  transition-delay: 0ms !important;
-  transform: translateY(-3px) !important;
-}
-.lv-magnetic:hover {
-  transition-delay: 0ms !important;
-  transform: translateY(-2px) !important;
-}
-.lv-tilt .icon-box, .lv-magnetic .icon-box {
-  animation: none !important;
-  translate: 0 0 !important;
 }
 
 /* ---- 结果卡片：微 hover，方便阅读但有反馈 ---- */
@@ -216,15 +171,13 @@ select, select:focus, select:active {
 @keyframes vt-fade-out { from { opacity: 1; } to { opacity: 0; } }
 @keyframes vt-fade-in { from { opacity: 0; } to { opacity: 1; } }
 
-.theme-transitioning,
-.theme-transitioning .glass-card,
-.theme-transitioning .nav-glass,
-.theme-transitioning .theme-toggle-btn {
-  transition:
-    background-color 300ms var(--lv-smooth),
-    color 300ms var(--lv-smooth),
-    border-color 300ms var(--lv-smooth),
-    box-shadow 300ms var(--lv-smooth) !important;
+/* 主题切换期间禁用所有元素过渡，仅保留根节点 View Transition 交叉淡化，
+   避免不同卡片各自动画时长/延迟叠加导致的闪烁。 */
+body.theme-transitioning,
+body.theme-transitioning *,
+body.theme-transitioning *::before,
+body.theme-transitioning *::after {
+  transition: none !important;
 }
 
 /* ---- Donut 图交互（克制版） ---- */
@@ -235,34 +188,7 @@ select, select:focus, select:active {
   cursor: pointer;
 }
 #chart-donut:hover .donut-seg { opacity: 0.45; }
-.donut-seg-active {
-  opacity: 1 !important;
-  stroke-width: 18 !important;
-  filter: drop-shadow(0 0 8px currentColor) !important;
-}
-.dark .donut-seg-active {
-  filter: drop-shadow(0 0 10px currentColor) !important;
-}
-
-#donut-legend li, #donut-legend li {
-  transition: transform 280ms var(--lv-spring) var(--lv-out-delay),
-              color 200ms var(--lv-smooth) var(--lv-out-delay),
-              font-weight 200ms var(--lv-smooth) var(--lv-out-delay);
-  cursor: default;
-}
-#donut-legend li.legend-active {
-  transition-delay: 0ms;
-  color: var(--vuln-ink) !important;
-  font-weight: 600;
-  transform: translateX(4px);
-}
-#donut-legend li span {
-  transition: transform 280ms var(--lv-spring) var(--lv-out-delay);
-}
-#donut-legend li.legend-active span {
-  transition-delay: 0ms;
-  transform: scale(1.35);
-}
+/* 注：实际高亮类名为 .donut-seg.hl（见 index.html 内联样式），不再定义 -active 变体 */
 
 /* ---- 评分环 ---- */
 .score-ring {

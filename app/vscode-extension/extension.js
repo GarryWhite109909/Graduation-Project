@@ -159,10 +159,6 @@ function isSupportedDoc(doc) {
 // 单文件分析
 // ---------------------------------------------------------------------------
 async function analyzeDocument(doc, context) {
-  const config = vscode.workspace.getConfiguration("vulnScanner");
-  const backendUrl = config.get("backendUrl", "http://localhost:8765");
-  const useRag = config.get("useRag", false);
-
   const code = doc.getText();
   const filename = vscode.workspace.asRelativePath(doc.uri);
   const language = LANG_MAP[doc.languageId] || "text";
@@ -519,7 +515,7 @@ function extractTokens(text) {
 
   // 提取常见危险关键字
   const keywords = ["eval", "exec", "system", "popen", "subprocess", "os.system",
-    "pickle", "loads", "innerHTML", "document.write", "innerHTML",
+    "pickle", "loads", "innerHTML", "document.write",
     "shell=True", "request.get", "request.post", "requests.get",
     "cursor.execute", "execute", "query", "render", "redirect",
     "open(", "yaml.load", "marshal", "base64", "md5", "sha1"];

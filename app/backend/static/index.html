@@ -7,7 +7,6 @@
     <title>Nivis · 仪表盘</title>
     <link rel="stylesheet" href="./design-tokens.css">
     <script src="./lib/tailwind.global.js"></script>
-    <script src="./lib/lucide.min.js"></script>
     <style type="text/tailwindcss">
   @theme inline {
     --color-background: var(--vuln-background);
@@ -95,14 +94,19 @@
         .card-primary:hover, .card-secondary:hover, .card-tertiary:hover { transform: none; }
       }
 
-      /* === Bento 布局 === */
-      .bento-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; align-items: start; }
-      .bento-main { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-      .bento-side { position: sticky; top: 88px; }
+      /* === Bento 布局 — 12 栅格错落版，变比 + 翻转避免整齐单调 === */
+      .bento-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 20px; align-items: stretch; }
+      .bento-grid > .col-7 { grid-column: span 7; }
+      .bento-grid > .col-5 { grid-column: span 5; }
+      .bento-grid > .col-8 { grid-column: span 8; }
+      .bento-grid > .col-4 { grid-column: span 4; }
+      .bento-grid > .is-flex-col { display: flex; flex-direction: column; }
       @media (max-width: 1024px) {
         .bento-grid { grid-template-columns: 1fr; }
-        .bento-main { grid-template-columns: 1fr; }
-        .bento-side { position: static; }
+        .bento-grid > .col-7,
+        .bento-grid > .col-5,
+        .bento-grid > .col-8,
+        .bento-grid > .col-4 { grid-column: span 1; }
       }
 
       /* nav-item / logo / 品牌名 / 导航按钮样式统一在 lively.css */
@@ -132,12 +136,7 @@
       .legend-item.hl { transition-delay: 0ms; opacity: 1; transform: translateX(4px); color: var(--vuln-ink); font-weight: 600; }
 
       /* === 快捷入口 === */
-      .icon-box {
-        width: 40px; height: 40px; border-radius: var(--vuln-radius-md);
-        display: inline-flex; align-items: center; justify-content: center;
-        background: color-mix(in srgb, var(--vuln-brand) 10%, transparent);
-        color: var(--vuln-brand); flex-shrink: 0;
-      }
+      /* .icon-box 统一由 lively.css 管理，此处不再覆盖 */
       .quick-entry {
         display: flex; align-items: center; gap: 12px; padding: 10px;
         border-radius: var(--vuln-radius-md); border: 1px solid transparent;
@@ -204,10 +203,10 @@
             <span class="kpi-icon" style="--kc: var(--vuln-state-info)">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/></svg>
             </span>
-            <span class="text-xs font-medium text-muted-foreground">近期扫描</span>
+            <span class="text-xs font-medium text-muted-foreground">累计分析文件</span>
           </div>
           <div class="text-5xl font-bold tracking-tight num-tabular" style="color: var(--vuln-ink); line-height:1.1" id="kpi-scans">—</div>
-          <p class="text-xs text-muted-foreground mt-2" id="kpi-scans-sub">次扫描</p>
+          <p class="text-xs text-muted-foreground mt-2" id="kpi-scans-sub">个文件</p>
         </div>
 
         <div class="card-primary p-6 animate-in" style="animation-delay:60ms">
@@ -254,93 +253,125 @@
         <span class="font-medium">后端服务未连接，显示为静态数据</span>
       </div>
 
-      <!-- Bento 主区 -->
+      <!-- Bento 主区 — 12 栅格错落版：8/4 → 7/5 → 5/7 翻转，趋势图不变 -->
       <div class="bento-grid">
-        <div class="bento-main">
-          <!-- 风险分布 donut -->
-          <div id="chart-donut-card" class="card-primary p-6 animate-in" style="animation-delay:240ms">
-            <div class="flex items-center justify-between mb-5">
-              <h3 class="text-sm font-semibold" style="color: var(--vuln-ink)">风险分布</h3>
-              <span class="text-xs text-muted-foreground" id="donut-total-label">共 0 项</span>
-            </div>
-            <div class="flex flex-col sm:flex-row items-center gap-6">
-              <div class="relative flex-shrink-0" style="width:160px;height:160px">
-                <svg id="chart-donut" viewBox="0 0 120 120" width="160" height="160" role="img" aria-label="风险分布环形图">
-                  <circle cx="60" cy="60" r="50" fill="none" stroke="var(--vuln-surface-2)" stroke-width="12"/>
-                  <text id="donut-center-num" x="60" y="58" text-anchor="middle" fill="var(--vuln-ink)" font-size="20" font-weight="700">—</text>
-                  <text id="donut-center-label" x="60" y="74" text-anchor="middle" fill="var(--vuln-ink-2)" font-size="11">风险</text>
-                </svg>
-              </div>
-              <ul id="donut-legend" class="flex-1 w-full text-sm" style="color: var(--vuln-ink)">
-                <li class="legend-item" style="color: var(--vuln-ink-3)"><span class="dot" style="background: var(--vuln-surface-2)"></span><span class="flex-1">暂无数据</span></li>
-              </ul>
-            </div>
+        <!-- 扫描活动趋势折线图（图表卡片，保持不变 · 第一行左侧） -->
+        <div id="chart-trend-card" class="card-primary p-6 animate-in col-8" style="animation-delay:240ms">
+          <div class="flex items-center justify-between mb-5">
+            <h3 class="text-sm font-semibold" style="color: var(--vuln-ink)">扫描活动趋势</h3>
+            <span class="text-xs text-muted-foreground">近 7 次扫描</span>
           </div>
+          <div style="width:100%">
+            <svg id="chart-trend" viewBox="0 0 640 256" style="width:100%;height:auto;display:block" role="img" aria-label="扫描趋势折线图">
+              <line x1="40" y1="216" x2="620" y2="216" stroke="var(--vuln-line)"/>
+              <text x="320" y="125" text-anchor="middle" fill="var(--vuln-ink-3)" font-size="13">暂无历史数据，完成首次扫描后将显示趋势</text>
+            </svg>
+          </div>
+        </div>
 
-          <!-- 扫描趋势折线图 -->
-          <div id="chart-trend-card" class="card-primary p-6 animate-in" style="animation-delay:300ms">
-            <div class="flex items-center justify-between mb-5">
-              <h3 class="text-sm font-semibold" style="color: var(--vuln-ink)">扫描活动趋势</h3>
-              <span class="text-xs text-muted-foreground">近 7 次扫描</span>
-            </div>
-            <div style="width:100%">
-              <svg id="chart-trend" viewBox="0 0 320 140" style="width:100%;height:auto;display:block" role="img" aria-label="扫描趋势折线图">
-                <line x1="30" y1="115" x2="310" y2="115" stroke="var(--vuln-line)"/>
-                <text x="160" y="75" text-anchor="middle" fill="var(--vuln-ink-3)" font-size="12">暂无历史数据，完成首次扫描后将显示趋势</text>
+        <!-- 安全评分（复用全站统一 calcSecurityScore 扣分制 · 第一行右侧） -->
+        <div id="security-score-card" class="card-primary p-6 animate-in col-4 is-flex-col" style="animation-delay:280ms">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-semibold" style="color: var(--vuln-ink)">安全评分</h3>
+            <span class="text-xs font-medium" id="score-grade" style="color: var(--vuln-ink-3)">—</span>
+          </div>
+          <div class="flex flex-col items-center justify-center gap-3 flex-1">
+            <div class="relative" style="width:140px;height:140px">
+              <svg id="score-gauge" viewBox="0 0 120 120" width="140" height="140" role="img" aria-label="安全评分仪表">
+                <circle cx="60" cy="60" r="50" fill="none" stroke="var(--vuln-surface-2)" stroke-width="12"/>
+                <circle id="score-arc" cx="60" cy="60" r="50" fill="none" stroke="var(--vuln-brand)" stroke-width="12" stroke-linecap="round" stroke-dasharray="0 314.16" transform="rotate(-90 60 60)" style="transition: stroke-dasharray 700ms var(--lv-smooth, ease), stroke 300ms ease;"/>
+                <text id="score-num" x="60" y="58" text-anchor="middle" fill="var(--vuln-ink-3)" font-size="26" font-weight="700">—</text>
+                <text id="score-label" x="60" y="76" text-anchor="middle" fill="var(--vuln-ink-3)" font-size="11">分</text>
               </svg>
             </div>
+            <p class="text-xs text-center" id="score-hint" style="color: var(--vuln-ink-2)">完成扫描后生成评分</p>
           </div>
+          <div class="grid grid-cols-2 gap-x-4 gap-y-1.5 mt-4 pt-4 text-xs" style="color:var(--vuln-ink-2); border-top: 1px solid var(--vuln-line-2)">
+            <div class="flex items-center justify-between"><span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full" style="background:var(--vuln-state-error)"></span>高危</span><span class="num-tabular" id="score-c-high" style="color:var(--vuln-ink)">0</span></div>
+            <div class="flex items-center justify-between"><span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full" style="background:var(--vuln-state-warning)"></span>中危</span><span class="num-tabular" id="score-c-med" style="color:var(--vuln-ink)">0</span></div>
+            <div class="flex items-center justify-between"><span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full" style="background:var(--vuln-state-success)"></span>低危</span><span class="num-tabular" id="score-c-low" style="color:var(--vuln-ink)">0</span></div>
+            <div class="flex items-center justify-between"><span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full" style="background:var(--vuln-state-info)"></span>信息</span><span class="num-tabular" id="score-c-info" style="color:var(--vuln-ink)">0</span></div>
+          </div>
+        </div>
 
-          <!-- 最近动态列表 -->
-          <div id="recent-list-card" class="card-secondary p-6 animate-in" style="animation-delay:360ms; grid-column: span 2;">
-            <div class="flex items-center justify-between mb-4">
-              <h3 class="text-sm font-semibold" style="color: var(--vuln-ink)">最近动态</h3>
-              <a href="./scan.html" class="text-xs text-muted-foreground hover:text-foreground transition-colors">查看全部</a>
+        <!-- 风险分布 donut（图表卡片，保持不变 · 第二行左侧） -->
+        <div id="chart-donut-card" class="card-primary p-6 animate-in col-7" style="animation-delay:320ms">
+          <div class="flex items-center justify-between mb-5">
+            <h3 class="text-sm font-semibold" style="color: var(--vuln-ink)">风险分布</h3>
+            <span class="text-xs text-muted-foreground" id="donut-total-label">共 0 项</span>
+          </div>
+          <div class="flex flex-col sm:flex-row items-center gap-6">
+            <div class="relative flex-shrink-0" style="width:160px;height:160px">
+              <svg id="chart-donut" viewBox="0 0 120 120" width="160" height="160" role="img" aria-label="风险分布环形图">
+                <circle cx="60" cy="60" r="50" fill="none" stroke="var(--vuln-surface-2)" stroke-width="12"/>
+                <text id="donut-center-num" x="60" y="58" text-anchor="middle" fill="var(--vuln-ink)" font-size="20" font-weight="700">—</text>
+                <text id="donut-center-label" x="60" y="74" text-anchor="middle" fill="var(--vuln-ink-2)" font-size="11">风险</text>
+              </svg>
             </div>
-            <ul id="recent-list" class="space-y-3">
-              <li class="text-sm text-muted-foreground text-center py-8">暂无最近动态，完成首次扫描后将显示</li>
+            <ul id="donut-legend" class="flex-1 w-full text-sm" style="color: var(--vuln-ink)">
+              <li class="legend-item" style="color: var(--vuln-ink-3)"><span class="dot" style="background: var(--vuln-surface-2)"></span><span class="flex-1">暂无数据</span></li>
             </ul>
           </div>
         </div>
 
-        <!-- 侧栏：快捷入口 -->
-        <aside class="bento-side">
-          <div id="quick-entries" class="card-tertiary p-6 animate-in" style="animation-delay:420ms">
-            <h3 class="text-sm font-semibold mb-4" style="color: var(--vuln-ink)">快捷入口</h3>
-            <div class="space-y-2">
-              <a href="./scan.html" class="quick-entry">
-                <span class="icon-box">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 18 6-6-6-6"/><path d="M8 6l-6 6 6 6"/></svg>
-                </span>
-                <div class="flex-1 min-w-0">
-                  <div class="text-sm font-medium" style="color: var(--vuln-ink)">粘贴代码分析</div>
-                  <div class="text-xs text-muted-foreground">即时检测代码片段</div>
-                </div>
-                <span class="arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span>
-              </a>
-              <a href="./scan.html" class="quick-entry">
-                <span class="icon-box">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
-                </span>
-                <div class="flex-1 min-w-0">
-                  <div class="text-sm font-medium" style="color: var(--vuln-ink)">上传文件扫描</div>
-                  <div class="text-xs text-muted-foreground">批量上传项目文件</div>
-                </div>
-                <span class="arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span>
-              </a>
-              <a href="./posture.html" class="quick-entry">
-                <span class="icon-box">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.5-.5-5.5-.5-8 1.5-1.96-.5-3-.5-3-.5-.28 1.15-.28 2.35 0 3.5A5.4 5.4 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-7-1-7.5-3"/></svg>
-                </span>
-                <div class="flex-1 min-w-0">
-                  <div class="text-sm font-medium" style="color: var(--vuln-ink)">仓库安全态势</div>
-                  <div class="text-xs text-muted-foreground">接入仓库持续监控</div>
-                </div>
-                <span class="arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span>
-              </a>
-            </div>
+        <!-- 快捷入口（第二行右侧） -->
+        <div id="quick-entries" class="card-tertiary p-6 animate-in col-5 is-flex-col" style="animation-delay:360ms">
+          <h3 class="text-sm font-semibold mb-4" style="color: var(--vuln-ink)">快捷入口</h3>
+          <div class="space-y-2 flex-1 flex flex-col justify-center">
+            <a href="./scan.html" class="quick-entry">
+              <span class="icon-box">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 18 6-6-6-6"/><path d="M8 6l-6 6 6 6"/></svg>
+              </span>
+              <div class="flex-1 min-w-0">
+                <div class="text-sm font-medium" style="color: var(--vuln-ink)">粘贴代码分析</div>
+                <div class="text-xs text-muted-foreground">即时检测代码片段</div>
+              </div>
+              <span class="arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span>
+            </a>
+            <a href="./scan.html?tab=upload" class="quick-entry">
+              <span class="icon-box">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
+              </span>
+              <div class="flex-1 min-w-0">
+                <div class="text-sm font-medium" style="color: var(--vuln-ink)">上传文件扫描</div>
+                <div class="text-xs text-muted-foreground">批量上传项目文件</div>
+              </div>
+              <span class="arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span>
+            </a>
+            <a href="./posture.html" class="quick-entry">
+              <span class="icon-box">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.5-.5-5.5-.5-8 1.5-1.96-.5-3-.5-3-.5-.28 1.15-.28 2.35 0 3.5A5.4 5.4 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-7-1-7.5-3"/></svg>
+              </span>
+              <div class="flex-1 min-w-0">
+                <div class="text-sm font-medium" style="color: var(--vuln-ink)">仓库安全态势</div>
+                <div class="text-xs text-muted-foreground">接入仓库持续监控</div>
+              </div>
+              <span class="arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span>
+            </a>
           </div>
-        </aside>
+        </div>
+
+        <!-- 漏洞类型 Top 5（横向条形 · 第三行左侧，翻转产生错落） -->
+        <div id="top-types-card" class="card-secondary p-6 animate-in col-5 is-flex-col" style="animation-delay:400ms">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-semibold" style="color: var(--vuln-ink)">漏洞类型 Top 5</h3>
+            <span class="text-xs text-muted-foreground" id="top-types-total">共 0 类</span>
+          </div>
+          <ul id="top-types-list" class="flex-1 flex flex-col justify-center gap-3">
+            <li class="text-sm text-muted-foreground text-center py-8">暂无数据</li>
+          </ul>
+        </div>
+
+        <!-- 最近动态列表（第三行右侧） -->
+        <div id="recent-list-card" class="card-secondary p-6 animate-in col-7 is-flex-col" style="animation-delay:440ms">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-semibold" style="color: var(--vuln-ink)">最近动态</h3>
+            <a href="./scan.html" class="text-xs text-muted-foreground hover:text-foreground transition-colors">查看全部</a>
+          </div>
+          <ul id="recent-list" class="space-y-3 flex-1 flex flex-col justify-center">
+            <li class="text-sm text-muted-foreground text-center py-8">暂无最近动态，完成首次扫描后将显示</li>
+          </ul>
+        </div>
       </div>
     </div>
 
@@ -354,7 +385,6 @@
       </div>
     </footer>
 
-    <script>lucide.createIcons();</script>
     <script src="./nivis-common.js"></script>
     <script>
 (function () {
@@ -381,10 +411,15 @@
       var tf = entry.total_files != null ? entry.total_files : (entry.total || 0);
       var vuln = entry.vulnerable != null ? entry.vulnerable : 0;
       var safe = entry.safe != null ? entry.safe : 0;
+      var errors = entry.errors != null ? entry.errors : 0;
       if (!tf && Array.isArray(entry.results)) {
         tf = entry.results.length;
         vuln = entry.results.filter(function(r){return r&&r.has_vulnerability===true;}).length;
-        safe = tf - vuln;
+        safe = Math.max(0, tf - vuln - errors);
+      } else if (entry.errors != null && entry.safe != null) {
+        safe = entry.safe;              // 新版：每轮单独记账，safe 已剔除 error
+      } else if (entry.errors != null) {
+        safe = Math.max(0, safe - errors); // 过渡期条目修正
       }
       totalFiles += tf; totalVuln += vuln; totalSafe += safe;
       if (Array.isArray(entry.results)) {
@@ -396,7 +431,7 @@
       }
     });
     findings.sort(function(a,b){return new Date(b.timestamp||0).getTime()-new Date(a.timestamp||0).getTime();});
-    return { total_files: totalFiles, total_vulnerable: totalVuln, total_safe: totalSafe, recent_findings: findings.slice(0,10) };
+    return { total_files: totalFiles, total_vulnerable: totalVuln, total_safe: totalSafe, recent_findings: findings.slice(0,10), all_findings: findings };
   }
 
   function updateKpis(data) {
@@ -404,7 +439,7 @@
     var totalVuln = data.total_vulnerable || 0;
     var totalSafe = data.total_safe || 0;
     setText('kpi-scans', formatNumber(totalFiles));
-    setText('kpi-scans-sub', '次扫描');
+    setText('kpi-scans-sub', '个文件');
     setText('kpi-vuln', formatNumber(totalVuln));
     setText('kpi-vuln-sub', totalVuln > 0 ? '待修复' : '暂无漏洞');
     var denom = totalSafe + totalVuln;
@@ -468,11 +503,11 @@
         li += '<li class="legend-item" data-seg="'+k+'"><span class="dot" style="background:'+s.color+'"></span><span class="flex-1">'+s.label+'</span><span class="count" style="color:var(--vuln-ink-2)">'+s.value+'</span></li>';
       }
       legend.innerHTML = li;
-      wireDonutLegend();
+      wireDonutLegend(segments, total);
     }
   }
 
-  function wireDonutLegend() {
+  function wireDonutLegend(segments, total) {
     var svg = document.getElementById('chart-donut');
     var legend = document.getElementById('donut-legend');
     if (!svg||!legend) return;
@@ -486,9 +521,9 @@
       segs.forEach(function(s){ if(s.getAttribute('data-seg')===i){ if(on)s.classList.add('hl');else s.classList.remove('hl'); } });
       legs.forEach(function(l){ if(l.getAttribute('data-seg')===i){ if(on)l.classList.add('hl');else l.classList.remove('hl'); } });
       if (on && centerNum && centerLabel) {
-        var seg = segmentsByIndex(i);
+        var seg = segments[i];
         if (seg) {
-          var pct = total_ > 0 ? Math.round(seg.value/total_*100) : 0;
+          var pct = total > 0 ? Math.round(seg.value/total*100) : 0;
           centerNum.textContent = pct+'%';
           centerLabel.textContent = seg.label+' '+seg.value;
         }
@@ -497,12 +532,8 @@
         centerLabel.textContent = resetLabel;
       }
     }
-    var total_ = 0, segmentsByIndex_ = {};
-    function segmentsByIndex(i){ return segmentsByIndex_[i]; }
     segs.forEach(function(s){
       var i = s.getAttribute('data-seg');
-      var val = parseInt(s.getAttribute('stroke-dasharray'));
-      segmentsByIndex_[i] = { value: 0, label: '' };
       s.addEventListener('mouseenter', function(){ setHl(i, true); });
       s.addEventListener('mouseleave', function(){ setHl(i, false); });
     });
@@ -519,38 +550,53 @@
     if (!svg) return;
     var hist = getHistory();
     if (!hist.length) {
-      svg.innerHTML = '<line x1="30" y1="115" x2="310" y2="115" stroke="var(--vuln-line)"/><text x="160" y="75" text-anchor="middle" fill="var(--vuln-ink-3)" font-size="12">暂无历史数据，完成首次扫描后将显示趋势</text>';
+      svg.innerHTML = '<line x1="40" y1="216" x2="620" y2="216" stroke="var(--vuln-line)"/><text x="320" y="125" text-anchor="middle" fill="var(--vuln-ink-3)" font-size="13">暂无历史数据，完成首次扫描后将显示趋势</text>';
       return;
     }
     var data = hist.slice(-MAX_HISTORY);
-    var left=30, right=310, top=10, bottom=115;
+    var left=40, right=620, top=30, bottom=216;
     var w = right-left, maxTotal=1;
     for (var i=0;i<data.length;i++) if ((data[i].total||0)>maxTotal) maxTotal = data[i].total||0;
     var stepX = data.length>1 ? w/(data.length-1) : 0;
     var pts=[], circles='', dateLabels='';
+    var hoverPts = [];
     for (var p=0;p<data.length;p++) {
       var x = data.length>1 ? left+p*stepX : (left+right)/2;
       var y = bottom-((data[p].total||0)/maxTotal)*(bottom-top);
       pts.push(x.toFixed(1)+','+y.toFixed(1));
-      circles += '<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="2.5" fill="var(--vuln-brand)"/>';
+      circles += '<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="5" fill="var(--vuln-brand)"/>';
+      hoverPts.push({ x: x, y: y, data: data[p] });
       var dd = new Date(data[p].date);
       if (!isNaN(dd.getTime())) {
         var mm = String(dd.getMonth()+1).padStart(2,'0'), dy = String(dd.getDate()).padStart(2,'0');
-        dateLabels += '<text x="'+x.toFixed(1)+'" y="130" text-anchor="middle" fill="var(--vuln-ink-3)" font-size="9">'+mm+'-'+dy+'</text>';
+        dateLabels += '<text x="'+x.toFixed(1)+'" y="241" text-anchor="middle" fill="var(--vuln-ink-3)" font-size="11">'+mm+'-'+dy+'</text>';
       }
     }
     var inner = '<defs><linearGradient id="trendGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--vuln-brand)" stop-opacity="0.35"/><stop offset="100%" stop-color="var(--vuln-brand)" stop-opacity="0"/></linearGradient></defs>';
-    inner += '<line x1="30" y1="10" x2="310" y2="10" stroke="var(--vuln-line)" stroke-dasharray="2 4"/>';
-    inner += '<line x1="30" y1="115" x2="310" y2="115" stroke="var(--vuln-line)"/>';
-    inner += '<text x="4" y="13" font-size="9" fill="var(--vuln-ink-3)">'+maxTotal+'</text>';
-    inner += '<text x="4" y="118" font-size="9" fill="var(--vuln-ink-3)">0</text>';
+    // Y 轴刻度线
+    inner += '<line x1="40" y1="30" x2="620" y2="30" stroke="var(--vuln-line)" stroke-dasharray="2 4" opacity="0.5"/>';
+    inner += '<line x1="40" y1="123" x2="620" y2="123" stroke="var(--vuln-line)" stroke-dasharray="2 4" opacity="0.5"/>';
+    inner += '<line x1="40" y1="216" x2="620" y2="216" stroke="var(--vuln-line)"/>';
+    inner += '<text x="32" y="34" text-anchor="end" font-size="11" fill="var(--vuln-ink-3)">'+maxTotal+'</text>';
+    inner += '<text x="32" y="220" text-anchor="end" font-size="11" fill="var(--vuln-ink-3)">0</text>';
     if (pts.length>=2) {
       var lastX = data.length>1 ? left+(data.length-1)*stepX : (left+right)/2;
-      inner += '<path d="M'+pts[0]+' L'+pts.slice(1).join(' L')+' L'+lastX.toFixed(1)+',115 L30,115 Z" fill="url(#trendGrad)"/>';
-      inner += '<polyline points="'+pts.join(' ')+'" fill="none" stroke="var(--vuln-brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
+      inner += '<path d="M'+pts[0]+' L'+pts.slice(1).join(' L')+' L'+lastX.toFixed(1)+',216 L40,216 Z" fill="url(#trendGrad)"/>';
+      inner += '<polyline points="'+pts.join(' ')+'" fill="none" stroke="var(--vuln-brand)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>';
     }
     inner += circles + dateLabels;
     svg.innerHTML = inner;
+    // 接入鼠标交互
+    window.NivisUtil.attachTrendHover({
+      svg: svg,
+      points: hoverPts,
+      left: left, right: right, top: top, bottom: bottom,
+      formatTip: function (d) {
+        var dd = new Date(d.date);
+        var ds = isNaN(dd.getTime()) ? '?' : (dd.getMonth()+1)+'/'+dd.getDate();
+        return ds + ' · ' + (d.total || 0) + ' 文件';
+      }
+    });
   }
 
   /* Recent list */
@@ -580,16 +626,97 @@
     ul.innerHTML = items;
   }
 
-  /* Status */
-  function updateStatus(health) {
-    var el = document.getElementById('health-indicator');
-    if (!el) return;
-    var ok = !!(health && health.ollama_connected);
-    var level = ok ? 'ok' : 'err';
-    var label = ok ? '后端已连接' : '后端未连接';
-    if (ok && health.model) label += ' · ' + health.model;
-    el.innerHTML = '<span class="health-dot is-'+level+'"></span><span class="health-text">'+escapeHtml(label)+'</span>';
+  /* Security Score — 复用全站统一 calcSecurityScore（扣分制，0-100） */
+  function scoreCounts(findings) {
+    var counts = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
+    if (Array.isArray(findings)) {
+      for (var i = 0; i < findings.length; i++) {
+        var lvl = normalizeRisk(findings[i].risk_level);
+        if (lvl === 'critical') counts.critical++;
+        else if (lvl === 'high') counts.high++;
+        else if (lvl === 'medium') counts.medium++;
+        else if (lvl === 'low') counts.low++;
+        else counts.info++;
+      }
+    }
+    return counts;
   }
+  function updateSecurityScore(findings) {
+    var numEl = document.getElementById('score-num');
+    var labelEl = document.getElementById('score-label');
+    var arcEl = document.getElementById('score-arc');
+    var gradeEl = document.getElementById('score-grade');
+    var hintEl = document.getElementById('score-hint');
+    var hasData = Array.isArray(findings) && findings.length > 0;
+    function setBreakdown(c) {
+      setText('score-c-high', c.high + c.critical);
+      setText('score-c-med', c.medium);
+      setText('score-c-low', c.low);
+      setText('score-c-info', c.info);
+    }
+    if (!hasData) {
+      if (numEl) { numEl.textContent = '—'; numEl.setAttribute('fill', 'var(--vuln-ink-3)'); }
+      if (labelEl) labelEl.textContent = '分';
+      if (gradeEl) { gradeEl.textContent = '—'; gradeEl.style.color = 'var(--vuln-ink-3)'; }
+      if (hintEl) hintEl.textContent = '完成扫描后生成评分';
+      if (arcEl) { arcEl.setAttribute('stroke', 'var(--vuln-surface-2)'); arcEl.setAttribute('stroke-dasharray', '0 314.16'); }
+      setBreakdown({ critical:0, high:0, medium:0, low:0, info:0 });
+      return;
+    }
+    var counts = scoreCounts(findings);
+    var score = (window.calcSecurityScore) ? window.calcSecurityScore(counts) : 100;
+    var grade, color, hint;
+    if (score >= 75) { grade = '良好'; color = 'var(--vuln-state-success)'; hint = '安全状况良好，继续保持'; }
+    else if (score >= 50) { grade = '一般'; color = 'var(--vuln-state-warning)'; hint = '存在待修复风险，建议处理'; }
+    else { grade = '风险'; color = 'var(--vuln-state-error)'; hint = '漏洞较多，应尽快修复'; }
+    if (numEl) { numEl.textContent = score; numEl.setAttribute('fill', color); }
+    if (labelEl) labelEl.textContent = '/ 100';
+    if (gradeEl) { gradeEl.textContent = grade; gradeEl.style.color = color; }
+    if (hintEl) hintEl.textContent = hint;
+    if (arcEl) {
+      var C = 2 * Math.PI * 50;
+      var len = (score / 100) * C;
+      arcEl.setAttribute('stroke', color);
+      arcEl.setAttribute('stroke-dasharray', len.toFixed(2) + ' ' + (C - len).toFixed(2));
+    }
+    setBreakdown(counts);
+  }
+
+  /* Top vulnerability types — 横向条形 */
+  function updateTopTypes(findings) {
+    var ul = document.getElementById('top-types-list');
+    var totalEl = document.getElementById('top-types-total');
+    if (!ul) return;
+    if (!Array.isArray(findings) || !findings.length) {
+      ul.innerHTML = '<li class="text-sm text-muted-foreground text-center py-8">暂无数据</li>';
+      if (totalEl) totalEl.textContent = '共 0 类';
+      return;
+    }
+    var counts = {};
+    for (var i = 0; i < findings.length; i++) {
+      var t = findings[i].vulnerability_type || '未知类型';
+      counts[t] = (counts[t] || 0) + 1;
+    }
+    var arr = [];
+    for (var k in counts) if (Object.prototype.hasOwnProperty.call(counts, k)) arr.push({ name: k, count: counts[k] });
+    arr.sort(function (a, b) { return b.count - a.count; });
+    var top = arr.slice(0, 5);
+    var max = top.length ? top[0].count : 1;
+    if (totalEl) totalEl.textContent = '共 ' + arr.length + ' 类';
+    var palette = ['var(--vuln-brand)', 'var(--vuln-brand-400)', 'var(--vuln-brand-teal)', 'var(--vuln-state-info)', 'var(--vuln-ink-3)'];
+    var items = '';
+    for (var j = 0; j < top.length; j++) {
+      var pct = Math.max(8, Math.round((top[j].count / max) * 100));
+      var col = palette[j % palette.length];
+      items += '<li class="flex items-center gap-3">'
+        + '<span class="text-xs font-mono truncate flex-shrink-0" style="color:var(--vuln-ink-2);width:110px" title="' + escapeHtml(top[j].name) + '">' + escapeHtml(top[j].name) + '</span>'
+        + '<div class="flex-1 h-1.5 rounded-full overflow-hidden" style="background:var(--vuln-surface-2)"><div class="h-full rounded-full" style="width:' + pct + '%;background:' + col + '"></div></div>'
+        + '<span class="text-xs num-tabular flex-shrink-0" style="color:var(--vuln-ink);min-width:18px;text-align:right">' + top[j].count + '</span>'
+        + '</li>';
+    }
+    ul.innerHTML = items;
+  }
+
   function showError() { var b = document.getElementById('api-warning'); if (b) b.classList.remove('hidden'); }
 
   function updateFooterTime() {
@@ -603,14 +730,19 @@
     updateTrend();
     updateFooterTime();
     var histStats = computeStatsFromHistory();
-    if (histStats.total_files>0 || histStats.recent_findings.length>0) {
+    if (histStats.total_files>0 || histStats.all_findings.length>0) {
       updateKpis(histStats);
-      updateDonut(histStats.recent_findings);
+      var allF = histStats.all_findings || [];
+      updateDonut(allF);
       updateRecent(histStats.recent_findings);
+      updateSecurityScore(allF);
+      updateTopTypes(allF);
     } else {
       updateKpis({total_files:0,total_vulnerable:0,total_safe:0,recent_findings:[]});
       updateDonut([]);
       updateRecent([]);
+      updateSecurityScore([]);
+      updateTopTypes([]);
     }
 
     var statsAbort = new AbortController();
@@ -625,6 +757,8 @@
           updateKpis(data);
           updateDonut(data.recent_findings||[]);
           updateRecent(data.recent_findings||[]);
+          updateSecurityScore(data.recent_findings||[]);
+          updateTopTypes(data.recent_findings||[]);
         }
       })
       .catch(function(err){ if (err && err.name === 'AbortError') return; showError(); });
@@ -678,7 +812,6 @@
   } else { init(); }
 })();
     </script>
-    <script src="./lively.js" defer></script>
     <script src="./theme.js" defer></script>
 </body>
 </html>

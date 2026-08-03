@@ -1,5 +1,6 @@
 package com.graduation.vulnscanner;
 
+import com.intellij.ide.util.PropertiesComponent;
 import com.intellij.notification.NotificationGroupManager;
 import com.intellij.notification.NotificationType;
 import com.intellij.openapi.actionSystem.AnAction;
@@ -12,6 +13,7 @@ import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.vfs.VirtualFile;
 import org.jetbrains.annotations.NotNull;
 
@@ -38,10 +40,17 @@ import java.util.concurrent.TimeUnit;
  */
 public class VulnScannerAction extends AnAction {
 
-    /** 后端 API 地址 */
-    private static final String BACKEND_URL = "http://localhost:8765/api/analyze";
+    /** 后端 API 默认地址（用户可在弹窗中修改，持久化到 IDE Properties） */
+    private static final String DEFAULT_BACKEND_URL = "http://localhost:8765/api/analyze";
+    private static final String BACKEND_URL_KEY = "vulnScanner.backendUrl";
     /** HTTP 请求超时（毫秒） */
     private static final int TIMEOUT_MS = (int) TimeUnit.MINUTES.toMillis(5);
+
+    /** 读取用户配置的后端地址，未配置时返回默认值。 */
+    private static String getBackendUrl() {
+        String saved = PropertiesComponent.getInstance().getValue(BACKEND_URL_KEY);
+        return (saved != null && !saved.trim().isEmpty()) ? saved.trim() : DEFAULT_BACKEND_URL;
+    }
 
     @Override
     public void actionPerformed(@NotNull AnActionEvent e) {
@@ -51,6 +60,20 @@ public class VulnScannerAction extends AnAction {
 
         if (project == null || editor == null) {
             showNotification(project, "请先在编辑器中打开一个文件", NotificationType.WARNING);
+            return;
+        }
+
+        // Shift+点击动作时，弹出后端地址配置框
+        java.awt.event.InputEvent inputEvent = e.getInputEvent();
+        if (inputEvent != null && inputEvent.isShiftDown()) {
+            String current = getBackendUrl();
+            String updated = Messages.showInputDialog(project,
+                    "后端扫描服务地址：", "配置 Nivis 后端",
+                    Messages.getQuestionIcon(), current, null);
+            if (updated != null) {
+                PropertiesComponent.getInstance().setValue(BACKEND_URL_KEY, updated.trim());
+                showNotification(project, "已更新后端地址：" + updated.trim(), NotificationType.INFORMATION);
+            }
             return;
         }
 
@@ -74,6 +97,7 @@ public class VulnScannerAction extends AnAction {
         String filename = (file != null) ? file.getName() : "pasted_code";
 
         // 在后台线程发起 HTTP 请求，避免阻塞 EDT
+        final String backendUrl = getBackendUrl();
         final String requestBody = buildRequestBody(code, language, filename);
         ProgressManager.getInstance().run(new Task.Backgroundable(project, "AI 漏洞扫描中...", true) {
             @Override
@@ -81,12 +105,12 @@ public class VulnScannerAction extends AnAction {
                 indicator.setIndeterminate(true);
                 indicator.setText("正在调用后端分析接口...");
                 try {
-                    String response = postJson(BACKEND_URL, requestBody);
+                    String response = postJson(backendUrl, requestBody);
                     String summary = parseResult(response);
                     showNotification(project, summary, NotificationType.INFORMATION);
                 } catch (IOException ex) {
-                    showNotification(project, "扫描失败：无法连接后端 (" + BACKEND_URL + ")。" +
-                            "请确保后端服务已启动。\n详情：" + ex.getMessage(),
+                    showNotification(project, "扫描失败：无法连接后端 (" + backendUrl + ")。" +
+                            "请确保后端服务已启动（Shift+点击本动作可修改后端地址）。\n详情：" + ex.getMessage(),
                             NotificationType.ERROR);
                 }
             }

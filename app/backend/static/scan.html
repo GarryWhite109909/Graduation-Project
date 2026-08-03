@@ -7,7 +7,6 @@
     <title>Nivis · 扫描工作台</title>
     <link rel="stylesheet" href="./design-tokens.css">
     <script src="./lib/tailwind.global.js"></script>
-    <script src="./lib/lucide.min.js"></script>
     <style type="text/tailwindcss">
   @theme inline {
     --color-background: var(--vuln-background);
@@ -49,9 +48,9 @@
         display: flex;
         align-items: center;
         gap: 8px;
-        animation: toastIn 0.3s var(--ease-smooth) both;
+        animation: toastIn 0.3s var(--lv-smooth) both;
       }
-      .toast.removing { animation: toastOut 0.25s var(--ease-smooth) both; }
+      .toast.removing { animation: toastOut 0.25s var(--lv-smooth) both; }
       .toast.success { border-left: 3px solid var(--vuln-state-success); }
       .toast.error { border-left: 3px solid var(--vuln-state-error); }
       .toast.warning { border-left: 3px solid var(--vuln-state-warning); }
@@ -111,7 +110,7 @@
         overflow: hidden;
         padding: 0 14px;
         margin-top: 0;
-        transition: max-height 0.35s var(--ease-smooth), opacity 0.25s var(--ease-smooth), padding 0.35s var(--ease-smooth), margin-top 0.35s var(--ease-smooth);
+        transition: max-height 0.35s var(--lv-smooth), opacity 0.25s var(--lv-smooth), padding 0.35s var(--lv-smooth), margin-top 0.35s var(--lv-smooth);
       }
       .code-block.expanded {
         max-height: 600px;
@@ -132,7 +131,7 @@
         height: 100%;
         width: 0%;
         background-color: var(--vuln-brand);
-        transition: width 0.4s var(--ease-smooth);
+        transition: width 0.4s var(--lv-smooth);
         position: relative;
         overflow: hidden;
         border-radius: 999px;
@@ -147,7 +146,7 @@
       }
       .progress-bar.indeterminate > span {
         width: 35% !important;
-        animation: indeterminate 1.4s var(--ease-smooth) infinite;
+        animation: indeterminate 1.4s var(--lv-smooth) infinite;
       }
       @keyframes indeterminate {
         0% { transform: translateX(-100%); }
@@ -161,12 +160,12 @@
         background: var(--vuln-brand);
         border-radius: 6px;
         opacity: 0.12;
-        transition: transform var(--dur-normal) var(--ease-spring), width var(--dur-normal) var(--ease-spring);
+        transition: transform 350ms var(--lv-spring), width 350ms var(--lv-spring);
         pointer-events: none;
         z-index: 0;
       }
       .tab-list-wrapper > button { position: relative; z-index: 1; }
-      .tab-panel-enter { animation: fadeUp 0.3s var(--ease-smooth) backwards; }
+      .tab-panel-enter { animation: fadeUp 0.3s var(--lv-smooth) backwards; }
       @media (max-width: 1024px) {
         .scan-layout { flex-direction: column; }
         .control-panel { position: static; width: 100%; flex: none; max-height: none; }
@@ -174,30 +173,22 @@
     </style>
 
     <style id="enhanced-effects">
-      :root {
-        --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-        --ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
-        --dur-fast: 150ms;
-        --dur-normal: 350ms;
-        --dur-slow: 600ms;
-      }
-
-      @keyframes fadeUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
-      @keyframes shimmer { from { transform: translateX(-100%); } to { transform: translateX(200%); } }
-      @keyframes pulseBorder { 0%, 100% { border-color: var(--vuln-line); } 50% { border-color: var(--vuln-brand-300); } }
+      /* :root 变量、@keyframes fadeUp/shimmer/pulseBorder、::-webkit-scrollbar、prefers-reduced-motion
+         均已统一到 lively.css 全局，此处仅保留页面特有样式 */
 
       /* .glass-card / .nav-glass / button / a 统一由 lively.css 管理，此处不再覆盖 */
 
-      .control-panel { animation: fadeUp 0.5s var(--ease-spring) backwards; }
-      .results-header { animation: fadeUp 0.4s var(--ease-spring) 0.05s backwards; }
-      .result-card { animation: fadeUp 0.5s var(--ease-spring) backwards; }
+      .control-panel { animation: fadeUp 0.5s var(--lv-bounce) backwards; }
+      .results-header { animation: fadeUp 0.4s var(--lv-bounce) 0.05s backwards; }
+      .result-card { animation: fadeUp 0.5s var(--lv-bounce) backwards; }
 
       .result-card {
-        transition: transform var(--dur-normal) var(--ease-spring),
-                    box-shadow var(--dur-normal) var(--ease-smooth),
-                    border-color var(--dur-normal) var(--ease-smooth);
+        transition: transform 320ms var(--lv-spring) var(--lv-out-delay),
+                    box-shadow 320ms var(--lv-spring) var(--lv-out-delay),
+                    border-color 250ms var(--lv-smooth) var(--lv-out-delay);
       }
       .result-card:hover {
+        transition-delay: 0ms;
         transform: translateY(-4px) scale(1.005);
         box-shadow: 0 12px 40px rgba(14,17,21,0.10), 0 0 0 1px color-mix(in srgb, var(--vuln-brand) 25%, transparent);
         border-color: color-mix(in srgb, var(--vuln-brand) 30%, transparent);
@@ -223,8 +214,8 @@
 
       .dropzone-animated {
         border: 2px dashed var(--vuln-line);
-        animation: pulseBorder 2.5s var(--ease-smooth) infinite;
-        transition: border-color var(--dur-normal) var(--ease-smooth) var(--lv-out-delay), box-shadow var(--dur-normal) var(--ease-smooth) var(--lv-out-delay), background-color var(--dur-normal) var(--ease-smooth) var(--lv-out-delay);
+        animation: pulseBorder 2.5s var(--lv-smooth) infinite;
+        transition: border-color 350ms var(--lv-smooth) var(--lv-out-delay), box-shadow 350ms var(--lv-smooth) var(--lv-out-delay), background-color 350ms var(--lv-smooth) var(--lv-out-delay);
       }
       .dropzone-animated:hover, .dropzone-animated.dragover {
         transition-delay: 0ms;
@@ -237,23 +228,18 @@
         background-color: color-mix(in srgb, var(--vuln-brand) 4%, transparent);
       }
 
-      ::-webkit-scrollbar { width: 8px; height: 8px; }
-      ::-webkit-scrollbar-track { background: transparent; }
-      ::-webkit-scrollbar-thumb { background: var(--vuln-ink-3); border-radius: 4px; }
-      ::-webkit-scrollbar-thumb:hover { background: var(--vuln-ink-2); }
+      /* ::-webkit-scrollbar 统一由 lively.css 管理 */
 
       /* :focus-visible 统一由 lively.css 管理（Nivis 品牌色） */
 
-      .toggle-row { transition: background-color var(--dur-normal) var(--ease-smooth); }
+      .toggle-row { transition: background-color 350ms var(--lv-smooth); }
       .toggle-row:hover { background-color: var(--vuln-surface-2); }
 
       /* 健康指示灯样式统一在 lively.css 中管理（.health-dot 4 态） */
 
       /* 交互效果统一由 lively.css 管理（nav-btn / chip-glow / glass-card hover 等） */
 
-      @media (prefers-reduced-motion: reduce) {
-        *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
-      }
+      /* prefers-reduced-motion 统一由 lively.css 管理 */
     </style>
 
     <nav class="nav-glass fixed top-0 left-0 right-0 z-50 border-b border-[var(--vuln-line)]" aria-label="主导航">
@@ -448,6 +434,15 @@
           </div>
         </div>
 
+        <!-- 最近一轮扫描提醒：工作台保留所有轮次结果，最近一轮会打标记，可只看本轮/清空本轮 -->
+        <div id="round-banner" class="hidden mb-3 flex items-center justify-between flex-wrap gap-2 rounded-lg border border-[var(--vuln-brand)]/30 bg-[var(--vuln-brand)]/5 px-3 py-2 text-xs">
+          <span id="round-banner-text" class="text-[var(--vuln-ink-2)]"></span>
+          <div class="flex items-center gap-2">
+            <button id="btn-round-toggle" type="button" class="inline-flex items-center gap-1 rounded-full border border-[var(--vuln-brand)]/40 bg-[var(--vuln-surface)] px-2.5 py-1 font-medium text-[var(--vuln-brand)] hover:bg-[var(--vuln-brand)]/10 focus:outline-none focus:ring-2 focus:ring-[var(--vuln-brand)]">只看本轮</button>
+            <button id="btn-round-clear" type="button" class="inline-flex items-center gap-1 rounded-full border border-[var(--vuln-line)] px-2.5 py-1 text-[var(--vuln-ink-3)] hover:text-[var(--vuln-state-error)] hover:border-[var(--vuln-state-error)]/40 focus:outline-none focus:ring-2 focus:ring-[var(--vuln-state-error)]">清空本轮</button>
+          </div>
+        </div>
+
         <div id="results-panel"></div>
         <div id="result-empty" class="hidden text-center py-16 border border-dashed border-[var(--vuln-line)] rounded-lg">
           <svg class="w-10 h-10 mx-auto mb-3 text-[var(--vuln-ink-3)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
@@ -508,11 +503,16 @@
         var healthInfo = null;
         var selectedFiles = [];
         var activeTab = 'paste';
+        /* 扫描轮次：每次点击「开始分析」开启新的一轮。工作台保留所有轮次的结果，
+           最近一轮的结果会打上标记，方便与历史轮次区分。 */
+        var currentRound = null;    // { id, startedAt }
+        var roundOnly = false;      // 是否只显示最近一轮
+        var roundRecorded = false;  // 本轮是否已写入历史/报告（防批量流重复入账）
 
         /* ==================== Constants ==================== */
         var RISK_TO_SEV = { critical: 'high', high: 'high', medium: 'medium', low: 'low', none: 'info', '': 'info' };
         var SEV_LABEL = { high: '高危', medium: '中危', low: '低危', info: '信息' };
-        var SEV_ICON = 'error';
+        var LAST_ROUND_KEY = 'vuln_scan_last_round';
         var LANG_EXT = { python: 'py', javascript: 'js', typescript: 'ts', java: 'java', php: 'php', go: 'go', html: 'html' };
         var EXT_TO_LANG = { '.py': 'python', '.js': 'javascript', '.ts': 'typescript', '.jsx': 'javascript', '.tsx': 'typescript', '.java': 'java', '.php': 'php', '.go': 'go', '.html': 'html', '.htm': 'html', '.vue': 'javascript', '.svelte': 'javascript' };
 
@@ -564,7 +564,12 @@
         }
 
         tabs.forEach(function (tab, i) { tab.addEventListener('click', function () { switchTab(i); }); });
-        window.addEventListener('load', function () { moveIndicator(0); });
+        window.addEventListener('load', function () {
+          // 定位到当前选中的 tab（可能由 URL 参数切换过），而非固定 0
+          var idx = tabs.findIndex(function (t) { return t.getAttribute('aria-selected') === 'true'; });
+          if (idx < 0) idx = 0;
+          moveIndicator(idx);
+        });
         window.addEventListener('resize', function () {
           var idx = tabs.findIndex(function (t) { return t.getAttribute('aria-selected') === 'true'; });
           if (idx >= 0) moveIndicator(idx);
@@ -752,6 +757,75 @@
           analyzeBtn.classList.toggle('cursor-not-allowed', loading);
         }
 
+        /* ==================== 扫描轮次（最近一轮标记） ==================== */
+        function beginRound() {
+          currentRound = {
+            id: 'r' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+            startedAt: new Date()
+          };
+          roundOnly = false;
+          roundRecorded = false;
+          try {
+            localStorage.setItem(LAST_ROUND_KEY, JSON.stringify({
+              id: currentRound.id,
+              startedAt: currentRound.startedAt.toISOString()
+            }));
+          } catch (e) {}
+          updateRoundUI();
+        }
+        function restoreLastRound() {
+          try {
+            var raw = localStorage.getItem(LAST_ROUND_KEY);
+            if (!raw) return;
+            var obj = JSON.parse(raw);
+            if (obj && obj.id) {
+              currentRound = {
+                id: obj.id,
+                startedAt: obj.startedAt ? new Date(obj.startedAt) : new Date()
+              };
+            }
+          } catch (e) {}
+        }
+        function roundResults() {
+          var rid = currentRound ? currentRound.id : null;
+          return scanResults.filter(function (r) { return r && rid && r._roundId === rid; });
+        }
+        function addResult(r) {
+          if (r && currentRound) r._roundId = currentRound.id;
+          scanResults.push(r);
+        }
+        function updateRoundUI() {
+          var banner = document.getElementById('round-banner');
+          if (!banner) return;
+          var list = currentRound ? roundResults() : [];
+          if (!list.length) { banner.classList.add('hidden'); return; }
+          banner.classList.remove('hidden');
+          var t = '';
+          if (currentRound.startedAt) {
+            var d = currentRound.startedAt;
+            var pad = function (n) { return String(n).padStart(2, '0'); };
+            t = pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+          }
+          var text = document.getElementById('round-banner-text');
+          if (text) text.textContent = '最近一轮扫描（' + t + '）共 ' + list.length + ' 条结果，相关卡片已标记「最近一轮」';
+          var btn = document.getElementById('btn-round-toggle');
+          if (btn) btn.textContent = roundOnly ? '显示全部' : '只看本轮';
+        }
+        function clearRoundResults() {
+          if (!currentRound) return;
+          var list = roundResults();
+          if (!list.length) return;
+          if (!confirm('确定清空最近一轮扫描的 ' + list.length + ' 条结果？\n（仅清空工作台显示，仪表盘汇总历史不受影响）')) return;
+          var rid = currentRound.id;
+          scanResults = scanResults.filter(function (r) { return !(r && r._roundId === rid); });
+          currentRound = null;
+          roundOnly = false;
+          try { localStorage.removeItem(LAST_ROUND_KEY); } catch (e) {}
+          try { localStorage.setItem(SCAN_RESULTS_KEY, JSON.stringify(scanResults)); } catch (e) {}
+          renderResults();
+          showToast('已清空最近一轮结果', 'success');
+        }
+
         /* ==================== Analyze dispatcher ==================== */
         analyzeBtn.addEventListener('click', function () {
           if (activeTab === 'paste') analyzePaste();
@@ -771,6 +845,7 @@
           var useMulti = multiModelCb.checked;
           var useExternal = document.getElementById('opt-external').checked;
 
+          beginRound();
           setBtnLoading(true);
           showProgress(true, '正在调用 LLM 分析引擎…');
 
@@ -803,11 +878,11 @@
             settled.forEach(function (s) {
               if (s.status !== 'fulfilled') return;
               var d = s.value;
-              if (d && d.error) { scanResults.push(errorResult(d.error, filename)); return; }
+              if (d && d.error) { addResult(errorResult(d.error, filename)); return; }
               if (d._kind === 'external') {
-                (d.findings || []).forEach(function (f) { scanResults.push(externalToResult(f)); });
+                (d.findings || []).forEach(function (f) { addResult(externalToResult(f)); });
               } else {
-                scanResults.push(d);
+                addResult(d);
               }
             });
             hideProgress('扫描完成，共 ' + scanResults.length + ' 项结果');
@@ -830,6 +905,7 @@
         /* ---------- Upload mode (batch NDJSON stream) ---------- */
         function analyzeUpload() {
           if (!selectedFiles.length) { alert('请先选择文件'); return; }
+          beginRound();
           setBtnLoading(true);
           showProgress(false, '准备批量扫描…');
           setProgress(0);
@@ -844,6 +920,12 @@
             var decoder = new TextDecoder();
             var buffer = '';
             var total = selectedFiles.length;
+            var batchPersisted = false; /* 一次批量扫描只入账一次：done 行与流结束只取其一 */
+            function persistOnce() {
+              if (batchPersisted) return;
+              batchPersisted = true;
+              persistScanResults();
+            }
 
             function processLine(line) {
               if (!line.trim()) return;
@@ -854,7 +936,7 @@
                 setProgress(pct, '已扫描 ' + data.scanned + '/' + data.total + ' …');
                 if (data.result) {
                   data.result._kind = 'ollama';
-                  scanResults.push(data.result);
+                  addResult(data.result);
                   renderResults(true);
                 }
               } else if (data.type === 'done') {
@@ -862,7 +944,7 @@
                 var sum = data.summary || {};
                 hideProgress('批量扫描完成：' + (sum.vulnerable || 0) + ' 漏洞 / ' + (sum.safe || 0) + ' 安全 / ' + (sum.errors || 0) + ' 错误');
                 renderResults();
-                persistScanResults();
+                persistOnce();
               }
             }
 
@@ -872,7 +954,7 @@
                   if (buffer.trim()) processLine(buffer);
                   setBtnLoading(false);
                   if (scanResults.length === 0) { hideProgress('扫描完成'); renderResults(); }
-                  persistScanResults();
+                  persistOnce();
                   return;
                 }
                 buffer += decoder.decode(chunk.value, { stream: true });
@@ -886,7 +968,7 @@
           }).catch(function (err) {
             setBtnLoading(false);
             hideProgress('扫描失败');
-            scanResults.push(errorResult(err.message, 'batch'));
+            addResult(errorResult(err.message, 'batch'));
             renderResults();
             persistScanResults();
           });
@@ -896,19 +978,20 @@
         function analyzeUrl() {
           var url = document.getElementById('url-input').value.trim();
           if (!url) { alert('请输入 URL'); return; }
+          beginRound();
           setBtnLoading(true);
           showProgress(true, '正在抓取站点并分析…');
           postJSON('/api/url-scan', { url: url }, 'batch').then(function (d) {
             setBtnLoading(false);
-            if (d.error) { scanResults.push(errorResult(d.error, url)); }
+            if (d.error) { addResult(errorResult(d.error, url)); }
             else {
               // 后端两种响应形态：有脚本时返回 {summary:{results:[...]}}，
               // 无脚本时返回 {results:[], message:"..."}。此处统一兼容。
               var results = d.results || (d.summary && d.summary.results) || [];
               if (results.length) {
-                results.forEach(function (r) { r._kind = 'ollama'; scanResults.push(r); });
+                results.forEach(function (r) { r._kind = 'ollama'; addResult(r); });
               } else {
-                scanResults.push(safeResult(url, d.message || '未找到可分析脚本'));
+                addResult(safeResult(url, d.message || '未找到可分析脚本'));
               }
             }
             hideProgress('URL 扫描完成');
@@ -917,7 +1000,7 @@
           }).catch(function (err) {
             setBtnLoading(false);
             hideProgress('扫描失败');
-            scanResults.push(errorResult(err.message, url));
+            addResult(errorResult(err.message, url));
             renderResults();
             persistScanResults();
           });
@@ -928,15 +1011,16 @@
           var repo = document.getElementById('github-input').value.trim();
           if (!repo) { alert('请输入 GitHub 仓库地址'); return; }
           var maxFiles = parseInt(document.getElementById('max-files-input').value, 10) || 20;
+          beginRound();
           setBtnLoading(true);
           showProgress(true, '正在克隆仓库并扫描…（可能耗时数分钟）');
           postJSON('/api/github-scan', { repo_url: repo, max_files: maxFiles }, 'batch').then(function (d) {
             setBtnLoading(false);
-            if (d.error) { scanResults.push(errorResult(d.error, repo)); }
+            if (d.error) { addResult(errorResult(d.error, repo)); }
             else if (d.summary && d.summary.results) {
-              d.summary.results.forEach(function (r) { r._kind = 'ollama'; scanResults.push(r); });
+              d.summary.results.forEach(function (r) { r._kind = 'ollama'; addResult(r); });
             } else {
-              scanResults.push(safeResult(repo, d.message || '仓库中未找到支持的代码文件'));
+              addResult(safeResult(repo, d.message || '仓库中未找到支持的代码文件'));
             }
             hideProgress('GitHub 扫描完成');
             renderResults();
@@ -944,7 +1028,7 @@
           }).catch(function (err) {
             setBtnLoading(false);
             hideProgress('扫描失败');
-            scanResults.push(errorResult(err.message, repo));
+            addResult(errorResult(err.message, repo));
             renderResults();
             persistScanResults();
           });
@@ -1048,6 +1132,9 @@
                 var repoInput = document.getElementById('github-input');
                 if (repoInput) repoInput.value = repo;
               }
+              // Chrome/Edge 布局完成时机不同，延迟再校准指示器位置
+              requestAnimationFrame(function () { moveIndicator(tabIdx); });
+              requestAnimationFrame(function () { requestAnimationFrame(function () { moveIndicator(tabIdx); }); });
             }
             return;
           }
@@ -1058,6 +1145,8 @@
             // 切到上传 tab，提示用户上传该文件
             switchTab(1);
             showToast('请上传文件 ' + file + ' 以扫描', 'info');
+            requestAnimationFrame(function () { moveIndicator(1); });
+            requestAnimationFrame(function () { requestAnimationFrame(function () { moveIndicator(1); }); });
             return;
           }
 
@@ -1098,16 +1187,31 @@
         /* ==================== Render results ==================== */
         function renderResults(isStreaming) {
           var filtered = scanResults.filter(function (r) {
+            if (roundOnly) {
+              var rid = currentRound ? currentRound.id : null;
+              if (!r || !rid || r._roundId !== rid) return false;
+            }
             if (currentFilter === 'all') return true;
             var sev = resultSeverity(r);
             return sev === currentFilter;
           });
 
-          resultCount.innerHTML = '共 <strong class="text-[var(--vuln-ink)]">' + filtered.length + '</strong> 项';
+          resultCount.innerHTML = '共 <strong class="text-[var(--vuln-ink)]">' + filtered.length + '</strong> 项' + (roundOnly ? '（本轮）' : '');
 
           if (scanResults.length === 0 && !isStreaming) {
             resultsPanel.innerHTML = '';
+            resultEmpty.querySelector('p').textContent = '暂无检测结果，请在左侧输入代码后点击「开始分析」。';
             resultEmpty.classList.remove('hidden');
+            updateRoundUI();
+            return;
+          }
+          if (filtered.length === 0 && !isStreaming) {
+            resultsPanel.innerHTML = '';
+            resultEmpty.querySelector('p').textContent = roundOnly
+              ? '最近一轮没有符合条件的结果，可点击「显示全部」查看历史轮次。'
+              : '当前筛选条件下没有结果，可切换筛选条件或点击「全部」查看。';
+            resultEmpty.classList.remove('hidden');
+            updateRoundUI();
             return;
           }
           resultEmpty.classList.add('hidden');
@@ -1148,11 +1252,7 @@
             card.style.animation = '';
             card.style.animationDelay = (i * 60) + 'ms';
           });
-
-          // 通知 lively.js 装饰动态新增的元素（非阻塞）
-          if (window.refreshLively) {
-            requestAnimationFrame(window.refreshLively);
-          }
+          updateRoundUI();
         }
 
         function resultSeverity(r) {
@@ -1164,12 +1264,15 @@
 
         function cardHTML(r, index) {
           var sev = resultSeverity(r);
+          var roundBadge = (currentRound && r._roundId === currentRound.id)
+            ? '<span class="text-xs px-1.5 py-0.5 rounded-full bg-[var(--vuln-brand)]/10 text-[var(--vuln-brand)] font-medium">最近一轮</span>'
+            : '';
 
           // Error card
           if (r.has_vulnerability === null || r._kind === 'error') {
             return '<article class="result-card glass-card" data-severity="info" style="border-left:3px solid var(--vuln-state-error)">' +
               '<div class="flex items-center gap-3 mb-2"><span class="icon-box-sm error inline-flex items-center justify-center rounded"><svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg></span>' +
-              '<span class="text-xs font-semibold text-[var(--vuln-state-error)]">分析失败</span></div>' +
+              '<span class="text-xs font-semibold text-[var(--vuln-state-error)]">分析失败</span>' + roundBadge + '</div>' +
               '<p class="text-sm text-[var(--vuln-ink-2)]">' + escapeHtml(r.error || '未知错误') + '</p>' +
               (r.filename ? '<p class="text-xs text-[var(--vuln-ink-3)] mt-1 font-mono">' + escapeHtml(r.filename) + '</p>' : '') +
               '</article>';
@@ -1179,7 +1282,7 @@
           if (r.has_vulnerability === false) {
             return '<article class="result-card glass-card" data-severity="info" style="border-left:3px solid var(--vuln-state-success)">' +
               '<div class="flex items-center gap-3 mb-2"><span class="icon-box-sm success inline-flex items-center justify-center rounded"><svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg></span>' +
-              '<span class="text-xs font-semibold text-[var(--vuln-state-success)]">安全</span></div>' +
+              '<span class="text-xs font-semibold text-[var(--vuln-state-success)]">安全</span>' + roundBadge + '</div>' +
               '<h3 class="text-base font-semibold text-[var(--vuln-ink)] mb-1">' + escapeHtml(r.filename || '代码') + '</h3>' +
               '<p class="text-sm text-[var(--vuln-ink-2)]">' + escapeHtml(r.explanation || '未发现漏洞') + '</p>' +
               '</article>';
@@ -1244,6 +1347,7 @@
               '<div class="flex items-center gap-3">' +
                 '<span class="icon-box-sm ' + sevColor + ' inline-flex items-center justify-center rounded"><svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + iconSvg + '</svg></span>' +
                 '<span class="text-xs font-semibold text-[var(--vuln-state-' + sevColor + ')]">' + SEV_LABEL[sev] + '</span>' +
+                roundBadge +
                 (cweLabel ? '<span class="text-xs font-mono text-[var(--vuln-ink-3)]">' + cweLabel + '</span>' : '') +
                 (r._kind === 'external' ? '<span class="text-xs px-1.5 py-0.5 rounded bg-[var(--vuln-surface-2)] text-[var(--vuln-ink-2)]">外部工具</span>' : '') +
                 (r._kind === 'vllm' ? '<span class="text-xs px-1.5 py-0.5 rounded bg-[var(--vuln-surface-2)] text-[var(--vuln-ink-2)]">vLLM</span>' : '') +
@@ -1434,7 +1538,12 @@
 
         function escapeAttr(s) {
           if (s == null) return '';
-          return String(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          return String(s)
+            .replace(/&/g, '&amp;')   /* 必须先转 &，否则后续实体会被二次解码 */
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
         }
 
         /* ==================== Result & report persistence ==================== */
@@ -1444,13 +1553,15 @@
         var MAX_HISTORY = 7;
         var MAX_REPORTS = 20;
 
-        function recordScanHistory() {
-          var total = scanResults.length;
-          var findings = scanResults.filter(function (r) { return r && r.has_vulnerability === true; });
+        function recordScanHistory(list) {
+          var total = list.length;
+          if (total === 0) return;
+          var findings = list.filter(function (r) { return r && r.has_vulnerability === true; });
           var vulnerable = findings.length;
-          var safe = total - vulnerable;
+          var errors = list.filter(function (r) { return !r || r.has_vulnerability === null || r._kind === 'error'; }).length;
+          var safe = total - vulnerable - errors;
           var counts = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
-          scanResults.forEach(function (r) {
+          list.forEach(function (r) {
             if (r && r.has_vulnerability) {
               var lvl = normalizeRisk(r.risk_level);
               if (lvl === 'critical') counts.critical++;
@@ -1467,6 +1578,7 @@
             total_files: total,
             vulnerable: vulnerable,
             safe: safe,
+            errors: errors,
             total: total,
             source: activeTab || 'scan',
             results: findings.slice(0, 20).map(function (r) {
@@ -1490,8 +1602,13 @@
         function persistScanResults() {
           try {
             localStorage.setItem(SCAN_RESULTS_KEY, JSON.stringify(scanResults));
-            recordScanHistory();
-            saveReportToHistory();
+            // 一轮扫描只入账一次（批量 NDJSON 流在 done 与流结束时都会走到这里）
+            if (roundRecorded) return;
+            var list = roundResults();
+            if (list.length === 0) return;
+            roundRecorded = true;
+            recordScanHistory(list);
+            saveReportToHistory(list);
           } catch (e) {
             console.warn('无法持久化扫描结果', e);
           }
@@ -1511,10 +1628,10 @@
         }
 
         /* ---------- 报告历史持久化（完整报告，刷新/重启不丢） ---------- */
-        function buildReportMarkdown() {
+        function buildReportMarkdown(list) {
           var ts = new Date().toLocaleString('zh-CN');
-          var lines = ['# 扫描报告', '', '**生成时间**：' + ts, '**文件数**：' + scanResults.length, ''];
-          var vulns = scanResults.filter(function (r) { return r && r.has_vulnerability === true; });
+          var lines = ['# 扫描报告', '', '**生成时间**：' + ts, '**文件数**：' + list.length, ''];
+          var vulns = list.filter(function (r) { return r && r.has_vulnerability === true; });
           if (vulns.length) {
             lines.push('## 漏洞清单');
             lines.push('');
@@ -1527,7 +1644,7 @@
           }
           lines.push('## 详细结果');
           lines.push('');
-          scanResults.forEach(function (r) {
+          list.forEach(function (r) {
             lines.push('### ' + (r.filename || '代码'));
             if (r.has_vulnerability === true) {
               lines.push('- **漏洞类型**：' + (r.vulnerability_type || ''));
@@ -1545,18 +1662,20 @@
           });
           return lines.join('\n');
         }
-        function saveReportToHistory() {
-          var total = scanResults.length;
+        function saveReportToHistory(list) {
+          var total = list.length;
           if (total === 0) return;
-          var findings = scanResults.filter(function (r) { return r && r.has_vulnerability === true; });
+          var findings = list.filter(function (r) { return r && r.has_vulnerability === true; });
+          var errors = list.filter(function (r) { return !r || r.has_vulnerability === null || r._kind === 'error'; }).length;
           var report = {
             id: 'r_' + Date.now(),
             date: new Date().toISOString(),
             source: activeTab || 'scan',
             total_files: total,
             vulnerable: findings.length,
-            safe: total - findings.length,
-            markdown: buildReportMarkdown(),
+            safe: total - findings.length - errors,
+            errors: errors,
+            markdown: buildReportMarkdown(list),
             summary: findings.slice(0, 10).map(function (r) {
               return { filename: r.filename || '—', vulnerability_type: r.vulnerability_type || '', risk_level: r.risk_level || '' };
             })
@@ -1626,9 +1745,6 @@
           }
           container.innerHTML = html;
           bindReportHistoryEvents();
-          if (window.refreshLively) {
-            requestAnimationFrame(window.refreshLively);
-          }
         }
         function reportHistoryItemHTML(r) {
           var d = new Date(r.date);
@@ -1647,6 +1763,7 @@
               '<span>漏洞 ' + r.vulnerable + '</span>' +
               '<span>·</span>' +
               '<span>安全 ' + r.safe + '</span>' +
+              (r.errors ? '<span>·</span><span>错误 ' + r.errors + '</span>' : '') +
             '</div>' +
             '<div class="flex items-center gap-2 mt-2">' +
               '<button type="button" class="view-report text-xs text-[var(--vuln-brand)] hover:underline font-medium" data-id="' + r.id + '">查看</button>' +
@@ -1721,6 +1838,9 @@
         /* ==================== Init ==================== */
         renderResults();
         loadScanResults();
+        restoreLastRound();
+        renderResults();      // 恢复最近一轮标记后重新渲染（给卡片加「最近一轮」徽标）
+        updateRoundUI();
         loadDemoManifest();
         renderReportHistory();
         // 延迟启动深度健康检查：让页面先把结果列表/历史等渲染完，
@@ -1749,12 +1869,24 @@
         if (clearReportsBtn) {
           clearReportsBtn.addEventListener('click', clearAllReports);
         }
+        var roundToggleBtn = document.getElementById('btn-round-toggle');
+        if (roundToggleBtn) {
+          roundToggleBtn.addEventListener('click', function () {
+            if (!currentRound || roundResults().length === 0) return;
+            roundOnly = !roundOnly;
+            updateRoundUI();
+            renderResults();
+          });
+        }
+        var roundClearBtn = document.getElementById('btn-round-clear');
+        if (roundClearBtn) {
+          roundClearBtn.addEventListener('click', clearRoundResults);
+        }
       })();
     </script>
 
     <!-- 设置抽屉：由 nivis-common.js 自动注入 HTML 并绑定事件 -->
 
-<script src="./lively.js" defer></script>
 <script src="./theme.js" defer></script>
 </body>
 </html>

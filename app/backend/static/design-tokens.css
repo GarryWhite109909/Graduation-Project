@@ -183,26 +183,6 @@
 .border-ring { border-color: var(--vuln-ring); }
 .ring-ring { --tw-ring-color: var(--vuln-ring); }
 
-/* === 全局滚动条 === */
-.no-scrollbar::-webkit-scrollbar { display: none; }
-.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-[data-icon] {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  -webkit-mask-size: contain;
-  mask-size: contain;
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-  -webkit-mask-position: center;
-  mask-position: center;
-  background-color: currentColor;
-}
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--vuln-ink-3); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--vuln-ink-2); }
-
 /* === 严重等级筛选 chip 共享样式（scan / cwe / posture 三页统一） === */
 .filter-chip { transition: all var(--vuln-dur-normal, 250ms) cubic-bezier(0.34, 1.56, 0.64, 1) var(--lv-out-delay, 120ms); }
 .filter-chip.active[data-severity="all"],

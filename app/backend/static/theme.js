@@ -4,9 +4,8 @@
    - localStorage 持久化（key: vuln-theme）
    - 跨标签页/窗口实时同步（storage 事件）
    - 图标随主题切换（月/日），即时更新
-   - 不再动态注入按钮：所有页面静态写好 <button id="theme-toggle">
-   - 统一管理设置抽屉里的 [data-theme-btn] 选项
-   - 为避免 FOUC（首屏闪烁），在 <head> 内尽早调用 initThemeEarly()
+   - 统一管理右上角按钮和设置抽屉里的 [data-theme-btn] 选项
+   - FOUC 防护由各 HTML <head> 内联脚本完成
    ====================================================================== */
 (function () {
   'use strict';
@@ -36,11 +35,6 @@
     return DARK;
   }
 
-  /* ---- 早期执行（防 FOUC），可在 <head> 内联调用 ---- */
-  window.initThemeEarly = function () {
-    applyTheme(resolveInitial());
-  };
-
   /* ---- 图标 ---- */
   var ICON_SUN =
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
@@ -59,30 +53,40 @@
     return theme === DARK ? '切换到浅色模式' : '切换到深色模式';
   }
 
-  /* ---- 切换主题：优先 View Transitions API，降级为瞬切 ---- */
-  function doSwitch(next) {
-    applyTheme(next);
-    setStored(next);
-    syncButton();
-    syncDrawerOpts();
-  }
+  /* ---- 防重入锁：过渡进行中忽略新点击 ---- */
+  var _inTransition = false;
 
-  function switchTheme() {
-    var next = currentTheme() === DARK ? LIGHT : DARK;
+  /* ---- 统一主题切换入口 ---- */
+  function switchTheme(next) {
+    if (_inTransition) return;              /* 过渡中：忽略 */
+    if (next === currentTheme()) return;    /* 相同主题：不重复切换 */
+
+    _inTransition = true;
     document.body.classList.add('theme-transitioning');
-    var done = function () {
-      setTimeout(function () { document.body.classList.remove('theme-transitioning'); }, 600);
-    };
+
+    function done() {
+      setTimeout(function () {
+        document.body.classList.remove('theme-transitioning');
+        _inTransition = false;
+      }, 350);
+    }
+
+    function doSwitch() {
+      applyTheme(next);
+      setStored(next);
+      syncButton();
+      syncDrawerOpts();
+    }
 
     if (document.startViewTransition) {
-      var transition = document.startViewTransition(function () { doSwitch(next); });
+      var transition = document.startViewTransition(doSwitch);
       if (transition && transition.finished) {
         transition.finished.then(done, done);
       } else {
         done();
       }
     } else {
-      doSwitch(next);
+      doSwitch();
       done();
     }
   }
@@ -97,15 +101,19 @@
     btn.title = btnLabel(t);
   }
 
-  /* ---- 绑定右上角按钮（仅一次） ---- */
+  /* ---- 绑定右上角按钮（document 级事件委托） ---- */
+  var _toggleDelegated = false;
   function bindButton() {
-    var btn = document.getElementById('theme-toggle');
-    if (!btn || btn.__nivisBound) return;
-    btn.__nivisBound = true;
-    btn.addEventListener('click', switchTheme);
+    if (_toggleDelegated) return;
+    _toggleDelegated = true;
+    document.addEventListener('click', function (e) {
+      var btn = e.target.closest('#theme-toggle');
+      if (!btn) return;
+      switchTheme(currentTheme() === DARK ? LIGHT : DARK);
+    });
   }
 
-  /* ---- 同步设置抽屉里的主题选项 ---- */
+  /* ---- 同步设置抽屉里的主题选项（暴露为全局，供 nivis-common.js 调用） ---- */
   function syncDrawerOpts() {
     var isDark = currentTheme() === DARK;
     document.querySelectorAll('[data-theme-btn]').forEach(function (b) {
@@ -115,34 +123,18 @@
       b.style.color = active ? 'var(--vuln-brand-ink)' : 'var(--vuln-ink-2)';
     });
   }
+  window.syncDrawerOpts = syncDrawerOpts;
 
-  /* ---- 绑定设置抽屉主题选项（仅一次，带 View Transition 渐变） ---- */
+  /* ---- 绑定设置抽屉主题选项（事件委托） ---- */
+  var _drawerDelegated = false;
   function bindDrawerOpts() {
-    document.querySelectorAll('[data-theme-btn]').forEach(function (b) {
-      if (b.__nivisBound) return;
-      b.__nivisBound = true;
-      b.addEventListener('click', function () {
-        var v = b.getAttribute('data-theme-btn');
-        var next = v === DARK ? DARK : LIGHT;
-        if (next === currentTheme()) return; /* 相同主题不重复切换 */
-
-        document.body.classList.add('theme-transitioning');
-        var done = function () {
-          setTimeout(function () { document.body.classList.remove('theme-transitioning'); }, 600);
-        };
-
-        if (document.startViewTransition) {
-          var transition = document.startViewTransition(function () { doSwitch(next); });
-          if (transition && transition.finished) {
-            transition.finished.then(done, done);
-          } else {
-            done();
-          }
-        } else {
-          doSwitch(next);
-          done();
-        }
-      });
+    if (_drawerDelegated) return;
+    _drawerDelegated = true;
+    document.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-theme-btn]');
+      if (!b) return;
+      var v = b.getAttribute('data-theme-btn');
+      switchTheme(v === DARK ? DARK : LIGHT);
     });
   }
 
