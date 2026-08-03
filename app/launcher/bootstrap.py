@@ -46,7 +46,7 @@ def is_port_in_use(port: int) -> bool:
 def kill_process_on_port(port: int) -> bool:
     """尝试终止占用指定端口的进程。Windows 用 netstat+taskkill；其他平台用 lsof/fuser。
 
-    仅在能确认 PID 时执行，避免误杀系统服务。
+    仅在能确认 PID 时执行，且结束前需用户确认，避免误杀无关服务。
     """
     try:
         if sys.platform == "win32":
@@ -66,7 +66,12 @@ def kill_process_on_port(port: int) -> bool:
                     target_pid = parts[-1]
                     break
             if target_pid and target_pid.isdigit():
-                print(f"[启动器] 端口 {port} 被 PID {target_pid} 占用，尝试释放...")
+                print(f"[启动器] 端口 {port} 被 PID {target_pid} 占用。")
+                answer = input("该进程可能不是本程序（例如其他服务），是否强制结束？[y/N]: ").strip().lower()
+                if answer not in ("y", "yes"):
+                    print("[启动器] 已取消释放端口，请手动关闭占用程序后重试。")
+                    return False
+                print(f"[启动器] 尝试结束 PID {target_pid} ...")
                 stop = subprocess.run(
                     ["taskkill", "/F", "/PID", target_pid],
                     capture_output=True, text=True, timeout=10,
@@ -80,7 +85,12 @@ def kill_process_on_port(port: int) -> bool:
             )
             pid = result.stdout.strip().splitlines()[0] if result.stdout.strip() else None
             if pid:
-                print(f"[启动器] 端口 {port} 被 PID {pid} 占用，尝试释放...")
+                print(f"[启动器] 端口 {port} 被 PID {pid} 占用。")
+                answer = input("该进程可能不是本程序（例如其他服务），是否强制结束？[y/N]: ").strip().lower()
+                if answer not in ("y", "yes"):
+                    print("[启动器] 已取消释放端口，请手动关闭占用程序后重试。")
+                    return False
+                print(f"[启动器] 尝试结束 PID {pid} ...")
                 stop = subprocess.run(["kill", "-9", pid], capture_output=True, text=True, timeout=5)
                 return stop.returncode == 0
     except Exception as e:

@@ -24,6 +24,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -35,9 +36,9 @@ from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from app.backend.services.fetcher import fetch_url
+from app.backend.services.fetcher import fetch_url, validate_target_url
 from app.backend.services.reporter import render_batch_markdown, render_single_markdown
 from app.backend.services.scanner import DEFAULT_MODEL, BatchResult, Scanner, SingleResult
 from app.backend.services.scheduler import (
@@ -89,53 +90,61 @@ EXT_TO_LANG = {
 }
 
 # ---------------------------------------------------------------------------
+# 输入大小限制（本地服务也要防误操作/恶意大请求拖垮内存）
+# ---------------------------------------------------------------------------
+MAX_CODE_CHARS = 2_000_000                      # 单段代码/修复建议字符上限
+MAX_BATCH_FILES = 200                           # 单次批量上传文件数上限
+MAX_SINGLE_FILE_BYTES = 2 * 1024 * 1024         # 单文件大小上限（2MB）
+MAX_BATCH_TOTAL_BYTES = 10 * 1024 * 1024        # 批量总大小上限（10MB）
+
+# ---------------------------------------------------------------------------
 # Pydantic 请求模型
 # ---------------------------------------------------------------------------
 
 class AnalyzeRequest(BaseModel):
-    code: str
+    code: str = Field(..., max_length=MAX_CODE_CHARS)
     language: str = "python"
     filename: str = "pasted_code.py"
     use_rag: Optional[bool] = None
 
 
 class UrlScanRequest(BaseModel):
-    url: str
+    url: str = Field(..., max_length=2048)
     use_rag: Optional[bool] = None
 
 
 class GithubScanRequest(BaseModel):
-    repo_url: str
+    repo_url: str = Field(..., max_length=2048)
     use_rag: Optional[bool] = None
-    max_files: int = 50  # 限制扫描文件数，避免大仓库超时
+    max_files: int = Field(50, ge=1, le=500)  # 限制扫描文件数，避免大仓库超时
 
 
 class ExternalScanRequest(BaseModel):
     """外部工具扫描请求（Bandit/Semgrep/Gitleaks/Trivy）。"""
-    code: str
+    code: str = Field(..., max_length=MAX_CODE_CHARS)
     language: str = "python"
     filename: str = "pasted_code.py"
 
 
 class VerifyFixRequest(BaseModel):
     """修复建议验证请求。"""
-    original_code: str
-    fix_suggestion: str
+    original_code: str = Field(..., max_length=MAX_CODE_CHARS)
+    fix_suggestion: str = Field(..., max_length=MAX_CODE_CHARS)
     language: str = "python"
 
 
 class MultiModelRequest(BaseModel):
     """多模型投票扫描请求。"""
-    code: str
+    code: str = Field(..., max_length=MAX_CODE_CHARS)
     language: str = "python"
     filename: str = "pasted_code.py"
-    models: list[str] = []
+    models: list[str] = Field(default_factory=list, max_length=8)
     use_rag: Optional[bool] = None
 
 
 class VllmAnalyzeRequest(BaseModel):
     """vLLM 后端单文件分析请求。"""
-    code: str
+    code: str = Field(..., max_length=MAX_CODE_CHARS)
     language: str = "python"
     filename: str = "pasted_code.py"
     use_rag: Optional[bool] = None
@@ -344,11 +353,31 @@ async def batch_scan(
     """
     rag = use_rag == "1"
     client_id = resolve_client_id(request.headers.get("x-client-type"), fallback="web")
+    if not files:
+        return JSONResponse({"error": "未接收到文件"}, status_code=400)
+    if len(files) > MAX_BATCH_FILES:
+        return JSONResponse(
+            {"error": f"单次批量扫描最多 {MAX_BATCH_FILES} 个文件"},
+            status_code=413,
+        )
     file_list = []
+    total_bytes = 0
     for f in files:
+        raw = await f.read(MAX_SINGLE_FILE_BYTES + 1)
+        if len(raw) > MAX_SINGLE_FILE_BYTES:
+            return JSONResponse(
+                {"error": f"文件 {f.filename} 超过单文件上限 2MB"},
+                status_code=413,
+            )
+        total_bytes += len(raw)
+        if total_bytes > MAX_BATCH_TOTAL_BYTES:
+            return JSONResponse(
+                {"error": "批量文件总大小超过上限 10MB"},
+                status_code=413,
+            )
         ext = Path(f.filename).suffix.lower()
         lang = EXT_TO_LANG.get(ext, "text")
-        content = (await f.read()).decode("utf-8", errors="replace")
+        content = raw.decode("utf-8", errors="replace")
         file_list.append((f.filename, lang, content))
 
     async def generate():
@@ -451,6 +480,10 @@ async def _scan_files_scheduled(
 async def url_scan(req: UrlScanRequest, request: Request):
     """抓取目标 URL 的所有脚本，逐个扫描（LOW 优先级，让路交互式）。"""
     client_id = resolve_client_id(request.headers.get("x-client-type"), fallback="web")
+    # SSRF 防护：仅允许公网 http/https，重定向前同样校验目标地址
+    url_err = validate_target_url(req.url)
+    if url_err:
+        return JSONResponse({"error": url_err, "url": req.url}, status_code=400)
     # fetch_url 是同步阻塞（requests），放线程池避免卡事件循环
     fetch_result = await asyncio.to_thread(fetch_url, req.url)
 
@@ -491,14 +524,23 @@ def _clone_and_collect(req: GithubScanRequest) -> tuple[Optional[str], Optional[
         (error_response, None, None) 失败；
         (None, code_files, tmp_dir) 成功（tmp_dir 需调用方清理）。
     """
+    # SSRF 防护：仓库地址仅允许公网 http/https（内网/回环地址在此拦截）
+    url_err = validate_target_url(req.repo_url)
+    if url_err:
+        return None, None, JSONResponse({"error": url_err}, status_code=400)
+
     tmp_dir = tempfile.mkdtemp(prefix="vuln_scan_")
     repo_name = req.repo_url.rstrip("/").split("/")[-1].replace(".git", "")
+    repo_name = re.sub(r"[^A-Za-z0-9_.-]", "_", repo_name) or "repo"
+    if repo_name in (".", ".."):
+        repo_name = "repo"
     clone_target = os.path.join(tmp_dir, repo_name)
 
     try:
         result = subprocess.run(
-            ["git", "clone", "--depth", "1", req.repo_url, clone_target],
+            ["git", "clone", "--depth", "1", "--", req.repo_url, clone_target],
             capture_output=True, text=True, timeout=120,
+            env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
         )
         if result.returncode != 0:
             return tmp_dir, None, JSONResponse(

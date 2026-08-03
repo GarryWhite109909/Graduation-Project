@@ -53,9 +53,8 @@ gradle/wrapper/gradle-wrapper.jar
 # 模型发布产物（merged HF / GGUF / Modelfile，由 release_model.sh 生成）
 outputs/
 
-# RAG 向量数据库（本地持久化，体积大且无需入库） =====
-# 注意：训练数据（experiments/exp_06_finetune/data/*.jsonl）需要入库以保证复现性，
-#       所以只排除 RAG 向量库目录，不排除 exp_06 的训练数据
+# RAG 向量数据库（本地持久化，体积大且无需入库）
+# 训练/蒸馏数据已移至训练机器，仓库不再保存（experiments/exp_06_finetune/data/ 整体排除）
 experiments/exp_03_rag_knowledge/knowledge_data/chroma_db/
 experiments/exp_03_rag_knowledge/data/
 data/chroma_db/
@@ -97,3 +96,9 @@ secrets.json
 # ===== 系统 / 日志 =====
 *.log
 logs/
+
+# ===== 训练/蒸馏数据（另一台机器持有完整副本，仓库不保存） =====
+experiments/exp_06_finetune/data/
+
+# ===== Logo 旧备份 =====
+docs/logo/_backup/

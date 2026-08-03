@@ -261,9 +261,10 @@ class ScanScheduler:
         else:
             self._loop.call_soon_threadsafe(self._safe_set_result, task.future, result)
 
-        # 清理计数与当前任务指针
+        # 清理计数与当前任务指针（只清正在结束的这个任务，避免误清其他运行中任务）
         with self._cv:
-            self._current_task = None
+            if self._current_task is task:
+                self._current_task = None
             cnt = self._client_counts.get(task.client_id, 0)
             if cnt <= 1:
                 self._client_counts.pop(task.client_id, None)
@@ -276,19 +277,34 @@ class ScanScheduler:
     def cancel(self, task_id: str) -> bool:
         """取消排队中的任务。正在执行的任务不可取消。
 
+        与旧实现不同：取消时直接从堆中移除任务并回填 Future，
+        不再让已取消任务继续占用队列名额与客户端配额。
+
         Returns:
-            True = 成功标记取消（结果会在被取出时以异常返回）；
+            True = 成功取消（Future 立即以异常返回）；
             False = 任务不存在或正在执行。
         """
+        task_to_cancel: Optional[ScanTask] = None
         with self._cv:
             # 正在执行的任务不可取消
             if self._current_task and self._current_task.task_id == task_id:
                 return False
+            remaining = []
             for t in self._heap:
                 if t.task_id == task_id:
                     t.cancel_flag.set()
-                    return True
-        return False
+                    task_to_cancel = t
+                else:
+                    remaining.append(t)
+            if task_to_cancel is None:
+                return False
+            self._heap = remaining
+            heapq.heapify(self._heap)
+        # 锁外回填 Future（_finish_task 内部需要再取锁，避免死锁）
+        self._finish_task(task_to_cancel, error=RuntimeError("任务已取消"))
+        with self._cv:
+            self._total_canceled += 1
+        return True
 
     # ------------------------------------------------------------------
     # 队列状态（供 /api/queue/status 展示）

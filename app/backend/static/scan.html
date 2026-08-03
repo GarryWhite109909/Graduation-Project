@@ -604,16 +604,26 @@
           handleFiles(e.dataTransfer.files);
         });
 
+        var MAX_UPLOAD_FILES = 200;
+        var MAX_UPLOAD_SINGLE_MB = 2;
+        var MAX_UPLOAD_TOTAL_MB = 10;
         function handleFiles(fileObjs) {
           selectedFiles = [];
           fileListEl.innerHTML = '';
+          var totalBytes = 0;
+          var skipped = 0;
           Array.from(fileObjs).forEach(function (f) {
+            if (selectedFiles.length >= MAX_UPLOAD_FILES) { skipped++; return; }
+            if (f.size > MAX_UPLOAD_SINGLE_MB * 1024 * 1024) { skipped++; return; }
+            if (totalBytes + f.size > MAX_UPLOAD_TOTAL_MB * 1024 * 1024) { skipped++; return; }
+            totalBytes += f.size;
             selectedFiles.push(f);
             var item = document.createElement('div');
             item.className = 'flex items-center justify-between text-xs text-[var(--vuln-ink-2)] bg-[var(--vuln-bg)] rounded px-3 py-1.5 border border-[var(--vuln-line)]';
             item.innerHTML = '<span class="truncate">' + escapeHtml(f.name) + '</span><span class="text-[var(--vuln-ink-3)] ml-2 shrink-0">' + (f.size / 1024).toFixed(1) + ' KB</span>';
             fileListEl.appendChild(item);
           });
+          if (skipped > 0) showToast('已跳过 ' + skipped + ' 个文件：单文件 ≤2MB、总量 ≤10MB、最多 200 个', 'warning');
         }
 
         /* ==================== Health check ==================== */
@@ -1010,7 +1020,7 @@
         function analyzeGithub() {
           var repo = document.getElementById('github-input').value.trim();
           if (!repo) { alert('请输入 GitHub 仓库地址'); return; }
-          var maxFiles = parseInt(document.getElementById('max-files-input').value, 10) || 20;
+          var maxFiles = Math.min(500, Math.max(1, parseInt(document.getElementById('max-files-input').value, 10) || 20));
           beginRound();
           setBtnLoading(true);
           showProgress(true, '正在克隆仓库并扫描…（可能耗时数分钟）');
@@ -1523,6 +1533,13 @@
         /* ==================== Utils ==================== */
         // scanScope: 'single'（交互式,HIGH 优先级）/ 'batch'（批量,LOW 优先级）
         // 调度器据 X-Scan-Scope 分配优先级，X-Client-Type 标识来源
+        function extractApiError(d) {
+          if (!d) return '';
+          if (d.error) return String(d.error);
+          if (typeof d.detail === 'string') return d.detail;
+          if (Array.isArray(d.detail) && d.detail.length && d.detail[0] && d.detail[0].msg) return String(d.detail[0].msg);
+          return '';
+        }
         function postJSON(url, data, scanScope) {
           var headers = { 'Content-Type': 'application/json', 'X-Client-Type': 'web' };
           if (scanScope) headers['X-Scan-Scope'] = scanScope;
@@ -1531,7 +1548,7 @@
             headers: headers,
             body: JSON.stringify(data)
           }).then(function (r) {
-            if (!r.ok) return r.json().then(function (d) { throw new Error(d.error || d.detail || ('HTTP ' + r.status)); });
+            if (!r.ok) return r.json().then(function (d) { throw new Error(extractApiError(d) || ('HTTP ' + r.status)); });
             return r.json();
           });
         }
