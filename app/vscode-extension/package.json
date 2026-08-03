@@ -2,7 +2,7 @@
   "name": "vuln-scanner",
   "displayName": "AI 漏洞扫描器",
   "description": "基于 LLM 的代码安全审计 — 右键分析文件、批量扫描工作区、实时诊断标记",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "publisher": "graduation-project",
   "repository": { "type": "git", "url": "https://github.com/GarryWhite109909/Graduation-Project.git" },
   "icon": "assets/icon-light.png",

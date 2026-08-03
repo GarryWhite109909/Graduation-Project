@@ -306,7 +306,7 @@ VS Code 插件提供编辑器内直接扫描、诊断标记和工作区批量扫
 
 **方式 A：从 VSIX 安装（推荐，普通用户）**
 
-1. 下载插件包 [`releases/vuln-scanner-1.2.0.vsix`](releases/vuln-scanner-1.2.0.vsix)（仓库已附带，clone 后可直接使用）
+1. 下载插件包 [`releases/vuln-scanner-1.2.1.vsix`](releases/vuln-scanner-1.2.1.vsix)（仓库已附带，clone 后可直接使用）
 2. 打开 VS Code → 左侧扩展面板 → 右上角 `⋯` → **从 VSIX 安装**
 3. 选择 `.vsix` 文件 → 安装完成 → 重载窗口
 
@@ -315,7 +315,7 @@ VS Code 插件提供编辑器内直接扫描、诊断标记和工作区批量扫
 ```bash
 cd app/vscode-extension
 npm install -g @vscode/vsce
-vsce package --allow-missing-repository   # 生成 vuln-scanner-1.2.0.vsix
+vsce package   # 生成 vuln-scanner-1.2.1.vsix
 ```
 
 再按方式 A 安装生成的 `.vsix`。

@@ -1,5 +1,5 @@
 /**
- * AI 漏洞扫描器 VSCode 插件 v1.2.0
+ * AI 漏洞扫描器 VSCode 插件 v1.2.1
  *
  * 功能：
  *  1. 右键编辑器 → "分析当前文件" → 调用后端 API → Webview 展示结果
@@ -159,6 +159,7 @@ function isSupportedDoc(doc) {
 // 单文件分析
 // ---------------------------------------------------------------------------
 async function analyzeDocument(doc, context) {
+  const config = vscode.workspace.getConfiguration("vulnScanner");
   const code = doc.getText();
   const filename = vscode.workspace.asRelativePath(doc.uri);
   const language = LANG_MAP[doc.languageId] || "text";
