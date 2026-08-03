@@ -29,6 +29,7 @@
         <!-- 注册扫描动作：编辑器右键菜单 + 工具菜单 -->
         <action id="VulnScanner.ScanSelection"
                 class="com.graduation.vulnscanner.VulnScannerAction"
+                icon="/icons/vuln-scanner-light.png"
                 text="AI 漏洞扫描(_S)"
                 description="将选中代码发送到后端进行漏洞分析">
             <add-to-group group-id="EditorPopupMenu" anchor="last"/>

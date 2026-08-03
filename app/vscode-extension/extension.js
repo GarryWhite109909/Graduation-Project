@@ -570,14 +570,23 @@ function showResultPanel(result, context) {
     "vulnResult",
     `扫描结果: ${result.filename}`,
     vscode.ViewColumn.Two,
-    { enableScripts: false }
+    {
+      enableScripts: false,
+      localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, "assets")]
+    }
   );
 
   const isVuln = result.has_vulnerability === true;
   const isSafe = result.has_vulnerability === false;
   const isError = result.has_vulnerability === null;
 
-  panel.webview.html = renderHtml(result, isVuln, isSafe, isError);
+  const iconUri = panel.webview.asWebviewUri(
+    vscode.Uri.joinPath(context.extensionUri, "assets", "icon-light.png")
+  );
+  const wordUri = panel.webview.asWebviewUri(
+    vscode.Uri.joinPath(context.extensionUri, "assets", "logo-light.png")
+  );
+  panel.webview.html = renderHtml(result, isVuln, isSafe, isError, iconUri, wordUri);
 }
 
 function showBatchPanel(results, vulnerable, safe, errors, context) {
@@ -585,15 +594,25 @@ function showBatchPanel(results, vulnerable, safe, errors, context) {
     "vulnBatch",
     "批量扫描汇总",
     vscode.ViewColumn.One,
-    { enableScripts: false }
+    {
+      enableScripts: false,
+      localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, "assets")]
+    }
   );
 
   const vulnList = results.filter((r) => r.has_vulnerability === true);
-  panel.webview.html = renderBatchHtml(results, vulnList, vulnerable, safe, errors);
+
+  const iconUri = panel.webview.asWebviewUri(
+    vscode.Uri.joinPath(context.extensionUri, "assets", "icon-light.png")
+  );
+  const wordUri = panel.webview.asWebviewUri(
+    vscode.Uri.joinPath(context.extensionUri, "assets", "logo-light.png")
+  );
+  panel.webview.html = renderBatchHtml(results, vulnList, vulnerable, safe, errors, iconUri, wordUri);
 }
 
-function renderHtml(r, isVuln, isSafe, isError) {
-  const statusColor = isVuln ? "#ff6b6b" : isSafe ? "#40db88" : "#ffa657";
+function renderHtml(r, isVuln, isSafe, isError, iconUri, wordUri) {
+  const statusColor = isVuln ? "#ea4335" : isSafe ? "#34a853" : "#f9ab00";
   const statusText = isVuln ? "发现漏洞" : isSafe ? "未发现漏洞" : "无法判定";
 
   return `<!DOCTYPE html>
@@ -601,30 +620,34 @@ function renderHtml(r, isVuln, isSafe, isError) {
 <head>
 <meta charset="UTF-8">
 <style>
-body { font-family: -apple-system, "Microsoft YaHei", sans-serif; padding: 20px; color: #333; max-width: 800px; }
+.logo-row { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+.logo-row img.icon { width: 26px; height: 26px; }
+.logo-row img.word { height: 18px; }
+body { font-family: -apple-system, "Microsoft YaHei", sans-serif; padding: 20px; color: #0b0f14; background: #ffffff; max-width: 800px; }
 .header { border-left: 4px solid ${statusColor}; padding-left: 16px; margin-bottom: 20px; }
-.header h1 { font-size: 18px; margin: 0 0 4px 0; }
+.header h1 { font-size: 18px; margin: 0 0 4px 0; color: #0b0f14; }
 .header .status { color: ${statusColor}; font-weight: 600; }
-.meta { background: #f6f8fa; padding: 12px; border-radius: 6px; margin-bottom: 16px; font-size: 13px; }
+.meta { background: #f7f8fa; border: 1px solid #e4e7ec; padding: 12px; border-radius: 6px; margin-bottom: 16px; font-size: 13px; }
 .meta div { margin: 4px 0; }
 .field { margin-bottom: 12px; }
-.field-label { font-weight: 600; color: #555; margin-bottom: 4px; }
+.field-label { font-weight: 600; color: #5a6573; margin-bottom: 4px; }
 .field-value { line-height: 1.6; }
-.fix { background: #f0fff4; border: 1px solid #abf7c8; padding: 12px; border-radius: 6px; }
-.fix .label { color: #1a7f37; font-weight: 600; }
+.fix { background: rgba(52, 168, 83, 0.08); border: 1px solid rgba(52, 168, 83, 0.35); padding: 12px; border-radius: 6px; }
+.fix .label { color: #34a853; font-weight: 600; }
 details { margin-top: 16px; }
-summary { cursor: pointer; color: #0969da; }
-pre { background: #f6f8fa; padding: 12px; border-radius: 6px; overflow-x: auto; font-size: 12px; }
+summary { cursor: pointer; color: #1e7ea0; }
+pre { background: #f7f8fa; border: 1px solid #e4e7ec; padding: 12px; border-radius: 6px; overflow-x: auto; font-size: 12px; }
 .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; background: ${statusColor}; color: #fff; }
 </style>
 </head>
 <body>
+<div class="logo-row"><img class="icon" src="${iconUri}" alt=""><img class="word" src="${wordUri}" alt="Nivis"></div>
 <div class="header">
   <h1>${escapeHtml(r.filename || "")}</h1>
-  <div class="status">${statusText} ${r.risk_level ? `<span class="badge">${escapeHtml(r.risk_level)}</span>` : ""} <span style="color:#999;font-size:12px">${r.duration || 0}s</span></div>
+  <div class="status">${statusText} ${r.risk_level ? `<span class="badge">${escapeHtml(r.risk_level)}</span>` : ""} <span style="color:#9aa4b2;font-size:12px">${r.duration || 0}s</span></div>
 </div>
 
-${isError ? `<div style="color:#ff6b6b">错误: ${escapeHtml(r.error || "未知")}</div>` : ""}
+${isError ? `<div style="color:#ea4335">错误: ${escapeHtml(r.error || "未知")}</div>` : ""}
 
 <div class="meta">
   <div>语言: ${escapeHtml(r.language || "")}</div>
@@ -642,7 +665,7 @@ ${r.raw_output ? `<details><summary>查看模型分析过程</summary><pre>${esc
 </html>`;
 }
 
-function renderBatchHtml(results, vulnList, vulnerable, safe, errors) {
+function renderBatchHtml(results, vulnList, vulnerable, safe, errors, iconUri, wordUri) {
   const vulnRows = vulnList
     .map(
       (r) =>
@@ -655,26 +678,30 @@ function renderBatchHtml(results, vulnList, vulnerable, safe, errors) {
 <head>
 <meta charset="UTF-8">
 <style>
-body { font-family: -apple-system, "Microsoft YaHei", sans-serif; padding: 20px; color: #333; max-width: 900px; }
-h1 { font-size: 20px; }
+.logo-row { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+.logo-row img.icon { width: 26px; height: 26px; }
+.logo-row img.word { height: 18px; }
+body { font-family: -apple-system, "Microsoft YaHei", sans-serif; padding: 20px; color: #0b0f14; background: #ffffff; max-width: 900px; }
+h1 { font-size: 20px; color: #0b0f14; }
 .summary { display: flex; gap: 16px; margin: 16px 0; }
 .card { flex: 1; padding: 16px; border-radius: 8px; text-align: center; }
-.card.total { background: #f6f8fa; }
-.card.vuln { background: #fff0f0; color: #d32f2f; }
-.card.safe { background: #f0fff4; color: #1a7f37; }
-.card.err { background: #fff8e1; color: #f57c00; }
+.card.total { background: #f7f8fa; border: 1px solid #e4e7ec; color: #0b0f14; }
+.card.vuln { background: rgba(234, 67, 53, 0.08); color: #ea4335; }
+.card.safe { background: rgba(52, 168, 83, 0.08); color: #34a853; }
+.card.err { background: rgba(249, 171, 0, 0.08); color: #f9ab00; }
 .card .num { font-size: 28px; font-weight: 700; }
 .card .label { font-size: 12px; margin-top: 4px; }
 table { width: 100%; border-collapse: collapse; margin-top: 16px; }
-th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #e0e0e0; font-size: 13px; }
-th { background: #f6f8fa; font-weight: 600; }
+th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #e4e7ec; font-size: 13px; }
+th { background: #f7f8fa; font-weight: 600; }
 td:first-child { font-family: monospace; }
-.risk-critical, .risk-high { color: #d32f2f; font-weight: 600; }
-.risk-medium { color: #f57c00; }
-.risk-low { color: #1976d2; }
+.risk-critical, .risk-high { color: #ea4335; font-weight: 600; }
+.risk-medium { color: #f9ab00; }
+.risk-low { color: #1e7ea0; }
 </style>
 </head>
 <body>
+<div class="logo-row"><img class="icon" src="${iconUri}" alt=""><img class="word" src="${wordUri}" alt="Nivis"></div>
 <h1>批量扫描汇总</h1>
 <div class="summary">
   <div class="card total"><div class="num">${results.length}</div><div class="label">总文件</div></div>
@@ -689,9 +716,9 @@ ${vulnList.length ? `
 <thead><tr><th>文件</th><th>漏洞类型</th><th>风险</th><th>触发点</th></tr></thead>
 <tbody>${vulnRows}</tbody>
 </table>
-` : "<p style='color:#1a7f37;margin-top:16px'>✓ 未发现漏洞</p>"}
+` : "<p style='color:#34a853;margin-top:16px'>✓ 未发现漏洞</p>"}
 
-<p style="color:#999;font-size:12px;margin-top:24px">详细分析见输出面板（Output → AI 漏洞扫描器）</p>
+<p style="color:#9aa4b2;font-size:12px;margin-top:24px">详细分析见输出面板（Output → AI 漏洞扫描器）</p>
 </body>
 </html>`;
 }
