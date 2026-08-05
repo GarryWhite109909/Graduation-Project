@@ -15,6 +15,7 @@
   - [命令行工具 CLI](#命令行工具-cli)
   - [VS Code 插件](#vs-code-插件)
   - [IntelliJ 插件](#intellij-插件)
+- [卸载](#卸载)
 - [核心结果](#核心结果)
 - [当前状态与待决策](#当前状态与待决策)
 - [项目简介](#项目简介)
@@ -396,6 +397,59 @@ IntelliJ 插件提供编辑器内选中代码的扫描功能，结果以气球�
 
 > 完整的 IntelliJ 插件文档见 [app/intellij-extension/README.md](app/intellij-extension/README.md)。
 
+## 卸载
+
+### 一键卸载
+
+| 平台 | 入口 |
+|---|---|
+| Windows | 双击 `uninstall_windows.bat`，或运行 `python uninstall.py` |
+| Linux / macOS | 运行 `bash uninstall.sh`，或运行 `python3 uninstall.py` |
+
+常用参数（`python uninstall.py --help` 可查看全部）：
+
+- `--yes`：全自动，跳过所有确认；
+- `--dry-run`：模拟，只列出将要删除的内容，不实际删除；
+- `--keep-project`：保留项目文件夹（只清依赖和数据）；
+- `--keep-ollama`：保留 Ollama 本体与模型；
+- `--keep-accel`：保留 CUDA/ROCm 系统组件。
+
+### ⚠️ 必须用安装时的同一个 Python 环境卸载
+
+依赖装进哪个 Python 环境，就必须用哪个环境卸载：
+
+- **路径一（终端用户）**：依赖是启动器用系统 Python 自动安装的，直接运行卸载脚本即可；
+- **conda / venv 用户**：安装时先激活过环境，卸载前也必须先激活同一个环境（如 `conda activate graproj`）再运行卸载脚本；
+- 卸载脚本只清理“运行它的那个 Python 环境”，换环境运行会提示“未发现本项目相关包”并跳过，等于没有真正卸载。
+
+> 实验/训练环境（`graproj`、`AI` 等）是开发者自用环境，普通用户不需要创建。**不要在实验/训练环境里运行卸载**——它会把训练相关包（transformers、peft、accelerate 等）和共享缓存一并删掉。
+
+### 卸载范围
+
+脚本会按本机实际检测结果动态清理：
+
+1. 后端进程（端口 8765）与 Ollama 服务进程；
+2. 当前 Python 环境中的本项目相关包（torch、fastapi、chromadb、sentence-transformers、tree-sitter 等）；
+3. Ollama 拉取的模型（`~/.ollama`，以及 `OLLAMA_MODELS` 指定的目录）；
+4. Ollama 本体：Windows（winget/官方卸载器）、macOS（Homebrew/官方 App）、Linux（apt/dnf/pacman/zypper/apk/官方脚本）；
+5. Linux 系统级 CUDA / ROCm 组件（需 sudo，仅 apt 系发行版）；
+6. 本地运行数据：`data/chroma_db`、`outputs/`、`logs/`、`__pycache__`、`*.egg-info`、`.pytest_cache`、HuggingFace/torch/chroma 缓存等；
+7. 已安装的 VS Code 扩展（`graduation-project.vuln-scanner`）与 IntelliJ 插件（尽力而为）；
+8. 整个项目文件夹（Windows 下同样有效）。
+
+### 不会自动删除的内容
+
+- **外部扫描工具**（bandit / semgrep / gitleaks / trivy）：这些是共享系统工具，可能被其他项目使用，卸载脚本不会动它们；如需删除请按安装方式手动卸载（如 `pip uninstall bandit semgrep`、`choco uninstall gitleaks trivy`）；
+- **conda 环境本身**（如 `graproj`、`AI`）：卸载脚本只清当前环境里的包，不会删除任何 conda 环境；开发者如需清理可自行 `conda env remove -n graproj`；
+- **npm 全局包**（如 `@vscode/vsce`）：如需删除请手动 `npm uninstall -g @vscode/vsce`。
+- **其他项目也在用的通用基础库**（如 urllib3、certifi、typing-extensions 等）：脚本只卸载本项目直接/间接相关的顶层包，保留这类共享基础库，避免影响同一环境里的其他程序。
+
+### 注意事项
+
+- `~/.ollama` 和 `~/.cache/huggingface` 是全局目录，卸载会删除里面**所有**模型/缓存（包括其他项目用到的），`--yes` 模式下不会再次确认，请提前确认；
+- Windows 下直接运行 `python uninstall.py` 时脚本会自动切换 UTF-8 输出，双击 bat 也已设置 `chcp 65001`；
+- 卸载脚本会逐项检查实际删除结果，失败项会明确报错，不会提示虚假成功；完成后请确认项目文件夹确实已删除。
+
 ***
 
 ## 核心结果
@@ -487,6 +541,9 @@ Graduation-Project/
 ├── .gitignore                             # 排除大模型/缓存/日志/中间 checkpoint
 ├── pyproject.toml                         # 项目元数据 + 依赖声明（支持 pip install -e .）
 ├── requirements.txt                       # 锁版本依赖清单
+├── uninstall.py                           # 跨平台卸载主脚本（Windows/Linux/macOS）
+├── uninstall.sh                           # Linux/macOS 卸载入口
+├── uninstall_windows.bat                  # Windows 卸载入口
 ├── TODO.md                                # 代码审查问题清单（处理进度跟踪）
 ├── 规划.md                                 # 项目阶段规划与进度（唯一进度源）
 ├── app/                                   # Web 应用与启动器
@@ -1231,4 +1288,3 @@ CI = [center - margin, center + margin]
 - **显存管理约定**：每次实验脚本跑完必须主动从显存卸载模型（Ollama `keep_alive=0`），多模型场景下避免爆显存。`run_experiment.py` 默认在末尾卸载，如需保留加 `--keep-loaded`。
 - 大模型文件（`.gguf` / `.bin` / `.safetensors` 等）绝不入库，见 `.gitignore`。
 - **RAG 向量库**：`data/chroma_db/` 为本地持久化数据，不入库（见 `.gitignore`），需在本地通过 `build_knowledge.py` 自行构建。
-
