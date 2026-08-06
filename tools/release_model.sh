@@ -87,8 +87,20 @@ echo "[4/6] 量化为 Q4_K_M（约 4.7GB，适配 8GB 显存）-> ${GGUF_Q4}"
 "${LLAMA_CPP_DIR}/build/bin/llama-quantize" "${GGUF_F16}" "${GGUF_Q4}" q4_k_m
 
 # 5. 生成 Modelfile 并创建 Ollama 模型
+#    SYSTEM prompt 从 graduation_project.prompts.BASE_PROMPT 动态获取，
+#    确保与训练/评估时一致（schema 变更后自动同步）。
 MODELFILE="${PROJECT_ROOT}/outputs/Modelfile_${VERSION}"
 echo "[5/6] 创建 Ollama 模型 ${OLLAMA_NAME}"
+
+SYSTEM_PROMPT_FILE=$(mktemp)
+PYTHONPATH="${PROJECT_ROOT}" python3 -c "
+from graduation_project.prompts import BASE_PROMPT
+print(BASE_PROMPT, end='')
+" > "${SYSTEM_PROMPT_FILE}" || {
+    echo "[ERROR] 无法从 graduation_project.prompts 导出 BASE_PROMPT"
+    exit 1
+}
+
 cat > "${MODELFILE}" <<EOF
 FROM ${GGUF_Q4}
 
@@ -100,15 +112,17 @@ TEMPLATE """{{- if .System }}<|im_start|>system
 <|im_start|>assistant
 """
 
-SYSTEM """你是一名资深的代码安全审计专家。请对给出的代码片段进行安全分析，判断其中是否存在安全漏洞。"""
+SYSTEM """$(cat "${SYSTEM_PROMPT_FILE}")"""
 
-PARAMETER temperature 0.1
+PARAMETER temperature 0.0
 PARAMETER num_ctx 8192
 PARAMETER num_predict 2048
 PARAMETER stop "<|im_end|>"
 PARAMETER stop "<|endoftext|>"
 EOF
 
+rm -f "${SYSTEM_PROMPT_FILE}"
+echo "  Modelfile 已生成: ${MODELFILE}"
 ollama create "${OLLAMA_NAME}" -f "${MODELFILE}"
 
 # 6. 可选 push
