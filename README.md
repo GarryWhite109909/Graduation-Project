@@ -2,9 +2,9 @@
 
 > 本地部署的开源大语言模型驱动的代码漏洞检测系统，对比传统基于规则的静态分析工具，验证 LLM 在代码安全审计中的语义理解优势。
 
-[![最佳模型](https://img.shields.io/badge/最佳模型-SFT%20v5-blue)](experiments/exp_06_finetune/results/EXPERIMENT_LEDGER.md)
+[![最佳模型](https://img.shields.io/badge/最佳模型-v9max-blue)](experiments/exp_06_finetune/results/EXPERIMENT_LEDGER.md)
 [![基座](https://img.shields.io/badge/基座-Qwen3--8B--Instruct-green)](docs/方法.md)
-[![状态](https://img.shields.io/badge/状态-P3%20DPO%20本地不可行，方向待决策-orange)](规划.md)
+[![状态](https://img.shields.io/badge/状态-云端A800训练·v9max已发布-green)](规划.md)
 [![License](https://img.shields.io/badge/License-MIT-lightgrey)]()
 
 ## 目录
@@ -69,7 +69,7 @@ bash app/launcher/start_linux_macos.sh
 2. **检测并安装 Ollama**——未安装时自动通过 winget（Windows）/ Homebrew（macOS）/ 官方脚本（Linux）安装
 3. **启动 Ollama 服务**——确保 `ollama serve` 在后台运行
 4. **硬件检测与自适应配置**——自动检测 GPU/CPU/RAM，按显存分档选择推理参数（`num_ctx` / `num_gpu` / 量化等级）
-5. **拉取模型**——自动下载 `garrywhite109909/graduation-vuln-scanner:v5`（约 5 GB，Q4 量化）；若拉取失败则回退到官方 `qwen3:8b`
+5. **拉取模型**——自动下载 `garrywhite109909/graduation-vuln-scanner:v9max`（约 5 GB，Q4 量化）；若拉取失败则回退到官方 `qwen3:8b`
 6. **启动后端**——FastAPI 服务监听 `http://127.0.0.1:8765`
 7. **打开浏览器**——自动跳转到 `http://localhost:8765`
 
@@ -110,7 +110,7 @@ cd experiments/exp_01_basic_scan && python3 run_experiment.py
 ollama serve &
 
 # 2. 确保模型已拉取
-ollama pull garrywhite109909/graduation-vuln-scanner:v5
+ollama pull garrywhite109909/graduation-vuln-scanner:v9max
 
 # 3. 启动后端
 uvicorn app.backend.main:app --host 127.0.0.1 --port 8765
@@ -127,7 +127,7 @@ start http://localhost:8765       # Windows
 
 | 环境变量 | 默认值 | 说明 |
 |----------|--------|------|
-| `VULN_SCANNER_MODEL` | `garrywhite109909/graduation-vuln-scanner:v5` | Ollama 模型名 |
+| `VULN_SCANNER_MODEL` | `garrywhite109909/graduation-vuln-scanner:v9max` | Ollama 模型名 |
 | `VULN_SCANNER_FALLBACK_MODEL` | `qwen3:8b` | 主模型拉取失败时的回退模型 |
 | `VULN_SCANNER_RAG` | `0` | 设为 `1` 启用 RAG 知识库增强 |
 | `VULN_SCANNER_PREFILTER` | `1` | 设为 `0` 关闭传统工具预筛 |
@@ -265,7 +265,7 @@ python -m app.launcher.vuln_scanner_cli <command> [options]
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
-| `--model` | `garrywhite109909/graduation-vuln-scanner:v5` | Ollama 模型名 |
+| `--model` | `garrywhite109909/graduation-vuln-scanner:v9max` | Ollama 模型名 |
 | `--ollama-url` | `http://localhost:11434` | Ollama 服务地址 |
 | `--rag` | 关闭 | 启用 RAG 知识库增强（较慢但更准） |
 | `--format` | `text` | 输出格式：`text`（终端着色）或 `json`（结构化） |
@@ -454,32 +454,33 @@ IntelliJ 插件提供编辑器内选中代码的扫描功能，结果以气球�
 
 ## 核心结果
 
-当前最佳模型 **SFT v5**（Qwen3-8B-Instruct + 4bit QLoRA，r=8，rsLoRA）在本地 16GB AMD GPU 上训练完成。
+当前已发布最佳模型 **v9max**（Qwen3-8B-Instruct + 三模型蒸馏数据 7692 条，云端 A800 bf16 全精度 LoRA r=8 + rsLoRA 训练，Q4_K_M 量化部署）。
 
 | 测试集 | 样本数 | recall | FPR | accuracy | strict_recall |
 |---|---|---|---|---|---|
-| 合成集（87 段） | 87 | **1.000** | 0.231 | 0.931 | **0.590** |
-| CVE-fix 真实集 | 7 | **0.571** | - | 0.571 | 0.143 |
+| 合成集（87 段） | 87 | **1.000** | 0.423 | 0.874 | **0.607** |
+| CVE-fix 真实集 | 20 | **0.950** | - | - | 0.650 |
 
-与 Qwen3-8B 零样本基线对比，SFT v5 将 **strict_recall 从 0.459 提升到 0.590（+13.1pp）**，同时将 **CVE-fix recall 从 0.375 提升到 0.571（+19.6pp）**，且合成集 recall 保持 1.000。
+与 Qwen3-8B 零样本锚点基线对比，v9max 将 **合成集 strict_recall 从 0.459 提升到 0.607（+14.8pp）**、recall 保持 1.000（0 FN），同时将 **CVE-fix 真实集 recall 从 0.375 提升到 0.950（+57.5pp）**，大幅增强真实漏洞检出能力（合成集虚高 59.2pp 的问题在真实集上被有效收敛）。
+
+> FPR（合成集 0.423）偏高，根因是模型"模式匹配 > 深度理解"，对部分防御措施（subprocess 参数化列表、shlex.quote、whitelist+abspath）产生误报；用户结论"误报总比漏报好"，FPR 收敛留待最终模型 Nivis-alpha.1 通过 DPO/GRPO/CoT 教学解决。
 
 ```text
-strict_recall:  baseline 0.459  →  v2 0.623  →  v3 0.541  →  v4*(泄漏)  →  v5 0.590  →  v6 0.557
-CVE-fix recall: baseline 0.375  →  v2 0.625  →  v3 0.500  →  v4*(泄漏)  →  v5 0.571  →  v6 0.429
+strict_recall(合成集):  baseline 0.459 → v5 0.590 → v9max 0.607
+CVE-fix recall(真实集):  baseline 0.375 → v5 0.571 → v9max 0.950
 ```
-> \* v4 因训练-测试泄漏被废弃，不作为可信数据点。完整台账见 [EXPERIMENT_LEDGER.md](experiments/exp_06_finetune/results/EXPERIMENT_LEDGER.md)。
+> 完整台账见 [EXPERIMENT_LEDGER.md](experiments/exp_06_finetune/results/EXPERIMENT_LEDGER.md)；v9max 训练与评估详见 [docs/论文/第5章_训练主线.md](docs/论文/第5章_训练主线.md)。
 
 ***
 
 ## 当前状态与待决策
 
-> **截至 2026-07-27**：exp_01~05 零样本基线已完成；exp_06 完成 P0 parse_fail 修复、P1 CVE-fix 真实集校准、P2 SFT 迭代；**P3 DPO 在本地 16GB GPU 上不可行**（8bit OOM、4bit 梯度失效）。
+> **截至 2026-08-07**：exp_01~05 零样本基线 + Prompt 消融已完成；exp_06 完成 P0 parse_fail 修复、P1 CVE-fix 真实集校准、P2 本地 SFT 迭代（v2~v9）、**三模型数据蒸馏 + 云端 A800 训练 v9max 并已发布**。**v9max 为当前已发布里程碑**；最终模型 **Nivis-alpha.1** 将在此基础上完成 DPO/GRPO、数据飞轮与 CoT 教学，收敛 FPR 与 CWE 归因。
 
-| 选项 | 描述 | 风险/成本 |
+| 阶段 | 内容 | 状态 |
 |---|---|---|
-| A. 云 GPU 跑 DPO | 使用已准备的 `dpo_merged.jsonl`（104 条）在 24GB+ GPU 上训练 | 需云实例或换卡 |
-| B. 单个 FP micro-finetune | 针对 6 个 FP 中的某一个做极小学习率/短 epoch 微调 | 可能再次负迁移 |
-| C. 停止微调，进入系统开发 | 以 v5 为最终模型，开发前后端与报告功能 | FPR 0.231 仍较高 |
+| v9max 发布 | 三模型蒸馏 7692 条 → A800 bf16 训练 → Q4_K_M 发布为 Ollama 模型 | ✅ 已完成 |
+| Nivis-alpha.1 | DPO/GRPO 偏好优化 + 数据飞轮 + CoT 教学，收敛 FPR 0.423 与 CWE 归因 | ⏳ 后续计划 |
 
 ***
 
@@ -517,9 +518,11 @@ CVE-fix recall: baseline 0.375  →  v2 0.625  →  v3 0.500  →  v4*(泄漏)  
 | 角色 | 模型 | 阶段 |
 | --- | --- | --- |
 | 推理基座 | `qwen2.5-coder:7b` | exp_01 ~ exp_05 |
-| 训练 student(当前) | `Qwen/Qwen3-8B` + 4bit QLoRA (r=8, rsLoRA) | exp_06 P2 SFT v5 |
+| 训练 student(当前/已发布) | `Qwen/Qwen3-8B` + LoRA (r=8, rsLoRA) | exp_06 云端 A800 训练 v9max |
+| 训练 student(本地历史) | `Qwen/Qwen3-8B` + 4bit QLoRA (r=8, rsLoRA) | exp_06 P2 本地 SFT v5 |
 | 训练 student(历史) | Qwen2.5-Coder-7B-Base → KnItLM CPT (r=64) → merge 到 Instruct | exp_06 Phase 1-3(已归档) |
 | PD teacher(已暂缓) | `qwen3-coder:30b`（MoE） | exp_06 Phase 4(已归档) |
+| 蒸馏 teacher | DeepSeek V4-Flash / Kimi K3 / GLM-5.2 | 三模型数据蒸馏（7692 条） |
 | 对照模型 | `deepseek-coder-v2:16b` / `qwen2.5-coder:14b` / `gemma4:12b` / `gemma4:26b` / `gpt-oss:20b` | exp_04 多模型对比 |
 
 > 完整环境清单（Embedding 模型、向量库版本、传统工具版本等）见 [规划.md](规划.md) "实验环境"小节；训练与推理全链路技术栈见本文"技术架构与全栈"小节。
@@ -727,20 +730,28 @@ Graduation-Project/
 - 6 模型横向对比：gemma4:12b/26b 最优（准确率 94.3%），deepseek 误报率最高（44.4%）
 - 详见 [exp_04_report.md](experiments/exp_04_hard_samples/exp_04_report.md)
 
-### ✅ 阶段五：Prompt 工程消融（exp_05，2026-07-06）
+### ✅ 阶段五：Prompt 工程消融（exp_05，2026-07-06 首轮；2026-08-02 在 Qwen3-8B 上重做）
 
-- 对比零样本 / Few-shot / 思维链（CoT）/ 安全模式白名单 四种 Prompt 策略
-- CoT 在 recall 上表现最优（95%），但各策略在 FPR、稳定性上各有取舍
-- 结论：Prompt 工程能提升判定质量，但无法替代模型层面的领域知识注入
-- 详见 [exp_05_report.md](experiments/exp_05_prompt_ablation/exp_05_report.md)
+- **首轮（qwen2.5-coder:7b）**：对比零样本 / Few-shot / 思维链（CoT）/ 安全模式白名单 四种 Prompt 策略，CoT 在 recall 上表现最优（95%）。
+- **重做（Qwen3-8B，`ablation_v2`）**：在 87 段合成集上系统对比 8 种提示词变体，**`+consistency`（一致性约束）综合最优**——recall 0.967 / FPR 0.115 / accuracy 0.943，同时显著优于 base（recall 0.934 / FPR 0.192 / accuracy 0.897）。
+- 结论：约束一致性（要求判定理由与结论自洽）能在不牺牲召回的前提下显著压低误报，是零样本条件下最有效的轻量手段；但 Prompt 工程触及天花板，无法替代模型层面的领域知识注入。
+- 详见 [exp_05_report.md](experiments/exp_05_prompt_ablation/exp_05_report.md) 与 `experiments/exp_05_prompt_ablation/results/exp_05_prompt_ablation_v2.qwen3-8b.ablation_v2.repeat1.20260802_*.json`
 
-### ✅ 阶段六：网络安全专用模型训练（exp_06 P0-P3，Qwen3-8B 路线，2026-07-27）
+### ✅ 阶段六：网络安全专用模型训练（exp_06 P0-P3，Qwen3-8B 路线，2026-07-27 起）
 
 - **P0 parse_fail 修复**：max_tokens 1024→2048，parse_fail 18/87 → 0/87，新锚点 recall 0.967 / FPR 0.269 / strict_recall 0.459。
 - **P1 CVE-fix 真实集校准**：8 样本真实 CVE-fix baseline recall 0.375，确认合成集虚高 59.2pp。
-- **P2 SFT 迭代**：v2/v3/v4/v5/v6 五版迭代；v4 因测试集泄漏被废弃；v6 hard-negative 负迁移被归档；**v5 为当前最佳**（recall 1.000 / FPR 0.231 / strict_recall 0.590；CVE-fix recall 0.571 / strict_recall 0.143）。
-- **P3 DPO 本地不可行**：8bit OOM、4bit 梯度失效；`dpo_merged.jsonl` / `dpo_fp_pairs_v5.jsonl` 保留待云 GPU 复用。
+- **P2 本地 SFT 迭代**：v2/v3/v4/v5/v6/v7/v8/v9 多版迭代；v4 因测试集泄漏被废弃；v6 hard-negative 负迁移、v8 对比 CoT 判别焦虑被归档；v7 真实 CVE 泛化飞跃，v9 数据到极限转云端。
+- **P3 DPO 本地不可行**：8bit OOM、4bit 梯度失效；DPO 数据保留待云 GPU 复用，成为"本地探索→云端放大"路线的转折点。
 - 详见 [规划.md](规划.md) §三/§四、[EXPERIMENT_LEDGER.md](experiments/exp_06_finetune/results/EXPERIMENT_LEDGER.md) 与 [docs/论文/第5章_训练主线.md](docs/论文/第5章_训练主线.md)
+
+### ✅ 阶段七：三模型蒸馏 + 云端 A800 训练 v9max 发布（2026-08-02 ~ 08-07）
+
+- **三模型数据蒸馏**：DeepSeek V4-Flash / Kimi K3 / GLM-5.2 三模型 API 蒸馏生成大规模训练数据，原始目标约 11200 条，经 CWE 归一化、泄漏审计、矛盾/重复清洗后最终 **7692 条**（漏洞 3493 / 安全 4199，安全占比 54.6%）。
+- **云端 A800 训练**：Qwen3-8B bf16 全精度 LoRA（r=8 + alpha=16 + dropout=0.1 + rsLoRA），train 6539 / dev 1153，2 epoch，lr=1e-4，max_seq 6144，1636 步，约 4.1h，train_loss ≈ 0.529。
+- **v9max 评估**：合成集 87 段 recall 1.000 / FPR 0.423 / strict_recall 0.607；真实 CVE-fix 20 段 recall 0.95 / strict_recall 0.65 / fix_extracted 17/20，大幅增强真实漏洞检出。
+- **发布**：Q4_K_M 量化，发布为 Ollama 模型 `garrywhite109909/graduation-vuln-scanner:v9max`。
+- 详见 [docs/论文/第5章_训练主线.md](docs/论文/第5章_训练主线.md)、[docs/v9max_数据生成提示词.md](docs/v9max_数据生成提示词.md) 与 [docs/过程.md](docs/过程.md)
 
 ***
 
@@ -758,7 +769,7 @@ Graduation-Project/
 | exp_02 | 与传统工具（Bandit / Semgrep）的对比 | LLM 在 path_traversal 等语义依赖场景显著优于规则工具；但单样本耗时更高 | 差异化价值 |
 | exp_03 | RAG 知识库能否提升判定质量 | 72 条 CWE/OWASP 知识 + Chroma 检索，典型样本准确率保持 100%，难样本上提供可解释依据 | 知识增强 |
 | exp_04 | 难样本压力测试与消融 | v3 87 段样本（修复答案泄露后）上纯 LLM accuracy=78.2%；RAG 消融显示知识相关性价值有限，模型基座已掌握典型模式 | 能力边界 |
-| exp_05 | Prompt 工程消融 | CoT 召回 95% 为最优单一策略；零样本 / Few-shot / 安全白名单各有适用场景 | 工程优化 |
+| exp_05 | Prompt 工程消融 | Qwen3-8B 上系统对比 8 种变体，`+consistency`（一致性约束）最优：recall 0.967 / FPR 0.115 / accuracy 0.943；CoT 单独召回 88.5% | 工程优化/能力边界 |
 
 ### 主线二：网络安全专用模型（exp_06，Qwen3-8B 路线）
 
@@ -773,7 +784,11 @@ Graduation-Project/
 | P2 v4 | SFT + 反清单式 prompt | 数据流推理导向 prompt + 7 条 CWE-441 | 指标看似改善，但存在训练-测试泄漏 | **数据可信度比指标绝对值更重要** |
 | **P2 v5** | **SFT + 泄漏清洗** | 删除 100 条泄漏/近泄漏样本 + 10 条弱密码学 | **recall 1.000 / FPR 0.231 / strict_recall 0.590；CVE-fix recall 0.571** | **首个可信评估基线** |
 | P2 v6 | hard-negative SFT | v5 + 6 个 FP 正确拒绝 CoT | FPR↓ 但 recall 和 CVE-fix 泛化受损 | 简单 hard-negative 得不偿失 |
-| P3 | DPO | `dpo_merged.jsonl` 104 条偏好对 | 本地 16GB GPU 不可行（8bit OOM、4bit 梯度失效） | 消费级 GPU 硬件约束 |
+| P2 v7 | 实战专用 SFT | 针对 CWE-90/441/190 盲区 + 反事实 CoT | CVE-fix(20) recall 0.800 / strict_recall 0.650 | 针对真实漏洞盲区补样本 |
+| P2 v8 | 对比 CoT SFT | 引入判别性对比 CoT | FN↑、FP 激增（判别焦虑 + 冲突信号） | 对比 CoT 得不偿失 |
+| P2 v9 | SFT 收敛 | 清洗冲突样本 + 多样安全代码 + 降 epoch | 数据到极限，转云端放大 | 本地数据量是硬瓶颈 |
+| P3 | DPO | `dpo_merged.jsonl` 104 条偏好对 | 本地 16GB GPU 不可行（8bit OOM、4bit 梯度失效） | 消费级 GPU 硬件约束 → 转云 |
+| **v9max** | **三模型蒸馏 + A800 训练** | 7692 条蒸馏数据 + bf16 LoRA(r=8,rsLoRA) | **合成集 recall 1.000 / FPR 0.423 / strict_recall 0.607；CVE-fix recall 0.95** | **本地探索 → 云端放大路线验证** |
 
 > 详细数据见 [EXPERIMENT_LEDGER.md](experiments/exp_06_finetune/results/EXPERIMENT_LEDGER.md)；方法体系见 [docs/方法.md](docs/方法.md) 与 [docs/论文/第5章_训练主线.md](docs/论文/第5章_训练主线.md)。
 
@@ -794,6 +809,7 @@ Graduation-Project/
 3. **知识注入尝试**（KnItLM CPT，Qwen2.5 时代）：base 模型 CPT 可注入领域知识，但会引发参数化查询幻觉等副作用；Qwen3-8B 切换后已暂缓。
 4. **数据可信度优先**（Qwen3-8B SFT）：v4 因训练-测试泄漏产生漂亮但不可信的指标；v5 清洗后指标更可信，也更能指导后续决策。
 5. **偏好优化受限**（DPO）：理论上可降 FPR，但本地 16GB GPU 无法承载 8B DPO 双前向，需在更大显存或云实例上验证。
+6. **本地探索 → 云端放大**：消费级 GPU 上完成小规模快速迭代（v2~v9）与方法验证，数据与配置成熟后迁移云端 A800 全精度大规模训练（v9max），兼顾探索效率与最终质量。
 
 ### 📌 核心论点与论文定位
 
@@ -822,7 +838,7 @@ LLM 单样本推理耗时高于传统工具，但输出包含自然语言解释�
 
 #### 3. 答辩核心故事线
 
-> 传统静态分析工具在 CI/CD 流水线中表现优秀，但面对复杂业务逻辑、绕过式过滤、跨函数污点等场景时力不从心。本系统利用本地部署的开源大语言模型，通过 RAG 知识库增强、AST 代码切片与语义级代码理解建立基线；进一步于 2026-07-22 切换至 Qwen3-8B，通过 QLoRA 监督微调迭代优化 CWE 归因能力（strict_recall 0.459→0.590），并尝试用 DPO 降低误报率。受本地 16GB GPU 硬件约束，DPO 不可行，最终确定 SFT v5 为最佳模型。实验表明，在典型漏洞上 LLM 不弱于传统工具，在难样本上通过专用模型训练可提升真实 CVE 泛化能力（recall 0.375→0.571），并生成可执行的修复代码与自然语言解释，证明了 LLM 在代码安全审计中的差异化价值，也揭示了消费级 GPU 上偏好优化的硬件边界。
+> 传统静态分析工具在 CI/CD 流水线中表现优秀，但面对复杂业务逻辑、绕过式过滤、跨函数污点等场景时力不从心。本系统利用本地部署的开源大语言模型，通过 RAG 知识库增强、AST 代码切片与语义级代码理解建立基线；进一步切换至 Qwen3-8B，先在本地 16GB 消费级 GPU 上通过 QLoRA 快速迭代 SFT（v2~v9）打磨方法、数据与配置，再以 **DeepSeek V4-Flash / Kimi K3 / GLM-5.2 三模型蒸馏**产出 7692 条训练数据，迁移到**云端 A800 GPU bf16 全精度训练**，发布 **v9max** 模型。v9max 将合成集 strict_recall 从 0.459 提升至 0.607、recall 保持 1.000（0 FN），并将真实 CVE-fix recall 从 0.375 大幅提升至 0.950，同时保留了可解释的修复代码与自然语言解释。FPR 偏高（0.423）的收敛作为最终模型 Nivis-alpha.1（DPO/GRPO + 数据飞轮 + CoT 教学）的后继工作。实验证明了 LLM 在代码安全审计中的差异化价值，并验证了"本地探索→云端放大"的消费级 GPU 训练路线。
 
 ***
 
@@ -841,9 +857,9 @@ LLM 单样本推理耗时高于传统工具，但输出包含自然语言解释�
                                   ↓
 ┌─────────────────────────────────────────────────────────────────────┐
 │  训练层（exp_06，Qwen3-8B 路线）                                       │
-│  Qwen3-8B-Instruct ──► 4bit QLoRA SFT(v5 数据) ──► best adapter        │
+│  本地 QLoRA SFT 迭代(v2~v9) ──► 三模型蒸馏 7692 条 ──► A800 bf16 训练 v9max │
 │                                           │                         │
-│                              DPO（本地 16GB 不可行，数据保留）            │
+│                  Nivis-alpha.1: DPO/GRPO + 数据飞轮 + CoT（后续）      │
 └─────────────────────────────────────────────────────────────────────┘
                                   ↓
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -861,10 +877,10 @@ LLM 单样本推理耗时高于传统工具，但输出包含自然语言解释�
 
 | 层级 | 技术 | 作用 | 项目落地 |
 | --- | --- | --- | --- |
-| 量化 | bitsandbytes 4-bit NF4 + double quant | 8B 模型在 16 GB 显存可训 SFT | `train_qlora.py` |
-| LoRA 优化 | **rsLoRA**（缩放因子 1/√r） | 高 rank 训练稳定、效果优于标准 LoRA | v5 SFT 使用 r=8, alpha=16 |
-| 监督微调 | **QLoRA SFT**：Qwen3-8B + LoRA(r=8, rsLoRA) | 提升 CWE 归因与真实 CVE 泛化 | `train_qlora.py` + `train_chatml_v5_clean.jsonl` |
-| 对齐(尝试) | **DPO**（Direct Preference Optimization） | 用偏好对降低 FPR、校准判断边界 | `train_dpo.py` + `dpo_merged.jsonl`（本地不可行） |
+| 量化 | bitsandbytes 4-bit NF4 + double quant | 8B 模型在 16 GB 显存可训 SFT（本地探索） | `train_qlora.py` |
+| LoRA 优化 | **rsLoRA**（缩放因子 1/√r） | 高 rank 训练稳定、效果优于标准 LoRA | v9max 使用 r=8, alpha=16 |
+| 监督微调 | **SFT**：Qwen3-8B + LoRA(r=8, rsLoRA) | 提升 CWE 归因与真实 CVE 泛化 | 本地 QLoRA(v2~v9) + 云端 A800 bf16(v9max) |
+| 对齐(计划) | **DPO / GRPO**（偏好优化） | 用偏好对降低 FPR、校准判断边界 | Nivis-alpha.1 阶段（云 GPU 放大） |
 | 加速 | **AOTRITON** attention、TunableOp 离线调优 | ROCm/RDNA4 上训练加速 | `TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1` |
 | 数据工程 | CoT 蒸馏、数据增强、泄漏审计、错题闭环 | 保证训练数据质量与可信度 | `build_dataset.py` / `audit_leakage_precise.py` / `generate_fp_dpo_pairs.py` |
 
@@ -930,7 +946,7 @@ LLM 单样本推理耗时高于传统工具，但输出包含自然语言解释�
                               ↓
 ┌──────────────────────────────────────────────────────────────┐
 │  训练与评估流水线（`experiments/exp_06_finetune/`）              │
-│  Qwen3-8B QLoRA SFT(v5) → DPO(云 GPU 待验证)                  │
+│  本地 SFT(v2~v9) → 三模型蒸馏 → A800 训练 v9max → 下一步 Nivis-alpha.1 │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -940,7 +956,7 @@ LLM 单样本推理耗时高于传统工具，但输出包含自然语言解释�
 
 ### 模型发布与部署（给别人用）
 
-当前已发布模型为 **SFT v5**（`garrywhite109909/graduation-vuln-scanner:v5`），启动器会自动检测并 pull。
+当前已发布模型为 **v9max**（`garrywhite109909/graduation-vuln-scanner:v9max`），启动器会自动检测并 pull。历史版本 `:v5` 仍保留，可通过设置 `VULN_SCANNER_MODEL` 切换。
 
 #### 1. 用户侧下载并应用模型
 
@@ -951,10 +967,10 @@ LLM 单样本推理耗时高于传统工具，但输出包含自然语言解释�
 python -m app.launcher.bootstrap
 
 # 或显式指定（与默认值相同）
-VULN_SCANNER_MODEL=garrywhite109909/graduation-vuln-scanner:v5 python -m app.launcher.bootstrap
+VULN_SCANNER_MODEL=garrywhite109909/graduation-vuln-scanner:v9max python -m app.launcher.bootstrap
 
 # 在环境变量/启动脚本中永久设置
-export VULN_SCANNER_MODEL=garrywhite109909/graduation-vuln-scanner:v5
+export VULN_SCANNER_MODEL=garrywhite109909/graduation-vuln-scanner:v9max
 bash app/launcher/start_linux_macos.sh
 ```
 
@@ -963,10 +979,10 @@ bash app/launcher/start_linux_macos.sh
 ```bash
 python tools/download_model.py \
   --source gguf \
-  --url https://github.com/<user>/<repo>/releases/download/<tag>/merged_v5-q4_k_m.gguf \
-  --model garrywhite109909/graduation-vuln-scanner:v5
+  --url https://github.com/<user>/<repo>/releases/download/<tag>/merged_v9max-q4_k_m.gguf \
+  --model garrywhite109909/graduation-vuln-scanner:v9max
 
-VULN_SCANNER_MODEL=garrywhite109909/graduation-vuln-scanner:v5 python -m app.launcher.bootstrap
+VULN_SCANNER_MODEL=garrywhite109909/graduation-vuln-scanner:v9max python -m app.launcher.bootstrap
 ```
 
 #### 2. 8GB 显存适配说明
@@ -975,9 +991,9 @@ VULN_SCANNER_MODEL=garrywhite109909/graduation-vuln-scanner:v5 python -m app.lau
 - 推理时 activations/KV cache 额外占用，建议 `num_ctx=8192`（已在 `Modelfile` 中设置）
 - 若仍报 OOM，可进一步降低 `num_ctx` 到 4096：
   ```bash
-  echo 'PARAMETER num_ctx 4096' >> outputs/Modelfile_v5
-  ollama create garrywhite109909/graduation-vuln-scanner:v5-4k -f outputs/Modelfile_v5
-  VULN_SCANNER_MODEL=garrywhite109909/graduation-vuln-scanner:v5-4k python -m app.launcher.bootstrap
+  echo 'PARAMETER num_ctx 4096' >> outputs/Modelfile_v9max
+  ollama create garrywhite109909/graduation-vuln-scanner:v9max-4k -f outputs/Modelfile_v9max
+  VULN_SCANNER_MODEL=garrywhite109909/graduation-vuln-scanner:v9max-4k python -m app.launcher.bootstrap
   ```
 
 #### 3. 模型版本切换
@@ -991,7 +1007,7 @@ VULN_SCANNER_MODEL=garrywhite109909/graduation-vuln-scanner:v5 python -m app.lau
 | CLI | `VULN_SCANNER_MODEL=... python -m app.launcher.vuln_scanner_cli scan file.py` |
 | VS Code 插件 | 在插件设置或启动脚本中设置环境变量 |
 
-缺省模型为 `garrywhite109909/graduation-vuln-scanner:v5`（SFT v5，当前唯一已发布版本）。
+缺省模型为 `garrywhite109909/graduation-vuln-scanner:v9max`（v9max，当前已发布版本）。
 
 #### 4. 重新发布模型（开发者/台式机执行）
 
@@ -1000,13 +1016,13 @@ VULN_SCANNER_MODEL=garrywhite109909/graduation-vuln-scanner:v5 python -m app.lau
 ```bash
 # 合并 LoRA → HF 格式 → GGUF Q4_K_M → Ollama 模型
 bash tools/release_model.sh \
-  --version v5 \
-  --adapter experiments/exp_06_finetune/outputs/lora_r8_a16_e3_lr0.0001_s42_rslora_v5/best \
+  --version v9max \
+  --adapter experiments/exp_06_finetune/cloud_train \
   --base Qwen/Qwen3-8B \
-  --ollama-name garrywhite109909/graduation-vuln-scanner:v5
+  --ollama-name garrywhite109909/graduation-vuln-scanner:v9max
 
 # 推送到 Ollama Registry（可选，需要登录）
-ollama push garrywhite109909/graduation-vuln-scanner:v5
+ollama push garrywhite109909/graduation-vuln-scanner:v9max
 ```
 
 脚本会自动：
@@ -1248,7 +1264,7 @@ CI = [center - margin, center + margin]
 
 | 问题 | 原因 | 解决方案 |
 |------|------|----------|
-| 模型下载超时或失败 | 网络不稳定或 Ollama Registry 不可达 | 手动重试：`ollama pull garrywhite109909/graduation-vuln-scanner:v5`；若持续失败可改用回退模型：`set VULN_SCANNER_MODEL=qwen3:8b` |
+| 模型下载超时或失败 | 网络不稳定或 Ollama Registry 不可达 | 手动重试：`ollama pull garrywhite109909/graduation-vuln-scanner:v9max`；若持续失败可改用回退模型：`set VULN_SCANNER_MODEL=qwen3:8b` |
 | 扫描结果全为"无法判定" | 模型未正确加载或输出格式不匹配 | 运行 `python -m app.launcher.vuln_scanner_cli health` 检查模型可用性；确认模型名与 Ollama 中一致 |
 | 推理速度极慢（> 60s/文件） | 无 GPU 回退到 CPU 推理 | 检查启动日志中 `[硬件检测]` 行；CPU 模式约为 GPU 的 1/10 速度，属正常现象 |
 | OOM（显存溢出） | `num_ctx` 过大或显存不足 | 降低上下文窗口：创建 4K 版模型（见「模型部署与版本管理」§8GB 显存适配说明） |
