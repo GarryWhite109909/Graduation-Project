@@ -46,8 +46,9 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from graduation_project.prompts import SYSTEM_PROMPT_LITE as SYSTEM_PROMPT, build_user_prompt
+from graduation_project.prompts import BASE_PROMPT as SYSTEM_PROMPT, build_user_prompt
 from graduation_project.schema import parse_verdict, normalize_has_vulnerability
+from graduation_project.fix_verifier import FixVerifier
 from experiments.utils import (
     load_manifest, read_sample_code, compute_detection_metrics,
     compute_repeat_metrics, save_results_json,
@@ -175,6 +176,109 @@ def compute_strict_metrics(results: list[dict]) -> dict:
         "strict_recall": round(strict_recall, 4) if strict_recall is not None else None,
         "strict_recall_with_parse_fail": round(strict_recall_with_parse_fail, 4) if strict_recall_with_parse_fail is not None else None,
         "strict_accuracy": round(strict_accuracy, 4) if strict_accuracy is not None else None,
+    }
+
+
+# ---------------------------------------------------------------------------
+# 修复可用性评估：第一指标（参考1.md）
+# ---------------------------------------------------------------------------
+# 动机：参考1.md（路线A）明确"修复方案可用性"是第一评判标准，CWE 准确率仅作参考。
+# 用 FixVerifier 对每个漏洞样本（模型判 True）的 fix_suggestion 做自动化校验：
+#   1. 语法通过（syntax_valid）
+#   2. 危险模式已移除（tests_passed=True）—— 即"真正修掉了漏洞"
+# 只有同时满足才算"修复可用"。这一指标优先于 detection/CWE 作为主结论。
+_LANG_MAP = {
+    "python": "python", "py": "python", "python3": "python",
+    "javascript": "javascript", "js": "javascript", "node": "javascript",
+    "java": "java",
+}
+
+
+def lang_for_fix(language: str) -> str:
+    """把 manifest 的 language 字段映射到 FixVerifier 支持的语法标签。"""
+    return _LANG_MAP.get((language or "").strip().lower(), (language or "").strip().lower())
+
+
+def compute_fix_metrics(results: list[dict], verifier: FixVerifier) -> dict:
+    """计算修复可用性指标（第一指标）。
+
+    只对"漏洞样本且模型判 True"的样本做修复校验（真正的修复场景）。
+    安全样本（expected_present=False）或模型判 False 的样本不参与修复可用性统计。
+
+    Returns:
+        {
+            "fix_applicable": 应尝试修复的样本数（漏洞且模型判 True）
+            "fix_extracted": 能从 fix_suggestion 抽到代码块的数量
+            "fix_syntax_ok": 语法通过的数量
+            "fix_removed_vuln": 危险模式移除的数量（tests_passed=True）
+            "fix_usable": 语法通过 且 危险模式移除 的数量
+            "fix_usable_rate": fix_usable / fix_applicable
+            "fix_unusable_reasons": {reason: count} 各类失败原因
+            "per_sample": 每个样本的修复校验结果
+        }
+    """
+    fix_applicable = 0
+    fix_extracted = 0
+    fix_syntax_ok = 0
+    fix_removed_vuln = 0
+    fix_usable = 0
+    reasons: dict[str, int] = {}
+    per_sample = []
+
+    for r in results:
+        # 只对"漏洞样本 + 模型判 True"做修复校验
+        if r.get("expected_present") is not True:
+            continue
+        if r.get("predicted") is not True:
+            continue
+        fix_applicable += 1
+
+        original_code = r.get("original_code", "")
+        fix_suggestion = r.get("model_fix_suggestion", "")
+        language = lang_for_fix(r.get("language", ""))
+
+        vres = verifier.verify_fix(original_code, fix_suggestion, language=language)
+
+        if vres.fixed_code is None:
+            reasons["未抽到代码块"] = reasons.get("未抽到代码块", 0) + 1
+        else:
+            fix_extracted += 1
+            if vres.syntax_valid:
+                fix_syntax_ok += 1
+            else:
+                reasons["语法错误"] = reasons.get("语法错误", 0) + 1
+            if vres.tests_passed is True:
+                fix_removed_vuln += 1
+            elif vres.tests_passed is False:
+                reasons["危险模式仍在"] = reasons.get("危险模式仍在", 0) + 1
+            # None = 无法判定（原始代码未命中已知危险模式），不算通过也不算失败
+
+        usable = vres.syntax_valid and (vres.tests_passed is True)
+        if usable:
+            fix_usable += 1
+
+        per_sample.append({
+            "file": r.get("file", ""),
+            "language": r.get("language", ""),
+            "expected_cwe": r.get("expected_cwe", ""),
+            "model_vulnerability_type": r.get("model_vulnerability_type", ""),
+            "fix_extracted": vres.fixed_code is not None,
+            "syntax_valid": vres.syntax_valid,
+            "tests_passed": vres.tests_passed,
+            "fix_usable": usable,
+            "error_message": vres.error_message,
+        })
+
+    fix_usable_rate = fix_usable / fix_applicable if fix_applicable else None
+    return {
+        "fix_applicable": fix_applicable,
+        "fix_extracted": fix_extracted,
+        "fix_syntax_ok": fix_syntax_ok,
+        "fix_removed_vuln": fix_removed_vuln,
+        "fix_usable": fix_usable,
+        "fix_usable_rate": round(fix_usable_rate, 4) if fix_usable_rate is not None else None,
+        "fix_unusable_reasons": reasons,
+        "per_sample": per_sample,
     }
 
 
@@ -408,6 +512,7 @@ def evaluate(model, tokenizer, manifest_records,
             verdict = parse_verdict(raw_output)
             predicted = normalize_has_vulnerability(verdict.get("has_vulnerability") if verdict else None)
             model_vulnerability_type = verdict.get("vulnerability_type", "") if verdict else ""
+            model_fix_suggestion = verdict.get("fix_suggestion", "") if verdict else ""
             elapsed = time.time() - t0
 
             # P2-7: Self-Verification 后处理
@@ -453,6 +558,7 @@ def evaluate(model, tokenizer, manifest_records,
             verdict = None
             predicted = None
             model_vulnerability_type = ""
+            model_fix_suggestion = ""
 
         # 判定
         if predicted is None:
@@ -471,6 +577,8 @@ def evaluate(model, tokenizer, manifest_records,
             "model_has_vulnerability": predicted,  # 与 utils.compute_detection_metrics 默认字段对齐
             "predicted": predicted,  # 保留兼容字段
             "model_vulnerability_type": model_vulnerability_type,  # P0-2: 严格评估用
+            "model_fix_suggestion": model_fix_suggestion,  # 修复可用性评估用
+            "original_code": code,  # 修复可用性评估用（原始代码）
             "outcome": outcome,
             "expected_vulnerability": rec.get("expected_vulnerability", ""),
             "expected_cwe": rec.get("expected_cwe", ""),
@@ -693,6 +801,18 @@ def main():
         print(f"  strict_recall_with_parse_fail: {strict_metrics['strict_recall_with_parse_fail']}  (含 parse_fail 的召回率)")
         print(f"  strict_accuracy: {strict_metrics['strict_accuracy']}  (loose accuracy={metrics['accuracy']})")
 
+        # 修复可用性（第一指标，参考1.md）
+        fix_verifier = FixVerifier(timeout=30)
+        fix_metrics = compute_fix_metrics(representative_results, fix_verifier)
+        print("\n=== 修复可用性（第一指标）===")
+        print(f"  应修复样本（漏洞且判True）: {fix_metrics['fix_applicable']}")
+        print(f"  抽到代码块: {fix_metrics['fix_extracted']} | 语法通过: {fix_metrics['fix_syntax_ok']}")
+        print(f"  危险模式已移除: {fix_metrics['fix_removed_vuln']}")
+        print(f"  ★修复可用（语法通过+危险移除）: {fix_metrics['fix_usable']} "
+              f"({fix_metrics['fix_usable_rate']})")
+        if fix_metrics['fix_unusable_reasons']:
+            print(f"  失败原因: {fix_metrics['fix_unusable_reasons']}")
+
         # 多种子聚合
         multi_summary = None
         if args.seeds > 1:
@@ -728,6 +848,7 @@ def main():
             "all_runs": all_runs if args.seeds > 1 else None,
             "metrics": metrics,  # 来自 run1 (seed=42)
             "strict_metrics": strict_metrics,
+            "fix_metrics": fix_metrics,  # 修复可用性（第一指标）
             "multiseed_summary": multi_summary,
         }
         # 多种子场景：额外保存 metrics_mean 字段（多种子均值），供下游对比脚本使用

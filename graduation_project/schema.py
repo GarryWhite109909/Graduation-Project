@@ -20,12 +20,12 @@ from typing import Any, Optional
 # ---------------------------------------------------------------------------
 VERDICT_SCHEMA: dict[str, str] = {
     "has_vulnerability": "bool, true 表示存在漏洞，false 表示未发现漏洞",
-    "vulnerability_type": "str, 单个字符串（禁止拆成多个逗号分隔的值），格式如 'CWE-89 SQL注入'；无漏洞填 'none'",
+    "vulnerability_type": "str, 单个字符串（禁止拆成多个逗号分隔的值），格式如 'CWE-编号 漏洞名'，例如 'CWE-89 SQL Injection'、'CWE-79 Cross-site Scripting (XSS)'；无漏洞填 'none'",
     "risk_level": "str, Critical/High/Medium/Low；无漏洞填 'None'",
-    "source": "str, 污染来源（用户可控输入点）；无漏洞填 'N/A'",
-    "sink": "str, 危险函数或触发点；无漏洞填 'N/A'",
-    "explanation": "str, 漏洞或安全现状说明",
-    "fix_suggestion": "str, 修复建议；无漏洞填 'no fix needed'",
+    "source": "str, 污染来源（用户可控输入点）。必须锚定行号，如 'line 12: request.args.get(\"id\")'；无漏洞填 'N/A'",
+    "sink": "str, 危险函数或触发点。必须锚定行号，如 'line 18: cursor.execute(query)'；无漏洞填 'N/A'",
+    "explanation": "str, 漏洞或安全现状说明（数据流/成因，用 -> 箭头描述）",
+    "fix_suggestion": "str, 完整、可运行的修复版代码，用 ``` 围栏包裹（含语言标签，如 ```python）。必须是基于原代码修改后的完整版本，禁止只给片段、省略号或补丁说明；无漏洞填 'no fix needed'",
 }
 
 

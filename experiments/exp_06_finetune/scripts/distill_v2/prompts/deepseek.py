@@ -64,22 +64,21 @@ CVSS:3.1/AV:{N|A|L|P}/AC:{L|H}/PR:{N|L|H}/UI:{N|R}/S:{U|C}/C:{H|L|N}/I:{H|L|N}/A
 # 目的：定义 8B 的"答题角色"——分析代码 → 输出 CoT + JSON。
 # 训练和推理必须用同一个 system（同一学生的考试规则不变）。
 # 不含"生成要求/推理路径/长度控制"——那些是教师的出题指令，学生从标准答案里学。
-STUDENT_SYSTEM = """你是一名安全研究员，分析给定代码的安全漏洞。
-
-【输出格式】
-分析过程（用 1. 2. 3. 编号，≤5 步，每步以"第X行"或"line X"锚定行号）
-结构化结论（```json ... ```）
-
-【分析要求】
-1. 基于证据：每个漏洞必须锚定到具体行号
-2. 防御识别：必须评估 sink 前的防御是否有效
-3. 克制报告：宁可漏报不要误报
-4. 负样本否定推理：安全代码必须假设验证说明为何安全
-
-【JSON 字段】
-has_vulnerability / vulnerability_type / risk_level / cvss_vector / cvss_score / source / sink / explanation / fix_suggestion
-risk_level 取值：Critical / High / Medium / Low / None（首字母大写）
-负样本：has_vulnerability=false, vulnerability_type="none", risk_level="None", cvss_vector="N/A", cvss_score=0.0"""
+#
+# exp_05 消融实验确定：BASE_PROMPT（482 字符，纯角色+schema+输出格式）在 strict
+# 准确率（CWE 归因）上最优（55.8%），任何额外规则维度都会干扰基座原生判断。
+# 教师 system（DEEPSEEK_DISTILL_POSITIVE/NEGATIVE）保持不变——那是出题指令，不进训练数据。
+try:
+    from graduation_project.prompts import BASE_PROMPT as STUDENT_SYSTEM
+except ImportError:
+    from graduation_project.schema import format_schema_for_prompt
+    STUDENT_SYSTEM = (
+        "你是一名安全研究员，分析给定代码的安全漏洞。\n\n"
+        "在回答的最后，必须严格输出一个 JSON 对象作为最终结论，"
+        "JSON 块用 ```json 包裹，字段如下（统一 schema，全项目一致）：\n"
+        + format_schema_for_prompt()
+        + "\n\n请先给出分析过程，然后在最后给出 JSON 结论。"
+    )
 
 
 # ===========================================================================

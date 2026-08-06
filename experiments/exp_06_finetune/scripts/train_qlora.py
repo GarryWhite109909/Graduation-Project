@@ -161,7 +161,10 @@ def main():
                         help="启用 DoRA（权重分解为 magnitude+direction，PEFT 0.19+ 支持；"
                              "注意：DoRA + 4bit QLoRA 在 ROCm 上需单独验证兼容性）")
     parser.add_argument("--max-seq-length", type=int, default=2048, help="最大序列长度")
-    parser.add_argument("--save-steps", type=int, default=50, help="每 N 步保存")
+    parser.add_argument("--save-steps", type=int, default=50, help="每 N 步保存 checkpoint（防中断丢进度）")
+    parser.add_argument("--eval-steps", type=int, default=None,
+                        help="每 N 步评估 dev（默认与 save-steps 相同；可调大降低 eval 开销，"
+                             "如 save=50 / eval=200，保存频繁但评估稀疏）")
     parser.add_argument("--logging-steps", type=int, default=5, help="每 N 步记录日志")
     parser.add_argument("--warmup-ratio", type=float, default=0.05, help="warmup 比例")
     parser.add_argument("--seed", type=int, default=42, help="随机种子")
@@ -178,11 +181,17 @@ def main():
                         help="EarlyStopping 耐心值：dev loss 连续 N 轮不降则停（默认 2）")
     parser.add_argument("--no-early-stopping", action="store_true",
                         help="禁用 early stopping（仍会分 dev 集评估，但不提前停）")
+    parser.add_argument("--no-load-best", action="store_true",
+                        help="禁用 load_best_model_at_end（训练结束不自动回滚到 best）。"
+                             "启用后 save_steps 与 eval_steps 可独立设置（如 save=50/eval=200），"
+                             "适合防中断频繁保存 + 稀疏评估；训练结束后手动从各 checkpoint 的 eval_loss 选 best")
     parser.add_argument("--output-suffix", type=str, default="",
                         help="输出目录后缀（如 _7b），避免不同基座模型覆盖同名目录")
     parser.add_argument("--max-steps", type=int, default=-1,
                         help="最大训练步数（默认 -1 不启用；>0 时覆盖 epochs，"
                              "用于 TunableOp recording 等短跑场景）")
+    parser.add_argument("--resume", type=str, default="",
+                        help="从 checkpoint 恢复训练（传入 checkpoint 目录路径）")
     args = parser.parse_args()
 
     # 解析数据文件路径
@@ -237,7 +246,7 @@ def main():
         device_map={"": 0},  # ROCm 上 "auto" 易段错误，强制单 GPU
         trust_remote_code=True,
         torch_dtype=torch.float16,
-        attn_implementation="sdpa",  # sdpa 比 eager 省显存（避免 OOM），ROCm 上已验证可用
+        attn_implementation="eager",  # RDNA4 上 sdpa 反向传播触发 hipErrorIllegalAddress，改用 eager（纯 PyTorch，最稳定）
     )
     model.config.use_cache = False  # 训练时关闭 KV cache
 
@@ -275,6 +284,16 @@ def main():
     model = get_peft_model(model, lora_config)
     model.print_trainable_parameters()
 
+    # fp32 LoRA 参数：ROCm 上 GradScaler 与模型内部 bf16 参数不兼容，
+    # 改为把 LoRA 可训练参数提升到 fp32（梯度天然不下溢，无需 GradScaler）
+    # 额外开销极小：43M 参数 × 4 bytes ≈ 172MB
+    n_upcast = 0
+    for param in model.parameters():
+        if param.requires_grad and param.dtype != torch.float32:
+            param.data = param.data.to(torch.float32)
+            n_upcast += 1
+    print(f"LoRA 参数提升到 fp32: {n_upcast} 个 tensor")
+
     # SFT 配置（P0 改造：加 eval + load_best）
     output_dir = OUTPUT_DIR / f"lora_r{args.lora_r}_a{args.lora_alpha}_e{args.epochs}_lr{args.lr:g}_s{args.seed}{peft_tag}{args.output_suffix}"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -292,15 +311,19 @@ def main():
         learning_rate=args.lr,
         lr_scheduler_type="cosine",
         warmup_ratio=args.warmup_ratio,
+        max_grad_norm=1.0,  # 梯度裁剪：防止梯度爆炸导致 NaN eval_loss
         logging_steps=args.logging_steps,
+        save_strategy="no" if short_run else "steps",  # 按步保存（避免崩溃丢失进度）
         save_steps=args.save_steps,
-        save_total_limit=3,
+        save_total_limit=10,  # 加大：防 load_best_model_at_end 时 best checkpoint 已被删
         max_steps=args.max_steps,  # >0 时覆盖 epochs（用于 TunableOp recording 短跑）
         bf16=False,  # RDNA4 不支持 bf16
-        fp16=bnb_config is None,  # 4bit 模式下禁用 fp16 GradScaler（与 BFloat16 梯度冲突）
+        fp16=False,  # 不用 GradScaler（ROCm 上 GradScaler 与模型内部 bf16 参数不兼容）
+                     # 改用 fp32 LoRA 参数防止梯度下溢（见 get_peft_model 后的 dtype 提升）
         gradient_checkpointing=True,
         gradient_checkpointing_kwargs={"use_reentrant": False},
         optim="adamw_torch",  # RDNA4 上 paged_adamw_8bit 可能造成模型状态静默损坏
+        weight_decay=0.01,  # L2 正则化：防止权重过大导致 fp16 前向溢出
         seed=args.seed,
         max_length=args.max_seq_length,  # TRL 1.7+ 改名为 max_length
         packing=False,  # ROCm 上 packing 需 flash-attn，关闭避免 cross-contamination + 省 VRAM
@@ -309,12 +332,11 @@ def main():
         report_to="none",
         logging_dir=str(LOG_DIR),
         # P0 改造：验证集评估 + best checkpoint（短跑模式下禁用）
-        eval_strategy="no" if short_run else "epoch",  # 每 epoch 评估 dev
-        eval_steps=None,  # epoch 级别评估，不需 steps
-        load_best_model_at_end=not short_run,  # 训练结束回滚到 best checkpoint
+        eval_strategy="no" if short_run else "steps",  # 按步评估 dev
+        eval_steps=args.eval_steps if args.eval_steps else args.save_steps,  # 默认与保存对齐，可独立调大
+        load_best_model_at_end=(not short_run) and (not args.no_load_best),  # 训练结束回滚到 best checkpoint
         metric_for_best_model="eval_loss",  # 按 dev loss 选 best
         greater_is_better=False,  # loss 越小越好
-        save_strategy="no" if short_run else "epoch",  # 与 eval 对齐，每 epoch 存
         # OOM 修复：dev 评估 batch_size 降到 1 + 累积 16 步，与训练一致
         per_device_eval_batch_size=1,
         eval_accumulation_steps=16,
@@ -349,7 +371,7 @@ def main():
     print(f"\n开始训练: {args.epochs} epochs, lr={args.lr}, batch={args.batch_size}x{args.grad_accum}, seed={args.seed}")
     print(f"train={len(train_dataset)} dev={len(dev_dataset)}")
     print(f"输出目录: {output_dir}")
-    train_result = trainer.train()
+    train_result = trainer.train(resume_from_checkpoint=args.resume if args.resume else None)
 
     # 短跑模式（TunableOp recording 等）不保存模型，直接结束
     if short_run:
@@ -363,7 +385,11 @@ def main():
     best_dir = output_dir / "best"
     trainer.save_model(str(best_dir))
     trainer.save_state()
-    print(f"\nBest LoRA adapter（按 dev_loss 选）已保存到: {best_dir}")
+    if args.no_load_best:
+        print(f"\n（--no-load-best：model 为 final 状态）LoRA adapter 已保存到: {best_dir}")
+        print(f"  如需 best，请从各 checkpoint 的 eval_loss 手动选择。")
+    else:
+        print(f"\nBest LoRA adapter（按 dev_loss 选）已保存到: {best_dir}")
 
     # 也保存 final（训练结束时的状态，可能不是 best）
     final_dir = output_dir / "final"

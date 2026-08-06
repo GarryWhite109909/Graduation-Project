@@ -133,6 +133,28 @@ SYSTEM_PROMPT_LITE = (
 )
 
 
+# ---------------------------------------------------------------------------
+# Base System Prompt —— exp_05 消融实验确定的最优 prompt（482 字符）
+# ---------------------------------------------------------------------------
+# 设计动机：exp_05_prompt_ablation 对 8+2 个变体做了严格对照实验，结论是
+# 纯 base prompt（角色 + schema + 输出格式）在 strict 准确率（CWE 归因）
+# 上最优（55.8%），任何额外规则维度都会干扰基座模型的原生 CWE 判断。
+# loose 准确率也达 90.7%（仅次于 +consistency 的 94.3%，但后者 strict 下降）。
+#
+# 使用约定（全项目唯一 system prompt）：
+#   - exp_06 训练数据生成（distill_v2 STUDENT_SYSTEM）用 BASE_PROMPT
+#   - exp_06 推理评估（evaluate.py）也用 BASE_PROMPT（保持训练/推理一致）
+#   - 已有训练数据统一改造为 BASE_PROMPT
+# ---------------------------------------------------------------------------
+BASE_PROMPT = (
+    "你是一名安全研究员，分析给定代码的安全漏洞。\n\n"
+    "在回答的最后，必须严格输出一个 JSON 对象作为最终结论，"
+    "JSON 块用 ```json 包裹，字段如下（统一 schema，全项目一致）：\n"
+    + format_schema_for_prompt()
+    + "\n\n请先给出分析过程，然后在最后给出 JSON 结论。"
+)
+
+
 def build_user_prompt(
     code: str,
     language: str = "python",
@@ -205,10 +227,10 @@ def auth(user, pwd):
     cur.execute("SELECT * FROM users WHERE name='" + user + "' AND pwd='" + pwd + "'")
     return cur.fetchone()
 ```
-分析：用户输入 user/pwd 通过字符串拼接直接进入 SQL 语句，未使用参数化查询。
+分析：用户输入 user/pwd 通过字符串拼接直接进入 SQL 语句（line 3），未使用参数化查询。
 结论：
 ```json
-{"has_vulnerability": true, "vulnerability_type": "CWE-89 SQL注入", "risk_level": "Critical", "source": "函数参数 user/pwd", "sink": "cur.execute 拼接 SQL", "explanation": "字符串拼接 SQL 允许注入", "fix_suggestion": "改用占位符参数化查询"}
+{"has_vulnerability": true, "vulnerability_type": "CWE-89 SQL注入", "risk_level": "Critical", "source": "line 1: 函数参数 user/pwd", "sink": "line 3: cur.execute 拼接 SQL", "explanation": "user/pwd -> 字符串拼接 -> query -> cur.execute", "fix_suggestion": "line 3: 改用参数化查询 cur.execute(\"SELECT * FROM users WHERE name=? AND pwd=?\", (user, pwd))"}
 ```
 
 【示例 2（安全）】
@@ -232,10 +254,10 @@ import os
 def lookup(host):
     os.system("nslookup " + host)
 ```
-分析：用户输入 host 直接拼接到 os.system 命令字符串，可注入 shell 元字符（如 ; rm -rf）。
+分析：用户输入 host（line 2）直接拼接到 os.system 命令字符串（line 3），可注入 shell 元字符（如 `; rm -rf`）。
 结论：
 ```json
-{"has_vulnerability": true, "vulnerability_type": "CWE-78 命令注入", "risk_level": "Critical", "source": "函数参数 host", "sink": "os.system 拼接命令", "explanation": "os.system 拼接用户输入可触发 shell 注入", "fix_suggestion": "改用 subprocess.run(['nslookup', host]) 列表形式"}
+{"has_vulnerability": true, "vulnerability_type": "CWE-78 命令注入", "risk_level": "Critical", "source": "line 2: 函数参数 host", "sink": "line 3: os.system 拼接命令", "explanation": "host -> os.system 字符串拼接 -> 可注入 shell 元字符", "fix_suggestion": "line 3: 改用 subprocess.run(['nslookup', host], shell=False) 列表形式"}
 ```
 """
 

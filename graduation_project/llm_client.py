@@ -43,19 +43,19 @@ _STRUCTURED_OUTPUT_SCHEMA = {
         },
         "source": {
             "type": "string",
-            "description": "污染来源（用户可控输入点）；无漏洞填 'N/A'"
+            "description": "污染来源（用户可控输入点）。必须锚定行号，如 'line 12: request.args.get(\"id\")'；无漏洞填 'N/A'"
         },
         "sink": {
             "type": "string",
-            "description": "危险函数或触发点；无漏洞填 'N/A'"
+            "description": "危险函数或触发点。必须锚定行号，如 'line 18: cursor.execute(query)'；无漏洞填 'N/A'"
         },
         "explanation": {
             "type": "string",
-            "description": "漏洞或安全现状说明"
+            "description": "漏洞或安全现状说明（数据流/成因，用 -> 箭头描述）"
         },
         "fix_suggestion": {
             "type": "string",
-            "description": "修复建议；无漏洞填 'no fix needed'"
+            "description": "完整、可运行的修复版代码，用 ``` 围栏包裹（含语言标签，如 ```python）。必须是基于原代码修改后的完整版本，禁止只给片段、省略号或补丁说明；无漏洞填 'no fix needed'"
         }
     },
     "required": ["has_vulnerability", "vulnerability_type", "risk_level",

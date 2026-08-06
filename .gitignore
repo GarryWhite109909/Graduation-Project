@@ -64,6 +64,8 @@ data/chroma_db/
 # 暂缓/历史大体积缓存数据（Prompt Distillation 教师 logits、旧版损坏测试集）
 experiments/exp_06_finetune/data/_archive_pd_logits/
 experiments/exp_06_finetune/testset_cve_fix.broken_*/
+# v9max 云端训练数据（40MB，由训练机器持有，不入库）
+experiments/exp_06_finetune/cloud_train/final_train_chatml_quality_final.jsonl
 
 # ===== 实验产物：保留 results.json 与 best/ 元数据，但排除临时调试文件 =====
 experiments/**/debug_*.json
