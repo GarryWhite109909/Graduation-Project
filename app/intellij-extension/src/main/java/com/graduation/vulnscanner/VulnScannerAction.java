@@ -148,11 +148,10 @@ public class VulnScannerAction extends AnAction {
      * 字段与后端 AnalyzeRequest 一致：code / language / filename。
      */
     private String buildRequestBody(String code, String language, String filename) {
-        // 简单转义 JSON 字符串中的特殊字符（避免引入额外 JSON 库依赖）
-        String escapedCode = escapeJson(code);
+        // 所有字符串字段都必须转义（原先只转义 code，filename 含引号/反斜杠会破坏 JSON）
         return String.format(
                 "{\"code\":\"%s\",\"language\":\"%s\",\"filename\":\"%s\"}",
-                escapedCode, language, filename
+                escapeJson(code), escapeJson(language), escapeJson(filename)
         );
     }
 
@@ -198,10 +197,25 @@ public class VulnScannerAction extends AnAction {
     /**
      * 从后端 JSON 响应中提取关键信息，生成用户可读的摘要。
      * 后端返回字段：has_vulnerability / vulnerability_type / risk_level / explanation。
+     * 错误响应：{"error": "..."} 或 FastAPI 校验错误 {"detail": [...]}。
      */
     private String parseResult(String response) {
         if (response == null || response.trim().isEmpty()) {
             return "后端返回空响应";
+        }
+        // 优先识别错误响应（原先直接按正常结果解析，422 会误入"无法判定"）
+        String error = extractJsonField(response, "error");
+        if (error != null && !error.isEmpty()) {
+            return "扫描失败: " + error;
+        }
+        String detail = extractJsonField(response, "detail");
+        if (detail != null && extractJsonField(response, "has_vulnerability") == null) {
+            // FastAPI 422 的 detail 是数组（[{"loc":...,"msg":"..."}]），提取首个 msg
+            if (detail.startsWith("[") || detail.isEmpty()) {
+                String msg = extractJsonField(response, "msg");
+                return "请求被后端拒绝" + (msg != null ? ": " + msg : "（参数校验失败）");
+            }
+            return "请求被后端拒绝: " + detail;
         }
         String hasVuln = extractJsonField(response, "has_vulnerability");
         if ("true".equalsIgnoreCase(hasVuln)) {
@@ -219,16 +233,77 @@ public class VulnScannerAction extends AnAction {
         return "扫描结果无法判定\n原始响应:\n" + response;
     }
 
-    /** 从 JSON 文本中正则提取指定字符串字段值（简易实现，避免引入 JSON 库）。 */
+    /**
+     * 从 JSON 文本中提取指定字段值（手写解析，避免引入 JSON 库）。
+     * 原先的正则 "([^\"]*)" 遇到值内含转义引号 \" 会截断；
+     * 本实现逐字符扫描字符串、正确处理 \" \\ \n \\uXXXX 等转义，
+     * 且要求 key 前是 '{' 或 ','，避免误匹配字段值里出现的同名文本。
+     */
     private String extractJsonField(String json, String field) {
-        // 匹配 "field": "value" 或 "field": value
-        java.util.regex.Pattern p = java.util.regex.Pattern.compile(
-                "\"" + field + "\"\\s*:\\s*(?:\"([^\"]*)\"|([^,}\\s]+))");
-        java.util.regex.Matcher m = p.matcher(json);
-        if (m.find()) {
-            return m.group(1) != null ? m.group(1) : m.group(2);
+        String key = "\"" + field + "\"";
+        int idx = json.indexOf(key);
+        while (idx >= 0) {
+            // key 前一个非空白字符必须是 '{' 或 ','（真正的对象键位置）
+            int prev = idx - 1;
+            while (prev >= 0 && Character.isWhitespace(json.charAt(prev))) prev--;
+            boolean keyPosition = prev >= 0 && (json.charAt(prev) == '{' || json.charAt(prev) == ',');
+            if (keyPosition) {
+                int i = idx + key.length();
+                while (i < json.length() && Character.isWhitespace(json.charAt(i))) i++;
+                if (i < json.length() && json.charAt(i) == ':') {
+                    i++;
+                    while (i < json.length() && Character.isWhitespace(json.charAt(i))) i++;
+                    if (i >= json.length()) return null;
+                    if (json.charAt(i) == '"') {
+                        return parseJsonString(json, i + 1);
+                    }
+                    // 字面量 true / false / null / 数字
+                    int j = i;
+                    while (j < json.length() && ",}] \t\r\n".indexOf(json.charAt(j)) < 0) j++;
+                    return json.substring(i, j);
+                }
+            }
+            idx = json.indexOf(key, idx + key.length());
         }
         return null;
+    }
+
+    /** 从 openingQuote 之后开始解析 JSON 字符串，正确处理转义序列。 */
+    private String parseJsonString(String json, int start) {
+        StringBuilder sb = new StringBuilder();
+        int i = start;
+        while (i < json.length()) {
+            char ch = json.charAt(i);
+            if (ch == '\\' && i + 1 < json.length()) {
+                char esc = json.charAt(i + 1);
+                switch (esc) {
+                    case '"': sb.append('"'); break;
+                    case '\\': sb.append('\\'); break;
+                    case '/': sb.append('/'); break;
+                    case 'n': sb.append('\n'); break;
+                    case 't': sb.append('\t'); break;
+                    case 'r': sb.append('\r'); break;
+                    case 'b': sb.append('\b'); break;
+                    case 'f': sb.append('\f'); break;
+                    case 'u':
+                        if (i + 5 < json.length()) {
+                            try {
+                                sb.append((char) Integer.parseInt(json.substring(i + 2, i + 6), 16));
+                            } catch (NumberFormatException ignored) { /* 非法转义按原样跳过 */ }
+                            i += 4;
+                        }
+                        break;
+                    default: sb.append(esc);
+                }
+                i += 2;
+            } else if (ch == '"') {
+                return sb.toString();
+            } else {
+                sb.append(ch);
+                i++;
+            }
+        }
+        return sb.toString(); // 未闭合字符串，尽力返回已解析部分
     }
 
     private String nullSafe(String s) {

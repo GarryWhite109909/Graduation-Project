@@ -57,6 +57,18 @@
           "group": "navigation"
         }
       ],
+      "explorer/context": [
+        {
+          "command": "vulnScanner.analyzeFile",
+          "when": "!explorerResourceIsFolder",
+          "group": "2_vulnScanner@1"
+        },
+        {
+          "command": "vulnScanner.scanFolder",
+          "when": "explorerResourceIsFolder",
+          "group": "2_vulnScanner@2"
+        }
+      ],
       "commandPalette": [
         { "command": "vulnScanner.analyzeFile" },
         { "command": "vulnScanner.scanWorkspace" },

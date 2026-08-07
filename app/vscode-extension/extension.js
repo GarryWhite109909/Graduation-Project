@@ -15,7 +15,6 @@
 
 const vscode = require("vscode");
 const http = require("http");
-const url = require("url");
 const path = require("path");
 
 // 语言 ID 映射
@@ -124,26 +123,34 @@ function activate(context) {
       diagnosticCollection.clear();
       statusBar.text = "$(shield) 漏洞扫描";
       statusBar.tooltip = "点击批量扫描工作区";
+      statusBar.backgroundColor = undefined; // 同时清除漏洞告警的红色背景
       vscode.window.showInformationMessage("已清除所有漏洞诊断标记");
     }
   );
 
   context.subscriptions.push(analyzeCmd, scanWorkspaceCmd, scanFolderCmd, clearCmd);
 
-  // ---- 保存时自动扫描 ----
-  const saveListener = vscode.workspace.onWillSaveTextDocument((event) => {
+  // ---- 保存后自动扫描 ----
+  // 注意：必须用 onDidSave（保存完成后异步触发），不能用 onWillSave + waitUntil——
+  // 后者会让 VSCode 等待扫描请求（最长 requestTimeout，默认 300s）才真正落盘，卡死保存。
+  const saveListener = vscode.workspace.onDidSaveTextDocument((doc) => {
     const config = vscode.workspace.getConfiguration("vulnScanner");
     if (!config.get("autoScanOnSave", false)) return;
-    if (!isSupportedDoc(event.document)) return;
+    if (!isSupportedDoc(doc)) return;
 
-    event.waitUntil(
-      (async () => {
-        const result = await callAnalyzeApi(event.document, undefined, "single");
-        if (result && !result.error) {
-          applyDiagnostics(event.document, result);
-        }
-      })()
-    );
+    // 异步执行，不阻塞保存流程；失败时仅提示，不清除已有诊断
+    (async () => {
+      statusBar.text = "$(loading~spin) 保存后自动扫描中...";
+      statusBar.tooltip = `正在扫描: ${vscode.workspace.asRelativePath(doc.uri)}`;
+      const result = await callAnalyzeApi(doc, undefined, "single");
+      if (result && !result.error && result.has_vulnerability !== undefined) {
+        applyDiagnostics(doc, result);
+        updateStatusBarForSingle(result);
+      } else if (result && result.error) {
+        statusBar.text = "$(shield) 自动扫描失败";
+        statusBar.tooltip = result.error;
+      }
+    })();
   });
   context.subscriptions.push(saveListener);
 }
@@ -216,8 +223,15 @@ function callAnalyzeApi(doc, overrideCode, scanScope) {
   const language = doc ? (LANG_MAP[doc.languageId] || "text") : "text";
 
   return new Promise((resolve) => {
-    const endpoint = url.resolve(backendUrl, "/api/analyze");
-    const parsed = new URL(endpoint);
+    // 不用废弃的 url.resolve；直接基于 backendUrl 构造，同时支持 http/https
+    let parsed;
+    try {
+      parsed = new URL("/api/analyze", backendUrl);
+    } catch (e) {
+      resolve({ error: `后端地址配置无效 (${backendUrl}): ${e.message}` });
+      return;
+    }
+    const httpModule = parsed.protocol === "https:" ? require("https") : http;
     const body = JSON.stringify({
       code,
       language,
@@ -232,7 +246,7 @@ function callAnalyzeApi(doc, overrideCode, scanScope) {
     };
     if (scanScope) headers["X-Scan-Scope"] = scanScope;
 
-    const req = http.request(
+    const req = httpModule.request(
       {
         hostname: parsed.hostname,
         port: parsed.port,
@@ -245,11 +259,28 @@ function callAnalyzeApi(doc, overrideCode, scanScope) {
         let data = "";
         res.on("data", (chunk) => (data += chunk));
         res.on("end", () => {
+          let parsedBody;
           try {
-            resolve(JSON.parse(data));
+            parsedBody = JSON.parse(data);
           } catch (e) {
-            resolve({ error: `JSON 解析失败: ${e.message}` });
+            resolve({ error: `响应解析失败 (HTTP ${res.statusCode}): ${e.message}` });
+            return;
           }
+          // 非 2xx：FastAPI 校验失败返回 {"detail":[...]}（无 error 字段），
+          // 必须显式提取，否则会落入"无法判定"分支并清除已有诊断
+          if (res.statusCode < 200 || res.statusCode >= 300) {
+            let msg = parsedBody && parsedBody.error;
+            if (!msg && parsedBody && parsedBody.detail !== undefined) {
+              msg = typeof parsedBody.detail === "string"
+                ? parsedBody.detail
+                : (parsedBody.detail || [])
+                    .map((d) => (d && d.msg) || JSON.stringify(d))
+                    .join("; ");
+            }
+            resolve({ error: msg || `后端返回 HTTP ${res.statusCode}` });
+            return;
+          }
+          resolve(parsedBody);
         });
       }
     );
@@ -279,25 +310,51 @@ async function scanWorkspace(context) {
     vscode.window.showWarningMessage("请先打开一个工作区文件夹");
     return;
   }
-  await scanFolder(folders[0].uri, context);
+  const config = vscode.workspace.getConfiguration("vulnScanner");
+  const maxFiles = config.get("workspaceMaxFiles", 50);
+
+  // 多根工作区：遍历所有根目录收集文件（原先只扫 folders[0]，其余根被静默忽略）
+  let files = [];
+  for (const folder of folders) {
+    const found = await collectFiles(folder.uri, maxFiles - files.length);
+    files = files.concat(found);
+    if (files.length >= maxFiles) break;
+  }
+  // label 列出所有根目录名，多根时用户可见
+  await runBatchScan(files, folders.map((f) => f.name).join(", "), context);
 }
 
 async function scanFolder(folderUri, context) {
   const config = vscode.workspace.getConfiguration("vulnScanner");
-  const excludePatterns = config.get("workspaceExclude", []);
   const maxFiles = config.get("workspaceMaxFiles", 50);
+  const files = await collectFiles(folderUri, maxFiles);
+  await runBatchScan(files, folderUri.fsPath, context);
+}
 
-  // 收集代码文件
-  const includePattern = "**/*.{py,js,ts,jsx,tsx,java,php,go,html,htm,vue,svelte}";
-  const excludePattern = excludePatterns.length ? `{${excludePatterns.join(",")}}` : undefined;
+/**
+ * 收集指定目录下的代码文件（限定在该目录内，而非整个工作区）
+ */
+async function collectFiles(baseUri, maxResults) {
+  if (maxResults <= 0) return [];
+  const config = vscode.workspace.getConfiguration("vulnScanner");
+  const excludePatterns = config.get("workspaceExclude", []);
 
-  let files;
+  const includePattern = new vscode.RelativePattern(
+    baseUri.fsPath,
+    "**/*.{py,js,ts,jsx,tsx,java,php,go,html,htm,vue,svelte}"
+  );
+  const excludePattern = excludePatterns.length ? `{${excludePatterns.join(",")}}` : null;
+
   try {
-    files = await vscode.workspace.findFiles(includePattern, excludePattern, maxFiles);
+    return await vscode.workspace.findFiles(includePattern, excludePattern, maxResults);
   } catch (e) {
     vscode.window.showErrorMessage(`查找文件失败: ${e.message}`);
-    return;
+    return [];
   }
+}
+
+async function runBatchScan(files, label, context) {
+  const config = vscode.workspace.getConfiguration("vulnScanner");
 
   if (!files.length) {
     vscode.window.showInformationMessage("未找到可扫描的代码文件");
@@ -306,8 +363,8 @@ async function scanFolder(folderUri, context) {
 
   outputChannel.clear();
   outputChannel.appendLine(`════════════════════════════════════════`);
-  outputChannel.appendLine(`  批量扫描开始: ${folderUri.fsPath}`);
-  outputChannel.appendLine(`  文件数: ${files.length}  上限: ${maxFiles}  RAG: ${config.get("useRag", false) ? "开" : "关"}`);
+  outputChannel.appendLine(`  批量扫描开始: ${label}`);
+  outputChannel.appendLine(`  文件数: ${files.length}  RAG: ${config.get("useRag", false) ? "开" : "关"}`);
   outputChannel.appendLine(`════════════════════════════════════════`);
   outputChannel.show(true);
 
@@ -566,50 +623,65 @@ function updateStatusBarForSingle(result) {
 // ---------------------------------------------------------------------------
 // Webview 结果展示
 // ---------------------------------------------------------------------------
+// 面板复用：每次扫描新建面板会堆积，改为单实例 + reveal 更新内容
+let resultPanel;
+let batchPanel;
+
 function showResultPanel(result, context) {
-  const panel = vscode.window.createWebviewPanel(
-    "vulnResult",
-    `扫描结果: ${result.filename}`,
-    vscode.ViewColumn.Two,
-    {
-      enableScripts: false,
-      localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, "assets")]
-    }
-  );
+  if (!resultPanel) {
+    resultPanel = vscode.window.createWebviewPanel(
+      "vulnResult",
+      `扫描结果: ${result.filename}`,
+      vscode.ViewColumn.Two,
+      {
+        enableScripts: false,
+        localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, "assets")]
+      }
+    );
+    resultPanel.onDidDispose(() => { resultPanel = undefined; });
+  } else {
+    resultPanel.title = `扫描结果: ${result.filename}`;
+    resultPanel.reveal(vscode.ViewColumn.Two);
+  }
 
   const isVuln = result.has_vulnerability === true;
   const isSafe = result.has_vulnerability === false;
-  const isError = result.has_vulnerability === null;
+  const isError = result.has_vulnerability === null || result.has_vulnerability === undefined;
 
-  const iconUri = panel.webview.asWebviewUri(
+  const iconUri = resultPanel.webview.asWebviewUri(
     vscode.Uri.joinPath(context.extensionUri, "assets", "icon-light.png")
   );
-  const wordUri = panel.webview.asWebviewUri(
+  const wordUri = resultPanel.webview.asWebviewUri(
     vscode.Uri.joinPath(context.extensionUri, "assets", "logo-light.png")
   );
-  panel.webview.html = renderHtml(result, isVuln, isSafe, isError, iconUri, wordUri);
+  resultPanel.webview.html = renderHtml(result, isVuln, isSafe, isError, iconUri, wordUri);
 }
 
 function showBatchPanel(results, vulnerable, safe, errors, context) {
-  const panel = vscode.window.createWebviewPanel(
-    "vulnBatch",
-    "批量扫描汇总",
-    vscode.ViewColumn.One,
-    {
-      enableScripts: false,
-      localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, "assets")]
-    }
-  );
+  if (!batchPanel) {
+    batchPanel = vscode.window.createWebviewPanel(
+      "vulnBatch",
+      "批量扫描汇总",
+      vscode.ViewColumn.One,
+      {
+        enableScripts: false,
+        localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, "assets")]
+      }
+    );
+    batchPanel.onDidDispose(() => { batchPanel = undefined; });
+  } else {
+    batchPanel.reveal(vscode.ViewColumn.One);
+  }
 
   const vulnList = results.filter((r) => r.has_vulnerability === true);
 
-  const iconUri = panel.webview.asWebviewUri(
+  const iconUri = batchPanel.webview.asWebviewUri(
     vscode.Uri.joinPath(context.extensionUri, "assets", "icon-light.png")
   );
-  const wordUri = panel.webview.asWebviewUri(
+  const wordUri = batchPanel.webview.asWebviewUri(
     vscode.Uri.joinPath(context.extensionUri, "assets", "logo-light.png")
   );
-  panel.webview.html = renderBatchHtml(results, vulnList, vulnerable, safe, errors, iconUri, wordUri);
+  batchPanel.webview.html = renderBatchHtml(results, vulnList, vulnerable, safe, errors, iconUri, wordUri);
 }
 
 function renderHtml(r, isVuln, isSafe, isError, iconUri, wordUri) {

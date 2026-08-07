@@ -34,7 +34,8 @@
                 description="将选中代码发送到后端进行漏洞分析">
             <add-to-group group-id="EditorPopupMenu" anchor="last"/>
             <add-to-group group-id="ToolsMenu" anchor="last"/>
-            <keyboard-shortcut keymap="$default" first-keystroke="ctrl shift V"/>
+            <!-- Ctrl+Shift+V 与 IDEA 默认"从历史粘贴"冲突，改用 Ctrl+Alt+Shift+V -->
+            <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt shift V"/>
         </action>
     </actions>
 </idea-plugin>
