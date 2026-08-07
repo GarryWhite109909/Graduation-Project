@@ -142,8 +142,11 @@ class CodeSlicer:
             # 解析失败 → 退化为整文件
             return self._full_file_result(code, language, filename, total_lines)
 
+        # 统一用 UTF-8 字节切片（tree-sitter 偏移是字节，str 切片遇中文会错位）
+        code_bytes = code.encode("utf-8")
+
         # 提取上下文头（imports + 全局常量 + 顶层非函数声明）
-        header_lines = self._extract_context_header(tree.root_node, code, ts_lang)
+        header_lines = self._extract_context_header(tree.root_node, code_bytes, ts_lang)
 
         # 提取所有顶层函数 + 类方法
         func_nodes = self._collect_function_nodes(tree.root_node, ts_lang)
@@ -157,10 +160,9 @@ class CodeSlicer:
         for idx, (node, qualname) in enumerate(func_nodes, 1):
             start_line = node.start_point[0] + 1
             end_line = node.end_point[0] + 1
-            # 过短的函数（< min_chunk_lines）跳过，避免无意义切片
-            if end_line - start_line + 1 < self.min_chunk_lines:
-                continue
-            func_code = self._slice_node_text(node, code)
+            # 短函数（< min_chunk_lines）也保留为切片：
+            # 否则小函数既不在上下文头里、也不送 LLM，会被漏检
+            func_code = self._slice_node_text(node, code_bytes)
             # 拼上下文头
             chunk_code = self._assemble_chunk(header_lines, func_code, qualname, ts_lang)
             chunks.append(SliceChunk(
@@ -240,13 +242,11 @@ class CodeSlicer:
                 return child.text.decode("utf-8")
         return None
 
-    def _slice_node_text(self, node: Node, code: str) -> str:
-        """提取节点的源代码文本（按行号切片）。"""
-        start_byte = node.start_byte
-        end_byte = node.end_byte
-        return code[start_byte:end_byte]
+    def _slice_node_text(self, node: Node, code_bytes: bytes) -> str:
+        """提取节点的源代码文本（tree-sitter 偏移为字节，按字节切再解码）。"""
+        return code_bytes[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
 
-    def _extract_context_header(self, root: Node, code: str, ts_lang: str) -> list[str]:
+    def _extract_context_header(self, root: Node, code_bytes: bytes, ts_lang: str) -> list[str]:
         """提取文件顶部的 imports / 全局常量 / 模块 docstring，作为每个切片的上下文头。
 
         策略：遍历 root 的直接子节点，凡是"非函数/非类"的顶层声明都保留。
@@ -264,9 +264,9 @@ class CodeSlicer:
                 # 装饰器定义：保留装饰器文本，内部定义走各自分支
                 inner = next((c for c in child.children if c.type in class_types), None)
                 if inner is not None:
-                    skeleton = self._class_skeleton(inner, code, ts_lang)
+                    skeleton = self._class_skeleton(inner, code_bytes, ts_lang)
                     if skeleton:
-                        dec_text = code[child.start_byte:inner.start_byte]
+                        dec_text = code_bytes[child.start_byte:inner.start_byte].decode("utf-8", errors="replace")
                         header_parts.append(dec_text + skeleton)
                 # 装饰器函数：跳过（函数体由切片负责）
                 continue
@@ -274,14 +274,14 @@ class CodeSlicer:
                 continue  # 函数定义不进 header（切片本身）
             if t in class_types:
                 # 类骨架：class ClassName(...): + docstring，不含方法体
-                skeleton = self._class_skeleton(child, code, ts_lang)
+                skeleton = self._class_skeleton(child, code_bytes, ts_lang)
                 if skeleton:
                     header_parts.append(skeleton)
                 continue
             # 其他顶层节点：imports / 全局赋值 / 装饰器 / 注释
             # 仅保留前若干行（避免噪音），但全量保留更安全
             if t in keep_types or t in ("comment", "block_comment", "documentation_string", "string"):
-                text = code[child.start_byte:child.end_byte]
+                text = code_bytes[child.start_byte:child.end_byte].decode("utf-8", errors="replace")
                 # 过滤过长的多行字符串（如模块 docstring 限制到 500 字符）
                 if len(text) > 500:
                     text = text[:500] + "...（截断）"
@@ -289,12 +289,13 @@ class CodeSlicer:
 
         return header_parts
 
-    def _class_skeleton(self, class_node: Node, code: str, ts_lang: str) -> str:
+    def _class_skeleton(self, class_node: Node, code_bytes: bytes, ts_lang: str) -> str:
         """提取类骨架：class 头 + docstring + 字段声明，但不含方法体。"""
         cls_name = self._node_name(class_node) or "AnonymousClass"
         # 取类头第一行（class ClassName(Base):）
         start_line = class_node.start_point[0]
         end_line = class_node.end_point[0]
+        code = code_bytes.decode("utf-8", errors="replace")
         lines = code.split("\n")[start_line:end_line + 1]
 
         skeleton_lines: list[str] = []

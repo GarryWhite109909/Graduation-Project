@@ -764,52 +764,25 @@ def vllm_analyze(req: VllmAnalyzeRequest):
     vLLM 通过 PagedAttention + continuous batching 提供高吞吐推理，
     适合批量评测场景；接口与 /api/analyze 对齐，便于前端无缝切换后端。
     """
-    client = VLLMClient()
-    if not client.check_connection():
+    vllm_client = VLLMClient()
+    if not vllm_client.check_connection():
         return JSONResponse(
             {"error": "vLLM 服务未启动（默认 http://localhost:8000）"},
             status_code=503,
         )
 
-    # system prompt 跟随当前活动模型（由 model_registry 自动选择，
-    # v9max→BASE_PROMPT，v5→SYSTEM_PROMPT_LITE），保证训练/推理一致
-    prompt = build_user_prompt(
-        code=req.code, language=req.language, filename=req.filename,
+    # 与 /api/analyze 走同一套扫描流水线（预筛/切片/RAG/污点/约束解码兜底），
+    # 仅替换推理后端为 vLLM，避免绕过 Scanner 导致能力不一致
+    vllm_scanner = Scanner(
+        model=vllm_client.model,
+        client=vllm_client,
+        use_rag=os.environ.get("VULN_SCANNER_RAG", "0") == "1",
+        use_prefilter=os.environ.get("VULN_SCANNER_PREFILTER", "1") != "0",
     )
-    result = client.generate(prompt=prompt, system_prompt=scanner.system_prompt)
-
-    if result["error"]:
-        return JSONResponse({"error": result["error"]}, status_code=502)
-
-    verdict = parse_verdict(result["text"])
-    has_vuln = normalize_has_vulnerability(verdict.get("has_vulnerability"))
-
-    # 约束解码兜底：CoT+JSON 解析失败时用 guided_json 重试
-    if has_vuln is None:
-        structured = client.generate_structured(
-            prompt=prompt, system_prompt=scanner.system_prompt,
-        )
-        if not structured["error"]:
-            verdict = parse_verdict(structured["text"])
-            has_vuln = normalize_has_vulnerability(verdict.get("has_vulnerability"))
-            if has_vuln is not None:
-                result["duration"] += structured["duration"]
-                result["text"] = structured["text"]
-
-    return {
-        "filename": req.filename,
-        "language": req.language,
-        "has_vulnerability": has_vuln,
-        "vulnerability_type": verdict.get("vulnerability_type", "none"),
-        "risk_level": verdict.get("risk_level", "None"),
-        "source": verdict.get("source", "N/A"),
-        "sink": verdict.get("sink", "N/A"),
-        "explanation": verdict.get("explanation", ""),
-        "fix_suggestion": verdict.get("fix_suggestion", "no fix needed"),
-        "raw_output": result["text"],
-        "duration": round(result["duration"], 2),
-        "backend": "vllm",
-    }
+    return vllm_scanner.scan_code(
+        code=req.code, language=req.language, filename=req.filename,
+        use_rag=req.use_rag,
+    ).to_dict()
 
 
 # ---------------------------------------------------------------------------

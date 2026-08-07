@@ -126,12 +126,12 @@ class VLLMClient:
         format: Optional[Union[str, dict]] = None,
     ) -> Dict:
         """
-        生成文本（使用 vLLM OpenAI 兼容的 /v1/completions 接口）
+        生成文本（使用 vLLM OpenAI 兼容的 /v1/chat/completions 接口）
 
         Args:
             prompt: 用户提示词
-            system_prompt: 系统提示词（vLLM completions 接口不直接支持 system 角色，
-                           会拼接到 prompt 前部以模拟 system 行为）
+            system_prompt: 系统提示词（通过 chat/completions 的 system 消息传递，
+                           由 vLLM 服务端按模型 chat template 正确拼接）
             temperature: 温度（越低越确定）
             max_tokens: 最大生成长度；None 表示不设上限
             keep_alive: 兼容 OllamaClient 参数；vLLM 无对应概念，作为 no-op 忽略
@@ -155,14 +155,16 @@ class VLLMClient:
         start_time = time.time()
 
         try:
-            # vLLM completions 接口不直接支持 system 角色，将 system_prompt 拼接到 prompt 前部
-            full_prompt = prompt
+            # 使用 chat/completions 接口：由 vLLM 服务端按模型的 chat template
+            # 正确拼接 system/user 消息（手拼 system+prompt 走 completions 会丢失模板）
+            messages: List[Dict[str, str]] = []
             if system_prompt:
-                full_prompt = f"{system_prompt}\n\n{prompt}"
+                messages.append({"role": "system", "content": system_prompt})
+            messages.append({"role": "user", "content": prompt})
 
             payload: Dict = {
                 "model": self.model,
-                "prompt": full_prompt,
+                "messages": messages,
                 "temperature": temperature,
                 "stream": False,
             }
@@ -179,13 +181,15 @@ class VLLMClient:
                     # vLLM guided_json 既可传 Schema 也可传字符串 "json"
                     payload["guided_json"] = "json"
 
-            resp = requests.post(self.api_completions, json=payload, timeout=timeout)
+            resp = requests.post(self.api_chat, json=payload, timeout=timeout)
             resp.raise_for_status()
             data = resp.json()
 
-            # OpenAI 兼容 completions 返回格式: {"choices": [{"text": "...", ...}], "usage": {...}}
+            # OpenAI 兼容 chat/completions 返回格式:
+            # {"choices": [{"message": {"content": "..."}, ...}], "usage": {...}}
             choices = data.get("choices", [])
-            text = choices[0].get("text", "") if choices else ""
+            message = choices[0].get("message", {}) if choices else {}
+            text = message.get("content", "") if message else ""
 
             usage = data.get("usage", {})
             prompt_count = usage.get("prompt_tokens", 0)

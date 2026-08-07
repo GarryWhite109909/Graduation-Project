@@ -130,7 +130,7 @@ class FixVerifier:
         try:
             result = subprocess.run(
                 ["node", "--check", "-"],
-                input=code, text=True,
+                input=code, text=True, encoding="utf-8", errors="replace",
                 capture_output=True, timeout=self.timeout,
             )
             if result.returncode == 0:
@@ -147,26 +147,21 @@ class FixVerifier:
         m = re.search(r"public\s+(?:final\s+)?class\s+(\w+)", code)
         class_name = m.group(1) if m else "Main"
         try:
-            with tempfile.NamedTemporaryFile(
-                mode="w", suffix=".java", prefix=f"{class_name}_",
-                delete=False, encoding="utf-8",
-            ) as tmp:
-                tmp.write(code)
-                tmp_path = tmp.name
-            try:
+            # 文件名必须与 public class 名完全一致（含 .java 后缀），
+            # 否则 javac 报 "类 X 是公共的，应在名为 X.java 的文件中声明"
+            with tempfile.TemporaryDirectory(prefix="vuln_verify_java_") as tmpdir:
+                tmp_path = os.path.join(tmpdir, f"{class_name}.java")
+                with open(tmp_path, "w", encoding="utf-8") as tmp:
+                    tmp.write(code)
                 result = subprocess.run(
                     ["javac", "-Xlint:none", tmp_path],
-                    capture_output=True, text=True, timeout=self.timeout,
+                    capture_output=True, text=True,
+                    encoding="utf-8", errors="replace",
+                    timeout=self.timeout,
                 )
                 if result.returncode == 0:
                     return (True, None)
                 return (False, result.stderr.strip() or "javac 编译失败")
-            finally:
-                os.unlink(tmp_path)
-                # 清理生成的 .class 文件
-                class_file = tmp_path.replace(".java", ".class")
-                if os.path.exists(class_file):
-                    os.unlink(class_file)
         except FileNotFoundError:
             return (True, None)  # javac 未安装，跳过
         except subprocess.TimeoutExpired:

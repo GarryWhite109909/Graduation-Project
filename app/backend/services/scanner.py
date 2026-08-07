@@ -13,6 +13,7 @@ LLM 推理 + 代码切片 + RAG 检索 + 传统规则预筛。
 from __future__ import annotations
 
 import os
+import threading
 import time
 from dataclasses import dataclass, field
 from typing import Optional
@@ -30,6 +31,19 @@ DEFAULT_MODEL = os.environ.get("VULN_SCANNER_MODEL", get_default_model())
 FALLBACK_MODEL = os.environ.get("VULN_SCANNER_FALLBACK_MODEL", "qwen3:8b")
 # Chroma 知识库集合名
 KNOWLEDGE_COLLECTION = "vuln_knowledge"
+
+# 预筛规则名 → (CWE 标签, 风险等级)：预筛短路时给出与 LLM 一致的信息格式
+_PREFILTER_VULN_INFO = {
+    "sqli_string_concat": ("CWE-89 SQL注入", "High"),
+    "sqli_fstring": ("CWE-89 SQL注入", "High"),
+    "sqli_percent_format": ("CWE-89 SQL注入", "High"),
+    "cmd_os_system_concat": ("CWE-78 命令注入", "Critical"),
+    "cmd_subprocess_shell_concat": ("CWE-78 命令注入", "Critical"),
+    "rce_eval_request": ("CWE-95 代码注入", "Critical"),
+    "path_traversal_open_concat": ("CWE-22 路径穿越", "High"),
+    "deser_pickle_loads": ("CWE-502 不安全反序列化", "Critical"),
+    "deser_yaml_unsafe_load": ("CWE-502 不安全反序列化", "High"),
+}
 
 
 @dataclass
@@ -49,6 +63,7 @@ class SingleResult:
     error: Optional[str] = None
     sliced: bool = False
     chunk_count: int = 1
+    chunk_name: str = ""  # 当前结果对应的切片名（整文件/单文件时为 ""）
     prefilter_verdict: Optional[bool] = None  # 预筛层判定（None=未预筛/交LLM）
     prefilter_rules: list[str] = field(default_factory=list)  # 预筛命中规则
 
@@ -68,6 +83,7 @@ class SingleResult:
             "error": self.error,
             "sliced": self.sliced,
             "chunk_count": self.chunk_count,
+            "chunk_name": self.chunk_name,
             "prefilter_verdict": self.prefilter_verdict,
             "prefilter_rules": self.prefilter_rules,
         }
@@ -120,8 +136,10 @@ class Scanner:
         use_structured_fallback: bool = True,
         use_taint_tracking: bool = False,
         keep_alive=0,
+        client: Optional[OllamaClient] = None,
     ):
-        self.client = OllamaClient(base_url=base_url, model=model)
+        # 允许注入外部客户端（如 vLLM 后端），默认使用 Ollama
+        self.client = client if client is not None else OllamaClient(base_url=base_url, model=model)
         self.model = model
         self.use_rag = use_rag
         self.use_prefilter = use_prefilter
@@ -138,6 +156,8 @@ class Scanner:
         self.prefilter = Prefilter() if use_prefilter else None
         self._taint_tracker = None
         self._chroma = None  # 延迟初始化（首次用 RAG 时才连 Chroma）
+        # 模型切换锁：switch_model 与 scan_code 互斥，避免多 chunk 扫描中途切模型撕裂结果
+        self._model_lock = threading.RLock()
 
     def switch_model(self, model: str) -> None:
         """运行时切换活动模型。队列中的待执行任务也会用新模型。
@@ -145,10 +165,14 @@ class Scanner:
         根据模型注册表自动选择对应的 system prompt：
         - v9max → BASE_PROMPT（训练/推理一致）
         - v5    → SYSTEM_PROMPT_LITE（训练/推理一致）
+
+        与 scan_code 互斥：正在执行的扫描不会在 chunk 中途切换模型，
+        避免同一文件的前后切片使用不同模型/提示词导致结果撕裂。
         """
-        self.model = model
-        self.client.model = model
-        self.system_prompt = get_prompt_for_model(model)
+        with self._model_lock:
+            self.model = model
+            self.client.model = model
+            self.system_prompt = get_prompt_for_model(model)
 
     @property
     def chroma(self):
@@ -208,7 +232,7 @@ class Scanner:
             print(f"[Scanner] RAG 检索失败: {e}")
             return None
 
-    def _retrieve_taint_context(self, code: str, filename: str) -> Optional[str]:
+    def _retrieve_taint_context(self, code: str, language: str, filename: str) -> Optional[str]:
         """轻量污点分析：提取 source→sink 数据流路径，作为 LLM 上下文。
 
         与 RAG 上下文互补：RAG 提供领域知识，污点分析提供代码内真实调用链。
@@ -216,12 +240,16 @@ class Scanner:
         if not self.use_taint_tracking or not self.taint_tracker:
             return None
         try:
-            paths = self.taint_tracker.trace(code, filename=filename)
+            paths = self.taint_tracker.trace(code, language=language, filename=filename)
             if not paths:
                 return None
-            lines = ["[污点分析] 检测到以下 source→sink 数据流路径："]
+            lines = ["[污点分析] 检测到以下 source→sink 数据流路径（行号为源码行号）："]
             for p in paths:
-                lines.append(f"  {p.source} → {p.sink} ({p.taint_type})")
+                chain = " → ".join(p.propagation) if p.propagation else "(直接表达式)"
+                line = f"  L{p.source_line}:{p.source} → L{p.sink_line}:{p.sink} ({p.taint_type})"
+                if p.propagation:
+                    line += f" [传播链: {chain}]"
+                lines.append(line)
             return "\n".join(lines)
         except Exception as e:
             print(f"[Scanner] 污点分析失败: {e}")
@@ -234,7 +262,20 @@ class Scanner:
         filename: str = "",
         use_rag: Optional[bool] = None,
     ) -> SingleResult:
-        """扫描单段代码。
+        """扫描单段代码（与 switch_model 互斥，保证切片使用同一模型）。"""
+        with self._model_lock:
+            return self._scan_code_impl(
+                code, language=language, filename=filename, use_rag=use_rag,
+            )
+
+    def _scan_code_impl(
+        self,
+        code: str,
+        language: str = "python",
+        filename: str = "",
+        use_rag: Optional[bool] = None,
+    ) -> SingleResult:
+        """扫描单段代码（实际实现，调用方需持有 _model_lock）。
 
         长文件（>150 行）自动切片，逐 chunk 分析，
         若任一 chunk 发现漏洞则整文件判漏洞。
@@ -255,7 +296,7 @@ class Scanner:
         rag_context = self._retrieve_rag_context(code) if rag_enabled else None
 
         # 污点分析：提取 source→sink 数据流路径，作为 LLM 上下文
-        taint_context = self._retrieve_taint_context(code, filename) if self.use_taint_tracking else None
+        taint_context = self._retrieve_taint_context(code, language, filename) if self.use_taint_tracking else None
 
         # 预筛层：对明显漏洞/安全样本直接短路，跳过 LLM 调用
         prefilter_result: Optional[PrefilterResult] = None
@@ -265,12 +306,13 @@ class Scanner:
                 # 预筛给出高置信判定，直接返回，不调 LLM
                 has_vuln = prefilter_result.preliminary_verdict
                 if has_vuln:
-                    vuln_type = prefilter_result.matched_rules[0] if prefilter_result.matched_rules else "detected"
+                    rule_name = prefilter_result.matched_rules[0] if prefilter_result.matched_rules else "detected"
+                    vuln_type, risk_level = _PREFILTER_VULN_INFO.get(rule_name, ("detected", "High"))
                     return SingleResult(
                         filename=filename, language=language,
                         has_vulnerability=True,
                         vulnerability_type=vuln_type,
-                        risk_level="High",
+                        risk_level=risk_level,
                         explanation=f"预筛层检测到明显漏洞特征：{', '.join(prefilter_result.matched_rules)}",
                         fix_suggestion="请参考 LLM 详细分析或相关 CWE 修复指南",
                         duration=0.0,
@@ -412,6 +454,7 @@ class Scanner:
         return SingleResult(
             filename=filename,
             language=language,
+            chunk_name=chunk_name,
             has_vulnerability=has_vuln,
             vulnerability_type=verdict.get("vulnerability_type", "none"),
             risk_level=verdict.get("risk_level", "None"),

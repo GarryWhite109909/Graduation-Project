@@ -33,6 +33,12 @@ _TOOL_TIMEOUT: int = 60  # 每个工具子进程超时（秒）
 # 全部支持的工具名（与 shutil.which 检测的命令名一致）
 _ALL_TOOLS: list[str] = ["bandit", "semgrep", "gitleaks", "trivy"]
 
+# Semgrep 固定规则集（保证 Stage 1 工具层结果可复现；自写 taint 规则文件可追加到此列表）
+_SEMGREP_CONFIGS: list[str] = [
+    "p/security-audit",
+    "p/owasp-top-10",
+]
+
 
 # ---------------------------------------------------------------------------
 # 发现数据结构
@@ -63,6 +69,37 @@ class ExternalFinding:
         return (f"ExternalFinding(tool={self.tool}, category={self.category}, "
                 f"severity={self.severity}, rule={self.rule_id}, "
                 f"file={self.filename}:{self.line})")
+
+
+def normalize_severity(value: str) -> str:
+    """把各工具的 severity 归一化为 critical/high/medium/low/info。
+
+    Bandit: LOW/MEDIUM/HIGH/UNDEFINED；Semgrep: ERROR/WARNING/INFO；
+    Gitleaks: CRITICAL/HIGH/MEDIUM/LOW/INFO；Trivy: CRITICAL/HIGH/MEDIUM/LOW/UNKNOWN。
+    归一化结果为裁决层（Stage 2）提供统一输入格式。
+    """
+    s = (value or "").strip().lower()
+    if not s or s in ("unknown", "undefined", "unassigned", "none",
+                      "informational", "note", "info"):
+        return "info"
+    if s in ("critical", "严重", "危急"):
+        return "critical"
+    if s in ("high", "error", "高危"):
+        return "high"
+    if s in ("medium", "moderate", "warning", "warn", "中危"):
+        return "medium"
+    if s in ("low", "info", "低危"):
+        return "low"
+    # 模糊匹配（如 "CRITICAL/HIGH" 组合值）
+    if "crit" in s:
+        return "critical"
+    if "high" in s:
+        return "high"
+    if "med" in s or "moderate" in s or "warn" in s:
+        return "medium"
+    if "low" in s or "info" in s:
+        return "low"
+    return "info"
 
 
 # ---------------------------------------------------------------------------
@@ -126,7 +163,19 @@ class ExternalScanner:
         findings.extend(self.scan_secrets(path))
         findings.extend(self.scan_sca(path))
         findings.extend(self.scan_iac(path))
-        return findings
+        return self._dedupe(findings)
+
+    @staticmethod
+    def _dedupe(findings: list[ExternalFinding]) -> list[ExternalFinding]:
+        """按 (tool, rule_id, filename, line) 去重，保证裁决层输入稳定。"""
+        seen: set[tuple] = set()
+        out: list[ExternalFinding] = []
+        for item in findings:
+            key = (item.tool, item.rule_id, item.filename, item.line)
+            if key not in seen:
+                seen.add(key)
+                out.append(item)
+        return out
 
     def scan_sast(self, path: str, language: str = "python") -> list[ExternalFinding]:
         """运行 SAST 工具（Bandit + Semgrep）。
@@ -209,6 +258,7 @@ class ExternalScanner:
                 cmd,
                 capture_output=True,
                 text=True,
+                encoding="utf-8", errors="replace",
                 timeout=_TOOL_TIMEOUT,
             )
             return proc.stdout
@@ -241,7 +291,7 @@ class ExternalScanner:
             findings.append(ExternalFinding(
                 tool="bandit",
                 rule_id=str(r.get("test_id", "")),
-                severity=str(r.get("issue_severity", "UNKNOWN")).lower(),
+                severity=normalize_severity(str(r.get("issue_severity", "UNKNOWN"))),
                 message=str(r.get("issue_text", "")),
                 filename=str(r.get("filename", "")),
                 line=int(r.get("line_number", 0) or 0),
@@ -252,16 +302,28 @@ class ExternalScanner:
     def _run_semgrep(self, path: str) -> list[ExternalFinding]:
         """运行 Semgrep（多语言 SAST）。
 
-        命令：semgrep --json --quiet <path>
+        命令：semgrep --json --quiet --config p/security-audit --config p/owasp-top-10 <path>
         输出 JSON 含 results 数组，每项含 check_id / path / start.line /
         extra.severity / extra.message。
         """
-        out = self._run_subprocess(["semgrep", "--json", "--quiet", path])
+        # 固定规则集（可复现）：security-audit + owasp-top-10；
+        # 后续自写 taint 规则文件追加进 _SEMGREP_CONFIGS 即可。
+        # 离线/规则拉取失败时 semgrep 会在 JSON errors 中报告，
+        # 此时视为工具不可用而非"扫描通过"
+        out = self._run_subprocess(
+            ["semgrep", "--json", "--quiet"]
+            + [c for cfg in _SEMGREP_CONFIGS for c in ("--config", cfg)]
+            + [path]
+        )
         if not out or not out.strip():
             return []
         try:
             data = json.loads(out)
         except json.JSONDecodeError:
+            return []
+        if data.get("errors"):
+            print(f"[ExternalScanner] semgrep 报告错误（可能是离线/规则拉取失败）: "
+                  f"{str(data['errors'][0])[:200]}")
             return []
         findings: list[ExternalFinding] = []
         for r in data.get("results", []):
@@ -270,7 +332,7 @@ class ExternalScanner:
             findings.append(ExternalFinding(
                 tool="semgrep",
                 rule_id=str(r.get("check_id", "")),
-                severity=str(extra.get("severity", "INFO")).lower(),
+                severity=normalize_severity(str(extra.get("severity", "INFO"))),
                 message=str(extra.get("message", "")),
                 filename=str(r.get("path", "")),
                 line=int(start.get("line", 0) or 0),
@@ -304,9 +366,10 @@ class ExternalScanner:
             items = data
         findings: list[ExternalFinding] = []
         for r in items:
-            severity = str(r.get("Severity", "")).lower()
-            if not severity:
-                severity = "high"  # 密钥泄露默认高危
+            raw_sev = str(r.get("Severity", "")).strip()
+            severity = normalize_severity(raw_sev)
+            if not raw_sev:
+                severity = "high"  # 工具未给等级时密钥泄露默认高危
             findings.append(ExternalFinding(
                 tool="gitleaks",
                 rule_id=str(r.get("RuleID", "")),
@@ -341,7 +404,7 @@ class ExternalScanner:
                 findings.append(ExternalFinding(
                     tool="trivy",
                     rule_id=str(v.get("VulnerabilityID", "")),
-                    severity=str(v.get("Severity", "UNKNOWN")).lower(),
+                    severity=normalize_severity(str(v.get("Severity", "UNKNOWN"))),
                     message=str(title),
                     filename=target,
                     line=0,  # 依赖漏洞无行号

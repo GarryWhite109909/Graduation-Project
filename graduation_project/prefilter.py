@@ -53,6 +53,9 @@ class _Rule:
     require_all: bool = False
     exclude: list[re.Pattern] = field(default_factory=list)
     category: str = "vuln"
+    # 高置信规则：即使同时命中安全特征也直接判漏洞（如 pickle.loads / yaml.load
+    # 不存在"安全用法"，安全规则命中通常是同文件其他无关代码所致）
+    high_confidence: bool = False
 
     def match(self, code: str) -> bool:
         """判断给定代码是否命中本规则。"""
@@ -194,6 +197,7 @@ class Prefilter:
             name="deser_pickle_loads",
             patterns=[re.compile(r"pickle\.loads\s*\(", IC)],
             category="vuln",
+            high_confidence=True,
         ))
         # yaml.load( / yaml.load_all( —— 注意排除 yaml.safe_load(
         # 'yaml.load' 不是 'yaml.safe_load' 的子串，故该模式天然不匹配 safe_load
@@ -201,6 +205,7 @@ class Prefilter:
             name="deser_yaml_unsafe_load",
             patterns=[re.compile(r"yaml\.load(?:_all)?\s*\(", IC)],
             category="vuln",
+            high_confidence=True,
         ))
 
         return rules
@@ -317,6 +322,7 @@ class Prefilter:
         has_vuln = False
         has_safe = False
         has_marker = False
+        has_high_conf_vuln = False
 
         # 长文件护栏：超过阈值行数时不跑安全规则（避免长文件中隐藏漏洞被安全
         # 规则误判放行，如 hard_longfile_01/02 前半段参数化查询掩盖末尾隐藏漏洞）
@@ -328,6 +334,8 @@ class Prefilter:
             if rule.match(code):
                 has_vuln = True
                 matched.append(rule.name)
+                if rule.high_confidence:
+                    has_high_conf_vuln = True
         if not is_long:
             for rule in self.safe_rules:
                 if rule.match(code):
@@ -339,8 +347,9 @@ class Prefilter:
                 matched.append(rule.name)
 
         # 初步判定（优先级：明确漏洞 > 凭证标记抑制安全 > 明确安全 > 交 LLM）
-        if has_vuln and not has_safe:
-            # 命中漏洞特征且无安全特征 → 判漏洞
+        if has_vuln and (not has_safe or has_high_conf_vuln):
+            # 命中漏洞特征且无安全特征 → 判漏洞；
+            # 高置信漏洞规则（pickle/yaml 反序列化）即使与安全特征共存也直接判漏洞
             verdict: Optional[bool] = True
         elif has_marker:
             # 有硬编码凭证痕迹 → 不判安全（强制 LLM 复核），无论是否命中安全特征
