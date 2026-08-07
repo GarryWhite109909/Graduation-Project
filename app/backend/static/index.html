@@ -156,8 +156,7 @@
       /* 安全评分圆环：用 CSS transition 驱动 stroke-dasharray 动画，
          避免 requestAnimationFrame 每帧 setAttribute 在 Chrome 中引起渲染抖动 */
       #score-arc {
-        transition: stroke-dasharray 0.9s cubic-bezier(0.22, 1, 0.36, 1),
-                    stroke 0.3s ease;
+        transition: stroke 0.3s ease;
       }
       @media (prefers-reduced-motion: reduce) {
         #score-arc { transition: none; }
@@ -289,7 +288,7 @@
             <div class="relative" style="width:140px;height:140px">
               <svg id="score-gauge" viewBox="0 0 120 120" width="140" height="140" role="img" aria-label="安全评分仪表">
                 <circle cx="60" cy="60" r="50" fill="none" stroke="var(--vuln-surface-2)" stroke-width="12"/>
-                <circle id="score-arc" cx="60" cy="60" r="50" fill="none" stroke="var(--vuln-brand)" stroke-width="12" stroke-linecap="round" stroke-dasharray="0 314.16" stroke-dashoffset="78.54"/>
+                <path id="score-arc" d="" fill="none" stroke="var(--vuln-brand)" stroke-width="12" stroke-linecap="round"/>
                 <text id="score-num" x="60" y="58" text-anchor="middle" fill="var(--vuln-ink-3)" font-size="26" font-weight="700">—</text>
                 <text id="score-label" x="60" y="76" text-anchor="middle" fill="var(--vuln-ink-3)" font-size="11">分</text>
               </svg>
@@ -563,7 +562,24 @@
       svg.innerHTML = '<line x1="40" y1="216" x2="620" y2="216" stroke="var(--vuln-line)"/><text x="320" y="125" text-anchor="middle" fill="var(--vuln-ink-3)" font-size="13">暂无历史数据，完成首次扫描后将显示趋势</text>';
       return;
     }
-    var data = hist.slice(-MAX_HISTORY);
+    // 按天聚合：同一天多次扫描合并为一个 x 点（趋势图 x 轴按日期展示）
+    var byDay = {};
+    var dayOrder = [];
+    hist.forEach(function (entry) {
+      var dd = new Date(entry.date);
+      var key = isNaN(dd.getTime())
+        ? 'raw-' + dayOrder.length
+        : dd.getFullYear() + '-' + String(dd.getMonth() + 1).padStart(2, '0') + '-' + String(dd.getDate()).padStart(2, '0');
+      if (!byDay[key]) {
+        byDay[key] = { date: entry.date, total: 0, vulnerable: 0, safe: 0, errors: 0 };
+        dayOrder.push(key);
+      }
+      byDay[key].total += (entry.total || entry.total_files || 0);
+      byDay[key].vulnerable += (entry.vulnerable || 0);
+      byDay[key].safe += (entry.safe || 0);
+      byDay[key].errors += (entry.errors || 0);
+    });
+    var data = dayOrder.slice(-MAX_HISTORY).map(function (k) { return byDay[k]; });
     var left=40, right=620, top=30, bottom=216;
     var w = right-left;
     // Y 轴最大值向上取整到漂亮刻度（5/10 的倍数），避免数据微小变化导致刻度频繁跳动
@@ -682,7 +698,7 @@
       if (labelEl) labelEl.textContent = '分';
       if (gradeEl) { gradeEl.textContent = '—'; gradeEl.style.color = 'var(--vuln-ink-3)'; }
       if (hintEl) hintEl.textContent = '完成扫描后生成评分';
-      if (arcEl) { arcEl.setAttribute('stroke', 'var(--vuln-surface-2)'); arcEl.setAttribute('stroke-dasharray', '0 314.16'); }
+      if (arcEl) { arcEl.setAttribute('stroke', 'var(--vuln-surface-2)'); arcEl.setAttribute('d', ''); }
       setBreakdown({ critical:0, high:0, medium:0, low:0, info:0 });
       return;
     }
@@ -696,26 +712,32 @@
     if (gradeEl) { gradeEl.textContent = grade; gradeEl.style.color = color; }
     if (hintEl) hintEl.textContent = hint;
 
-    /* 从 0 开始：圆弧描边交给 CSS transition（跨浏览器一致），数字用 RAF 计数同步 */
-    var C = 2 * Math.PI * 50;
-    /* round 圆帽每端外延 stroke-width/2，长度逼近满圆时两端圆帽相交会产生视觉抖动，故留出余量 */
-    var capGap = 12;
-    var targetLen = Math.min((score / 100) * C, C - capGap);
+    if (arcEl) arcEl.setAttribute('stroke', color);
+    /* 圆弧用显式 SVG path：起点固定在 12 点钟方向、顺时针延伸。
+       不依赖 stroke-dasharray / stroke-dashoffset / transform，
+       规避 Chrome 在圆头线帽 + dash 动画下偶发的渲染位移问题 */
+    var capGapDeg = 14;
+    var targetDeg = Math.min((score / 100) * 360, 360 - capGapDeg);
     var duration = 900;
-    /* 先重置为 0，下一帧再设目标值，确保 transition 从 0 开始 */
-    if (arcEl) {
-      arcEl.setAttribute('stroke', color);
-      arcEl.setAttribute('stroke-dasharray', '0 314.16');
+    function polar(cx, cy, r, deg) {
+      var rad = (deg - 90) * Math.PI / 180; /* 0° = 12 点钟，顺时针 */
+      return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+    }
+    function arcPath(cx, cy, r, endDeg) {
+      if (endDeg <= 0) return '';
+      var s = polar(cx, cy, r, 0);
+      var e = polar(cx, cy, r, endDeg);
+      var large = endDeg > 180 ? 1 : 0;
+      return 'M ' + s.x.toFixed(2) + ' ' + s.y.toFixed(2) +
+             ' A ' + r + ' ' + r + ' 0 ' + large + ' 1 ' + e.x.toFixed(2) + ' ' + e.y.toFixed(2);
     }
     var start = null;
     function tick(ts) {
-      if (start === null) {
-        start = ts;
-        /* 触发 transition：从 0 过渡到 targetLen */
-        if (arcEl) arcEl.setAttribute('stroke-dasharray', targetLen.toFixed(2) + ' ' + (C - targetLen).toFixed(2));
-      }
+      if (start === null) start = ts;
       var p = Math.min((ts - start) / duration, 1);
       var e = 1 - Math.pow(1 - p, 3); /* easeOutCubic */
+      var deg = e * targetDeg;
+      if (arcEl) arcEl.setAttribute('d', arcPath(60, 60, 50, deg));
       var cur = Math.round(e * score);
       if (numEl) { numEl.textContent = cur; numEl.setAttribute('fill', color); }
       if (p < 1) { scoreAnimFrame = requestAnimationFrame(tick); }
