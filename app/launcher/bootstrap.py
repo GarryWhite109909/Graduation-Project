@@ -24,8 +24,12 @@ import requests
 
 # 项目根目录（Graduation-Project/）
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-# 默认模型（发布到 Ollama Registry 的 SFT，可通过环境变量切换版本）
-DEFAULT_MODEL = os.environ.get("VULN_SCANNER_MODEL", "garrywhite109909/graduation-vuln-scanner:v5")
+# 默认模型（从模型注册表读取当前默认版本，如 v9max；导入失败时回退到 v9max 全名）
+try:
+    from app.backend.services.model_registry import get_default_model as _get_default_model
+    DEFAULT_MODEL = os.environ.get("VULN_SCANNER_MODEL", _get_default_model())
+except Exception:
+    DEFAULT_MODEL = os.environ.get("VULN_SCANNER_MODEL", "garrywhite109909/graduation-vuln-scanner:v9max")
 # 回退模型（官方 Qwen3-8B，未微调）
 FALLBACK_MODEL = os.environ.get("VULN_SCANNER_FALLBACK_MODEL", "qwen3:8b")
 # 后端端口

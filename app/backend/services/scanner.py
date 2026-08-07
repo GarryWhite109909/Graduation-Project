@@ -18,13 +18,14 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from graduation_project.llm_client import OllamaClient
-from graduation_project.prompts import SYSTEM_PROMPT, SYSTEM_PROMPT_LITE, build_user_prompt
+from graduation_project.prompts import SYSTEM_PROMPT, SYSTEM_PROMPT_LITE, BASE_PROMPT, build_user_prompt
 from graduation_project.schema import parse_verdict, normalize_has_vulnerability
 from graduation_project.code_slicer import CodeSlicer, SliceResult
 from graduation_project.prefilter import Prefilter, PrefilterResult
+from app.backend.services.model_registry import get_default_model, get_prompt_for_model
 
-# 默认模型：从环境变量读取，缺省为当前发布的 SFT v5
-DEFAULT_MODEL = os.environ.get("VULN_SCANNER_MODEL", "garrywhite109909/graduation-vuln-scanner:v5")
+# 默认模型：从环境变量读取，缺省为注册表中的默认模型（当前 v9max）
+DEFAULT_MODEL = os.environ.get("VULN_SCANNER_MODEL", get_default_model())
 # 回退模型：官方 Qwen3-8B（未微调，用户首次未 pull 自定义模型时可用）
 FALLBACK_MODEL = os.environ.get("VULN_SCANNER_FALLBACK_MODEL", "qwen3:8b")
 # Chroma 知识库集合名
@@ -99,10 +100,10 @@ class Scanner:
     """漏洞扫描编排器。
 
     Args:
-        model: Ollama 模型名（默认 garrywhite109909/graduation-vuln-scanner:v5）
+        model: Ollama 模型名（默认注册表中的默认模型，当前 v9max）
         base_url: Ollama 服务地址
         use_rag: 是否启用 RAG 知识库增强
-        use_lite_prompt: 是否用 SYSTEM_PROMPT_LITE（SFT v5 必须 True）
+        use_lite_prompt: 已废弃（保留参数兼容旧调用），prompt 现由 model_registry 自动选择
         use_prefilter: 是否启用传统规则预筛层（True 时对明显样本短路跳过 LLM）
         use_structured_fallback: 是否在 CoT+JSON 解析失败时用 Ollama format=json 约束解码兜底
         use_taint_tracking: 是否启用轻量污点分析（source→sink 路径注入 LLM 上下文）
@@ -131,11 +132,23 @@ class Scanner:
         self._num_ctx = int(os.environ.get("VULN_SCANNER_NUM_CTX", "8192"))
         self._num_gpu = int(os.environ.get("VULN_SCANNER_NUM_GPU", "-1"))
         self._num_thread = int(os.environ.get("VULN_SCANNER_NUM_THREAD", "0"))
-        self.system_prompt = SYSTEM_PROMPT_LITE if use_lite_prompt else SYSTEM_PROMPT
+        # system prompt 由 model_registry 自动选择（v9max→BASE_PROMPT, v5→LITE）
+        self.system_prompt = get_prompt_for_model(model)
         self.slicer = CodeSlicer(min_lines=150)
         self.prefilter = Prefilter() if use_prefilter else None
         self._taint_tracker = None
         self._chroma = None  # 延迟初始化（首次用 RAG 时才连 Chroma）
+
+    def switch_model(self, model: str) -> None:
+        """运行时切换活动模型。队列中的待执行任务也会用新模型。
+
+        根据模型注册表自动选择对应的 system prompt：
+        - v9max → BASE_PROMPT（训练/推理一致）
+        - v5    → SYSTEM_PROMPT_LITE（训练/推理一致）
+        """
+        self.model = model
+        self.client.model = model
+        self.system_prompt = get_prompt_for_model(model)
 
     @property
     def chroma(self):

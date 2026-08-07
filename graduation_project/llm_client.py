@@ -64,7 +64,7 @@ _STRUCTURED_OUTPUT_SCHEMA = {
 
 
 class OllamaClient:
-    def __init__(self, base_url: str = "http://localhost:11434", model: str = "garrywhite109909/graduation-vuln-scanner:v5"):
+    def __init__(self, base_url: str = "http://localhost:11434", model: str = "garrywhite109909/graduation-vuln-scanner:v9max"):
         self.base_url = base_url
         self.model = model
         self.api_generate = f"{base_url}/api/generate"
@@ -313,6 +313,96 @@ class OllamaClient:
         except Exception as e:
             print(f"[OllamaClient] 卸载模型失败: {e}", file=sys.stderr)
             return False
+
+    # ------------------------------------------------------------------
+    # 模型管理：拉取 / 删除 / 查询（供前端模型管理 UI 调用）
+    # ------------------------------------------------------------------
+    def pull_model(self, model: str, stream_callback=None, timeout: int = 600) -> dict:
+        """流式拉取模型（调用 Ollama /api/pull）。
+
+        拉取完成后模型即可使用（Modelfile 已内置 SYSTEM prompt 和推理参数）。
+        Ollama 会把模型文件存入 ~/.ollama 目录。
+
+        Args:
+            model: 模型全名（如 garrywhite109909/graduation-vuln-scanner:v9max）
+            stream_callback: 可选回调，每收到一行 NDJSON 就调用 callback(chunk_dict)
+            timeout: 总超时秒数（大模型拉取可能需要数分钟）
+
+        Returns:
+            {"success": bool, "error": str|None, "final_status": str}
+        """
+        url = f"{self.base_url}/api/pull"
+        payload = {"name": model, "stream": True}
+        final_status = ""
+        try:
+            resp = requests.post(url, json=payload, timeout=timeout, stream=True)
+            resp.raise_for_status()
+            for line in resp.iter_lines(decode_unicode=True):
+                if not line:
+                    continue
+                try:
+                    chunk = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                final_status = chunk.get("status", "")
+                if stream_callback:
+                    stream_callback(chunk)
+                # error 字段存在时表示拉取失败
+                if chunk.get("error"):
+                    return {"success": False, "error": chunk["error"], "final_status": final_status}
+            # success 状态表示拉取完成
+            return {"success": final_status == "success", "error": None, "final_status": final_status}
+        except Exception as e:
+            return {"success": False, "error": str(e), "final_status": final_status}
+
+    def delete_model(self, model: str, timeout: int = 60) -> dict:
+        """删除模型（调用 Ollama /api/delete）。
+
+        从 ~/.ollama 目录彻底删除模型的 blob 文件，释放磁盘空间。
+        与 unload_model 不同：unload 只是卸载显存，delete 删除文件。
+
+        Returns:
+            {"success": bool, "error": str|None}
+        """
+        url = f"{self.base_url}/api/delete"
+        payload = {"name": model}
+        try:
+            resp = requests.delete(url, json=payload, timeout=timeout)
+            if resp.status_code == 404:
+                return {"success": False, "error": "模型不存在（可能已被删除）"}
+            resp.raise_for_status()
+            return {"success": True, "error": None}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def show_model(self, model: str, timeout: int = 30) -> Optional[dict]:
+        """查询模型详情（调用 Ollama /api/show）。
+
+        返回模型的 Modelfile、参数、模板等信息；模型不存在时返回 None。
+        """
+        url = f"{self.base_url}/api/show"
+        payload = {"name": model}
+        try:
+            resp = requests.post(url, json=payload, timeout=timeout)
+            if resp.status_code == 404:
+                return None
+            resp.raise_for_status()
+            return resp.json()
+        except Exception:
+            return None
+
+    def get_model_size(self, model: str) -> Optional[int]:
+        """返回模型磁盘占用字节数（从 /api/tags 的 details.size 获取）。"""
+        try:
+            resp = requests.get(f"{self.base_url}/api/tags", timeout=10)
+            data = resp.json()
+            for m in data.get("models", []):
+                if m.get("name") == model or m.get("model") == model:
+                    details = m.get("details", {})
+                    return details.get("size") or m.get("size")
+            return None
+        except Exception:
+            return None
     
     def analyze_vulnerability(
         self,
@@ -344,7 +434,7 @@ class OllamaClient:
 
 
 if __name__ == "__main__":
-    client = OllamaClient(model="garrywhite109909/graduation-vuln-scanner:v5")
+    client = OllamaClient(model="garrywhite109909/graduation-vuln-scanner:v9max")
     
     # 检查连接
     if not client.check_connection():

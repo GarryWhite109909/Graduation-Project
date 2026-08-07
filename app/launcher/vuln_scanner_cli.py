@@ -49,7 +49,11 @@ if str(PROJECT_ROOT) not in sys.path:
 
 # 重量级项目依赖（tree_sitter / chromadb 等）延迟到命令执行时才 import，
 # 保证 --help / 参数解析在依赖缺失时也能工作。
-DEFAULT_MODEL = os.environ.get("VULN_SCANNER_MODEL", "garrywhite109909/graduation-vuln-scanner:v5")
+try:
+    from app.backend.services.model_registry import get_default_model as _get_default_model
+    DEFAULT_MODEL = os.environ.get("VULN_SCANNER_MODEL", _get_default_model())
+except Exception:
+    DEFAULT_MODEL = os.environ.get("VULN_SCANNER_MODEL", "garrywhite109909/graduation-vuln-scanner:v9max")
 FALLBACK_MODEL = os.environ.get("VULN_SCANNER_FALLBACK_MODEL", "qwen3:8b")
 
 # 文件扩展名 → 语言映射（与后端保持一致）
@@ -184,7 +188,6 @@ def build_scanner(args: argparse.Namespace):
         model=model,
         base_url=base_url,
         use_rag=use_rag,
-        use_lite_prompt=True,  # SFT v5 必须 True
         keep_alive=0,
     )
 

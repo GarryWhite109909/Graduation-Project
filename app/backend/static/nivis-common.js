@@ -292,6 +292,282 @@
     }
   };
 
+  /* ====== 3.5 模型管理（拉取 / 删除 / 切换） ====== */
+  /* 设置抽屉「模型管理」区的数据源与交互。
+     仅允许操作 /api/models/* 端点登记的模型（garrywhite109909 命名空间）。 */
+  window.NivisModels = {
+    _registry: null,
+    _installed: null,
+    _active: '',
+    _pulling: {},        /* model -> true（拉取进行中） */
+    _pullProgress: {},   /* model -> {pct, status, error}（拉取进度状态） */
+    _abort: null,
+
+    esc: function (s) { return window.NivisUtil.escapeHtml(s); },
+
+    formatSize: function (bytes) {
+      if (!bytes || bytes <= 0) return '';
+      var gb = bytes / (1024 * 1024 * 1024);
+      if (gb >= 1) return gb.toFixed(2) + ' GB';
+      var mb = bytes / (1024 * 1024);
+      return mb.toFixed(1) + ' MB';
+    },
+
+    /* 加载注册表 + 已安装列表，并渲染 */
+    load: function () {
+      var self = this;
+      if (this._abort) { try { this._abort.abort(); } catch (e) {} }
+      this._abort = new AbortController();
+      var signal = this._abort.signal;
+      Promise.all([
+        fetch('/api/models/registry', { signal: signal }).then(function (r) { return r.json(); }),
+        fetch('/api/models/installed', { signal: signal }).then(function (r) { return r.json(); }),
+      ]).then(function (results) {
+        self._registry = (results[0] && results[0].models) || [];
+        self._installed = (results[1] && results[1].installed) || [];
+        self._active = (results[1] && results[1].active_model) || '';
+        self.render();
+      }).catch(function (e) {
+        if (e && e.name === 'AbortError') return;
+        var an = document.getElementById('model-active-name');
+        if (an) an.textContent = '加载失败';
+        var el = document.getElementById('model-installed-list');
+        if (el) el.innerHTML = '<div class="text-xs p-3 rounded-lg" style="background: var(--vuln-surface-2); color: var(--vuln-state-error)">加载失败，请确认后端已启动</div>';
+        var el2 = document.getElementById('model-available-list');
+        if (el2) el2.innerHTML = '';
+      });
+    },
+
+    render: function () {
+      var self = this;
+      var registry = this._registry || [];
+      var installed = this._installed || [];
+      var active = this._active || '';
+      var installedSet = {};
+      installed.forEach(function (m) { installedSet[m.full_name] = m; });
+
+      var an = document.getElementById('model-active-name');
+      if (an) {
+        var info = installed.filter(function (m) { return m.full_name === active; })[0];
+        an.textContent = info ? info.display_name : (active || '未设置');
+      }
+
+      var instEl = document.getElementById('model-installed-list');
+      if (instEl) {
+        if (installed.length === 0) {
+          instEl.innerHTML = '<div class="text-xs p-3 rounded-lg" style="background: var(--vuln-surface-2); color: var(--vuln-ink-3)">暂无已安装模型，请在下方拉取</div>';
+        } else {
+          instEl.innerHTML = installed.map(function (m) { return self.renderInstalledRow(m, active); }).join('');
+        }
+      }
+
+      var availEl = document.getElementById('model-available-list');
+      if (availEl) {
+        var avail = registry.filter(function (m) { return !installedSet[m.full_name]; });
+        if (avail.length === 0) {
+          availEl.innerHTML = '<div class="text-xs p-3 rounded-lg" style="background: var(--vuln-surface-2); color: var(--vuln-ink-3)">所有可用模型均已安装</div>';
+        } else {
+          availEl.innerHTML = avail.map(function (m) { return self.renderAvailableRow(m); }).join('');
+        }
+      }
+
+      this.bindRowEvents();
+    },
+
+    renderInstalledRow: function (m, active) {
+      var isActive = m.full_name === active;
+      var sizeStr = m.size_bytes ? this.formatSize(m.size_bytes) : '';
+      var activeBadge = isActive ? '<span class="text-[10px] px-1.5 py-0.5 rounded ml-1.5" style="background: color-mix(in srgb, var(--vuln-state-success) 15%, transparent); color: var(--vuln-state-success)">使用中</span>' : '';
+      var depBadge = m.deprecated ? '<span class="text-[10px] px-1.5 py-0.5 rounded ml-1.5" style="background: color-mix(in srgb, var(--vuln-state-warning) 15%, transparent); color: var(--vuln-state-warning)">已过时</span>' : '';
+      var actions = isActive
+        ? '<span class="text-xs" style="color: var(--vuln-ink-3)">—</span>'
+        : '<button data-model-activate="' + this.esc(m.full_name) + '" class="text-xs px-2.5 py-1 rounded-md transition-colors hover:opacity-80" style="background: var(--vuln-surface-3); color: var(--vuln-ink-2)">切换</button>' +
+          '<button data-model-delete="' + this.esc(m.full_name) + '" class="text-xs px-2.5 py-1 rounded-md transition-colors hover:opacity-80" style="background: color-mix(in srgb, var(--vuln-state-error) 10%, transparent); color: var(--vuln-state-error)">删除</button>';
+      return '<div class="p-3 rounded-lg" style="background: var(--vuln-surface-2);">' +
+        '<div class="flex items-start justify-between gap-2">' +
+          '<div class="min-w-0">' +
+            '<div class="text-sm font-medium" style="color: var(--vuln-ink)">' + this.esc(m.display_name) + activeBadge + depBadge + '</div>' +
+            '<div class="text-[11px] mt-0.5 font-mono" style="color: var(--vuln-ink-3)">' + this.esc(m.full_name) + '</div>' +
+            (sizeStr ? '<div class="text-[11px] mt-0.5" style="color: var(--vuln-ink-3)">' + sizeStr + '</div>' : '') +
+          '</div>' +
+          '<div class="flex items-center gap-1.5 flex-shrink-0">' + actions + '</div>' +
+        '</div>' +
+      '</div>';
+    },
+
+    renderAvailableRow: function (m) {
+      var depBadge = m.deprecated ? '<span class="text-[10px] px-1.5 py-0.5 rounded ml-1.5" style="background: color-mix(in srgb, var(--vuln-state-warning) 15%, transparent); color: var(--vuln-state-warning)">已过时</span>' : '';
+      var defaultTag = m.is_default ? '<span class="text-[10px] px-1.5 py-0.5 rounded ml-1.5" style="background: color-mix(in srgb, var(--vuln-brand) 12%, transparent); color: var(--vuln-brand)">推荐</span>' : '';
+      var prog = this._pullProgress[m.full_name];
+      var isPulling = !!this._pulling[m.full_name];
+      var btnArea;
+      if (isPulling) {
+        var p = prog || { pct: 0, status: '准备拉取…' };
+        btnArea = this.renderProgress(p.pct, p.status, false);
+      } else if (prog && prog.error) {
+        btnArea = '<button data-model-pull="' + this.esc(m.full_name) + '" class="text-xs px-2.5 py-1 rounded-md transition-colors hover:opacity-80" style="background: var(--vuln-brand); color: #fff">重试</button>';
+      } else {
+        btnArea = '<button data-model-pull="' + this.esc(m.full_name) + '" class="text-xs px-2.5 py-1 rounded-md transition-colors hover:opacity-80" style="background: var(--vuln-brand); color: #fff">拉取</button>';
+      }
+      return '<div class="p-3 rounded-lg" style="background: var(--vuln-surface-2);">' +
+        '<div class="flex items-start justify-between gap-2">' +
+          '<div class="min-w-0 flex-1">' +
+            '<div class="text-sm font-medium" style="color: var(--vuln-ink)">' + this.esc(m.display_name) + defaultTag + depBadge + '</div>' +
+            (m.description ? '<div class="text-[11px] mt-0.5" style="color: var(--vuln-ink-3)">' + this.esc(m.description) + '</div>' : '') +
+            '<div class="text-[11px] mt-0.5 font-mono" style="color: var(--vuln-ink-3)">' + this.esc(m.full_name) + '</div>' +
+            (prog && prog.error ? '<div class="text-[11px] mt-1" style="color: var(--vuln-state-error)">' + this.esc(prog.error) + '</div>' : '') +
+          '</div>' +
+          '<div class="flex-shrink-0 w-[120px] flex items-start justify-end">' + btnArea + '</div>' +
+        '</div>' +
+      '</div>';
+    },
+
+    renderProgress: function (pct, status, isError) {
+      return '<div class="w-full">' +
+        '<div class="flex items-center justify-between mb-1">' +
+          '<span class="text-[11px] truncate" style="color: ' + (isError ? 'var(--vuln-state-error)' : 'var(--vuln-ink-2)') + '">' + this.esc(status || (isError ? '失败' : '拉取中')) + '</span>' +
+          (pct > 0 && !isError ? '<span class="text-[11px] font-mono ml-1 flex-shrink-0" style="color: var(--vuln-ink-3)">' + pct + '%</span>' : '') +
+        '</div>' +
+        '<div class="w-full h-1.5 rounded-full overflow-hidden" style="background: var(--vuln-surface-3)">' +
+          '<div style="width: ' + (isError ? 100 : pct) + '%; height: 100%; background: ' + (isError ? 'var(--vuln-state-error)' : 'var(--vuln-brand)') + '; transition: width 200ms ease;"></div>' +
+        '</div>' +
+      '</div>';
+    },
+
+    bindRowEvents: function () {
+      var self = this;
+      var drawer = document.getElementById('settings-drawer');
+      if (!drawer) return;
+      drawer.querySelectorAll('[data-model-activate]').forEach(function (btn) {
+        if (btn.__nivisBound) return; btn.__nivisBound = true;
+        btn.addEventListener('click', function () { self.activate(btn.getAttribute('data-model-activate')); });
+      });
+      drawer.querySelectorAll('[data-model-delete]').forEach(function (btn) {
+        if (btn.__nivisBound) return; btn.__nivisBound = true;
+        btn.addEventListener('click', function () { self.del(btn.getAttribute('data-model-delete')); });
+      });
+      drawer.querySelectorAll('[data-model-pull]').forEach(function (btn) {
+        if (btn.__nivisBound) return; btn.__nivisBound = true;
+        btn.addEventListener('click', function () { self.pull(btn.getAttribute('data-model-pull')); });
+      });
+    },
+
+    activate: function (model) {
+      var self = this;
+      fetch('/api/models/activate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: model }),
+      }).then(function (r) { return r.json(); }).then(function (d) {
+        if (d.activated) { self.load(); self.toast('已切换为 ' + model); }
+        else { self.toast(d.error || '切换失败', true); }
+      }).catch(function () { self.toast('网络错误', true); });
+    },
+
+    del: function (model) {
+      var self = this;
+      if (!window.confirm('确认删除模型？\n' + model + '\n\n将从 ~/.ollama 目录彻底删除模型文件，释放磁盘空间。')) return;
+      fetch('/api/models/' + encodeURIComponent(model), { method: 'DELETE' })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d.deleted) { self.load(); self.toast('已删除 ' + model); }
+          else { self.toast(d.error || '删除失败', true); }
+        })
+        .catch(function () { self.toast('网络错误', true); });
+    },
+
+    /* 流式拉取：解析 NDJSON 进度，实时更新进度条 */
+    pull: function (model) {
+      var self = this;
+      if (this._pulling[model]) return;
+      this._pulling[model] = true;
+      this._pullProgress[model] = { pct: 0, status: '准备拉取…' };
+      this.render();
+      fetch('/api/models/pull', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: model }),
+      }).then(function (resp) {
+        if (!resp.body || !resp.body.getReader) {
+          // 流式不可用，退化为整体等待
+          return resp.json().then(function (d) {
+            delete self._pulling[model];
+            if (d && !d.error) { delete self._pullProgress[model]; self.load(); self.toast('拉取完成'); }
+            else { self._pullProgress[model] = { error: (d && d.error) || '拉取失败' }; self.render(); }
+          });
+        }
+        var reader = resp.body.getReader();
+        var decoder = new TextDecoder('utf-8');
+        var buf = '';
+        function pump() {
+          reader.read().then(function (chunk) {
+            if (chunk.done) {
+              delete self._pulling[model];
+              delete self._pullProgress[model];
+              self.load();
+              self.toast('拉取完成');
+              return;
+            }
+            buf += decoder.decode(chunk.value, { stream: true });
+            var lines = buf.split('\n');
+            buf = lines.pop();
+            var lastPct = null, lastStatus = '', hadError = null;
+            for (var i = 0; i < lines.length; i++) {
+              if (!lines[i].trim()) continue;
+              try { var obj = JSON.parse(lines[i]); } catch (e) { continue; }
+              if (obj.error) { hadError = obj.error; break; }
+              if (obj.completed && obj.total) {
+                lastPct = Math.round(obj.completed / obj.total * 100);
+              }
+              if (obj.status) lastStatus = obj.status;
+              if (obj.completed === true && obj.status === 'success') {
+                lastPct = 100; lastStatus = '完成';
+              }
+            }
+            if (hadError) {
+              delete self._pulling[model];
+              self._pullProgress[model] = { error: hadError };
+              self.render();
+              self.toast(hadError, true);
+              return;
+            }
+            var cur = self._pullProgress[model] || {};
+            if (lastPct !== null) cur.pct = lastPct;
+            if (lastStatus) cur.status = lastStatus;
+            self._pullProgress[model] = cur;
+            self.render();
+            pump();
+          }).catch(function () {
+            delete self._pulling[model];
+            self._pullProgress[model] = { error: '连接中断' };
+            self.render();
+          });
+        }
+        pump();
+      }).catch(function () {
+        delete self._pulling[model];
+        self._pullProgress[model] = { error: '网络错误' };
+        self.render();
+      });
+    },
+
+    toast: function (msg, isErr) {
+      var t = document.getElementById('model-toast');
+      if (!t) {
+        t = document.createElement('div');
+        t.id = 'model-toast';
+        t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:9999;padding:8px 16px;border-radius:8px;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,0.15);transition:opacity 300ms;opacity:0;max-width:80vw;';
+        document.body.appendChild(t);
+      }
+      t.textContent = msg;
+      t.style.background = isErr ? 'var(--vuln-state-error)' : 'var(--vuln-ink)';
+      t.style.color = isErr ? '#fff' : 'var(--vuln-surface)';
+      t.style.opacity = '1';
+      clearTimeout(t.__timer);
+      t.__timer = setTimeout(function () { t.style.opacity = '0'; }, 2400);
+    }
+  };
+
   /* ====== 4. 设置抽屉（注入 HTML + 绑定事件） ====== */
   /* 各页面只需在 <body> 中保留 <button id="settings-open">，
      nivis-common.js 会自动注入抽屉 HTML 并绑定所有事件。 */
@@ -326,10 +602,32 @@
             <div class="space-y-2">\
               <div class="flex items-center justify-between p-3 rounded-lg" style="background: var(--vuln-surface-2);">\
                 <div>\
-                  <div class="text-sm font-medium" style="color: var(--vuln-ink)">后端地址与模型</div>\
+                  <div class="text-sm font-medium" style="color: var(--vuln-ink)">后端服务地址</div>\
                   <div class="text-xs mt-0.5" style="color: var(--vuln-ink-3)">由启动器自动检测与配置，前端不可更改</div>\
                 </div>\
                 <a href="https://ollama.com/download" target="_blank" rel="noopener" class="text-xs px-3 py-1 rounded-md transition-colors" style="background: var(--vuln-surface-3); color: var(--vuln-ink-2); text-decoration: none;">Ollama</a>\
+              </div>\
+            </div>\
+          </section>\
+          <section>\
+            <h3 class="text-xs font-semibold uppercase tracking-wider mb-3" style="color: var(--vuln-ink-3)">模型管理</h3>\
+            <div class="space-y-3">\
+              <div class="flex items-center justify-between p-3 rounded-lg" style="background: color-mix(in srgb, var(--vuln-brand) 6%, transparent); border: 1px solid color-mix(in srgb, var(--vuln-brand) 18%, var(--vuln-line));">\
+                <div class="min-w-0">\
+                  <div class="text-xs" style="color: var(--vuln-ink-3)">当前活动模型</div>\
+                  <div id="model-active-name" class="text-sm font-medium mt-0.5 truncate" style="color: var(--vuln-ink)">加载中…</div>\
+                </div>\
+                <button id="model-refresh-btn" class="flex-shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-[var(--vuln-surface-2)] transition-colors" aria-label="刷新模型列表" title="刷新模型列表">\
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--vuln-ink-2)"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>\
+                </button>\
+              </div>\
+              <div>\
+                <div class="text-xs font-medium mb-2" style="color: var(--vuln-ink-2)">已安装</div>\
+                <div id="model-installed-list" class="space-y-2"><div class="text-xs p-3 rounded-lg" style="background: var(--vuln-surface-2); color: var(--vuln-ink-3)">加载中…</div></div>\
+              </div>\
+              <div>\
+                <div class="text-xs font-medium mb-2" style="color: var(--vuln-ink-2)">可拉取</div>\
+                <div id="model-available-list" class="space-y-2"><div class="text-xs p-3 rounded-lg" style="background: var(--vuln-surface-2); color: var(--vuln-ink-3)">加载中…</div></div>\
               </div>\
             </div>\
           </section>\
@@ -403,6 +701,8 @@
         if (window.syncDrawerOpts) window.syncDrawerOpts();
         requestAnimationFrame(function () { if (drawer) drawer.style.transform = 'translateX(0)'; });
         document.body.style.overflow = 'hidden';
+        // 每次打开抽屉时刷新模型管理列表（轻量：registry + installed 两个 GET）
+        if (window.NivisModels) window.NivisModels.load();
       }
 
       function close() {
@@ -432,6 +732,14 @@
         if (overlay && !overlay.__nivisSettingsBound) {
           overlay.__nivisSettingsBound = true;
           overlay.addEventListener('click', function (e) { if (e.target === overlay) close(); });
+        }
+        /* 模型管理刷新按钮 */
+        var btnRefresh = document.getElementById('model-refresh-btn');
+        if (btnRefresh && !btnRefresh.__nivisSettingsBound) {
+          btnRefresh.__nivisSettingsBound = true;
+          btnRefresh.addEventListener('click', function () {
+            if (window.NivisModels) window.NivisModels.load();
+          });
         }
       }
 

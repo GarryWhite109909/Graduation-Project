@@ -8,7 +8,8 @@ CI 漏洞扫描脚本 —— 用于 GitHub Actions PR 审查。
 设计原则：
 - 永不阻断 PR：Ollama 不可用、模型缺失或单文件扫描出错时，仅输出警告并以
   退出码 0 退出，配合工作流的 continue-on-error 确保不阻塞合并。
-- 训练/推理一致：使用 SYSTEM_PROMPT_LITE（SFT v5 训练所用提示词）。
+- 训练/推理一致：system prompt 由 model_registry 按模型自动选择
+  （v9max→BASE_PROMPT，v5→SYSTEM_PROMPT_LITE），保证训练/推理一致。
 - RAG 增强：默认启用知识库检索；CI 环境若无本地 embedding 模型/向量库，
   Scanner 会自动回退到纯 LLM 模式（见 Scanner.chroma 属性的容错逻辑）。
 
@@ -40,9 +41,15 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 # 默认模型 / 回退模型（与项目其余入口保持一致，支持环境变量覆盖）
-DEFAULT_MODEL = os.environ.get(
-    "VULN_SCANNER_MODEL", "garrywhite109909/graduation-vuln-scanner:v5"
-)
+try:
+    from app.backend.services.model_registry import get_default_model as _get_default_model
+    DEFAULT_MODEL = os.environ.get(
+        "VULN_SCANNER_MODEL", _get_default_model(),
+    )
+except Exception:
+    DEFAULT_MODEL = os.environ.get(
+        "VULN_SCANNER_MODEL", "garrywhite109909/graduation-vuln-scanner:v9max",
+    )
 FALLBACK_MODEL = os.environ.get("VULN_SCANNER_FALLBACK_MODEL", "qwen3:8b")
 
 # 文件扩展名 → 语言映射（与 vuln_scanner_cli 保持一致）
@@ -147,7 +154,6 @@ def scan_files(
         model=model,
         base_url=base_url,
         use_rag=True,
-        use_lite_prompt=True,  # SFT v5 训练/推理一致，必须 True
         use_prefilter=True,   # 启用传统规则预筛，明显样本跳过 LLM
         keep_alive=0,
     )

@@ -3,13 +3,13 @@
 模型下载脚本 —— 支持两种获取方式，并自动适配本机硬件：
 
 1. Ollama Registry（默认，最简单）
-   python tools/download_model.py --source ollama --model graduation-vuln-scanner:v5
+   python tools/download_model.py --source ollama --model graduation-vuln-scanner:v9max
 
 2. 直接下载 GGUF（适合无法访问 Ollama Registry 的环境）
    python tools/download_model.py \
        --source gguf \
        --url https://github.com/GarryWhite109909/Graduation-Project/releases/download/v1.0/merged_v5-q4_k_m.gguf \
-       --model graduation-vuln-scanner:v5
+       --model graduation-vuln-scanner:v9max
 
 国内网络加速：source=gguf 时，若 URL 指向 github.com，默认自动加 ghproxy 前缀
 （https://mirror.ghproxy.com/）加速下载。可用 --no-mirror 关闭。
@@ -193,7 +193,7 @@ def main() -> int:
         default="ollama",
         help="模型来源：ollama registry 或直接下载 GGUF",
     )
-    parser.add_argument("--model", default="graduation-vuln-scanner:v5", help="本地 Ollama 模型名")
+    parser.add_argument("--model", default="graduation-vuln-scanner:v9max", help="本地 Ollama 模型名")
     parser.add_argument("--url", help="GGUF 下载地址（source=gguf 时必填）")
     parser.add_argument(
         "--no-mirror",

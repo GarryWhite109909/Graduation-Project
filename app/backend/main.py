@@ -41,6 +41,12 @@ from pydantic import BaseModel, Field
 from app.backend.services.fetcher import fetch_url, validate_target_url
 from app.backend.services.reporter import render_batch_markdown, render_single_markdown
 from app.backend.services.scanner import DEFAULT_MODEL, BatchResult, Scanner, SingleResult
+from app.backend.services.model_registry import (
+    list_registry,
+    get_model_info,
+    get_default_model,
+    is_allowed,
+)
 from app.backend.services.scheduler import (
     PRIORITY_HIGH,
     PRIORITY_LOW,
@@ -55,7 +61,7 @@ from graduation_project.fix_verifier import FixVerifier
 from graduation_project.multi_model_scanner import MultiModelScanner
 from graduation_project.vllm_client import VLLMClient
 from graduation_project.schema import parse_verdict, normalize_has_vulnerability
-from graduation_project.prompts import SYSTEM_PROMPT_LITE, build_user_prompt
+from graduation_project.prompts import build_user_prompt
 
 # ---------------------------------------------------------------------------
 # 全局 Scanner 实例（单例，避免重复初始化 Chroma/OllamaClient）
@@ -63,7 +69,6 @@ from graduation_project.prompts import SYSTEM_PROMPT_LITE, build_user_prompt
 scanner = Scanner(
     model=os.environ.get("VULN_SCANNER_MODEL", DEFAULT_MODEL),
     use_rag=os.environ.get("VULN_SCANNER_RAG", "0") == "1",
-    use_lite_prompt=True,  # SFT v5 必须用 LITE
     use_prefilter=os.environ.get("VULN_SCANNER_PREFILTER", "1") != "0",  # 默认启用预筛
 )
 
@@ -766,11 +771,12 @@ def vllm_analyze(req: VllmAnalyzeRequest):
             status_code=503,
         )
 
-    # 复用统一 prompt 构建逻辑（SFT v5 用 LITE 版系统提示）
+    # system prompt 跟随当前活动模型（由 model_registry 自动选择，
+    # v9max→BASE_PROMPT，v5→SYSTEM_PROMPT_LITE），保证训练/推理一致
     prompt = build_user_prompt(
         code=req.code, language=req.language, filename=req.filename,
     )
-    result = client.generate(prompt=prompt, system_prompt=SYSTEM_PROMPT_LITE)
+    result = client.generate(prompt=prompt, system_prompt=scanner.system_prompt)
 
     if result["error"]:
         return JSONResponse({"error": result["error"]}, status_code=502)
@@ -781,7 +787,7 @@ def vllm_analyze(req: VllmAnalyzeRequest):
     # 约束解码兜底：CoT+JSON 解析失败时用 guided_json 重试
     if has_vuln is None:
         structured = client.generate_structured(
-            prompt=prompt, system_prompt=SYSTEM_PROMPT_LITE,
+            prompt=prompt, system_prompt=scanner.system_prompt,
         )
         if not structured["error"]:
             verdict = parse_verdict(structured["text"])
@@ -804,6 +810,148 @@ def vllm_analyze(req: VllmAnalyzeRequest):
         "duration": round(result["duration"], 2),
         "backend": "vllm",
     }
+
+
+# ---------------------------------------------------------------------------
+# 模型管理（拉取 / 删除 / 切换 / 查询）—— 仅限 garrywhite109909 命名空间
+# ---------------------------------------------------------------------------
+class ModelActionRequest(BaseModel):
+    model: str = Field(..., description="模型全名，如 garrywhite109909/graduation-vuln-scanner:v9max")
+
+
+@app.get("/api/models/registry")
+def models_registry():
+    """返回已登记的模型清单（前端模型管理 UI 数据源）。
+
+    每个模型包含 display_name / description / prompt_variant / deprecated 等元数据。
+    前端只允许拉取/删除/切换此处登记的模型。
+    """
+    return {"models": list_registry()}
+
+
+@app.get("/api/models/installed")
+def models_installed():
+    """返回已安装的模型列表（从 Ollama /api/tags 过滤 garrywhite109909 命名空间）。
+
+    每个模型附带注册表中的元数据（display_name / deprecated 等）和磁盘占用。
+    """
+    registry = {m["full_name"]: m for m in list_registry()}
+    installed = []
+    for name in scanner.client.list_models():
+        if name in registry:
+            info = dict(registry[name])
+            info["installed"] = True
+            info["size_bytes"] = scanner.client.get_model_size(name)
+            installed.append(info)
+    return {
+        "installed": installed,
+        "active_model": scanner.model,
+    }
+
+
+@app.post("/api/models/pull")
+async def models_pull(req: ModelActionRequest):
+    """流式拉取模型（NDJSON 流，每行含 status / completed / total / digest）。
+
+    拉取完成后模型即可使用（Modelfile 已内置 SYSTEM prompt 和推理参数）。
+    仅允许拉取注册表中的模型。
+    """
+    if not is_allowed(req.model):
+        return JSONResponse(
+            {"error": f"模型 {req.model} 不在允许列表中"}, status_code=403,
+        )
+
+    async def stream():
+        import queue as _q
+        import threading
+
+        chunk_queue: _q.Queue = _q.Queue()
+        done_flag = {"done": False, "result": None}
+
+        def callback(chunk):
+            chunk_queue.put(chunk)
+
+        def run_pull():
+            result = scanner.client.pull_model(req.model, stream_callback=callback)
+            done_flag["result"] = result
+            done_flag["done"] = True
+            chunk_queue.put(None)  # 哨兵，唤醒流式迭代
+
+        thread = threading.Thread(target=run_pull, daemon=True)
+        thread.start()
+
+        while True:
+            try:
+                chunk = await asyncio.get_event_loop().run_in_executor(
+                    None, lambda: chunk_queue.get(timeout=1),
+                )
+            except Exception:
+                if done_flag["done"]:
+                    break
+                continue
+            if chunk is None:
+                break
+            yield json.dumps(chunk, ensure_ascii=False) + "\n"
+            if chunk.get("error"):
+                break
+
+        result = done_flag["result"] or {}
+        if result.get("success"):
+            yield json.dumps({"status": "success", "completed": True}, ensure_ascii=False) + "\n"
+        elif not result.get("error"):
+            yield json.dumps({"status": result.get("final_status", "unknown"),
+                              "error": "拉取未完成"}, ensure_ascii=False) + "\n"
+
+    return StreamingResponse(stream(), media_type="application/x-ndjson")
+
+
+@app.delete("/api/models/{model_name:path}")
+def models_delete(model_name: str):
+    """删除模型（从 ~/.ollama 目录彻底删除 blob 文件，释放磁盘空间）。
+
+    模型全名含 / 与 :（如 garrywhite109909/graduation-vuln-scanner:v9max），
+    故使用 :path 转换器匹配整段路径。前端需对模型名做 encodeURIComponent。
+    仅允许删除注册表中的模型。
+    """
+    # URL 解码后的模型名可能含 / :，FastAPI path 参数已自动解码
+    if not is_allowed(model_name):
+        return JSONResponse(
+            {"error": f"模型 {model_name} 不在允许列表中"}, status_code=403,
+        )
+    # 如果删除的是当前活动模型，先切回默认模型
+    if scanner.model == model_name:
+        default = get_default_model()
+        if default != model_name:
+            scanner.switch_model(default)
+    result = scanner.client.delete_model(model_name)
+    if result["success"]:
+        return {"deleted": True, "model": model_name}
+    return JSONResponse(
+        {"deleted": False, "model": model_name, "error": result["error"]},
+        status_code=500,
+    )
+
+
+@app.post("/api/models/activate")
+def models_activate(req: ModelActionRequest):
+    """切换当前活动模型。队列中的待执行任务也会用新模型。
+
+    根据模型注册表自动切换 system prompt：
+    - v9max → BASE_PROMPT
+    - v5    → SYSTEM_PROMPT_LITE
+    """
+    if not is_allowed(req.model):
+        return JSONResponse(
+            {"error": f"模型 {req.model} 不在允许列表中"}, status_code=403,
+        )
+    # 检查模型是否已安装
+    installed = scanner.client.list_models()
+    if req.model not in installed:
+        return JSONResponse(
+            {"error": f"模型 {req.model} 未安装，请先拉取"}, status_code=409,
+        )
+    scanner.switch_model(req.model)
+    return {"activated": True, "model": req.model}
 
 
 # ---------------------------------------------------------------------------
