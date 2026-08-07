@@ -438,7 +438,7 @@
         <div id="round-banner" class="hidden mb-3 flex items-center justify-between flex-wrap gap-2 rounded-lg border border-[var(--vuln-brand)]/30 bg-[var(--vuln-brand)]/5 px-3 py-2 text-xs">
           <span id="round-banner-text" class="text-[var(--vuln-ink-2)]"></span>
           <div class="flex items-center gap-2">
-            <button id="btn-round-toggle" type="button" class="inline-flex items-center gap-1 rounded-full border border-[var(--vuln-brand)]/40 bg-[var(--vuln-surface)] px-2.5 py-1 font-medium text-[var(--vuln-brand)] hover:bg-[var(--vuln-brand)]/10 focus:outline-none focus:ring-2 focus:ring-[var(--vuln-brand)]">只看本轮</button>
+            <button id="btn-round-toggle" type="button" class="inline-flex items-center gap-1 rounded-full border border-[var(--vuln-line)] bg-[var(--vuln-surface)] px-2.5 py-1 font-medium text-[var(--vuln-ink-2)] hover:text-[var(--vuln-brand)] hover:border-[var(--vuln-brand)]/40 focus:outline-none focus:ring-2 focus:ring-[var(--vuln-brand)]">只看本轮</button>
             <button id="btn-round-clear" type="button" class="inline-flex items-center gap-1 rounded-full border border-[var(--vuln-line)] px-2.5 py-1 text-[var(--vuln-ink-3)] hover:text-[var(--vuln-state-error)] hover:border-[var(--vuln-state-error)]/40 focus:outline-none focus:ring-2 focus:ring-[var(--vuln-state-error)]">清空本轮</button>
           </div>
         </div>
@@ -801,8 +801,25 @@
           return scanResults.filter(function (r) { return r && rid && r._roundId === rid; });
         }
         function addResult(r) {
-          if (r && currentRound) r._roundId = currentRound.id;
+          if (r) {
+            if (currentRound) r._roundId = currentRound.id;
+            if (!r._id) r._id = 's_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+            // 规范化 has_vulnerability：非 true/false 的值（undefined/缺失）统一为 null（分析失败）
+            if (r.has_vulnerability !== true && r.has_vulnerability !== false) {
+              r.has_vulnerability = null;
+              if (!r._kind) r._kind = 'error';
+            }
+          }
           scanResults.push(r);
+        }
+        function deleteResult(id) {
+          if (!id) return;
+          var before = scanResults.length;
+          scanResults = scanResults.filter(function (r) { return !(r && r._id === id); });
+          if (scanResults.length === before) return;
+          try { localStorage.setItem(SCAN_RESULTS_KEY, JSON.stringify(scanResults)); } catch (e) {}
+          renderResults();
+          showToast('已删除该结果', 'success');
         }
         function updateRoundUI() {
           var banner = document.getElementById('round-banner');
@@ -819,7 +836,17 @@
           var text = document.getElementById('round-banner-text');
           if (text) text.textContent = '最近一轮扫描（' + t + '）共 ' + list.length + ' 条结果，相关卡片已标记「最近一轮」';
           var btn = document.getElementById('btn-round-toggle');
-          if (btn) btn.textContent = roundOnly ? '显示全部' : '只看本轮';
+          if (btn) {
+            btn.textContent = roundOnly ? '显示全部' : '只看本轮';
+            // 激活态（已只看本轮）高亮品牌色，未激活态保持普通样式，避免初始就高亮像已点击
+            if (roundOnly) {
+              btn.classList.add('text-[var(--vuln-brand)]', 'bg-[var(--vuln-brand)]/10', 'border-[var(--vuln-brand)]/40');
+              btn.classList.remove('text-[var(--vuln-ink-2)]', 'bg-[var(--vuln-surface)]', 'border-[var(--vuln-line)]');
+            } else {
+              btn.classList.remove('text-[var(--vuln-brand)]', 'bg-[var(--vuln-brand)]/10', 'border-[var(--vuln-brand)]/40');
+              btn.classList.add('text-[var(--vuln-ink-2)]', 'bg-[var(--vuln-surface)]', 'border-[var(--vuln-line)]');
+            }
+          }
         }
         function clearRoundResults() {
           if (!currentRound) return;
@@ -1266,7 +1293,7 @@
         }
 
         function resultSeverity(r) {
-          if (r.has_vulnerability === null || r._kind === 'error') return 'info';
+          if (r.has_vulnerability == null || r._kind === 'error') return 'info';
           if (r.has_vulnerability === false) return 'info';
           var risk = (r.risk_level || '').toLowerCase();
           return RISK_TO_SEV[risk] || 'info';
@@ -1277,12 +1304,14 @@
           var roundBadge = (currentRound && r._roundId === currentRound.id)
             ? '<span class="text-xs px-1.5 py-0.5 rounded-full bg-[var(--vuln-brand)]/10 text-[var(--vuln-brand)] font-medium">最近一轮</span>'
             : '';
+          // 删除按钮：默认低调，hover 时变红
+          var delBtn = '<button type="button" class="del-result inline-flex items-center justify-center w-7 h-7 rounded-md text-[var(--vuln-ink-3)] hover:text-[var(--vuln-state-error)] hover:bg-[var(--vuln-state-error)]/10 focus:outline-none focus:ring-2 focus:ring-[var(--vuln-state-error)] transition-colors flex-shrink-0" data-id="' + escapeAttr(r._id || '') + '" title="删除该结果" aria-label="删除该结果"><svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg></button>';
 
           // Error card
-          if (r.has_vulnerability === null || r._kind === 'error') {
+          if (r.has_vulnerability == null || r._kind === 'error') {
             return '<article class="result-card glass-card" data-severity="info" style="border-left:3px solid var(--vuln-state-error)">' +
-              '<div class="flex items-center gap-3 mb-2"><span class="icon-box-sm error inline-flex items-center justify-center rounded"><svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg></span>' +
-              '<span class="text-xs font-semibold text-[var(--vuln-state-error)]">分析失败</span>' + roundBadge + '</div>' +
+              '<div class="flex items-start justify-between gap-4 mb-2"><div class="flex items-center gap-3"><span class="icon-box-sm error inline-flex items-center justify-center rounded"><svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg></span>' +
+              '<span class="text-xs font-semibold text-[var(--vuln-state-error)]">分析失败</span>' + roundBadge + '</div>' + delBtn + '</div>' +
               '<p class="text-sm text-[var(--vuln-ink-2)]">' + escapeHtml(r.error || '未知错误') + '</p>' +
               (r.filename ? '<p class="text-xs text-[var(--vuln-ink-3)] mt-1 font-mono">' + escapeHtml(r.filename) + '</p>' : '') +
               '</article>';
@@ -1291,8 +1320,8 @@
           // Safe card
           if (r.has_vulnerability === false) {
             return '<article class="result-card glass-card" data-severity="info" style="border-left:3px solid var(--vuln-state-success)">' +
-              '<div class="flex items-center gap-3 mb-2"><span class="icon-box-sm success inline-flex items-center justify-center rounded"><svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg></span>' +
-              '<span class="text-xs font-semibold text-[var(--vuln-state-success)]">安全</span>' + roundBadge + '</div>' +
+              '<div class="flex items-start justify-between gap-4 mb-2"><div class="flex items-center gap-3"><span class="icon-box-sm success inline-flex items-center justify-center rounded"><svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg></span>' +
+              '<span class="text-xs font-semibold text-[var(--vuln-state-success)]">安全</span>' + roundBadge + '</div>' + delBtn + '</div>' +
               '<h3 class="text-base font-semibold text-[var(--vuln-ink)] mb-1">' + escapeHtml(r.filename || '代码') + '</h3>' +
               '<p class="text-sm text-[var(--vuln-ink-2)]">' + escapeHtml(r.explanation || '未发现漏洞') + '</p>' +
               '</article>';
@@ -1340,6 +1369,7 @@
           if (r.fix_suggestion && r.fix_suggestion !== 'no fix needed' && r._orig) {
             buttons += '<button type="button" class="verify-fix text-xs text-[var(--vuln-state-success)] hover:opacity-80 font-medium ml-3" data-fix="' + escapeAttr(r.fix_suggestion) + '" data-orig="' + escapeAttr(r._orig) + '" data-lang="' + escapeAttr(r._lang || 'python') + '">验证修复</button>';
           }
+          buttons = delBtn + buttons;
 
           var detailContent = '';
           if (r.fix_suggestion && r.fix_suggestion !== 'no fix needed') {
@@ -1362,7 +1392,7 @@
                 (r._kind === 'external' ? '<span class="text-xs px-1.5 py-0.5 rounded bg-[var(--vuln-surface-2)] text-[var(--vuln-ink-2)]">外部工具</span>' : '') +
                 (r._kind === 'vllm' ? '<span class="text-xs px-1.5 py-0.5 rounded bg-[var(--vuln-surface-2)] text-[var(--vuln-ink-2)]">vLLM</span>' : '') +
               '</div>' +
-              '<div class="flex items-center">' + buttons + '</div>' +
+              '<div class="flex items-center gap-2">' + buttons + '</div>' +
             '</div>' +
             '<h3 class="text-base font-semibold text-[var(--vuln-ink)] mb-1">' + escapeHtml(vulnType) + '</h3>' +
             (meta ? '<p class="mb-2">' + meta + '</p>' : '') +
@@ -1404,6 +1434,13 @@
           var verifyBtn = e.target.closest('.verify-fix');
           if (verifyBtn) {
             runVerifyFix(verifyBtn);
+            return;
+          }
+
+          var delBtn = e.target.closest('.del-result');
+          if (delBtn) {
+            var id = delBtn.getAttribute('data-id');
+            if (id) deleteResult(id);
             return;
           }
         });
@@ -1575,7 +1612,7 @@
           if (total === 0) return;
           var findings = list.filter(function (r) { return r && r.has_vulnerability === true; });
           var vulnerable = findings.length;
-          var errors = list.filter(function (r) { return !r || r.has_vulnerability === null || r._kind === 'error'; }).length;
+          var errors = list.filter(function (r) { return !r || r.has_vulnerability == null || r._kind === 'error'; }).length;
           var safe = total - vulnerable - errors;
           var counts = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
           list.forEach(function (r) {
@@ -1636,7 +1673,24 @@
             if (!raw) return;
             var arr = JSON.parse(raw);
             if (Array.isArray(arr) && arr.length) {
+              // 旧数据可能没有 _id，补齐以便删除按钮定位
+              var needPersist = false;
+              for (var i = 0; i < arr.length; i++) {
+                if (arr[i] && !arr[i]._id) {
+                  arr[i]._id = 's_' + Date.now() + '_' + i + '_' + Math.random().toString(36).slice(2, 7);
+                  needPersist = true;
+                }
+                // 旧数据 has_vulnerability 可能是 undefined（字段缺失），规范化为 null
+                if (arr[i] && arr[i].has_vulnerability !== true && arr[i].has_vulnerability !== false) {
+                  arr[i].has_vulnerability = null;
+                  if (!arr[i]._kind) arr[i]._kind = 'error';
+                  needPersist = true;
+                }
+              }
               scanResults = arr;
+              if (needPersist) {
+                try { localStorage.setItem(SCAN_RESULTS_KEY, JSON.stringify(scanResults)); } catch (e) {}
+              }
               renderResults();
             }
           } catch (e) {
@@ -1683,7 +1737,7 @@
           var total = list.length;
           if (total === 0) return;
           var findings = list.filter(function (r) { return r && r.has_vulnerability === true; });
-          var errors = list.filter(function (r) { return !r || r.has_vulnerability === null || r._kind === 'error'; }).length;
+          var errors = list.filter(function (r) { return !r || r.has_vulnerability == null || r._kind === 'error'; }).length;
           var report = {
             id: 'r_' + Date.now(),
             date: new Date().toISOString(),
@@ -1746,6 +1800,22 @@
             if (clearBtn) clearBtn.classList.add('hidden');
             return;
           }
+          // 旧数据迁移：旧版 has_vulnerability===null 用严格相等，undefined 被误算为 safe，
+          // 从 markdown 中"分析失败："标记重新统计 errors
+          var needPersist = false;
+          for (var i = 0; i < reports.length; i++) {
+            var rp = reports[i];
+            if (!rp || !rp.markdown) continue;
+            var mdErrors = (rp.markdown.match(/^分析失败：/gm) || []).length;
+            if (mdErrors !== rp.errors) {
+              rp.errors = mdErrors;
+              rp.safe = Math.max(0, (rp.total_files || 0) - (rp.vulnerable || 0) - mdErrors);
+              needPersist = true;
+            }
+          }
+          if (needPersist) {
+            try { localStorage.setItem(REPORTS_KEY, JSON.stringify(reports)); } catch (e) {}
+          }
           var clearBtn = document.getElementById('btn-clear-reports');
           if (clearBtn) clearBtn.classList.remove('hidden');
 
@@ -1766,8 +1836,10 @@
         function reportHistoryItemHTML(r) {
           var d = new Date(r.date);
           var dateStr = d.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
-          var sevColor = r.vulnerable > 0 ? 'error' : 'success';
-          var sevText = r.vulnerable > 0 ? (r.vulnerable + ' 个漏洞') : '全部安全';
+          var sevColor, sevText;
+          if (r.vulnerable > 0) { sevColor = 'error'; sevText = r.vulnerable + ' 个漏洞'; }
+          else if (r.errors > 0) { sevColor = 'error'; sevText = '分析失败'; }
+          else { sevColor = 'success'; sevText = '全部安全'; }
           var sourceLabel = { paste: '粘贴', upload: '上传', url: 'URL', github: 'GitHub', demo: '演示' }[r.source] || r.source;
           return '<article class="report-item glass-card rounded-lg p-3" data-id="' + r.id + '" style="cursor:pointer">' +
             '<div class="flex items-center justify-between gap-2 mb-1">' +

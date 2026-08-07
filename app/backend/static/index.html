@@ -152,6 +152,16 @@
       .quick-entry:hover .arrow { transition-delay: 0ms; color: var(--vuln-brand); transform: translateX(2px); }
 
       .num-tabular { font-variant-numeric: tabular-nums; }
+
+      /* 安全评分圆环：用 CSS transition 驱动 stroke-dasharray 动画，
+         避免 requestAnimationFrame 每帧 setAttribute 在 Chrome 中引起渲染抖动 */
+      #score-arc {
+        transition: stroke-dasharray 0.9s cubic-bezier(0.22, 1, 0.36, 1),
+                    stroke 0.3s ease;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #score-arc { transition: none; }
+      }
     </style>
 
     <!-- 固定顶部导航 -->
@@ -279,7 +289,7 @@
             <div class="relative" style="width:140px;height:140px">
               <svg id="score-gauge" viewBox="0 0 120 120" width="140" height="140" role="img" aria-label="安全评分仪表">
                 <circle cx="60" cy="60" r="50" fill="none" stroke="var(--vuln-surface-2)" stroke-width="12"/>
-                <circle id="score-arc" cx="60" cy="60" r="50" fill="none" stroke="var(--vuln-brand)" stroke-width="12" stroke-linecap="round" stroke-dasharray="0 314.16" transform="rotate(-90 60 60)" style="transition: stroke-dasharray 700ms var(--lv-smooth, ease), stroke 300ms ease;"/>
+                <circle id="score-arc" cx="60" cy="60" r="50" fill="none" stroke="var(--vuln-brand)" stroke-width="12" stroke-linecap="round" stroke-dasharray="0 314.16" stroke-dashoffset="78.54"/>
                 <text id="score-num" x="60" y="58" text-anchor="middle" fill="var(--vuln-ink-3)" font-size="26" font-weight="700">—</text>
                 <text id="score-label" x="60" y="76" text-anchor="middle" fill="var(--vuln-ink-3)" font-size="11">分</text>
               </svg>
@@ -555,13 +565,20 @@
     }
     var data = hist.slice(-MAX_HISTORY);
     var left=40, right=620, top=30, bottom=216;
-    var w = right-left, maxTotal=1;
-    for (var i=0;i<data.length;i++) if ((data[i].total||0)>maxTotal) maxTotal = data[i].total||0;
-    var stepX = data.length>1 ? w/(data.length-1) : 0;
+    var w = right-left;
+    // Y 轴最大值向上取整到漂亮刻度（5/10 的倍数），避免数据微小变化导致刻度频繁跳动
+    var dataMax=1;
+    for (var i=0;i<data.length;i++) if ((data[i].total||0)>dataMax) dataMax = data[i].total||0;
+    var maxTotal = dataMax <= 5 ? Math.ceil(dataMax) : Math.ceil(dataMax/5)*5;
+    if (maxTotal < 1) maxTotal = 1;
+    // 数据点 X 范围留 padding，避免只有 1~2 个点时贴边显得间距过大
+    var padX = data.length > 1 ? 24 : 0;
+    var innerLeft = left + padX, innerRight = right - padX;
+    var stepX = data.length>1 ? (innerRight-innerLeft)/(data.length-1) : 0;
     var pts=[], circles='', dateLabels='';
     var hoverPts = [];
     for (var p=0;p<data.length;p++) {
-      var x = data.length>1 ? left+p*stepX : (left+right)/2;
+      var x = data.length>1 ? innerLeft+p*stepX : (left+right)/2;
       var y = bottom-((data[p].total||0)/maxTotal)*(bottom-top);
       pts.push(x.toFixed(1)+','+y.toFixed(1));
       circles += '<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="5" fill="var(--vuln-brand)"/>';
@@ -573,15 +590,18 @@
       }
     }
     var inner = '<defs><linearGradient id="trendGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--vuln-brand)" stop-opacity="0.35"/><stop offset="100%" stop-color="var(--vuln-brand)" stop-opacity="0"/></linearGradient></defs>';
-    // Y 轴刻度线
+    // Y 轴刻度线（三等分：max / max/2 / 0）
+    var midY = (top+bottom)/2;
+    var midVal = maxTotal / 2;
     inner += '<line x1="40" y1="30" x2="620" y2="30" stroke="var(--vuln-line)" stroke-dasharray="2 4" opacity="0.5"/>';
-    inner += '<line x1="40" y1="123" x2="620" y2="123" stroke="var(--vuln-line)" stroke-dasharray="2 4" opacity="0.5"/>';
+    inner += '<line x1="40" y1="'+midY.toFixed(1)+'" x2="620" y2="'+midY.toFixed(1)+'" stroke="var(--vuln-line)" stroke-dasharray="2 4" opacity="0.5"/>';
     inner += '<line x1="40" y1="216" x2="620" y2="216" stroke="var(--vuln-line)"/>';
     inner += '<text x="32" y="34" text-anchor="end" font-size="11" fill="var(--vuln-ink-3)">'+maxTotal+'</text>';
+    inner += '<text x="32" y="'+(midY+4).toFixed(1)+'" text-anchor="end" font-size="11" fill="var(--vuln-ink-3)">'+midVal+'</text>';
     inner += '<text x="32" y="220" text-anchor="end" font-size="11" fill="var(--vuln-ink-3)">0</text>';
     if (pts.length>=2) {
-      var lastX = data.length>1 ? left+(data.length-1)*stepX : (left+right)/2;
-      inner += '<path d="M'+pts[0]+' L'+pts.slice(1).join(' L')+' L'+lastX.toFixed(1)+',216 L40,216 Z" fill="url(#trendGrad)"/>';
+      var lastX = data.length>1 ? innerLeft+(data.length-1)*stepX : (left+right)/2;
+      inner += '<path d="M'+pts[0]+' L'+pts.slice(1).join(' L')+' L'+lastX.toFixed(1)+',216 L'+pts[0].split(',')[0]+',216 Z" fill="url(#trendGrad)"/>';
       inner += '<polyline points="'+pts.join(' ')+'" fill="none" stroke="var(--vuln-brand)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>';
     }
     inner += circles + dateLabels;
@@ -641,6 +661,7 @@
     }
     return counts;
   }
+  var scoreAnimFrame = null;
   function updateSecurityScore(findings) {
     var numEl = document.getElementById('score-num');
     var labelEl = document.getElementById('score-label');
@@ -654,6 +675,8 @@
       setText('score-c-low', c.low);
       setText('score-c-info', c.info);
     }
+    /* 取消进行中的动画，避免重复调用（localStorage 历史 + /api/stats）时抖动 */
+    if (scoreAnimFrame) { cancelAnimationFrame(scoreAnimFrame); scoreAnimFrame = null; }
     if (!hasData) {
       if (numEl) { numEl.textContent = '—'; numEl.setAttribute('fill', 'var(--vuln-ink-3)'); }
       if (labelEl) labelEl.textContent = '分';
@@ -669,16 +692,36 @@
     if (score >= 75) { grade = '良好'; color = 'var(--vuln-state-success)'; hint = '安全状况良好，继续保持'; }
     else if (score >= 50) { grade = '一般'; color = 'var(--vuln-state-warning)'; hint = '存在待修复风险，建议处理'; }
     else { grade = '风险'; color = 'var(--vuln-state-error)'; hint = '漏洞较多，应尽快修复'; }
-    if (numEl) { numEl.textContent = score; numEl.setAttribute('fill', color); }
     if (labelEl) labelEl.textContent = '/ 100';
     if (gradeEl) { gradeEl.textContent = grade; gradeEl.style.color = color; }
     if (hintEl) hintEl.textContent = hint;
+
+    /* 从 0 开始：圆弧描边交给 CSS transition（跨浏览器一致），数字用 RAF 计数同步 */
+    var C = 2 * Math.PI * 50;
+    /* round 圆帽每端外延 stroke-width/2，长度逼近满圆时两端圆帽相交会产生视觉抖动，故留出余量 */
+    var capGap = 12;
+    var targetLen = Math.min((score / 100) * C, C - capGap);
+    var duration = 900;
+    /* 先重置为 0，下一帧再设目标值，确保 transition 从 0 开始 */
     if (arcEl) {
-      var C = 2 * Math.PI * 50;
-      var len = (score / 100) * C;
       arcEl.setAttribute('stroke', color);
-      arcEl.setAttribute('stroke-dasharray', len.toFixed(2) + ' ' + (C - len).toFixed(2));
+      arcEl.setAttribute('stroke-dasharray', '0 314.16');
     }
+    var start = null;
+    function tick(ts) {
+      if (start === null) {
+        start = ts;
+        /* 触发 transition：从 0 过渡到 targetLen */
+        if (arcEl) arcEl.setAttribute('stroke-dasharray', targetLen.toFixed(2) + ' ' + (C - targetLen).toFixed(2));
+      }
+      var p = Math.min((ts - start) / duration, 1);
+      var e = 1 - Math.pow(1 - p, 3); /* easeOutCubic */
+      var cur = Math.round(e * score);
+      if (numEl) { numEl.textContent = cur; numEl.setAttribute('fill', color); }
+      if (p < 1) { scoreAnimFrame = requestAnimationFrame(tick); }
+      else { scoreAnimFrame = null; if (numEl) numEl.textContent = score; }
+    }
+    scoreAnimFrame = requestAnimationFrame(tick);
     setBreakdown(counts);
   }
 

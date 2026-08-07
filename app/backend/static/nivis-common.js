@@ -194,7 +194,7 @@
       svg.addEventListener('mousemove', function (e) {
         var mx = clientToSvgX(e.clientX);
         if (mx < left || mx > right) { hideAll(); return; }
-        // 找最近的数据点（X 方向），距离小于 stepX*0.6 时吸附
+        // 找最近的数据点（X 方向），仅在非常接近时吸附，避免点稀疏时全屏瞬移
         var nearest = null, minDist = Infinity;
         for (var i = 0; i < points.length; i++) {
           if (points[i] == null) continue;
@@ -202,7 +202,8 @@
           if (d < minDist) { minDist = d; nearest = points[i]; }
         }
         var stepX = points.length > 1 ? (right - left) / (points.length - 1) : 0;
-        var snapDist = Math.max(stepX * 0.6, 20);
+        // 吸附阈值上限 30 SVG 单位：点稀疏时虚线仍能跟随鼠标，点密集时按 stepX*0.4 吸附
+        var snapDist = Math.min(stepX * 0.4, 30);
         var snapX;
         if (nearest && minDist < snapDist) {
           snapX = nearest.x;
