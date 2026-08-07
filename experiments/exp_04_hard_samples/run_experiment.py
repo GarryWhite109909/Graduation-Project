@@ -43,6 +43,7 @@ from experiments.utils import (
     new_results_envelope,
     upsert_sample,
     default_results_path,
+    find_latest_results_path,
     compute_detection_metrics,
     compute_repeat_metrics,
     print_summary,
@@ -88,11 +89,13 @@ def build_prompt_for_sample(samples_dir: Path, sample_meta: dict) -> str:
     if pair:
         input_code = read_sample_code(samples_dir, pair)
         if input_code:
-            # 把 input 文件作为相关上下文注入
+            # 把 input 文件作为相关上下文注入。
+            # 注意：注释里不写文件名（pair/filename 含 crossfile/sink/input 等标签词，
+            # 会暗示模型这是跨文件污点分析场景，造成答案泄漏）。仅用中性描述。
             code = (
-                f"# === 相关代码上下文（同项目另一文件：{pair}） ===\n"
+                f"# === 相关代码上下文（同项目另一文件） ===\n"
                 f"{input_code}\n\n"
-                f"# === 待分析的目标文件：{filename} ===\n"
+                f"# === 待分析的目标代码 ===\n"
                 f"{code}"
             )
             print(f"        [跨文件] 注入相关上下文 {pair}（{len(input_code)} 字符）")
@@ -105,11 +108,14 @@ def build_prompt_for_chunk(chunk_code: str, language: str, filename: str, chunk_
 
     与 build_prompt_for_sample 类似，但 prompt 头部明确告知模型这是从长文件中切出的函数片段，
     需要重点关注当前函数本身的安全问题。
+
+    注意：切片说明里不写 filename / chunk_name。长文件样本名含漏洞类别标签
+    （如 hard_longfile_01_hidden_sql.py），写入 prompt 会泄漏答案。
     """
     code_with_header = (
         f"# === 切片说明 ===\n"
-        f"# 以下是从长文件 {filename} 中按 AST 函数切分得到的代码片段。\n"
-        f"# 当前分析目标：函数 {chunk_name}\n"
+        f"# 以下是从长文件中按 AST 函数切分得到的代码片段。\n"
+        f"# 当前分析目标：单个函数\n"
         f"# 文件级上下文（imports / 全局常量 / 类骨架）已保留在上方，供参考。\n"
         f"# === 代码片段 ===\n"
         f"{chunk_code}"
@@ -171,12 +177,28 @@ def main() -> int:
     if args.slice:
         slice_tag = f"slice-min{args.min_lines}-{args.only}"
     extra_tag = f"repeat{repeat}" + (f".{slice_tag}" if slice_tag else "")
-    results_path = Path(args.output) if args.output else default_results_path(
-        RESULTS_DIR,
-        experiment="exp_04_hard_samples",
-        model=args.model,
-        extra_tag=extra_tag,
-    )
+    # --resume 且未显式指定 --output 时，先找最新同前缀文件续跑；
+    # 找不到或未指定 --resume 时，生成新的带时间戳路径。
+    if args.resume and not args.output:
+        latest = find_latest_results_path(
+            RESULTS_DIR,
+            experiment="exp_04_hard_samples",
+            model=args.model,
+            extra_tag=extra_tag,
+        )
+        results_path = latest if latest is not None else default_results_path(
+            RESULTS_DIR,
+            experiment="exp_04_hard_samples",
+            model=args.model,
+            extra_tag=extra_tag,
+        )
+    else:
+        results_path = Path(args.output) if args.output else default_results_path(
+            RESULTS_DIR,
+            experiment="exp_04_hard_samples",
+            model=args.model,
+            extra_tag=extra_tag,
+        )
 
     try:
         manifest, samples = load_manifest(MANIFEST_PATH)

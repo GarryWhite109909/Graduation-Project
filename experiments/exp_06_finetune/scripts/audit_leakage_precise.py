@@ -18,10 +18,11 @@ def main():
     if not TESTSET_DIR.exists():
         print(f"⚠️ 警告：测试集目录不存在: {TESTSET_DIR}")
 
-    # 加载测试集代码
+    # 加载测试集代码（多语言：py/java/js/php 等，避免只审计 .py 漏掉其他语言样本）
     testset_code = {}
-    for f in TESTSET_DIR.glob("*.py"):
-        testset_code[f.name] = f.read_text(encoding="utf-8")
+    for pattern in ("*.py", "*.java", "*.js", "*.php", "*.ts", "*.jsx", "*.tsx", "*.vue", "*.go", "*.rb"):
+        for f in TESTSET_DIR.glob(pattern):
+            testset_code[f.name] = f.read_text(encoding="utf-8")
 
     # 加载 CPT 语料
     records = []

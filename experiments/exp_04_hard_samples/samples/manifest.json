@@ -1,6 +1,7 @@
 {
   "experiment": "exp_04_hard_samples",
   "description": "扩展样本集 v2：87 段覆盖 OWASP Top 10 + CWE Top 25 主要类型（34 CWE），含典型漏洞 + 安全对照 + 难样本（绕过/跨文件/CVE/长文件/OWASP）+ 混淆噪音，覆盖 Python/Java/PHP/JS 多语言，用于压力测试 LLM 漏洞检测能力",
+  "held_out_status": "本测试集在 exp_06 微调阶段被用于 hard sample mining（extract_hard_samples.py 从本集评估错题中提取失败模式，生成补充训练样本重训模型）。因此本集已不再是一个独立的 held-out 测试集——模型在本集上的表现可能被高估。论文如需独立 held-out 评估，应使用 CVE-fix 测试集（exp_06_finetune/testset_cve_fix/）或其他未参与训练的样本集，并在本集指标旁注明此局限性。",
   "schema_version": "8col_v1",
   "ground_truth_columns": [
     "file",

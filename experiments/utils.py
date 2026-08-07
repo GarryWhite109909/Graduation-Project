@@ -148,6 +148,10 @@ def default_results_path(
 
     Returns:
         路径形如 results/<experiment>.<model>.<tag>.<timestamp>.json
+
+    注意：路径含时间戳，每次运行都不同。--resume 直接用此路径判断 exists()
+    会永不命中。resume 场景请配合 find_latest_results_path() 使用：先找最新
+    同前缀文件，找到则续跑，找不到再用 default_results_path 生成新路径。
     """
     results_dir = Path(results_dir)
     results_dir.mkdir(parents=True, exist_ok=True)
@@ -159,6 +163,35 @@ def default_results_path(
     parts.append(ts)
     filename = ".".join(parts) + f".{suffix}"
     return results_dir / filename
+
+
+def find_latest_results_path(
+    results_dir: Path,
+    experiment: str,
+    model: str | None = None,
+    extra_tag: str | None = None,
+    suffix: str = "json",
+) -> Optional[Path]:
+    """按前缀匹配查找最新的结果文件，供 --resume 使用。
+
+    default_results_path 生成的路径含时间戳，每次运行都不同，直接 exists()
+    判断会永不命中。本函数按 experiment/model/extra_tag 构造前缀（不含时间戳），
+    用 glob 找所有匹配文件，返回按文件名（含时间戳，字典序=时间序）排序的最新一个。
+
+    Returns:
+        最新匹配文件的 Path；无匹配返回 None。
+    """
+    results_dir = Path(results_dir)
+    if not results_dir.exists():
+        return None
+    safe_model = model.replace(":", "-").replace("/", "-") if model else "nomodel"
+    parts = [experiment, safe_model]
+    if extra_tag:
+        parts.append(extra_tag)
+    prefix = ".".join(parts) + "."
+    pattern = f"{prefix}*.{suffix}"
+    matches = sorted(results_dir.glob(pattern))
+    return matches[-1] if matches else None
 
 
 def new_results_envelope(experiment: str, **extra) -> dict:
@@ -190,12 +223,23 @@ def compute_detection_metrics(
             "recall": float|None,       # 漏洞样本召回率 = tp/(tp+fn)
             "false_positive_rate": float|None,  # 安全样本误报率 = fp/(fp+tn)
             "accuracy": float|None,     # 总体准确率 = (tp+tn)/valid
+            # 严格口径（含 parse_fail，避免解析失败样本被剔除分母导致指标偏乐观）：
+            "recall_with_parse_fail": float|None,   # tp/(tp+fn+invalid_vuln) parse_fail 计入漏报
+            "accuracy_with_parse_fail": float|None, # (tp+tn)/(total) parse_fail 计入错误
             "elapsed_stats": {"avg": float, "max": float, "min": float, "sum": float, "count": int},
         }
+
+    指标口径说明：
+        主指标（recall/accuracy）沿用排除 invalid 的口径，与历史结果兼容；
+        严格口径（*_with_parse_fail）把 parse_fail（解析失败/空输出）计入漏报/错误，
+        分母含全部样本，反映模型真实可用性。两个口径同时报告，避免单一口径偏乐观。
+        论文主结论应优先引用严格口径。
     """
     tp = tn = fp = fn = 0
     elapsed_list: list[float] = []
     invalid = 0
+    invalid_vuln = 0   # 漏洞样本中解析失败数（parse_fail 计入漏报）
+    invalid_safe = 0   # 安全样本中解析失败数
 
     for r in records:
         exp = r.get(expected_field)
@@ -207,6 +251,10 @@ def compute_detection_metrics(
 
         if exp is None or pred is None:
             invalid += 1
+            if exp is True:
+                invalid_vuln += 1
+            elif exp is False:
+                invalid_safe += 1
             continue
         if exp and pred:
             tp += 1
@@ -225,6 +273,12 @@ def compute_detection_metrics(
     fpr = (fp / safe_total) if safe_total else None
     accuracy = (tp + tn) / valid if valid else None
 
+    # 严格口径：parse_fail 计入漏报（recall 分母 += invalid_vuln）/错误（accuracy 分母 = total）
+    vuln_total_with_parse_fail = vuln_total + invalid_vuln
+    recall_with_parse_fail = (tp / vuln_total_with_parse_fail) if vuln_total_with_parse_fail else None
+    total = len(records)
+    accuracy_with_parse_fail = (tp + tn) / total if total else None
+
     elapsed_stats = {
         "avg": round(sum(elapsed_list) / len(elapsed_list), 2) if elapsed_list else None,
         "max": round(max(elapsed_list), 2) if elapsed_list else None,
@@ -242,6 +296,8 @@ def compute_detection_metrics(
         "recall": recall,
         "false_positive_rate": fpr,
         "accuracy": accuracy,
+        "recall_with_parse_fail": round(recall_with_parse_fail, 4) if recall_with_parse_fail is not None else None,
+        "accuracy_with_parse_fail": round(accuracy_with_parse_fail, 4) if accuracy_with_parse_fail is not None else None,
         "elapsed_stats": elapsed_stats,
     }
 
@@ -259,6 +315,13 @@ def format_metrics_text(metrics: dict) -> str:
         f"安全样本误报率 = {m['fp']}/{m['safe_total']} = {pct(m['false_positive_rate'])}",
         f"总体准确率 = {m['tp']+m['tn']}/{m['valid']} = {pct(m['accuracy'])}",
     ]
+    # 严格口径（含 parse_fail）：parse_fail 计入漏报/错误，分母含全部样本
+    rwpf = m.get("recall_with_parse_fail")
+    awpf = m.get("accuracy_with_parse_fail")
+    if rwpf is not None or awpf is not None:
+        lines.append(f"--- 严格口径（parse_fail 计入漏报/错误，论文主结论应优先引用）---")
+        lines.append(f"严格召回率 = {m['tp']}/{m['vuln_total']+m['invalid']} = {pct(rwpf)}")
+        lines.append(f"严格准确率 = {m['tp']+m['tn']}/{m['total']} = {pct(awpf)}")
     es = m["elapsed_stats"]
     if es["count"]:
         lines.append(

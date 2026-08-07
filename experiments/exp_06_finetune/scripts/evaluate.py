@@ -457,11 +457,13 @@ def evaluate(model, tokenizer, manifest_records,
             continue
 
         # 跨文件样本处理
+        # 注意：注释里不写文件名（input_file/filename 含 crossfile/sink/input 等标签词，
+        # 会暗示模型这是跨文件污点分析场景，造成答案泄漏）。仅用中性描述。
         if "crossfile" in filename and filename.endswith("_sink.py"):
             input_file = filename.replace("_sink.py", "_input.py")
             input_code = read_sample_code(code_samples_dir, input_file)
             if input_code:
-                code = f"# 配套输入层文件 {input_file}\n{input_code}\n\n# 当前 sink 文件\n{code}"
+                code = f"# 相关代码上下文（同项目另一文件）\n{input_code}\n\n# 待分析的目标代码\n{code}"
 
         # RAG 检索（参考 docs/方法.md §3 L1）
         rag_context = None

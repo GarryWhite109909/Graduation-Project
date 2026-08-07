@@ -48,6 +48,7 @@ from experiments.utils import (
     print_summary,
     print_repeat_summary,
     default_results_path,
+    find_latest_results_path,
 )
 
 
@@ -102,10 +103,12 @@ def build_user_prompt_for_sample(samples_dir: Path, sample_meta: dict) -> str:
     if pair:
         input_code = read_sample_code(samples_dir, pair)
         if input_code:
+            # 注意：注释里不写文件名（pair/filename 含 crossfile/sink/input 等标签词，
+            # 会暗示模型这是跨文件污点分析场景，造成答案泄漏）。仅用中性描述。
             code = (
-                f"# === 相关代码上下文（同项目另一文件：{pair}） ===\n"
+                f"# === 相关代码上下文（同项目另一文件） ===\n"
                 f"{input_code}\n\n"
-                f"# === 待分析的目标文件：{filename} ===\n"
+                f"# === 待分析的目标代码 ===\n"
                 f"{code}"
             )
             print(f"        [跨文件] 注入相关上下文 {pair}（{len(input_code)} 字符）")
@@ -218,8 +221,9 @@ def main() -> int:
                         help="采样温度（默认 0.1）")
     parser.add_argument("--limit", type=int, default=0,
                         help="只跑前 N 个样本，0 表示全部")
-    parser.add_argument("--repeat", type=int, default=1,
-                        help="每变体每样本重复 N 次（默认 1，快速验证；3 用于多数表决与置信区间）")
+    parser.add_argument("--repeat", type=int, default=3,
+                        help="每变体每样本重复 N 次（默认 3，多数表决+置信区间；1 仅快速验证，"
+                             "差异在采样噪声内，不可用于下'最优变体'结论）")
     parser.add_argument("--timeout", type=int, default=900,
                         help="单次请求超时秒数（默认 900）")
     parser.add_argument("--keep-loaded", action="store_true",
@@ -246,12 +250,28 @@ def main() -> int:
 
     repeat = max(1, args.repeat)
     extra_tag = f"ablation.repeat{repeat}"
-    results_path = Path(args.output) if args.output else default_results_path(
-        RESULTS_DIR,
-        experiment="exp_05_prompt_ablation",
-        model=args.model,
-        extra_tag=extra_tag,
-    )
+    # --resume 且未显式指定 --output 时，先找最新同前缀文件续跑；
+    # 找不到或未指定 --resume 时，生成新的带时间戳路径。
+    if args.resume and not args.output:
+        latest = find_latest_results_path(
+            RESULTS_DIR,
+            experiment="exp_05_prompt_ablation",
+            model=args.model,
+            extra_tag=extra_tag,
+        )
+        results_path = latest if latest is not None else default_results_path(
+            RESULTS_DIR,
+            experiment="exp_05_prompt_ablation",
+            model=args.model,
+            extra_tag=extra_tag,
+        )
+    else:
+        results_path = Path(args.output) if args.output else default_results_path(
+            RESULTS_DIR,
+            experiment="exp_05_prompt_ablation",
+            model=args.model,
+            extra_tag=extra_tag,
+        )
 
     try:
         manifest, samples = load_manifest(MANIFEST_PATH)

@@ -2,6 +2,12 @@
 Phase 6 - Hard sample 提取脚本 —— 从 evaluate.py 输出中提取错题，
 用于复习机制闭环（hard sample mining）。
 
+⚠️ 方法学警告：本脚本从 exp_04 测试集的评估错题中提取失败模式并生成补充
+训练样本。这意味着 exp_04 测试集参与了训练数据的构造，不再是一个独立的
+held-out 测试集。用 exp_04 错题重训后，模型在 exp_04 上的指标会被高估，
+不能作为模型泛化能力的独立评估。论文如需独立 held-out 评估，必须使用
+未参与 hard sample mining 的测试集（如 CVE-fix 测试集）。
+
 对应 docs/方法.md §9 Phase 6。
 
 输入：evaluate.py 生成的 JSON 文件（含 samples 数组）

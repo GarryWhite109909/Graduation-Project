@@ -163,11 +163,18 @@ def build_user_prompt(
 ) -> str:
     """构建 user prompt：代码块 + 可选 RAG 上下文 + 收尾要求。
 
-    与 SYSTEM_PROMPT 配合使用。filename 用于给模型额外上下文，可不传。
+    与 SYSTEM_PROMPT 配合使用。
+
+    注意：filename 参数**不会**注入 prompt 文本。早期版本曾把文件名写入
+    prompt 头部（"代码片段（文件名: xxx.py）"），但测试样本文件名含漏洞
+    类别标签（如 sql_injection_01.py、safe_02_...py、noise_02_...py），
+    导致答案泄漏——模型可从文件名直接推断 expected_present，实验指标
+    失真（exp_01 100% 准确率被污染）。现已移除文件名注入，仅保留 language
+    作为上下文。filename 参数仍保留以兼容调用方签名（用于结果记录、跨文件
+    上下文拼接等），但不进入 prompt 文本。
     """
     parts = []
-    header = f"代码片段（文件名: {filename}，语言: {language}）：" if filename else f"代码片段（语言: {language}）："
-    parts.append(header)
+    parts.append(f"代码片段（语言: {language}）：")
     parts.append("```" + (language or "text") + "\n" + code + "\n```")
 
     if rag_context:

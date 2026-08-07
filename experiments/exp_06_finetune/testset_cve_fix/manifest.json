@@ -1,5 +1,6 @@
 {
   "experiment": "exp_06_cve_fix_testset",
+  "limitations": "本测试集 20 条样本 expected_present 全为 true（无负样本/安全样本）。在该集上 '全判有漏洞' 即可 recall=100%，因此 FPR 和 accuracy 无意义，仅 recall 可参考。该集适用于评估'真实 CVE 能否检出'（召回），不适用于评估误报控制。论文引用该集指标时必须注明此局限性。",
   "samples": [
     {
       "file": "cve_fix_0001.java",

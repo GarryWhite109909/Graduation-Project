@@ -236,6 +236,8 @@ class MultiModelScanner:
         total_valid = true_count + false_count
 
         # 判定最终 has_vulnerability 与共识类型
+        # 平票时倾向 True（保守判定为漏洞：安全审计场景宁误报不漏报）。
+        # 与 experiments/utils.py 的 majority_vote 语义一致（>= 触发平票→True）。
         majority_side: list[tuple[str, SingleResult]] = []
         if total_valid == 0:
             # 所有模型都失败
@@ -243,10 +245,12 @@ class MultiModelScanner:
             consensus = "split"
             agreement_ratio = 0.0
         elif true_count == false_count:
-            # 平票（如 2 个模型 1 True 1 False）→ 无法判定
-            final_verdict = None
+            # 平票（如 2 个模型 1 True 1 False）→ 保守判定为漏洞（True）
+            final_verdict = True
             consensus = "split"
             agreement_ratio = 0.5
+            # 平票时多数方取 true_votes（倾向漏洞），用于结构化字段填充
+            majority_side = true_votes
         else:
             final_verdict = true_count > false_count
             majority_side = true_votes if final_verdict else false_votes
