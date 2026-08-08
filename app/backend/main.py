@@ -40,7 +40,8 @@ from pydantic import BaseModel, Field
 
 from app.backend.services.fetcher import fetch_url, validate_target_url
 from app.backend.services.reporter import render_batch_markdown, render_single_markdown
-from app.backend.services.scanner import DEFAULT_MODEL, BatchResult, Scanner, SingleResult
+from app.backend.services.scanner import DEFAULT_MODEL, Scanner
+from graduation_project.result_types import SingleResult, BatchResult
 from app.backend.services.model_registry import (
     list_registry,
     get_model_info,
@@ -55,15 +56,15 @@ from app.backend.services.scheduler import (
     resolve_priority,
 )
 
-# 高级能力模块（外部工具扫描 / 修复验证 / 多模型投票 / vLLM 推理加速）
+# 核心层能力（两阶段扫描 / 外部工具 / 修复验证 / vLLM；多模型投票在业务服务层）
 from graduation_project.external_scanner import ExternalScanner
 from graduation_project.two_stage_scanner import TwoStageScanner, tool_recall_monitor_snapshot
 from graduation_project.fix_verifier import FixVerifier, validate_fix_suggestion
-from graduation_project.multi_model_scanner import MultiModelScanner
+from app.backend.services.multi_model_scanner import MultiModelScanner
 from graduation_project.vllm_client import VLLMClient
 from graduation_project.schema import parse_verdict, normalize_has_vulnerability
 from graduation_project.prompts import build_user_prompt
-from graduation_project.paths import resolve_adapter_path
+from graduation_project.paths import resolve_adapter_path, find_project_root
 
 # ---------------------------------------------------------------------------
 # 全局 Scanner 实例（单例，避免重复初始化 Chroma/OllamaClient）
@@ -254,8 +255,63 @@ def health():
     return base
 
 
+def _detect_model_available(backend: str, client) -> tuple[bool | None, str]:
+    """检测模型是否已下载/可用。返回 (是否可用, 状态描述)。
+
+    - transformers: 检测 HuggingFace 本地 cache 是否已下载基座模型
+    - ollama: 检测模型是否已 pull
+    - llamacpp: 检测 GGUF 文件是否存在
+    - 其他: 返回 (None, "未实现检测")
+    """
+    if backend == "transformers":
+        model_id = getattr(client, "model_id", "") or os.environ.get("VULN_SCANNER_MODEL_ID", "Qwen/Qwen3-8B")
+        # 若已加载到内存，肯定可用
+        if getattr(client, "_model", None) is not None:
+            return True, "已加载到内存"
+        # 若有加载错误，检查是否与下载相关
+        load_err = getattr(client, "_load_error", None)
+        if load_err:
+            return False, f"加载失败：{load_err}"
+        # 用 huggingface_hub 检测本地 cache
+        try:
+            from huggingface_hub import try_to_load_from_cache
+            # 检测 config.json 是否在本地 cache（模型下载的标志文件）
+            result = try_to_load_from_cache(model_id, "config.json")
+            # 返回值：_CACHED_NO_EXIST=文件不存在但仓库已缓存, 本地路径=已下载, None=未缓存
+            if result is None:
+                return False, f"未从 HuggingFace 下载，首次推理将自动拉取（约 15GB）"
+            return True, "已下载到本地 cache"
+        except ImportError:
+            # huggingface_hub 未安装，无法检测
+            return None, "未安装 huggingface_hub，无法检测"
+        except Exception as e:
+            return None, f"检测异常：{e}"
+
+    elif backend == "ollama":
+        model = getattr(client, "model", os.environ.get("VULN_SCANNER_MODEL", ""))
+        try:
+            import requests
+            resp = requests.get("http://localhost:11434/api/tags", timeout=3)
+            if resp.status_code != 200:
+                return False, "Ollama 服务未运行"
+            models = [m.get("name", "") for m in resp.json().get("models", [])]
+            if model in models:
+                return True, "已 pull 到本地"
+            return False, f"未 pull，需运行 ollama pull {model}"
+        except Exception as e:
+            return False, f"Ollama 未运行：{e}"
+
+    elif backend == "llamacpp":
+        base_gguf = getattr(client, "base_gguf", "") or os.environ.get("VULN_SCANNER_GGUF", "")
+        if base_gguf and Path(base_gguf).exists():
+            return True, "GGUF 文件存在"
+        return False, f"GGUF 文件不存在：{base_gguf or '未配置'}"
+
+    return None, "未实现检测"
+
+
 def _build_backend_info() -> dict:
-    """构造当前推理后端的精度/流程信息，供前端展示。"""
+    """构造当前推理后端的精度/流程信息，供前端展示（检测报告式）。"""
     client = scanner.client
     cls_name = type(client).__name__
     backend = {
@@ -269,11 +325,16 @@ def _build_backend_info() -> dict:
     num_ctx = int(os.environ.get("VULN_SCANNER_NUM_CTX", "0") or "0")
     num_gpu = int(os.environ.get("VULN_SCANNER_NUM_GPU", "-1") or "-1")
 
+    # 模型下载状态检测
+    model_available, model_status = _detect_model_available(backend, client)
+
     info: dict = {
         "backend": backend,
         "backend_class": cls_name,
         "num_ctx": num_ctx if num_ctx > 0 else None,
         "num_gpu": num_gpu if num_gpu >= 0 else None,
+        "model_available": model_available,
+        "model_status": model_status,
     }
 
     if backend == "ollama":
@@ -287,7 +348,7 @@ def _build_backend_info() -> dict:
             q_label = "GGUF Q4_K_M"
         info.update({
             "model": model,
-            "base_quantization": q_label,
+            "base_quantization": f"推理时将采用 {q_label} 量化",
             "lora_quantized": True,
             "lora_precision": "Base + LoRA 合并后整体量化为 Q4_K_M（LoRA 被二次量化）",
             "compute_dtype": None,
@@ -319,10 +380,11 @@ def _build_backend_info() -> dict:
         except Exception:
             device_type = "未知（未加载）"
 
+        q_desc = "推理时将采用 bitsandbytes NF4 4bit 量化基座" if quantize else "推理时基座不量化（FP16/FP32 全精度）"
         info.update({
             "model": model_id,
             "adapter_path": adapter,
-            "base_quantization": "NF4 4bit" if quantize else "FP16/FP32（未量化）",
+            "base_quantization": q_desc,
             "lora_quantized": False,
             "lora_precision": "FP16（运行时叠加并合并，保持 LoRA 精度）",
             "compute_dtype": compute_dtype,
@@ -333,6 +395,13 @@ def _build_backend_info() -> dict:
                 "只压缩基座，不压缩 LoRA，复现了 G0 冻结集 95% CVE-fix recall 的管道。"
             ),
         })
+        # 模型未下载时给出下载提示
+        if model_available is False:
+            info["download_hint"] = (
+                f"基座模型 {model_id} 未从 HuggingFace 下载。"
+                f"请手动下载：huggingface-cli download {model_id}"
+                f" 或在首次扫描时等待自动拉取（约 15GB）。"
+            )
 
     elif backend == "llamacpp":
         base_gguf = getattr(client, "base_gguf", "") or os.environ.get("VULN_SCANNER_GGUF", "")
@@ -354,7 +423,7 @@ def _build_backend_info() -> dict:
             "model": gguf_name or "未配置 GGUF",
             "gguf_path": base_gguf,
             "adapter_path": adapter,
-            "base_quantization": q_label,
+            "base_quantization": f"推理时将采用 {q_label} 量化基座",
             "lora_quantized": False,
             "lora_precision": "FP16（运行时通过 lora_path 叠加）",
             "compute_dtype": "FP16",
@@ -365,6 +434,8 @@ def _build_backend_info() -> dict:
                 "速度优于 transformers，但量化/反量化细节与 transformers 不同，召回需单独验证。"
             ),
         })
+        if model_available is False:
+            info["download_hint"] = f"GGUF 文件不存在：{base_gguf or '未配置'}，请下载后设置 VULN_SCANNER_GGUF 环境变量。"
 
     else:
         info.update({
@@ -1045,6 +1116,17 @@ class ModelActionRequest(BaseModel):
     model: str = Field(..., description="模型全名，如 garrywhite109909/graduation-vuln-scanner:v9max")
 
 
+class HfDownloadRequest(BaseModel):
+    """HuggingFace 基座模型下载请求（transformers 后端）。"""
+    model_id: str = Field(..., description="HuggingFace 模型 ID，如 Qwen/Qwen3-8B")
+
+
+class GgufDownloadRequest(BaseModel):
+    """GGUF 文件下载请求（llama.cpp 后端）。"""
+    url: str = Field(..., max_length=2048, description="GGUF 下载 URL")
+    filename: str = Field(..., max_length=256, description="保存文件名，如 v9max-q4_k_m.gguf")
+
+
 @app.get("/api/models/registry")
 def models_registry():
     """返回已登记的模型清单（前端模型管理 UI 数据源）。
@@ -1212,6 +1294,271 @@ def models_activate(req: ModelActionRequest):
         )
     scanner.switch_model(req.model)
     return {"activated": True, "model": req.model}
+
+
+# ---------------------------------------------------------------------------
+# 进程内后端模型下载（transformers / llamacpp）—— 下载到 models/ 目录
+# ---------------------------------------------------------------------------
+
+# HuggingFace 镜像（国内加速）
+HF_MIRROR = "https://hf-mirror.com"
+
+
+def _models_dir() -> Path:
+    """返回项目 models/ 目录（不存在则创建）。"""
+    d = find_project_root() / "models"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+@app.get("/api/models/local-resources")
+def models_local_resources():
+    """返回进程内后端（transformers/llamacpp）需要的本地资源及下载状态。
+
+    Ollama 后端返回空资源列表（模型管理走 /api/models/* 端点）。
+    """
+    caps = scanner.model_management_capabilities()
+    if caps["list"]:
+        return {"backend": "ollama", "management_supported": True, "resources": []}
+
+    client = scanner.client
+    cls_name = type(client).__name__
+    resources: list[dict] = []
+
+    if cls_name == "TransformersClient":
+        model_id = getattr(client, "model_id", "") or os.environ.get(
+            "VULN_SCANNER_MODEL_ID", "Qwen/Qwen3-8B"
+        )
+        available, status = _detect_model_available("transformers", client)
+        # 下载目标：models/hf_models/<model_id 最后一段>（与 download-hf 端点一致）
+        dest_dir = _models_dir() / "hf_models" / model_id.split("/")[-1]
+        resources.append({
+            "type": "huggingface",
+            "id": model_id,
+            "name": model_id,
+            "description": "基座模型（HuggingFace，约 15GB）",
+            "available": available,
+            "status": status,
+            "download_endpoint": "/api/models/download-hf",
+            "download_path": str(dest_dir),
+            "mirror": HF_MIRROR,
+        })
+        adapter = resolve_adapter_path(getattr(client, "adapter", ""))
+        resources.append({
+            "type": "adapter",
+            "path": str(adapter) if adapter else "",
+            "available": bool(adapter) and Path(adapter).is_dir(),
+            "description": "LoRA adapter（训练产物，自动探测 models/ 目录）",
+        })
+
+    elif cls_name == "LlamaCppClient":
+        base_gguf = getattr(client, "base_gguf", "") or os.environ.get("VULN_SCANNER_GGUF", "")
+        available, status = _detect_model_available("llamacpp", client)
+        # GGUF 下载 URL：优先环境变量，其次 GitHub releases 推断
+        gguf_url = os.environ.get("VULN_SCANNER_GGUF_URL", "")
+        resources.append({
+            "type": "gguf",
+            "path": base_gguf,
+            "available": available,
+            "status": status,
+            "description": "Q4 GGUF 基座文件",
+            "download_endpoint": "/api/models/download-gguf",
+            "download_path": str(_models_dir()),
+            "default_url": gguf_url,
+        })
+        adapter = resolve_adapter_path(getattr(client, "adapter", ""))
+        resources.append({
+            "type": "adapter",
+            "path": str(adapter) if adapter else "",
+            "available": bool(adapter) and Path(adapter).is_dir(),
+            "description": "LoRA adapter（训练产物，自动探测 models/ 目录）",
+        })
+
+    return {
+        "backend": cls_name,
+        "management_supported": False,
+        "resources": resources,
+    }
+
+
+@app.post("/api/models/download-hf")
+async def models_download_hf(req: HfDownloadRequest):
+    """流式下载 HuggingFace 基座模型到 models/ 目录（NDJSON 进度）。
+
+    使用 hf-mirror.com 镜像加速国内下载。下载完成后需重启后端使配置生效。
+    """
+    import queue as _q
+    import threading
+
+    model_id = req.model_id.strip()
+    if not model_id:
+        return JSONResponse({"error": "model_id 不能为空"}, status_code=400)
+
+    # 下载目标：models/hf_models/<model_id 最后一段>
+    dest_name = model_id.split("/")[-1]
+    dest_dir = _models_dir() / "hf_models" / dest_name
+
+    chunk_queue: _q.Queue = _q.Queue()
+    done_flag = {"done": False, "result": None, "error": None}
+
+    def run_download():
+        try:
+            os.environ["HF_ENDPOINT"] = HF_MIRROR
+            from huggingface_hub import list_repo_files, hf_hub_download
+
+            # 获取仓库文件列表（进度估算用）
+            try:
+                files = list_repo_files(model_id)
+                # 过滤掉 .gitattributes 等无关紧要的小文件标记，但全量下载
+                total_files = len(files)
+            except Exception:
+                files = []
+                total_files = 0
+
+            chunk_queue.put({"status": "downloading", "total_files": total_files, "completed": 0, "pct": 0})
+
+            # 逐文件下载，每完成一个文件报告进度（huggingface_hub 内部用 HF_ENDPOINT 镜像）
+            completed_files = 0
+            for fname in files:
+                hf_hub_download(
+                    repo_id=model_id,
+                    filename=fname,
+                    local_dir=str(dest_dir),
+                )
+                completed_files += 1
+                pct = int(completed_files / total_files * 100) if total_files else 0
+                chunk_queue.put({
+                    "status": "downloading",
+                    "completed": completed_files,
+                    "total": total_files,
+                    "pct": pct,
+                    "current_file": fname,
+                })
+
+            done_flag["result"] = {"dest": str(dest_dir), "model_id": model_id}
+        except Exception as e:
+            done_flag["error"] = f"{type(e).__name__}: {e}"
+        finally:
+            done_flag["done"] = True
+            chunk_queue.put(None)
+
+    thread = threading.Thread(target=run_download, daemon=True)
+    thread.start()
+
+    async def stream():
+        while True:
+            try:
+                chunk = await asyncio.get_event_loop().run_in_executor(
+                    None, lambda: chunk_queue.get(timeout=2),
+                )
+            except Exception:
+                if done_flag["done"]:
+                    break
+                # 超时但未完成，发送心跳保持连接
+                yield json.dumps({"status": "downloading", "heartbeat": True}, ensure_ascii=False) + "\n"
+                continue
+            if chunk is None:
+                break
+            yield json.dumps(chunk, ensure_ascii=False) + "\n"
+
+        if done_flag["error"]:
+            yield json.dumps({"status": "error", "error": done_flag["error"]}, ensure_ascii=False) + "\n"
+        elif done_flag["result"]:
+            r = done_flag["result"]
+            yield json.dumps({
+                "status": "success", "completed": True,
+                "dest": r["dest"],
+                "message": f"基座模型已下载到 {r['dest']}，请重启后端以加载（设置 VULN_SCANNER_MODEL_ID={r['model_id']} 或指向本地路径）",
+            }, ensure_ascii=False) + "\n"
+
+    return StreamingResponse(stream(), media_type="application/x-ndjson")
+
+
+@app.post("/api/models/download-gguf")
+async def models_download_gguf(req: GgufDownloadRequest):
+    """流式下载 GGUF 文件到 models/ 目录（NDJSON 进度）。
+
+    对 GitHub URL 自动加 ghproxy 镜像加速。下载完成后需重启后端使配置生效。
+    """
+    import queue as _q
+    import threading
+    from urllib.request import urlopen
+
+    url = req.url.strip()
+    filename = req.filename.strip()
+    if not url or not filename:
+        return JSONResponse({"error": "url 和 filename 不能为空"}, status_code=400)
+    # 防路径穿越
+    if "/" in filename or "\\" in filename or ".." in filename:
+        return JSONResponse({"error": "filename 含非法字符"}, status_code=400)
+
+    # GitHub URL 自动加 ghproxy
+    if url.startswith("https://github.com/"):
+        url = "https://mirror.ghproxy.com/" + url
+
+    dest_path = _models_dir() / filename
+    chunk_queue: _q.Queue = _q.Queue()
+    done_flag = {"done": False, "result": None, "error": None}
+
+    def run_download():
+        try:
+            with urlopen(url, timeout=60) as resp, open(dest_path, "wb") as f:
+                total = int(resp.headers.get("content-length", 0))
+                downloaded = 0
+                chunk_size = 1024 * 1024  # 1MB
+                last_report = 0
+                while True:
+                    chunk = resp.read(chunk_size)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+                    downloaded += len(chunk)
+                    pct = int(downloaded / total * 100) if total else 0
+                    # 每 2% 报告一次，避免队列爆炸
+                    if pct - last_report >= 2 or pct == 100:
+                        chunk_queue.put({
+                            "status": "downloading",
+                            "completed": downloaded,
+                            "total": total,
+                            "pct": pct,
+                        })
+                        last_report = pct
+            done_flag["result"] = {"dest": str(dest_path), "filename": filename}
+        except Exception as e:
+            done_flag["error"] = f"{type(e).__name__}: {e}"
+        finally:
+            done_flag["done"] = True
+            chunk_queue.put(None)
+
+    thread = threading.Thread(target=run_download, daemon=True)
+    thread.start()
+
+    async def stream():
+        while True:
+            try:
+                chunk = await asyncio.get_event_loop().run_in_executor(
+                    None, lambda: chunk_queue.get(timeout=2),
+                )
+            except Exception:
+                if done_flag["done"]:
+                    break
+                yield json.dumps({"status": "downloading", "heartbeat": True}, ensure_ascii=False) + "\n"
+                continue
+            if chunk is None:
+                break
+            yield json.dumps(chunk, ensure_ascii=False) + "\n"
+
+        if done_flag["error"]:
+            yield json.dumps({"status": "error", "error": done_flag["error"]}, ensure_ascii=False) + "\n"
+        elif done_flag["result"]:
+            r = done_flag["result"]
+            yield json.dumps({
+                "status": "success", "completed": True,
+                "dest": r["dest"],
+                "message": f"GGUF 已下载到 {r['dest']}，请重启后端以加载（设置 VULN_SCANNER_GGUF={r['dest']}）",
+            }, ensure_ascii=False) + "\n"
+
+    return StreamingResponse(stream(), media_type="application/x-ndjson")
 
 
 # ---------------------------------------------------------------------------

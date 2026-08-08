@@ -10,31 +10,19 @@
 - 需要多模型交叉验证提升判定可信度
 - 单卡显存无法同时容纳多个大模型（如 2×8B 模型在 16GB 显卡上并行会 OOM）
 - 可接受 N 倍于单模型的耗时（N 为模型数量）
+
+依赖说明：
+属于业务服务层（app/backend/services/）。数据容器 SingleResult/BatchResult
+来自核心层 graduation_project.result_types，扫描编排复用同级 Scanner。
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
-# TYPE_CHECKING 块仅在类型检查器/IDE 静态分析时执行，运行时不导入，避免循环依赖
-if TYPE_CHECKING:
-    from app.backend.services.scanner import BatchResult
-
-# 运行时导入：SingleResult 需要被 VoteResult 继承（类定义期必须可见）
-# Scanner 需要在方法内实例化。导入链为线性（scanner.py 不反向导入本模块），无循环
-try:
-    from app.backend.services.scanner import SingleResult, Scanner
-except ModuleNotFoundError:
-    # 直接以脚本方式运行本文件时（python multi_model_scanner.py），
-    # 脚本目录而非项目根目录会被加入 sys.path，导致 app 包不可见。
-    # 此处补上项目根目录，作为包导入场景的兜底。
-    import os
-    import sys
-    _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    if _project_root not in sys.path:
-        sys.path.insert(0, _project_root)
-    from app.backend.services.scanner import SingleResult, Scanner
+from graduation_project.result_types import SingleResult, BatchResult
+from app.backend.services.scanner import Scanner
 
 
 @dataclass

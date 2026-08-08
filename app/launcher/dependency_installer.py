@@ -675,6 +675,247 @@ def install_backend_dependencies(
     return overall_ok
 
 
+# ---------------------------------------------------------------------------
+# 安全工具安装（新框架：两阶段/外部扫描所需的传统 SAST/SCA/Secret 工具）
+# ---------------------------------------------------------------------------
+
+# pip 可安装的 CLI 工具（跨平台可靠，用于 external_scanner / two_stage Stage 1）
+SECURITY_TOOLS_PIP: list[str] = ["bandit", "semgrep", "pip-audit", "detect-secrets"]
+# 独立二进制工具（经系统包管理器安装，最佳努力：失败仅告警不阻断）
+SECURITY_TOOLS_BIN: dict[str, str] = {
+    "gitleaks": "Gitleaks.Gitleaks",   # winget 包 ID
+    "trivy": "AquaSecurity.Trivy",     # winget 包 ID
+}
+# 全部安全工具（供安装/卸载/状态汇总共用）
+SECURITY_TOOLS_ALL: list[str] = SECURITY_TOOLS_PIP + list(SECURITY_TOOLS_BIN.keys())
+
+
+def _tool_installed(name: str) -> bool:
+    """判断命令行工具是否已安装（在 PATH 中）。"""
+    return shutil.which(name) is not None
+
+
+def _find_winget_install(tool: str) -> bool:
+    """Windows 下在 winget 常见安装目录探测工具可执行文件。
+
+    winget 安装的便携工具通常落在：
+      %LOCALAPPDATA%\\Microsoft\\WinGet\\Packages\\<Publisher>\\<Pkg>\\<ver>\\
+    gitleaks/trivy 的可执行文件位于其中某个子目录。此函数在用户级与系统级
+    WinGet 目录里递归查找 <tool>.exe，命中即返回 True（不依赖 PATH）。
+    """
+    if sys.platform != "win32":
+        return False
+    exe_name = f"{tool}.exe"
+    bases = []
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    if local_app_data:
+        bases.append(Path(local_app_data) / "Microsoft" / "WinGet" / "Packages")
+    program_data = os.environ.get("ProgramData")
+    if program_data:
+        bases.append(Path(program_data) / "Microsoft" / "WinGet" / "Packages")
+    for base in bases:
+        if not base.is_dir():
+            continue
+        try:
+            for candidate in base.rglob(exe_name):
+                if candidate.is_file():
+                    return True
+        except Exception:
+            continue
+    return False
+
+
+def _refresh_process_path() -> None:
+    """Windows 下从注册表重新读取 PATH，刷新生效到当前进程。
+
+    winget / 安装器写完系统/用户 PATH 后，当前进程的 os.environ["PATH"] 不会自动
+    更新，导致 shutil.which() 找不到刚装好的工具。此函数把注册表中的 PATH 合并回
+    当前进程，使安装结果立即可见（无需重启终端）。
+    """
+    if sys.platform != "win32":
+        return
+    try:
+        import winreg
+    except Exception:
+        return
+
+    new_paths: list[str] = []
+    # 系统级 + 用户级 PATH，按序读取（系统在前、用户在后，与 Windows 解析顺序一致）
+    for root, subkey in (
+        (winreg.HKEY_LOCAL_MACHINE, r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment"),
+        (winreg.HKEY_CURRENT_USER, r"Environment"),
+    ):
+        try:
+            with winreg.OpenKey(root, subkey) as key:
+                value, _ = winreg.QueryValueEx(key, "Path")
+                new_paths.append(value or "")
+        except Exception:
+            continue
+
+    registry_path = os.pathsep.join(p for p in new_paths if p)
+    if not registry_path:
+        return
+    # 保留当前进程已有的、注册表里没有的条目（如虚拟环境），避免丢失
+    current = os.environ.get("PATH", "")
+    merged = registry_path
+    for item in current.split(os.pathsep):
+        if item and item not in merged.split(os.pathsep):
+            merged += os.pathsep + item
+    os.environ["PATH"] = merged
+    # 让 shutil 重新解析
+    try:
+        import importlib
+        importlib.reload(shutil)
+    except Exception:
+        pass
+
+
+def _try_install_binary_tool(
+    tool: str,
+    platform_info: PlatformInfo,
+    dry_run: bool,
+    callback: Optional[Callable[[str], None]] = None,
+) -> None:
+    """最佳努力安装独立二进制工具（gitleaks / trivy），失败仅告警。
+    经系统包管理器安装；无法自动安装时给出手动指引。
+    """
+    if dry_run:
+        _emit(f"[安全工具] DRY-RUN: 将安装二进制工具 {tool}", callback)
+        return
+
+    if platform_info.os_name == "windows":
+        if shutil.which("winget"):
+            pkg = SECURITY_TOOLS_BIN[tool]
+            _emit(f"[安全工具] 使用 winget 安装 {tool}...", callback)
+            cmd = ["winget", "install", pkg, "--silent",
+                   "--accept-source-agreements", "--accept-package-agreements",
+                   "--disable-interactivity"]
+            try:
+                r = _run_quiet(cmd, timeout=1800)
+                # winget 退出码 0 = 安装成功，但新目录可能不在当前进程 PATH：
+                # 先刷新注册表 PATH，再探测常见 winget Links / Packages 目录
+                _refresh_process_path()
+                found = _tool_installed(tool) or _find_winget_install(tool)
+                if r[0] == 0 and found:
+                    _emit(f"[安全工具] ✅ {tool} 安装完成", callback)
+                elif r[0] == 0 and not found:
+                    _emit(f"[安全工具] ✓ {tool} 已安装（退出码 0），但未加入 PATH，"
+                          f"请重启终端后再使用", callback)
+                else:
+                    _emit(f"[安全工具] ⚠ {tool} winget 安装未成功（退出码 {r[0]}），可手动安装", callback)
+            except Exception as e:
+                _emit(f"[安全工具] ⚠ {tool} 安装异常: {e}", callback)
+        else:
+            _emit(f"[安全工具] 未检测到 winget，请手动安装 {tool}（GitHub Releases）", callback)
+
+    elif platform_info.os_name == "darwin":
+        if shutil.which("brew"):
+            _emit(f"[安全工具] 使用 Homebrew 安装 {tool}...", callback)
+            cmd = ["brew", "install", tool]
+            try:
+                r = _run_quiet(cmd, timeout=1800)
+                if r[0] == 0 and _tool_installed(tool):
+                    _emit(f"[安全工具] ✅ {tool} 安装完成", callback)
+                else:
+                    _emit(f"[安全工具] ⚠ {tool} brew 安装未成功，可手动安装", callback)
+            except Exception as e:
+                _emit(f"[安全工具] ⚠ {tool} 安装异常: {e}", callback)
+        else:
+            _emit(f"[安全工具] 未检测到 brew，请手动安装 {tool}（GitHub Releases）", callback)
+
+    else:
+        # Linux：尝试常见包管理器，否则提示手动安装
+        pm_cmds = [
+            ["apt-get", "install", "-y", tool],
+            ["dnf", "install", "-y", tool],
+            ["pacman", "-S", "--noconfirm", tool],
+            ["zypper", "install", "-y", tool],
+        ]
+        installed = False
+        for cmd in pm_cmds:
+            if shutil.which(cmd[0]):
+                _emit(f"[安全工具] 使用 {cmd[0]} 安装 {tool}...", callback)
+                try:
+                    r = _run_quiet([c for c in cmd], timeout=1800)
+                    if r[0] == 0 and _tool_installed(tool):
+                        _emit(f"[安全工具] ✅ {tool} 安装完成", callback)
+                        installed = True
+                        break
+                except Exception:
+                    pass
+        if not installed:
+            _emit(f"[安全工具] 请手动安装 {tool}（GitHub Releases / 系统包管理器）", callback)
+
+
+def install_security_tools(
+    python_executable: Optional[str] = None,
+    dry_run: bool = False,
+    auto_confirm: Optional[bool] = None,
+    callback: Optional[Callable[[str], None]] = None,
+) -> bool:
+    """启动前自动下载新框架所需的传统安全工具。
+
+    - pip 工具（bandit / semgrep / pip-audit / detect-secrets）：缺失即 pip 安装
+    - 二进制工具（gitleaks / trivy）：经系统包管理器最佳努力安装，失败不阻断
+
+    返回 True 表示核心 pip 工具已就绪（二进制工具缺失仅告警，不影响核心两阶段扫描）。
+    """
+    python_executable = python_executable or sys.executable
+    platform_info = detect_platform()
+
+    _emit("[安全工具] 检查新框架所需传统工具 "
+          f"({', '.join(SECURITY_TOOLS_ALL)})...", callback)
+
+    # 1) pip 可安装工具
+    missing_pip = [t for t in SECURITY_TOOLS_PIP if not _tool_installed(t)]
+    if missing_pip:
+        _emit(f"[安全工具] 缺失 pip 工具: {', '.join(missing_pip)}", callback)
+        if dry_run:
+            _emit(f"[安全工具] DRY-RUN: pip install {' '.join(missing_pip)}", callback)
+        elif _is_auto_install_enabled():
+            cmd = _pip_base_cmd(python_executable) + missing_pip
+            global_index = os.environ.get("VULN_SCANNER_PIP_INDEX", "").strip()
+            if global_index:
+                cmd.extend(["--index-url", global_index])
+            _emit(f"[安全工具] 正在安装: {' '.join(cmd)}", callback)
+            try:
+                r = subprocess.run(
+                    cmd, env=os.environ.copy(),
+                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                    text=True, encoding="utf-8", errors="replace",
+                    timeout=1200,  # 20 分钟
+                )
+                if r.returncode == 0:
+                    _emit("[安全工具] ✅ pip 工具安装完成", callback)
+                else:
+                    _emit(f"[安全工具] ❌ pip 工具安装失败（退出码 {r.returncode}）", callback)
+                    tail = r.stdout.strip()[-800:] if r.stdout else ""
+                    if tail:
+                        _emit(f"[安全工具] 日志尾部:\n{tail}", callback)
+            except subprocess.TimeoutExpired:
+                _emit("[安全工具] ❌ pip 工具安装超时（20 分钟）", callback)
+        else:
+            _emit("[安全工具] 自动安装已禁用，请手动: "
+                  f"pip install {' '.join(missing_pip)}", callback)
+    else:
+        _emit("[安全工具] pip 工具已就绪", callback)
+
+    # 2) 独立二进制工具（最佳努力）
+    for tool in SECURITY_TOOLS_BIN:
+        if _tool_installed(tool):
+            _emit(f"[安全工具] {tool} 已就绪", callback)
+        else:
+            _try_install_binary_tool(tool, platform_info, dry_run, callback)
+
+    # 汇总：核心（pip）工具必须就绪；二进制缺失仅告警
+    missing_pip = [t for t in SECURITY_TOOLS_PIP if not _tool_installed(t)]
+    if missing_pip:
+        _emit(f"[安全工具] ⚠ 核心工具仍缺失: {', '.join(missing_pip)}（外部工具扫描会静默跳过）", callback)
+        return False
+    _emit("[安全工具] ✅ 核心安全工具就绪", callback)
+    return True
+
+
 def _emit(message: str, callback: Optional[Callable[[str], None]] = None) -> None:
     """输出消息，同时调用回调。"""
     print(message)
@@ -703,14 +944,17 @@ def print_manual_install_commands(backend: str, python_executable: Optional[str]
 
 
 if __name__ == "__main__":
-    # 命令行入口：python -m app.launcher.dependency_installer [transformers|llamacpp] [--dry-run]
+    # 命令行入口：python -m app.launcher.dependency_installer [transformers|llamacpp|tools] [--dry-run]
     import argparse
 
-    parser = argparse.ArgumentParser(description="推理后端依赖自动安装器")
-    parser.add_argument("backend", choices=["transformers", "llamacpp"], help="推理后端")
+    parser = argparse.ArgumentParser(description="推理后端 / 安全工具依赖自动安装器")
+    parser.add_argument("target", choices=["transformers", "llamacpp", "tools"], help="安装目标：推理后端或安全工具")
     parser.add_argument("--dry-run", action="store_true", help="仅打印安装命令")
     parser.add_argument("--python", default=sys.executable, help="目标 Python 解释器")
     args = parser.parse_args()
 
-    ok = install_backend_dependencies(args.backend, python_executable=args.python, dry_run=args.dry_run)
+    if args.target == "tools":
+        ok = install_security_tools(python_executable=args.python, dry_run=args.dry_run)
+    else:
+        ok = install_backend_dependencies(args.target, python_executable=args.python, dry_run=args.dry_run)
     sys.exit(0 if ok else 1)

@@ -23,10 +23,11 @@
 - [x] 仪表盘（index.html）接入后端真实数据（`/api/stats`，2026-08-08 核实）
 - [x] 扫描工作台（scan.html）报告下载入口：`/api/report` 与 `/api/report/single` 均已接入（2026-08-08 核实）
 - [x] 安全态势页（posture.html）接入后端 `/api/stats`：后端优先、localStorage 回退（2026-08-08 完成）；CWE 样本库确认为静态内容，无需后端 API
+- [x] 前后端路径对齐重构：`SingleResult`/`BatchResult` 下沉到核心层 `graduation_project/result_types.py`（`scanner.py` 复用同一数据源）；`multi_model_scanner.py` 迁移到业务服务层 `app/backend/services/`（消除核心层对 app 层的反向依赖）；`scan.html` 粘贴模式接入两阶段扫描入口 `/api/analyze/two-stage`
 
 ---
 
 ## 🔄 当前待办
 
-- [ ] 构建/验证静态页面：将 `vuln-scanner-ui/pages/` 下增强版页面同步回 `app/backend/static/` 或接入构建流程
+- [x] 前端静态页面统一收纳到 `app/backend/static/`（index/scan/cwe/posture 四页共享 `nivis-common.js`/`backend-badge.js`/`theme.js`；原 `vuln-scanner-ui/pages/` 独立目录不存在且已废弃，页面增强版均已同步回 `app/backend/static/`）
 - [ ] 文档一致性：检查 `docs/方法.md`、`docs/过程.md` 中对工程化层的描述是否与当前实现一致（2026-08-08 已修正方法.md/规划.md/README/exp_06_report 的"SFT v5 当前最佳"漂移与 recall 口径，工程化层描述仍待核）

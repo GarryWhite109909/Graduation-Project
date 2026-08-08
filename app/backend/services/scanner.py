@@ -15,7 +15,6 @@ from __future__ import annotations
 import os
 import threading
 import time
-from dataclasses import dataclass, field
 from typing import Optional
 
 from graduation_project.llm_client import OllamaClient
@@ -25,6 +24,7 @@ from graduation_project.code_slicer import CodeSlicer, SliceResult
 from graduation_project.prefilter import Prefilter, PrefilterResult
 from app.backend.services.model_registry import get_default_model, get_prompt_for_model
 from graduation_project.paths import resolve_adapter_path
+from graduation_project.result_types import SingleResult, BatchResult
 
 # 默认模型：从环境变量读取，缺省为注册表中的默认模型（当前 v9max）
 DEFAULT_MODEL = os.environ.get("VULN_SCANNER_MODEL", get_default_model())
@@ -72,72 +72,6 @@ _PREFILTER_VULN_INFO = {
     "deser_pickle_loads": ("CWE-502 不安全反序列化", "Critical"),
     "deser_yaml_unsafe_load": ("CWE-502 不安全反序列化", "High"),
 }
-
-
-@dataclass
-class SingleResult:
-    """单段代码扫描结果。"""
-    filename: str
-    language: str
-    has_vulnerability: Optional[bool]
-    vulnerability_type: str = "none"
-    risk_level: str = "None"
-    source: str = "N/A"
-    sink: str = "N/A"
-    explanation: str = ""
-    fix_suggestion: str = "no fix needed"
-    raw_output: str = ""  # 模型原始输出（含 CoT 分析过程）
-    duration: float = 0.0
-    error: Optional[str] = None
-    sliced: bool = False
-    chunk_count: int = 1
-    chunk_name: str = ""  # 当前结果对应的切片名（整文件/单文件时为 ""）
-    prefilter_verdict: Optional[bool] = None  # 预筛层判定（None=未预筛/交LLM）
-    prefilter_rules: list[str] = field(default_factory=list)  # 预筛命中规则
-
-    def to_dict(self) -> dict:
-        return {
-            "filename": self.filename,
-            "language": self.language,
-            "has_vulnerability": self.has_vulnerability,
-            "vulnerability_type": self.vulnerability_type,
-            "risk_level": self.risk_level,
-            "source": self.source,
-            "sink": self.sink,
-            "explanation": self.explanation,
-            "fix_suggestion": self.fix_suggestion,
-            "raw_output": self.raw_output,
-            "duration": round(self.duration, 2),
-            "error": self.error,
-            "sliced": self.sliced,
-            "chunk_count": self.chunk_count,
-            "chunk_name": self.chunk_name,
-            "prefilter_verdict": self.prefilter_verdict,
-            "prefilter_rules": self.prefilter_rules,
-        }
-
-
-@dataclass
-class BatchResult:
-    """批量扫描汇总结果。"""
-    total_files: int = 0
-    scanned: int = 0
-    vulnerable: int = 0
-    safe: int = 0
-    errors: int = 0
-    results: list[SingleResult] = field(default_factory=list)
-    total_duration: float = 0.0
-
-    def to_dict(self) -> dict:
-        return {
-            "total_files": self.total_files,
-            "scanned": self.scanned,
-            "vulnerable": self.vulnerable,
-            "safe": self.safe,
-            "errors": self.errors,
-            "results": [r.to_dict() for r in self.results],
-            "total_duration": round(self.total_duration, 2),
-        }
 
 
 class Scanner:
@@ -290,13 +224,19 @@ class Scanner:
         }
 
     def model_management_capabilities(self) -> dict:
-        """当前推理客户端支持的模型管理能力（Ollama 全支持，进程内后端全不支持）。"""
+        """当前推理客户端支持的运行时模型管理能力（仅 Ollama 全支持）。
+
+        进程内后端（transformers/llamacpp/vllm）虽也有 list_models/model 属性，
+        但语义是"返回当前已加载模型"，不支持运行时拉取/删除/切换，
+        故 list/activate 也以"具备 pull+delete 能力"为前置条件。
+        """
         c = self.client
+        runtime = hasattr(c, "pull_model") and hasattr(c, "delete_model")
         return {
-            "list": hasattr(c, "list_models"),
+            "list": runtime,
             "pull": hasattr(c, "pull_model"),
             "delete": hasattr(c, "delete_model"),
-            "activate": hasattr(c, "model"),  # 只有按名切换模型的客户端支持 activate
+            "activate": runtime,
         }
 
     def _retrieve_rag_context(self, code: str) -> Optional[str]:

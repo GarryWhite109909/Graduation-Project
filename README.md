@@ -627,10 +627,27 @@ Graduation-Project/
 ├── graduation_project/                    # 核心代码库（pip install -e . 后可全局 import）
 │   ├── __init__.py
 │   ├── schema.py                          # 统一输出 schema（VERDICT_SCHEMA 唯一来源 + 解析函数）
+│   ├── result_types.py                    # 扫描结果容器（SingleResult/BatchResult，核心层通用）
 │   ├── prompts.py                         # 统一 Prompt 模板（SYSTEM_PROMPT + build_user_prompt）
 │   ├── llm_client.py                      # Ollama LLM 客户端（支持 RAG 增强）
+│   ├── transformers_client.py             # Transformers 进程内推理后端（Q4 基座 + FP16 LoRA）
+│   ├── llamacpp_client.py                 # llama.cpp 客户端（GGUF 本地推理）
+│   ├── vllm_client.py                     # vLLM 推理加速客户端
 │   ├── chroma_manager.py                  # Chroma 向量数据库管理器（add / upsert / query）
-│   └── code_slicer.py                     # AST 代码切片器（tree-sitter，长文件按函数/块切分）
+│   ├── code_slicer.py                     # AST 代码切片器（tree-sitter，长文件按函数/块切分）
+│   ├── prefilter.py                       # 传统规则预筛层（明显漏洞/安全样本短路跳过 LLM）
+│   ├── taint_tracker.py                   # 轻量污点分析（同函数 source→sink 启发式匹配）
+│   ├── external_scanner.py                # 外部工具扫描（Bandit / Semgrep / Gitleaks / Trivy）
+│   ├── two_stage_scanner.py               # 两阶段架构：工具召回候选 + LLM 自一致率裁决
+│   ├── fix_verifier.py                    # 修复建议验证（语法校验 + 危险模式移除检查）
+│   ├── sarif_report.py                    # SARIF 2.1.0 报告导出
+│   ├── paths.py                           # 路径解析（项目根 / 模型 / LoRA adapter）
+│   └── semgrep_rules/                     #   Stage 1 工具召回规则（sqli/cmdi/codei taint）
+├── app/backend/services/                  # 业务服务层（复用核心包，依赖 app 注册表/编排）
+│   ├── scanner.py                         #   扫描编排（LLM 推理 + 切片 + RAG + 预筛）
+│   ├── multi_model_scanner.py             #   多模型投票扫描（顺序加载/卸载避免 OOM）
+│   ├── model_registry.py                  #   模型注册表（允许模型 + prompt 变体选择）
+│   └── reporter.py                        #   扫描报告生成（单文件/汇总）
 ├── experiments/                           # 实验目录（按阶段编号）
 │   ├── exp_01~05_summary.md               #   零样本推理基线五实验核心结论串讲 ⭐
 │   ├── utils.py                           #   实验公共工具（manifest 加载 / 指标统计 / 结果落盘）

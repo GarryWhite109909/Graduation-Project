@@ -32,7 +32,13 @@
         '.backend-tooltip .kv .v { color: var(--vuln-ink); text-align: right; word-break: break-all; }',
         '.backend-tooltip .note { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--vuln-line); color: var(--vuln-ink-2); font-size: 11.5px; }',
         '.backend-tooltip .note.warn { color: #ef4444; }',
-        '.backend-tooltip .backend-tag { display: inline-block; padding: 1px 6px; border-radius: 4px; background: var(--vuln-surface-2); font-size: 11px; }'
+        '.backend-tooltip .note.alert { margin-top: 8px; padding: 8px 10px; border-radius: 6px; border: 1px solid #f59e0b; background: rgba(245,158,11,.1); color: #b45309; font-size: 11.5px; border-top: 1px solid #f59e0b; }',
+        '.backend-tooltip .backend-tag { display: inline-block; padding: 1px 6px; border-radius: 4px; background: var(--vuln-surface-2); font-size: 11px; }',
+        '.backend-tooltip .rpt-header { margin: 6px 0 8px; }',
+        '.backend-tooltip .rpt-status { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }',
+        '.backend-tooltip .rpt-ok { background: rgba(16,185,129,.15); color: #059669; }',
+        '.backend-tooltip .rpt-warn { background: rgba(245,158,11,.15); color: #b45309; }',
+        '.backend-tooltip .rpt-unknown { background: var(--vuln-surface-2); color: var(--vuln-ink-3); }'
       ].join('\n');
       document.head.appendChild(style);
     }
@@ -56,9 +62,14 @@
       var tooltip = document.getElementById('backend-tooltip');
       if (!badge || !tooltip) return;
 
+      // 模型未下载时 badge 显示警告色
+      var modelOk = info.model_available;
+      var dotClass = backend;
+      if (modelOk === false) dotClass = 'unknown';
       badge.className = 'backend-badge backend-badge-' + backend;
-      badge.innerHTML = '<span class="backend-badge-dot ' + backend + '"></span><span class="backend-badge-text">' + escapeHtml(short) + '</span>';
-      badge.title = '点击/悬停查看推理精度详情';
+      var statusIcon = modelOk === false ? '⚠ ' : (modelOk === true ? '✓ ' : '');
+      badge.innerHTML = '<span class="backend-badge-dot ' + dotClass + '"></span><span class="backend-badge-text">' + statusIcon + escapeHtml(short) + '</span>';
+      badge.title = modelOk === false ? '模型未下载，点击查看详情' : '点击/悬停查看推理精度检测报告';
 
       tooltip.innerHTML = buildTooltip(info);
 
@@ -83,6 +94,7 @@
       if (q.indexOf('Q4_K_M') >= 0) q = 'Q4_K_M';
       else if (q.indexOf('NF4') >= 0) q = 'NF4';
       else if (q.indexOf('GGUF Q4') >= 0) q = 'Q4';
+      else q = ''; // 描述式文案不再提取简短标签
       return name + (q ? ' · ' + q : '');
     }
 
@@ -94,9 +106,21 @@
         llamacpp: 'llama.cpp 进程内推理'
       }[b] || '推理后端';
 
+      // 检测报告头部：模型下载状态
+      var modelOk = info.model_available;
+      var statusBadge;
+      if (modelOk === true) {
+        statusBadge = '<span class="rpt-status rpt-ok">✓ 模型就绪</span>';
+      } else if (modelOk === false) {
+        statusBadge = '<span class="rpt-status rpt-warn">⚠ 模型未就绪</span>';
+      } else {
+        statusBadge = '<span class="rpt-status rpt-unknown">? 未知</span>';
+      }
+
       var rows = [];
       rows.push(row('后端', '<span class="backend-tag">' + escapeHtml(info.backend || '未知') + '</span>'));
       if (info.model) rows.push(row('模型', escapeHtml(String(info.model))));
+      if (info.model_status) rows.push(row('模型状态', escapeHtml(info.model_status)));
       if (info.base_quantization) rows.push(row('基座量化', escapeHtml(info.base_quantization)));
       if (info.lora_precision != null) rows.push(row('LoRA 精度', escapeHtml(String(info.lora_precision))));
       if (info.compute_dtype) rows.push(row('计算精度', escapeHtml(info.compute_dtype.toUpperCase())));
@@ -106,13 +130,23 @@
       if (info.adapter_path) rows.push(row('LoRA 路径', escapeHtml(info.adapter_path)));
       if (info.gguf_path) rows.push(row('GGUF 路径', escapeHtml(info.gguf_path)));
 
-      var noteClass = info.lora_quantized ? 'note warn' : 'note';
+      var noteClass = 'note';
       var note = info.precision_note || '';
       if (info.lora_quantized) {
+        noteClass = 'note warn';
         note = '⚠ ' + note;
       }
 
-      return '<h4>' + escapeHtml(title) + '</h4>' + rows.join('') +
+      // 模型未下载时追加醒目提醒
+      var downloadAlert = '';
+      if (modelOk === false && info.download_hint) {
+        downloadAlert = '<div class="note alert">' + escapeHtml(info.download_hint).replace(/\n/g, '<br>') + '</div>';
+      }
+
+      return '<h4>' + escapeHtml(title) + ' 检测报告</h4>' +
+        '<div class="rpt-header">' + statusBadge + '</div>' +
+        rows.join('') +
+        downloadAlert +
         '<div class="' + noteClass + '">' + escapeHtml(note).replace(/\n/g, '<br>') + '</div>';
     }
 

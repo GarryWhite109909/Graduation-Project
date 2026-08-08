@@ -40,6 +40,17 @@ jobs:
           # 需要完整 git 历史以计算 PR diff
           fetch-depth: 0
 
+      - name: 架构检查：核心层禁止反向依赖 app 层
+        run: |
+          # 分层约定：graduation_project/（核心库）不得 import app / 业务服务层，
+          # 否则报错并阻断。依赖注入正在用的模式是“把实例/回调传进核心层”。
+          if grep -rEn '^\s*(from|import)\s+app([\.\s]|$)' graduation_project/; then
+            echo "❌ 核心层 graduation_project/ 反向依赖了 app 层。"
+            echo "   请将依赖通过参数/回调注入（dependency injection），保持核心层独立。"
+            exit 1
+          fi
+          echo "✅ 核心层无 app 层反向依赖"
+
       - name: 设置 Python 3.11
         uses: actions/setup-python@v5
         with:

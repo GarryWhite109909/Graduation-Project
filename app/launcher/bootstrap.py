@@ -58,6 +58,31 @@ def resolve_backend() -> str:
     return "ollama"
 
 
+def _recommend_backend_by_vram() -> tuple[str, str]:
+    """根据显存推荐推理后端。
+
+    规则：
+        - ≥8GB 显存：推荐 transformers（NF4 基座 + FP16 LoRA，精度最高）
+        - 无独显或 <8GB 显存：推荐 ollama（CPU/GPU 皆可，兼容性最好）
+    返回 (推荐后端, 推荐理由)。
+    """
+    try:
+        hardware = detect_hardware()
+    except Exception:
+        hardware = {}
+    vram_mb = hardware.get("vram_mb")
+    gpu_name = hardware.get("gpu_name")
+    has_gpu = hardware.get("has_nvidia_gpu") or hardware.get("has_amd_gpu")
+
+    if vram_mb and vram_mb >= 8192:
+        g = gpu_name or "GPU"
+        return "transformers", f"检测到 {g} 显存约 {vram_mb // 1024}GB，可跑 NF4 基座 + FP16 LoRA（精度最高）"
+    if has_gpu and vram_mb:
+        g = gpu_name or "GPU"
+        return "ollama", f"检测到 {g} 显存约 {vram_mb // 1024}GB，不足以全 GPU 跑 8B 模型，Ollama 可 CPU/GPU 混合，兼容最好"
+    return "ollama", "未检测到独立显存/显存不足，Ollama 纯 CPU 也能跑，兼容性最好"
+
+
 def select_backend() -> str:
     """交互式选择推理后端，允许用户覆盖自动解析结果。
 
@@ -67,25 +92,53 @@ def select_backend() -> str:
         - 项目根目录 models/ 下探测到合法 adapter 时自动选 transformers
         - 否则默认 ollama
 
+    交互式环境：额外根据显存给出推荐（≥8GB→transformers，否则→ollama），
+    仅在显式设置 VULN_SCANNER_BACKEND 时强制采用，否则用户可回车跟推荐或手动选择。
+
     非交互式环境（如 CI）直接返回自动解析结果，避免 input 挂起。
     """
     default_backend = resolve_backend()
     if not sys.stdin.isatty():
         return default_backend
 
+    label_map = {
+        "ollama": "Ollama",
+        "transformers": "Transformers",
+        "llamacpp": "LlamaCPP",
+    }
+    default_label = label_map.get(default_backend, default_backend)
+
+    desc = {
+        "ollama": "一键启动（兼容性最好，CPU/GPU 皆可）",
+        "transformers": "进程内 NF4 基座 + FP16 LoRA（需 8GB+ 显存，精度最高）",
+        "llamacpp": "实验性，Q4 GGUF + 运行时 LoRA（需适配 CMAKE）",
+    }
+
+    # 显存推荐：只有未显式锁定后端时才用于覆盖默认值
+    recommended, reason = _recommend_backend_by_vram()
+    if not os.environ.get("VULN_SCANNER_BACKEND", "").strip():
+        # 推荐 transformers 但没有任何 adapter 时它跑不起来，退回 ollama
+        if recommended == "transformers" and not resolve_adapter_path():
+            recommended = "ollama"
+            reason = "显存充足可跑 transformers，但需先放置 LoRA adapter（models/ 目录），当前退回 Ollama"
+        default_backend = recommended
+        default_label = label_map.get(default_backend, default_backend)
+
     print()
     print("=" * 60)
     print("  推理后端选择")
     print("=" * 60)
-    print(f"  自动检测到: {default_backend}")
-    print("  [1] Ollama    —— 默认一键启动（推荐，兼容性最好）")
-    print("  [2] Transformers —— 进程内 NF4 基座 + FP16 LoRA（需 6GB+ 显存或足够内存）")
-    print("  [3] LlamaCPP —— 实验性，Q4 GGUF + 运行时 LoRA（需适配 CMAKE）")
-    print("  [0] 保持自动检测结果")
+    print(f"  [{reason}]")
+    print(f"  推荐: {label_map.get(recommended, recommended)}（按回车直接使用）")
+    print("-" * 60)
+    for idx, bid in enumerate(("ollama", "transformers", "llamacpp"), start=1):
+        mark = "  ← 当前" if bid == default_backend else ""
+        tag = label_map.get(bid, bid)
+        print(f"  [{idx}] {tag:<13}—— {desc[bid]}{mark}")
     print("-" * 60)
     while True:
-        choice = input(f"请选择推理后端 [0/1/2/3]（默认 0={default_backend}）: ").strip()
-        if choice in ("", "0"):
+        choice = input(f"请选择推理后端（回车=使用 {default_label}，1/2/3=切换）: ").strip()
+        if choice == "":
             return default_backend
         if choice == "1":
             return "ollama"
@@ -363,6 +416,26 @@ def ensure_model_available(model: str) -> bool:
         return False
 
 
+def enable_ansi_on_windows() -> None:
+    """在 Windows 控制台开启 ANSI 虚拟终端处理，使 uvicorn 的日志颜色码能被渲染。
+
+    transformers 的后端窗口能正常显示 INFO/200 OK 的颜色，是因为它跑在支持
+    ANSI 的终端里；ollama 若跑在旧式 cmd 控制台则不渲染转义码，直接显示 [32m 乱码。
+    开启本模式后，两者都会显示成有颜色的干净文字。
+    """
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        h = kernel32.GetStdHandle(-11)  # STD_OUTPUT_HANDLE
+        mode = ctypes.c_uint32()
+        if kernel32.GetConsoleMode(h, ctypes.byref(mode)):
+            kernel32.SetConsoleMode(h, mode.value | 0x0004)  # ENABLE_VIRTUAL_TERMINAL_PROCESSING
+    except Exception:
+        pass
+
+
 def start_backend(port: int = PORT) -> subprocess.Popen:
     """启动 FastAPI 后端。"""
     env = os.environ.copy()
@@ -371,6 +444,8 @@ def start_backend(port: int = PORT) -> subprocess.Popen:
     env.setdefault("OLLAMA_NUM_PARALLEL", "1")
     env.setdefault("OLLAMA_MAX_LOADED_MODELS", "1")
 
+    # 让 uvicorn 输出颜色（与 transformers 一致），并确保当前控制台能渲染 ANSI 颜色码
+    enable_ansi_on_windows()
     cmd = [
         sys.executable, "-m", "uvicorn",
         "app.backend.main:app",
@@ -861,7 +936,15 @@ def main():
         print(f"[1/5] {backend} 后端依赖就绪")
         print("[2/5] 跳过 Ollama（进程内推理后端不需要）")
 
-    # 3. 硬件检测 + 自适应推理参数（在拉取/加载模型前完成，便于后续 scanner.py 读取）
+    # 3. 安全工具：新框架（两阶段/外部扫描）所需传统工具的启动前自动下载
+    print("[3/6] 检查安全工具（bandit/semgrep/gitleaks/trivy/pip-audit/detect-secrets）...")
+    dependency_installer.install_security_tools(
+        python_executable=sys.executable,
+        dry_run=False,
+        auto_confirm=None,  # 按 VULN_SCANNER_AUTO_INSTALL_DEPS 环境变量，默认自动安装
+    )
+
+    # 4. 硬件检测 + 自适应推理参数（在拉取/加载模型前完成，便于后续 scanner.py 读取）
     hardware = detect_hardware()
     config = recommend_config(hardware)
     print_hardware_summary(hardware, config)
@@ -870,9 +953,9 @@ def main():
     os.environ["VULN_SCANNER_NUM_GPU"] = str(config["num_gpu"])
     os.environ["VULN_SCANNER_NUM_THREAD"] = str(config["num_thread"])
 
-    print("[3/5] 硬件检测完成")
+    print("[4/6] 硬件检测完成")
 
-    # 4. 确保模型可用（仅 Ollama 后端需要拉取；进程内后端在首次推理时懒加载）
+    # 5. 确保模型可用（仅 Ollama 后端需要拉取；进程内后端在首次推理时懒加载）
     if use_ollama:
         model = os.environ.get("VULN_SCANNER_MODEL", DEFAULT_MODEL)
         if not ensure_model_available(model):
@@ -885,9 +968,9 @@ def main():
                 return
             os.environ["VULN_SCANNER_MODEL"] = FALLBACK_MODEL
 
-    print(f"[4/5] 模型就绪")
+    print(f"[5/6] 模型就绪")
 
-    # 5. 启动后端
+    # 6. 启动后端
     # 5.1 端口占用检测：若被占用，先尝试释放残留进程
     if is_port_in_use(PORT):
         print(f"[启动器] 端口 {PORT} 已被占用，尝试释放残留进程...")

@@ -360,10 +360,11 @@
           <div id="advanced-panel" class="hidden mt-2 space-y-2">
             <div class="toggle-row flex items-center justify-between rounded-md px-3 py-2">
               <span class="text-xs text-[var(--vuln-ink-2)]">推理后端</span>
-              <div class="flex gap-1 text-xs">
-                <label class="flex items-center gap-1 cursor-pointer"><input type="radio" name="backend" value="ollama" checked class="accent-[var(--vuln-brand)]"> Ollama</label>
-                <label class="flex items-center gap-1 cursor-pointer ml-2"><input type="radio" name="backend" value="vllm" class="accent-[var(--vuln-brand)]"> vLLM</label>
-              </div>
+              <span id="backend-name-badge" class="text-xs px-2 py-0.5 rounded-md" style="background: var(--vuln-surface-3); color: var(--vuln-ink-2);" title="由启动器配置，前端不可切换">检测中…</span>
+            </div>
+            <div id="vllm-accel-wrap" class="toggle-row flex items-center justify-between rounded-md px-3 py-2 hidden">
+              <span class="text-xs text-[var(--vuln-ink-2)]">vLLM 加速</span>
+              <input id="opt-vllm" type="checkbox" class="accent-[var(--vuln-brand)]" title="勾选后单文件分析走 vLLM 推理后端" />
             </div>
             <div class="toggle-row flex items-center justify-between rounded-md px-3 py-2">
               <span class="text-xs text-[var(--vuln-ink-2)]">多模型投票</span>
@@ -376,6 +377,10 @@
             <div class="toggle-row flex items-center justify-between rounded-md px-3 py-2">
               <span class="text-xs text-[var(--vuln-ink-2)]">外部工具扫描</span>
               <input id="opt-external" type="checkbox" class="accent-[var(--vuln-brand)]" />
+            </div>
+            <div class="toggle-row flex items-center justify-between rounded-md px-3 py-2">
+              <span class="text-xs text-[var(--vuln-ink-2)]">两阶段扫描</span>
+              <input id="opt-two-stage" type="checkbox" class="accent-[var(--vuln-brand)]" title="工具召回候选 + LLM 自一致率裁决（两阶段架构）" />
             </div>
             <div id="external-tools-info" class="hidden px-3 pb-1 text-xs text-[var(--vuln-ink-3)]"></div>
           </div>
@@ -488,7 +493,7 @@
 
     <div id="toast-container" class="fixed bottom-6 right-6 z-[100] flex flex-col gap-2 pointer-events-none"></div>
 
-    <script src="./nivis-common.js"></script>
+    <script src="./nivis-common.js?v=20260809"></script>
     <script>
       (function () {
         'use strict';
@@ -593,6 +598,8 @@
           modelSelectWrap.classList.toggle('hidden', !multiModelCb.checked);
         });
 
+        var twoStageCb = document.getElementById('opt-two-stage');
+
         /* ==================== File upload ==================== */
         var dropzone = document.getElementById('dropzone');
         var fileInput = document.getElementById('file-input');
@@ -649,9 +656,36 @@
           healthInfo = data;
           var engineInfo = document.getElementById('engine-info');
 
+          /* 后端类名 → 友好名称（OllamaClient/TransformersClient/LlamaCppClient/VLLMClient） */
+          var BACKEND_LABELS = {
+            'OllamaClient': 'Ollama',
+            'TransformersClient': 'Transformers',
+            'LlamaCppClient': 'LlamaCPP',
+            'VLLMClient': 'vLLM',
+          };
+          var backendLabel = BACKEND_LABELS[data.backend] || data.backend || '未知';
+
+          /* 高级选项：显示实际推理后端（只读，由启动器配置） */
+          var backendBadge = document.getElementById('backend-name-badge');
+          if (backendBadge) {
+            var modelOk = data.model_available;
+            backendBadge.textContent = backendLabel + (modelOk === false ? '（未就绪）' : '');
+            backendBadge.title = '后端类: ' + (data.backend || '未知') + '\n模型: ' + (data.model || '—') + '\n由启动器配置，前端不可切换';
+          }
+
+          /* vLLM 加速选项：仅当 vLLM 后端已连接时才显示 */
+          var vllmWrap = document.getElementById('vllm-accel-wrap');
+          if (vllmWrap) {
+            vllmWrap.classList.toggle('hidden', !data.vllm_connected);
+            if (!data.vllm_connected) {
+              var vllmCb = document.getElementById('opt-vllm');
+              if (vllmCb) vllmCb.checked = false;
+            }
+          }
+
           if (data.ollama_connected && data.model_available) {
             setHealth('ok', '后端已连接 · 引擎就绪');
-            engineInfo.textContent = '引擎: ' + (data.model || 'unknown');
+            engineInfo.textContent = '引擎: ' + backendLabel + ' · ' + (data.model || 'unknown');
           } else if (data.vllm_connected) {
             setHealth('ok', '后端已连接 · 引擎就绪');
             engineInfo.textContent = '引擎: vLLM';
@@ -894,8 +928,9 @@
           if (!code.trim()) { alert('请输入要分析的代码'); return; }
           var lang = document.getElementById('lang-select').value;
           var filename = resolvePasteFilename(lang);
-          var useVllm = document.querySelector('input[name="backend"]:checked').value === 'vllm';
+          var useVllm = document.getElementById('opt-vllm') && document.getElementById('opt-vllm').checked;
           var useMulti = multiModelCb.checked;
+          var useTwoStage = twoStageCb.checked;
           var useExternal = document.getElementById('opt-external').checked;
 
           beginRound();
@@ -905,7 +940,12 @@
           var promises = [];
 
           // Main LLM scan
-          if (useMulti) {
+          if (useTwoStage) {
+            // 两阶段架构：工具召回候选 + LLM 自一致率裁决
+            promises.push(postJSON('/api/analyze/two-stage', { code: code, language: lang, filename: filename, n_samples: 5 }, 'single').then(function (d) {
+              d._kind = 'two-stage'; d._orig = code; d._lang = lang; return d;
+            }));
+          } else if (useMulti) {
             var models = getSelectedModels();
             if (models.length >= 2) {
               promises.push(postJSON('/api/multi-model-scan', { code: code, language: lang, filename: filename, models: models }, 'single').then(function (d) {
@@ -947,7 +987,7 @@
         function singleAnalyze(code, lang, filename, useVllm) {
           var url = useVllm ? '/api/vllm-analyze' : '/api/analyze';
           return postJSON(url, { code: code, language: lang, filename: filename }, 'single').then(function (d) {
-            d._kind = useVllm ? 'vllm' : 'ollama'; d._orig = code; d._lang = lang; return d;
+            d._kind = useVllm ? 'vllm' : 'main'; d._orig = code; d._lang = lang; return d;
           });
         }
 
@@ -1004,7 +1044,7 @@
                 var pct = (data.scanned / data.total) * 100;
                 setProgress(pct, '已扫描 ' + data.scanned + '/' + data.total + ' …');
                 if (data.result) {
-                  data.result._kind = 'ollama';
+                  data.result._kind = 'main';
                   addResult(data.result);
                   renderResults(true);
                 }
@@ -1058,7 +1098,7 @@
               // 无脚本时返回 {results:[], message:"..."}。此处统一兼容。
               var results = d.results || (d.summary && d.summary.results) || [];
               if (results.length) {
-                results.forEach(function (r) { r._kind = 'ollama'; addResult(r); });
+                results.forEach(function (r) { r._kind = 'main'; addResult(r); });
               } else {
                 addResult(safeResult(url, d.message || '未找到可分析脚本'));
               }
@@ -1087,7 +1127,7 @@
             setBtnLoading(false);
             if (d.error) { addResult(errorResult(d.error, repo)); }
             else if (d.summary && d.summary.results) {
-              d.summary.results.forEach(function (r) { r._kind = 'ollama'; addResult(r); });
+              d.summary.results.forEach(function (r) { r._kind = 'main'; addResult(r); });
             } else {
               addResult(safeResult(repo, d.message || '仓库中未找到支持的代码文件'));
             }

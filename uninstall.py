@@ -9,12 +9,13 @@ AI 漏洞扫描器 —— 一键卸载程序（跨平台，适配各种硬件）
 清理范围（按检测结果动态执行）：
   [1] 停进程        —— 后端(端口8765) + Ollama 服务
   [2] Python 依赖   —— 卸载运行脚本时所在环境的项目相关包（装到哪个环境就用哪个环境卸）
-  [3] Ollama 模型   —— 删除 ~/.ollama（含 OLLAMA_MODELS 指定目录）
-  [4] Ollama 本体   —— Windows(winget/uninstaller) / macOS(brew/官方App) / Linux(apt/官方脚本)
-  [5] 推理加速栈    —— NVIDIA CUDA / AMD ROCm（Linux 系统级 apt 包 + /opt/rocm，需 sudo）
-  [6] 本地运行数据  —— data/chroma_db、outputs/、logs/、__pycache__、egg-info、HF/torch 缓存
-  [7] 编辑器插件    —— VS Code / IntelliJ 中已安装的本项目插件（尽力而为）
-  [8] 项目文件夹    —— 删除整个 Graduation-Project/（自动切换工作目录后删除，Windows 可用）
+  [3] 安全工具      —— pip 工具(bandit/semgrep/pip-audit/detect-secrets) + 系统二进制(gitleaks/trivy)
+  [4] Ollama 模型   —— 删除 ~/.ollama（含 OLLAMA_MODELS 指定目录）
+  [5] Ollama 本体   —— Windows(winget/uninstaller) / macOS(brew/官方App) / Linux(apt/官方脚本)
+  [6] 推理加速栈    —— NVIDIA CUDA / AMD ROCm（Linux 系统级 apt 包 + /opt/rocm，需 sudo）
+  [7] 本地运行数据  —— data/chroma_db、outputs/、logs/、models/、__pycache__、egg-info、HF/torch 缓存
+  [8] 编辑器插件    —— VS Code / IntelliJ 中已安装的本项目插件（尽力而为）
+  [9] 项目文件夹    —— 删除整个 Graduation-Project/（自动切换工作目录后删除，Windows 可用）
 
 安全机制：
   - 默认交互式确认，每一步列出将删除的内容与预估占用
@@ -66,6 +67,7 @@ PIP_OPTIONAL = [
     "transformers",
     "peft",
     "accelerate",
+    "bitsandbytes",
     "datasets",
     "tokenizers",
     "safetensors",
@@ -76,6 +78,13 @@ PIP_OPTIONAL = [
     "pandas",
     "onnx",
     "ollama",
+    # 实验性 llamacpp 后端
+    "llama-cpp-python",
+    # 新框架（两阶段/外部扫描）pip 可安装的安全工具
+    "bandit",
+    "semgrep",
+    "pip-audit",
+    "detect-secrets",
     # Web 层 extras / 常见间接依赖（检测到才卸载）
     "uvloop",
     "httptools",
@@ -92,6 +101,12 @@ PIP_OPTIONAL = [
     "tenacity",
     "pypika",
 ]
+# 新框架（两阶段/外部扫描）经系统包管理器安装的二进制工具：
+# 键=命令名，值=(winget 包ID, brew 包名, Linux 包名)。卸载时按平台探测后清理。
+SECURITY_TOOLS_BIN = {
+    "gitleaks": ("Gitleaks.Gitleaks", "gitleaks", "gitleaks"),
+    "trivy": ("AquaSecurity.Trivy", "trivy", "trivy"),
+}
 
 
 class UI:
@@ -178,7 +193,7 @@ def _remove_paths(ui: UI, paths: list, sudo: bool = False) -> None:
 # 1. 停进程
 # ===========================================================================
 def stop_processes(ui: UI):
-    ui.info("\n[1/8] 停止相关进程（后端 + Ollama）...")
+    ui.info("\n[1/9] 停止相关进程（后端 + Ollama）...")
     if ui.dry:
         ui.warn("模拟模式：跳过进程终止")
         return
@@ -232,7 +247,7 @@ def stop_processes(ui: UI):
 # 3. 卸载 Ollama 模型（~/.ollama）——先于本体，探测靠文件路径
 # ===========================================================================
 def remove_ollama_model(ui: UI):
-    ui.info("\n[3/8] 删除 Ollama 拉取的模型...")
+    ui.info("\n[4/9] 删除 Ollama 拉取的模型...")
     candidates = ["~/.ollama"]
     env_models = os.environ.get("OLLAMA_MODELS")
     if env_models:
@@ -261,7 +276,7 @@ def remove_ollama_model(ui: UI):
 # 4. 卸载 Ollama 本体（平台自适应）
 # ===========================================================================
 def uninstall_ollama(ui: UI):
-    ui.info("\n[4/8] 卸载 Ollama 本体...")
+    ui.info("\n[5/9] 卸载 Ollama 本体...")
     if not which("ollama"):
         ui.ok("未检测到 ollama 命令，跳过")
         return
@@ -373,7 +388,7 @@ def uninstall_ollama(ui: UI):
 # 5. 卸载推理加速栈（NVIDIA CUDA / AMD ROCm）
 # ===========================================================================
 def uninstall_accel_stack(ui: UI):
-    ui.info("\n[5/8] 卸载 GPU 推理加速栈（CUDA / ROCm / Apple）...")
+    ui.info("\n[6/9] 卸载 GPU 推理加速栈（CUDA / ROCm / Apple）...")
 
     # 5a. Python 侧 torch 已在本脚本 [2] 卸载，这里处理系统级
     if sys.platform.startswith("linux"):
@@ -453,7 +468,7 @@ def uninstall_accel_stack(ui: UI):
 # 2. 卸载 Python 依赖
 # ===========================================================================
 def uninstall_python_deps(ui: UI):
-    ui.info("\n[2/8] 卸载 Python 依赖...")
+    ui.info("\n[2/9] 卸载 Python 依赖...")
     # 始终使用当前解释器的 pip，保证“在哪个环境装就在哪个环境卸”
     r = run([sys.executable, "-m", "pip", "--version"])
     if r.returncode != 0:
@@ -494,14 +509,82 @@ def uninstall_python_deps(ui: UI):
 
 
 # ===========================================================================
+# 3. 卸载安全工具（系统级二进制：gitleaks / trivy）
+# ===========================================================================
+def uninstall_security_tools(ui: UI):
+    """卸载新框架经系统包管理器安装的二进制安全工具（gitleaks / trivy）。
+
+    pip 可安装的安全工具（bandit/semgrep/pip-audit/detect-secrets）随 [2] Python
+    依赖统一清理，本步骤只处理 winget / brew / apt 等系统级二进制工具。
+    """
+    ui.info("\n[3/9] 卸载系统级安全工具（gitleaks / trivy）...")
+    if ui.dry:
+        ui.warn("模拟模式：跳过系统级安全工具卸载")
+        return
+
+    removed_any = False
+    for tool, (winget_id, brew_pkg, linux_pkg) in SECURITY_TOOLS_BIN.items():
+        if not which(tool):
+            ui.ok(f"未检测到 {tool}，跳过")
+            continue
+        if not ui.confirm(f"卸载安全工具 {tool}"):
+            continue
+        ok = False
+        if sys.platform == "win32":
+            if which("winget"):
+                r = run(["winget", "uninstall", "--id", winget_id, "--silent",
+                         "--accept-source-agreements", "--accept-package-agreements"],
+                        timeout=300)
+                ok = r.returncode == 0
+            if not ok:
+                ui.warn(f"winget 卸载 {tool} 未成功，请在「设置→应用」手动卸载")
+        elif sys.platform == "darwin":
+            if which("brew"):
+                # trivy 是 brew cask，gitleaks 是 brew formula；先试 cask 再试 formula
+                r = run(["brew", "uninstall", "--cask", brew_pkg], timeout=300)
+                if r.returncode != 0:
+                    r = run(["brew", "uninstall", brew_pkg], timeout=300)
+                ok = r.returncode == 0
+            if not ok:
+                ui.warn(f"brew 卸载 {tool} 未成功，可手动清理")
+        else:
+            # Linux：按包管理器卸载
+            pm_cmds = [
+                ["apt-get", "remove", "-y", linux_pkg],
+                ["dnf", "remove", "-y", linux_pkg],
+                ["pacman", "-R", "--noconfirm", linux_pkg],
+                ["zypper", "remove", "-y", linux_pkg],
+            ]
+            for pkg_cmd in pm_cmds:
+                if not which(pkg_cmd[0]):
+                    continue
+                r = run(_sudo_cmd(pkg_cmd), timeout=300)
+                if r.returncode == 0:
+                    ok = True
+                    break
+            if not ok:
+                ui.warn(f"包管理器卸载 {tool} 未成功，可手动清理")
+        if ok:
+            ui.ok(f"已卸载 {tool}")
+            removed_any = True
+    if not removed_any:
+        # 上面每个工具都单独打印了状态，这里仅在确实卸载过时无需额外输出；
+        # 若全部跳过，提示用户。
+        remaining = [t for t in SECURITY_TOOLS_BIN if which(t)]
+        if remaining:
+            ui.warn(f"以下工具仍存在，请手动清理: {', '.join(remaining)}")
+
+
+# ===========================================================================
 # 6. 删除本地运行数据
 # ===========================================================================
 def remove_local_data(ui: UI, project_root: Path):
-    ui.info("\n[6/8] 删除本地运行数据（向量库 / 模型产物 / 缓存 / 构建残留）...")
+    ui.info("\n[7/9] 删除本地运行数据（向量库 / 模型产物 / 缓存 / 构建残留）...")
     targets: list[Path] = []
     if project_root.exists():
         # 项目内已知数据目录
         for rel in ["data/chroma_db", "outputs", "logs",
+                    "models",   # 下载的 HF 基座 / GGUF / LoRA adapter
                     "experiments/exp_06_finetune/data",
                     "experiments/exp_06_finetune/outputs",
                     ".cache"]:
@@ -521,7 +604,7 @@ def remove_local_data(ui: UI, project_root: Path):
         pp = Path(p).expanduser()
         if pp.exists() and pp not in targets:
             targets.append(pp)
-    # 注意：~/.ollama 由 [3/8] remove_ollama_model 负责，此处不重复处理
+    # 注意：~/.ollama 由 [4/9] remove_ollama_model 负责，此处不重复处理
 
     if not targets:
         ui.ok("未发现本地运行数据，跳过")
@@ -543,7 +626,7 @@ def remove_local_data(ui: UI, project_root: Path):
 # ===========================================================================
 def remove_editor_plugins(ui: UI):
     """尽力卸载已安装的 VS Code / IntelliJ 插件。"""
-    ui.info("\n[7/8] 清理已安装的编辑器插件（VS Code / IntelliJ）...")
+    ui.info("\n[8/9] 清理已安装的编辑器插件（VS Code / IntelliJ）...")
     if ui.dry:
         ui.warn("模拟模式：跳过编辑器插件清理")
         return
@@ -606,7 +689,7 @@ def remove_editor_plugins(ui: UI):
 # 8. 删除项目文件夹
 # ===========================================================================
 def remove_project_folder(ui: UI, project_root: Path):
-    ui.info("\n[8/8] 删除项目文件夹...")
+    ui.info("\n[9/9] 删除项目文件夹...")
     if not project_root.exists():
         ui.ok("项目文件夹不存在，跳过")
         return
@@ -693,25 +776,26 @@ def main():
     print(f"  目标项目: {project_root}")
     print(f"  模式: {'模拟(dry-run)' if args.dry_run else '全自动(--yes)' if args.yes else '交互确认'}")
 
-    # 按顺序清理（编号与各函数内部 [n/8] 一致）
-    stop_processes(ui)                # [1/8]
-    uninstall_python_deps(ui)         # [2/8]
+    # 按顺序清理（编号与各函数内部 [n/9] 一致）
+    stop_processes(ui)                # [1/9]
+    uninstall_python_deps(ui)         # [2/9]
+    uninstall_security_tools(ui)      # [3/9]
     if args.keep_ollama:
-        ui.info("[3/8] 已按 --keep-ollama 保留 Ollama 本体与模型")
+        ui.info("[4/9] 已按 --keep-ollama 保留 Ollama 本体与模型")
     else:
         # 先删模型（探测基于 ~/.ollama 文件路径，不依赖 ollama 二进制），再卸本体
-        remove_ollama_model(ui)       # [3/8]
-        uninstall_ollama(ui)          # [4/8]
+        remove_ollama_model(ui)       # [4/9]
+        uninstall_ollama(ui)          # [5/9]
     if args.keep_accel:
-        ui.info("[5/8] 已按 --keep-accel 保留 CUDA/ROCm 系统组件")
+        ui.info("[6/9] 已按 --keep-accel 保留 CUDA/ROCm 系统组件")
     else:
-        uninstall_accel_stack(ui)     # [5/8]
-    remove_local_data(ui, project_root)  # [6/8]
-    remove_editor_plugins(ui)         # [7/8]
+        uninstall_accel_stack(ui)     # [6/9]
+    remove_local_data(ui, project_root)  # [7/9]
+    remove_editor_plugins(ui)         # [8/9]
     if args.keep_project:
-        ui.info("[8/8] 已按 --keep-project 保留项目文件夹")
+        ui.info("[9/9] 已按 --keep-project 保留项目文件夹")
     else:
-        remove_project_folder(ui, project_root)  # [8/8]
+        remove_project_folder(ui, project_root)  # [9/9]
 
 
 if __name__ == "__main__":
