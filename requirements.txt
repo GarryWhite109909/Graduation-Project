@@ -27,7 +27,21 @@ psutil>=5.9.0
 # 进程内推理后端（transformers / llamacpp）属于可选依赖，默认不安装。
 # 当用户选择对应后端时，启动器会调用 app/launcher/dependency_installer.py
 # 按当前操作系统和 GPU 自动下载正确版本的 torch / transformers / peft /
-# bitsandbytes / llama-cpp-python。
+# bitsandbytes / llama-cpp-python，并自动指向最新稳定版：
+#
+#   推理库最低版本（2026-08 最新稳定）：
+#     torch           按硬件 index（见下）安装最新稳定（如 cu126 通道 2.13.x）
+#     transformers>=4.46.0   （最新稳定 5.x）
+#     peft>=0.20.0
+#     accelerate>=1.14.0
+#     bitsandbytes>=0.50.0
+#
+#   各硬件平台 torch 安装通道（启动器自动选择）：
+#     NVIDIA (Linux/Windows)   https://download.pytorch.org/whl/cu126   (CUDA 12.6)
+#     AMD (Linux)              https://download.pytorch.org/whl/rocm7.2  (ROCm 7.2)
+#     AMD (Windows/macOS)      https://download.pytorch.org/whl/cpu      (无官方 ROCm)
+#     Apple Silicon (macOS)    PyPI 默认 wheel（启用 Metal / MPS）
+#     纯 CPU                    https://download.pytorch.org/whl/cpu
 #
 # 如需手动安装，可参考：
 #   python -m app.launcher.dependency_installer transformers --dry-run

@@ -324,23 +324,24 @@ def _torch_spec(platform_info: PlatformInfo, gpu: GPUInfo, python_executable: st
     base_pkgs = ["torch"]
 
     if gpu.vendor == "nvidia":
-        # RTX 20/30/40/50 + A/H 系列均支持 CUDA 12.1；旧卡 Maxwell/Pascal 也兼容。
-        # 如需匹配驱动 CUDA 版本，可后续扩展 nvidia-smi 读取 cuda_version。
+        # RTX 20/30/40/50 + A/H 系列均支持 CUDA 12.6；旧卡 Maxwell/Pascal 也兼容。
+        # cu126 是最新稳定、兼容性最广的 CUDA 分支（覆盖 RTX 20~50 全系）。
+        # 需要 Blackwell（RTX 50）原生 CUDA 13 时可改 cu130，但驱动要求更高。
         return InstallSpec(
-            description="PyTorch (CUDA 12.1)",
+            description="PyTorch (CUDA 12.6)",
             packages=base_pkgs,
-            index_url="https://download.pytorch.org/whl/cu121",
+            index_url="https://download.pytorch.org/whl/cu126",
             check_modules=["torch"],
         )
 
     if gpu.vendor == "amd":
         if platform_info.os_name == "linux":
             return InstallSpec(
-                description="PyTorch (ROCm 6.0)",
+                description="PyTorch (ROCm 7.2)",
                 packages=base_pkgs,
-                index_url="https://download.pytorch.org/whl/rocm6.0",
+                index_url="https://download.pytorch.org/whl/rocm7.2",
                 check_modules=["torch"],
-                warning="ROCm 6.0 需要兼容的 Linux 内核与 ROCm 驱动；安装失败时请改回 Ollama 后端。",
+                warning="ROCm 7.2 需要兼容的 Linux 内核与 ROCm 驱动；安装失败时请改回 Ollama 后端。",
             )
         # AMD on Windows/macOS：PyTorch 无官方 ROCm  wheel，只能走 CPU
         return InstallSpec(
@@ -405,7 +406,7 @@ def _bitsandbytes_spec(platform_info: PlatformInfo, gpu: GPUInfo) -> InstallSpec
 
     return InstallSpec(
         description=f"bitsandbytes ({platform_label} {gpu_label})",
-        packages=["bitsandbytes>=0.43.0"],
+        packages=["bitsandbytes>=0.50.0"],
         check_modules=["bitsandbytes"],
         warning=warning,
     )
@@ -418,7 +419,7 @@ def _transformers_specs(platform_info: PlatformInfo, gpu: GPUInfo, python_execut
     specs.append(_torch_spec(platform_info, gpu, python_executable))
     specs.append(InstallSpec(
         description="Transformers / PEFT / Accelerate",
-        packages=["transformers>=4.45.0", "peft>=0.13.0", "accelerate>=1.0.0"],
+        packages=["transformers>=4.46.0", "peft>=0.20.0", "accelerate>=1.14.0"],
         check_modules=["transformers", "peft", "accelerate"],
     ))
     specs.append(_bitsandbytes_spec(platform_info, gpu))
@@ -679,12 +680,24 @@ def install_backend_dependencies(
 # 安全工具安装（新框架：两阶段/外部扫描所需的传统 SAST/SCA/Secret 工具）
 # ---------------------------------------------------------------------------
 
-# pip 可安装的 CLI 工具（跨平台可靠，用于 external_scanner / two_stage Stage 1）
+# pip 可安装的 CLI 工具（跨平台可靠，用于 external_scanner / two_stage Stage 1）。
+# 键为可执行名（用于 PATH 探测），值为安装时的版本下限（自动装到最新稳定版）。
 SECURITY_TOOLS_PIP: list[str] = ["bandit", "semgrep", "pip-audit", "detect-secrets"]
+# 各 pip 工具的“最新稳定版本”下限（2026-08 核实的最新发布版本）：
+#   bandit          1.9.4
+#   semgrep         1.172.0
+#   pip-audit       2.10.1
+#   detect-secrets  1.5.0
+SECURITY_TOOLS_PIP_SPEC: dict[str, str] = {
+    "bandit": "bandit>=1.9.4",
+    "semgrep": "semgrep>=1.172.0",
+    "pip-audit": "pip-audit>=2.10.1",
+    "detect-secrets": "detect-secrets>=1.5.0",
+}
 # 独立二进制工具（经系统包管理器安装，最佳努力：失败仅告警不阻断）
 SECURITY_TOOLS_BIN: dict[str, str] = {
-    "gitleaks": "Gitleaks.Gitleaks",   # winget 包 ID
-    "trivy": "AquaSecurity.Trivy",     # winget 包 ID
+    "gitleaks": "Gitleaks.Gitleaks",   # winget 包 ID（最新稳定：8.30.1）
+    "trivy": "AquaSecurity.Trivy",     # winget 包 ID（最新稳定：0.73.0）
 }
 # 全部安全工具（供安装/卸载/状态汇总共用）
 SECURITY_TOOLS_ALL: list[str] = SECURITY_TOOLS_PIP + list(SECURITY_TOOLS_BIN.keys())
@@ -868,12 +881,13 @@ def install_security_tools(
 
     # 1) pip 可安装工具
     missing_pip = [t for t in SECURITY_TOOLS_PIP if not _tool_installed(t)]
+    missing_pip_spec = [SECURITY_TOOLS_PIP_SPEC.get(t, t) for t in missing_pip]
     if missing_pip:
-        _emit(f"[安全工具] 缺失 pip 工具: {', '.join(missing_pip)}", callback)
+        _emit(f"[安全工具] 缺失 pip 工具: {', '.join(missing_pip_spec)}", callback)
         if dry_run:
-            _emit(f"[安全工具] DRY-RUN: pip install {' '.join(missing_pip)}", callback)
+            _emit(f"[安全工具] DRY-RUN: pip install {' '.join(missing_pip_spec)}", callback)
         elif _is_auto_install_enabled():
-            cmd = _pip_base_cmd(python_executable) + missing_pip
+            cmd = _pip_base_cmd(python_executable) + missing_pip_spec
             global_index = os.environ.get("VULN_SCANNER_PIP_INDEX", "").strip()
             if global_index:
                 cmd.extend(["--index-url", global_index])
@@ -896,7 +910,7 @@ def install_security_tools(
                 _emit("[安全工具] ❌ pip 工具安装超时（20 分钟）", callback)
         else:
             _emit("[安全工具] 自动安装已禁用，请手动: "
-                  f"pip install {' '.join(missing_pip)}", callback)
+                  f"pip install {' '.join(missing_pip_spec)}", callback)
     else:
         _emit("[安全工具] pip 工具已就绪", callback)
 
