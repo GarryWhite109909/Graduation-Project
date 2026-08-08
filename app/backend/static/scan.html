@@ -416,6 +416,7 @@
               <p class="font-medium text-[var(--vuln-ink)]">资源消耗提示</p>
               <p>每次扫描调用本地 LLM 推理，单文件约 5-15 秒。批量扫描按文件数线性增长。</p>
               <p>扫描期间请勿同时运行其他 GPU 密集任务，以免显存溢出（OOM）。</p>
+              <p id="tf-resident-notice" class="hidden font-medium text-[var(--vuln-state-warning)]">Transformers 后端：首次扫描需加载基座并合并 LoRA，耗时较长请耐心等待；模型加载后会常驻显存/内存，直到关闭后端进程。</p>
             </div>
           </div>
         </div>
@@ -690,6 +691,12 @@
             backendBadge.title = '后端类: ' + (data.backend || '未知') + '\n模型: ' + (data.model || '—') + '\n由启动器配置，前端不可切换';
           }
 
+          /* Transformers 后端提醒：首次 merge 慢 + 模型常驻显存/内存 */
+          var tfNotice = document.getElementById('tf-resident-notice');
+          if (tfNotice) {
+            tfNotice.classList.toggle('hidden', !(data.backend === 'TransformersClient'));
+          }
+
           /* vLLM 加速选项：仅当 vLLM 后端已连接时才显示 */
           var vllmWrap = document.getElementById('vllm-accel-wrap');
           if (vllmWrap) {
@@ -853,6 +860,12 @@
         function roundResults() {
           var rid = currentRound ? currentRound.id : null;
           return scanResults.filter(function (r) { return r && rid && r._roundId === rid; });
+        }
+        /* 从结果的轮次 id（形如 r<时间戳>_<随机>）提取轮次时间戳，用于结果排序与分组标题；无则返回 NaN */
+        function roundTs(r) {
+          if (!r || !r._roundId) return NaN;
+          var ts = parseInt(String(r._roundId).replace(/^[rR]/, '').split('_')[0], 10);
+          return isNaN(ts) ? NaN : ts;
         }
         function addResult(r) {
           if (r) {

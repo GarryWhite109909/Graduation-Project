@@ -191,6 +191,8 @@ class TransformersClient:
             # 设备映射：无 GPU 时走 CPU（bitsandbytes CPU 4bit 已支持）
             device_map: Union[str, dict] = {"": 0} if has_cuda else "cpu"
 
+            print("[TransformersClient] 首次加载：需加载基座并合并 LoRA 权重，耗时较长（数分钟级），请耐心等待……")
+            print("[TransformersClient] 加载完成后模型将常驻显存/内存，直到关闭后端服务；如需释放请退出本程序。")
             print(f"[TransformersClient] 加载 tokenizer: {self.model_id}")
             tokenizer = tf["AutoTokenizer"].from_pretrained(
                 self.model_id, trust_remote_code=True
