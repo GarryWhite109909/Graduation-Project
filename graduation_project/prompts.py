@@ -155,6 +155,65 @@ BASE_PROMPT = (
 )
 
 
+# ---------------------------------------------------------------------------
+# v9max 专用减误报 CoT —— 供 evaluate.py --variant anti_fp_cot 使用
+# ---------------------------------------------------------------------------
+# 设计动机：BASE_PROMPT 只给了一句通用的"请先给出分析过程"，v9max 的减误报
+# 能力完全依赖 SFT 训练。但推理时若让模型显式走"防御自检 + 具体 payload 佐证"
+# 的分析步骤，可进一步压低误报。本提示词刻意保留 BASE_PROMPT 的"安全研究员"
+# 框架（与 v9max 训练格式对齐，避免 format shift），只在其中追加 4 步减误报 CoT：
+#   1) sink 前防御是否有效（安全模式清单）  2) 判 true 必须有具体可绕过 payload
+#   3) 严禁捏造 API 参数/扭曲代码事实          4) 硬编码凭证仍判 true（防漏报）
+ANTI_FP_COT = (
+    "你是一名安全研究员，分析给定代码的安全漏洞。\n\n"
+    "请严格按以下步骤分析后再下结论：\n"
+    "1. 识别代码中的危险函数（sink）与用户可控输入（source），并确认输入是否真的到达 sink。\n"
+    "2. 自检 sink 前是否有**有效**的防御措施：参数化查询/占位符、subprocess 列表参数"
+    "（非字符串拼接）、shlex.quote 转义、os.path.abspath+startswith 白名单校验、"
+    "html.escape/模板自动转义、json.loads 而非 pickle.loads、yaml.safe_load 等。"
+    "若防御有效，代码是安全的。\n"
+    "3. 反偏见自检：只有当你能用一段**具体可执行的攻击 payload** 证明防御可被绕过时，"
+    "才判 has_vulnerability=true；若给不出具体 payload，必须判 false。\n"
+    "4. 严禁捏造代码中不存在的 API 参数（如 shell=True、debug=True）或扭曲代码事实"
+    "来支持“有漏洞”的结论；也不要把数据库名/文件名/表名等当成硬编码凭证。\n"
+    "5. 硬编码的字面量凭证（key/secret/password/token 字面量）本身就是漏洞，应判 true，不要降级。\n\n"
+    "在回答的最后，必须严格输出一个 JSON 对象作为最终结论，"
+    "JSON 块用 ```json 包裹，字段如下（统一 schema，全项目一致）：\n"
+    + format_schema_for_prompt()
+    + "\n\n请先给出分析过程，然后在最后给出 JSON 结论。"
+)
+
+
+# ---------------------------------------------------------------------------
+# 评估用 System Prompt 变体解析 —— 供 evaluate.py --variant 使用
+# ---------------------------------------------------------------------------
+# 用途：在微调模型（v9max）上对照不同 prompt 策略，实证确定其最优 prompt。
+# 说明：exp_05 的结论（combined 最优）只在 qwen3:8b 基座 + SYSTEM_PROMPT 家族上
+# 成立，未在 v9max 上验证。本函数把候选 prompt 统一暴露给 evaluate.py 做对照。
+EVAL_SYSTEM_VARIANTS = ("base", "combined", "anti_fp_cot")
+
+
+def get_eval_system_prompt(variant: str) -> str:
+    """返回指定评估变体的 system prompt 文本。
+
+    Args:
+        variant: 取值见 EVAL_SYSTEM_VARIANTS
+            - base        当前默认 BASE_PROMPT（v9max 训练对齐，基线）
+            - combined    exp_05 在 qwen3:8b 上的最优变体（白名单+few-shot+CoT）
+            - anti_fp_cot v9max 专用减误报 CoT
+
+    Returns:
+        system prompt 字符串。未知 variant 抛 ValueError。
+    """
+    if variant == "base":
+        return BASE_PROMPT
+    if variant == "combined":
+        return build_system_prompt_variant("combined")
+    if variant == "anti_fp_cot":
+        return ANTI_FP_COT
+    raise ValueError(f"未知评估变体: {variant}（合法值: {EVAL_SYSTEM_VARIANTS}）")
+
+
 def build_user_prompt(
     code: str,
     language: str = "python",

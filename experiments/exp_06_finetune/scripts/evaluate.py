@@ -46,7 +46,12 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from graduation_project.prompts import BASE_PROMPT as SYSTEM_PROMPT, build_user_prompt
+from graduation_project.prompts import (
+    BASE_PROMPT as SYSTEM_PROMPT,
+    build_user_prompt,
+    get_eval_system_prompt,
+    EVAL_SYSTEM_VARIANTS,
+)
 from graduation_project.schema import parse_verdict, normalize_has_vulnerability
 from graduation_project.fix_verifier import FixVerifier
 from experiments.utils import (
@@ -423,9 +428,10 @@ def generate_response_ollama(
 
 
 def evaluate(model, tokenizer, manifest_records,
-             temperature=0.0, do_sample=False, run_seed=0, samples_dir=None,
-             self_verify=False, ollama_num_gpu=None, ollama_num_ctx=16384,
-             rag_cm=None, rag_collection="vulnerability_knowledge", rag_top_k=3):
+             temperature=0.0, do_sample=False, run_seed=42,
+             samples_dir=None, self_verify=False, ollama_num_gpu=None, ollama_num_ctx=16384,
+             rag_cm=None, rag_collection="vulnerability_knowledge", rag_top_k=3,
+             system_prompt=None):
     """在样本集上评估，返回结果列表。
 
     P0 改造：接受 temperature / do_sample / run_seed 参数。
@@ -488,7 +494,7 @@ def evaluate(model, tokenizer, manifest_records,
             rag_context=rag_context,
         )
         messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt or SYSTEM_PROMPT},
             {"role": "user", "content": user_prompt},
         ]
 
@@ -685,6 +691,11 @@ def main():
     parser.add_argument("--self-verify", action="store_true",
                         help="启用 Self-Verification 后处理：首轮生成后追加一轮校验，"
                              "让模型自检 CoT→JSON 一致性（增加 ~15s/样本，能检测结论漂移）")
+    # v9max prompt 对照：选择 system prompt 变体（默认 combined=最优，见 v9max 3 变体对照）
+    parser.add_argument("--variant", choices=list(EVAL_SYSTEM_VARIANTS), default="combined",
+                        help=f"评估用 system prompt 变体（默认 combined，v9max 最优）。候选: {EVAL_SYSTEM_VARIANTS}。"
+                             f"base=BASE_PROMPT(训练对齐基线)，combined=白名单+few-shot+CoT(实证最优)，"
+                             f"anti_fp_cot=v9max 专用减误报 CoT。")
     # Ollama 后端
     parser.add_argument("--ollama-model", type=str, default=None,
                         help="用 Ollama 后端评估（如 qwen3-coder:30b），跳过 HF 模型加载")
@@ -783,6 +794,7 @@ def main():
                 rag_cm=rag_cm,
                 rag_collection=args.rag_collection,
                 rag_top_k=args.rag_top_k,
+                system_prompt=get_eval_system_prompt(args.variant),
             )
             all_runs.append(run_results)
 
@@ -836,6 +848,8 @@ def main():
         elif args.mode == "finetuned":
             ck_tag = args.checkpoint or "custom"
             tag = f"finetuned_{ck_tag}"
+        if args.variant != "base":
+            tag += f".{args.variant}"
         if args.seeds > 1:
             tag += f"_seeds{args.seeds}"
         out_file = OUTPUT_DIR / f"exp_06_eval.{tag}.{ts}.json"
