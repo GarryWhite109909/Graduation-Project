@@ -24,6 +24,7 @@ from graduation_project.schema import parse_verdict, normalize_has_vulnerability
 from graduation_project.code_slicer import CodeSlicer, SliceResult
 from graduation_project.prefilter import Prefilter, PrefilterResult
 from app.backend.services.model_registry import get_default_model, get_prompt_for_model
+from graduation_project.paths import resolve_adapter_path
 
 # 默认模型：从环境变量读取，缺省为注册表中的默认模型（当前 v9max）
 DEFAULT_MODEL = os.environ.get("VULN_SCANNER_MODEL", get_default_model())
@@ -34,9 +35,9 @@ def _resolve_default_backend() -> str:
     """解析默认推理后端，消除"scanner 默认 transformers vs 启动器纯 Ollama"的矛盾：
 
     - VULN_SCANNER_BACKEND 显式设置时优先（transformers / llamacpp / ollama）
-    - 配置了 VULN_SCANNER_ADAPTER（LoRA adapter 目录）时用 transformers：
-      Q4 基座（bitsandbytes NF4）+ FP16 LoRA 进程内推理，复现 evaluate.py 95% 召回那套，
-      LoRA 增量保持 FP16 精度（避免 GGUF 整体量化的精度损失）
+    - 配置了 VULN_SCANNER_ADAPTER 环境变量，或项目根目录 models/ 下探测到合法 adapter 时，
+      自动选 transformers：Q4 基座（bitsandbytes NF4）+ FP16 LoRA 进程内推理，
+      复现 evaluate.py 95% 召回那套，LoRA 增量保持 FP16 精度（避免 GGUF 整体量化的精度损失）
     - 否则回退 ollama：GGUF Q4_K_M 合并量化的发布模型，对应一键启动形态，
       不要求 transformers/peft/bitsandbytes 依赖
     """
@@ -45,13 +46,16 @@ def _resolve_default_backend() -> str:
         return backend
     if os.environ.get("VULN_SCANNER_ADAPTER", "").strip():
         return "transformers"
+    if resolve_adapter_path():
+        return "transformers"
     return "ollama"
 
 
 DEFAULT_BACKEND = _resolve_default_backend()
 # transformers 后端加载参数（Q4 基座 + FP16 LoRA）
 DEFAULT_TRANSFORMERS_MODEL_ID = os.environ.get("VULN_SCANNER_MODEL_ID", "Qwen/Qwen3-8B")
-DEFAULT_TRANSFORMERS_ADAPTER = os.environ.get("VULN_SCANNER_ADAPTER", "")
+# LoRA adapter 路径：优先 VULN_SCANNER_ADAPTER，其次自动探测项目根目录 models/
+DEFAULT_TRANSFORMERS_ADAPTER = resolve_adapter_path()
 DEFAULT_TRANSFORMERS_NUM_CTX = int(os.environ.get("VULN_SCANNER_NUM_CTX", "6144"))
 # Chroma 知识库集合名
 KNOWLEDGE_COLLECTION = "vuln_knowledge"

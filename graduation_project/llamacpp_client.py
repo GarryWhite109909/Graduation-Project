@@ -35,6 +35,7 @@ from typing import Dict, List, Optional, Union
 
 from graduation_project.prompts import build_user_prompt
 from graduation_project.schema import parse_verdict, normalize_has_vulnerability
+from graduation_project.paths import resolve_adapter_path
 
 _LLAMA = None  # 延迟导入 llama_cpp
 
@@ -77,7 +78,7 @@ class LlamaCppClient:
         verbose: bool = False,
     ):
         self.base_gguf = base_gguf or os.environ.get("VULN_SCANNER_GGUF", "")
-        self.adapter = adapter or os.environ.get("VULN_SCANNER_ADAPTER", "")
+        self.adapter = resolve_adapter_path(adapter)
         self.num_ctx = int(os.environ.get("VULN_SCANNER_NUM_CTX", str(num_ctx)))
         self.gpu_layers = int(os.environ.get("VULN_SCANNER_GPU_LAYERS", str(gpu_layers)))
         self.verbose = verbose
@@ -96,7 +97,7 @@ class LlamaCppClient:
         if not Path(self.base_gguf).is_file():
             return f"GGUF 基座文件不存在: {self.base_gguf}"
         if not self.adapter:
-            return "VULN_SCANNER_ADAPTER 未设置：需要 FP16 LoRA adapter 目录"
+            return "未找到 LoRA adapter：请设置 VULN_SCANNER_ADAPTER，或将 adapter 放到项目根目录 models/"
         p = Path(self.adapter)
         if not p.is_dir():
             return f"LoRA adapter 路径不存在: {self.adapter}"

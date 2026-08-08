@@ -152,8 +152,8 @@ Windows 使用 `set` 代替 `export`。选择进程内后端后，启动器会�
 
 | 环境变量 | 默认值 | 说明 |
 |----------|--------|------|
-| `VULN_SCANNER_BACKEND` | 自动解析 | 推理后端：`ollama` / `transformers` / `llamacpp`；未设置且配了 `VULN_SCANNER_ADAPTER` 时自动选 `transformers` |
-| `VULN_SCANNER_ADAPTER` | 无 | Transformers/LlamaCPP 后端必填：LoRA adapter 目录（含 `adapter_model.safetensors`） |
+| `VULN_SCANNER_BACKEND` | 自动解析 | 推理后端：`ollama` / `transformers` / `llamacpp`；未设置但配了 `VULN_SCANNER_ADAPTER` 或在 `models/` 下探测到 adapter 时自动选 `transformers` |
+| `VULN_SCANNER_ADAPTER` | 自动探测 `models/` | Transformers/LlamaCPP 后端：LoRA adapter 目录（含 `adapter_model.safetensors`）。未设置时自动查找项目根目录 `models/` 下的合法 adapter 目录 |
 | `VULN_SCANNER_GGUF` | 无 | LlamaCPP 后端必填：Q4 GGUF 基座文件路径 |
 | `VULN_SCANNER_MODEL` | `garrywhite109909/graduation-vuln-scanner:v9max` | Ollama 模型名 |
 | `VULN_SCANNER_FALLBACK_MODEL` | `qwen3:8b` | 主模型拉取失败时的回退模型 |

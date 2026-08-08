@@ -78,6 +78,7 @@ def _lazy_import_peft():
 # 复用 graduation_project.prompts 的 build_user_prompt 组装 user prompt。
 from graduation_project.prompts import build_user_prompt
 from graduation_project.schema import parse_verdict, normalize_has_vulnerability
+from graduation_project.paths import resolve_adapter_path
 
 
 class TransformersClient:
@@ -105,7 +106,7 @@ class TransformersClient:
         compile_: bool = False,
     ):
         self.model_id = model_id or os.environ.get("VULN_SCANNER_MODEL_ID", "Qwen/Qwen3-8B")
-        self.adapter = adapter or os.environ.get("VULN_SCANNER_ADAPTER", "")
+        self.adapter = resolve_adapter_path(adapter)
         self.num_ctx = int(os.environ.get("VULN_SCANNER_NUM_CTX", str(num_ctx)))
         self.quantize = quantize if not os.environ.get("VULN_SCANNER_QUANTIZE") else (
             os.environ.get("VULN_SCANNER_QUANTIZE", "1") != "0"
@@ -135,7 +136,7 @@ class TransformersClient:
     def _check_adapter(self) -> Optional[str]:
         """校验 adapter 路径存在且含权重。返回错误信息或 None。"""
         if not self.adapter:
-            return "VULN_SCANNER_ADAPTER 未设置：需要 LoRA adapter 目录"
+            return "未找到 LoRA adapter：请设置 VULN_SCANNER_ADAPTER，或将 adapter 放到项目根目录 models/"
         p = Path(self.adapter)
         if not p.is_dir():
             return f"LoRA adapter 路径不存在: {self.adapter}"

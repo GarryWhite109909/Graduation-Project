@@ -63,6 +63,7 @@ from graduation_project.multi_model_scanner import MultiModelScanner
 from graduation_project.vllm_client import VLLMClient
 from graduation_project.schema import parse_verdict, normalize_has_vulnerability
 from graduation_project.prompts import build_user_prompt
+from graduation_project.paths import resolve_adapter_path
 
 # ---------------------------------------------------------------------------
 # 全局 Scanner 实例（单例，避免重复初始化 Chroma/OllamaClient）
@@ -299,7 +300,7 @@ def _build_backend_info() -> dict:
         })
 
     elif backend == "transformers":
-        adapter = getattr(client, "adapter", "") or os.environ.get("VULN_SCANNER_ADAPTER", "")
+        adapter = resolve_adapter_path(getattr(client, "adapter", ""))
         model_id = getattr(client, "model_id", "") or os.environ.get("VULN_SCANNER_MODEL_ID", "Qwen/Qwen3-8B")
         quantize = bool(getattr(client, "quantize", True))
         compute_dtype = (getattr(client, "compute_dtype", "") or "").lower()
@@ -335,7 +336,7 @@ def _build_backend_info() -> dict:
 
     elif backend == "llamacpp":
         base_gguf = getattr(client, "base_gguf", "") or os.environ.get("VULN_SCANNER_GGUF", "")
-        adapter = getattr(client, "adapter", "") or os.environ.get("VULN_SCANNER_ADAPTER", "")
+        adapter = resolve_adapter_path(getattr(client, "adapter", ""))
         gguf_name = Path(base_gguf).name if base_gguf else ""
         q_label = "GGUF Q4（常见）"
         if gguf_name:

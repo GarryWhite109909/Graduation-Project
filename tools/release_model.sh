@@ -43,8 +43,13 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "${ADAPTER}" ]]; then
-    echo "[ERROR] 必须指定 --adapter"
-    usage
+    # 未指定 adapter 时自动探测项目约定目录
+    ADAPTER=$(PYTHONPATH="${PROJECT_ROOT}" python3 -c "from graduation_project.paths import resolve_adapter_path; print(resolve_adapter_path(), end='')" 2>/dev/null || true)
+    if [[ -z "${ADAPTER}" ]]; then
+        echo "[ERROR] 未指定 --adapter，且无法在 ${PROJECT_ROOT}/models 或训练输出目录中探测到合法 adapter"
+        usage
+    fi
+    echo "[INFO] 自动探测到 adapter: ${ADAPTER}"
 fi
 
 echo "=================================================="

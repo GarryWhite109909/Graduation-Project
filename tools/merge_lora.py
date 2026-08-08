@@ -23,6 +23,9 @@ import argparse
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from graduation_project.paths import resolve_adapter_path
+
 
 def merge(base_model_id: str, adapter_path: str, out_path: str) -> None:
     try:
@@ -63,8 +66,8 @@ def main():
     parser.add_argument("--base", default="Qwen/Qwen3-8B", help="HuggingFace base 模型 ID")
     parser.add_argument(
         "--adapter",
-        default="experiments/exp_06_finetune/outputs/lora_r8_a16_e3_lr0.0001_s42_rslora_v5/best",
-        help="LoRA adapter 路径",
+        default=resolve_adapter_path(),
+        help="LoRA adapter 路径（默认自动探测项目根目录 models/ 或训练输出目录）",
     )
     parser.add_argument("--out", default="outputs/merged_v5", help="合并模型输出目录")
     args = parser.parse_args()

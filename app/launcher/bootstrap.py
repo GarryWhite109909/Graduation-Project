@@ -30,6 +30,7 @@ from pathlib import Path
 import requests
 
 from app.launcher import dependency_installer
+from graduation_project.paths import resolve_adapter_path, find_project_root
 
 # 项目根目录（Graduation-Project/）
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -52,6 +53,8 @@ def resolve_backend() -> str:
         return backend
     if os.environ.get("VULN_SCANNER_ADAPTER", "").strip():
         return "transformers"
+    if resolve_adapter_path():
+        return "transformers"
     return "ollama"
 
 
@@ -61,6 +64,7 @@ def select_backend() -> str:
     自动解析规则：
         - 已设置 VULN_SCANNER_BACKEND 时直接使用
         - 已设置 VULN_SCANNER_ADAPTER 时自动选 transformers
+        - 项目根目录 models/ 下探测到合法 adapter 时自动选 transformers
         - 否则默认 ollama
 
     非交互式环境（如 CI）直接返回自动解析结果，避免 input 挂起。
@@ -96,25 +100,32 @@ def check_inprocess_backend_ready(backend: str) -> bool:
     """校验进程内推理后端（transformers/llamacpp）的依赖与模型配置。
 
     依赖检查已前置由 dependency_installer 完成；本函数主要验证：
-        - transformers: VULN_SCANNER_ADAPTER 是否存在
-        - llamacpp: VULN_SCANNER_GGUF 与 VULN_SCANNER_ADAPTER 是否存在
+        - transformers: LoRA adapter 目录是否存在（支持 models/ 自动探测）
+        - llamacpp: VULN_SCANNER_GGUF 与 LoRA adapter 是否存在
 
     返回 True 表示就绪；False 时已打印具体缺失项与修复命令。
     """
     ok = True
+    project_root = find_project_root()
+    models_dir = project_root / "models"
+
     if backend == "transformers":
-        adapter = os.environ.get("VULN_SCANNER_ADAPTER", "").strip()
+        adapter = resolve_adapter_path()
         if not adapter:
-            print("[错误] transformers 后端需要 VULN_SCANNER_ADAPTER 指向 LoRA adapter 目录")
+            print("[错误] transformers 后端需要 LoRA adapter 目录")
             print("  （目录内需含 adapter_model.safetensors / adapter_model.bin）")
-            print("  示例: set VULN_SCANNER_ADAPTER=D:\\models\\v9max_lora")
+            print(f"  推荐做法：将 adapter 放到 {models_dir}")
+            print("  示例: set VULN_SCANNER_ADAPTER=D:\\code\\Graduation-Project\\models\\v9max_lora")
             ok = False
         elif not Path(adapter).is_dir():
             print(f"[错误] LoRA adapter 路径不存在: {adapter}")
             ok = False
+        else:
+            # 把最终解析到的路径写回环境变量，供后端进程读取
+            os.environ["VULN_SCANNER_ADAPTER"] = adapter
     elif backend == "llamacpp":
         gguf = os.environ.get("VULN_SCANNER_GGUF", "").strip()
-        adapter = os.environ.get("VULN_SCANNER_ADAPTER", "").strip()
+        adapter = resolve_adapter_path()
         if not gguf:
             print("[错误] llamacpp 后端需要 VULN_SCANNER_GGUF 指向 Q4 GGUF 文件")
             print("  示例: set VULN_SCANNER_GGUF=D:\\models\\qwen3-8b-q4_k_m.gguf")
@@ -123,11 +134,14 @@ def check_inprocess_backend_ready(backend: str) -> bool:
             print(f"[错误] GGUF 文件不存在: {gguf}")
             ok = False
         if not adapter:
-            print("[错误] llamacpp 后端需要 VULN_SCANNER_ADAPTER 指向 FP16 LoRA adapter 目录")
+            print("[错误] llamacpp 后端需要 FP16 LoRA adapter 目录")
+            print(f"  推荐做法：将 adapter 放到 {models_dir}")
             ok = False
         elif not Path(adapter).is_dir():
             print(f"[错误] LoRA adapter 路径不存在: {adapter}")
             ok = False
+        else:
+            os.environ["VULN_SCANNER_ADAPTER"] = adapter
     return ok
 
 
