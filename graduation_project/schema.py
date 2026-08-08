@@ -25,7 +25,7 @@ VERDICT_SCHEMA: dict[str, str] = {
     "source": "str, 污染来源（用户可控输入点）。必须锚定行号，如 'line 12: request.args.get(\"id\")'；无漏洞填 'N/A'",
     "sink": "str, 危险函数或触发点。必须锚定行号，如 'line 18: cursor.execute(query)'；无漏洞填 'N/A'",
     "explanation": "str, 漏洞或安全现状说明（数据流/成因，用 -> 箭头描述）",
-    "fix_suggestion": "str, 完整、可运行的修复版代码，用 ``` 围栏包裹（含语言标签，如 ```python）。必须是基于原代码修改后的完整版本，禁止只给片段、省略号或补丁说明；无漏洞填 'no fix needed'",
+    "fix_suggestion": "str, 行号锚定的简短修复建议（单行、不含换行），格式如 'line 3: 应改为 ...' 或 '第 3 行：... 建议改为 ...'；指出应修改的具体行与改法即可，禁止输出完整代码/补丁/围栏代码块，行号必须是代码中真实存在的；无漏洞填 'no fix needed'",
 }
 
 

@@ -1,0 +1,6 @@
+# Windows 批处理脚本必须使用 CRLF，否则 cmd.exe 会错位解析命令
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# 默认文本文件按仓库原样处理，避免跨平台换行漂移
+* text=auto

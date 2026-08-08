@@ -65,15 +65,16 @@ bash app/launcher/start_linux_macos.sh
 
 启动脚本会自动完成以下全部步骤：
 
-1. **检测并安装 Python 依赖**——首次运行自动执行 `pip install -r requirements.txt && pip install -e .`
-2. **检测并安装 Ollama**——未安装时自动通过 winget（Windows）/ Homebrew（macOS）/ 官方脚本（Linux）安装
-3. **启动 Ollama 服务**——确保 `ollama serve` 在后台运行
-4. **硬件检测与自适应配置**——自动检测 GPU/CPU/RAM，按显存分档选择推理参数（`num_ctx` / `num_gpu` / 量化等级）
-5. **拉取模型**——自动下载 `garrywhite109909/graduation-vuln-scanner:v9max`（约 5 GB，Q4 量化）；若拉取失败则回退到官方 `qwen3:8b`
-6. **启动后端**——FastAPI 服务监听 `http://127.0.0.1:8765`
-7. **打开浏览器**——自动跳转到 `http://localhost:8765`
+1. **检测并安装 Python 核心依赖**——首次运行自动执行 `pip install -r requirements.txt && pip install -e .`
+2. **选择推理后端**——启动器会提示选择 Ollama / Transformers / LlamaCPP；默认根据环境变量自动解析
+3. **自动安装后端专属依赖**——若选择 Transformers / LlamaCPP，启动器会按当前 OS 与 GPU 自动下载正确的 `torch` / `transformers` / `peft` / `bitsandbytes` / `llama-cpp-python`（支持 Windows/Linux/macOS × NVIDIA/AMD/Apple/CPU）
+4. **检测并安装 Ollama**——使用 Ollama 后端时自动安装/启动（其他后端跳过）
+5. **硬件检测与自适应配置**——自动检测 GPU/CPU/RAM，按显存分档选择推理参数（`num_ctx` / `num_gpu` / 量化等级）
+6. **拉取模型**——Ollama 后端自动下载 `garrywhite109909/graduation-vuln-scanner:v9max`（约 5 GB，Q4 量化）；若拉取失败则回退到官方 `qwen3:8b`
+7. **启动后端**——FastAPI 服务监听 `http://127.0.0.1:8765`
+8. **打开浏览器**——自动跳转到 `http://localhost:8765`
 
-> 首次启动因需下载模型（约 5 GB），耗时取决于网速，请耐心等待。后续启动通常 10 秒内完成。
+> 首次启动因需下载模型（约 5 GB）或后端依赖（torch 等约 2-4 GB），耗时取决于网速，请耐心等待。后续启动通常 10 秒内完成。
 
 ### 路径二：开发者 / 复现实验
 
@@ -121,14 +122,40 @@ xdg-open http://localhost:8765    # Linux
 start http://localhost:8765       # Windows
 ```
 
+### 切换推理后端
+
+默认使用 **Ollama** 后端（兼容性最好、对硬件要求最低）。如需使用进程内后端复现论文中的 95% CVE-fix recall，可在启动器提示时选择 `Transformers` 或 `LlamaCPP`，或在启动前设置环境变量：
+
+```bash
+# Transformers 后端（NF4 基座 + FP16 LoRA，需 6GB+ 显存或足够内存）
+export VULN_SCANNER_BACKEND=transformers
+export VULN_SCANNER_ADAPTER=/path/to/v9max_lora
+bash app/launcher/start_linux_macos.sh
+
+# LlamaCPP 后端（Q4 GGUF + 运行时 LoRA，实验性）
+export VULN_SCANNER_BACKEND=llamacpp
+export VULN_SCANNER_GGUF=/path/to/qwen3-8b-q4_k_m.gguf
+export VULN_SCANNER_ADAPTER=/path/to/v9max_lora
+bash app/launcher/start_linux_macos.sh
+```
+
+Windows 使用 `set` 代替 `export`。选择进程内后端后，启动器会自动按你的 OS/GPU 下载对应版本的 `torch`、`transformers`、`llama-cpp-python` 等依赖。
+
+> ⚠️ **显存门槛**：Transformers 后端推荐 NVIDIA 显存 ≥ 6GB；4GB 显存会被强制走 CPU，速度显著下降。Apple Silicon / ROCm 暂不支持 `bitsandbytes` 量化，启动器会跳过并提示改用 Ollama 或关闭量化。
+
 ### 环境变量配置
 
 启动器和后端通过以下环境变量控制行为，按需设置：
 
 | 环境变量 | 默认值 | 说明 |
 |----------|--------|------|
+| `VULN_SCANNER_BACKEND` | 自动解析 | 推理后端：`ollama` / `transformers` / `llamacpp`；未设置且配了 `VULN_SCANNER_ADAPTER` 时自动选 `transformers` |
+| `VULN_SCANNER_ADAPTER` | 无 | Transformers/LlamaCPP 后端必填：LoRA adapter 目录（含 `adapter_model.safetensors`） |
+| `VULN_SCANNER_GGUF` | 无 | LlamaCPP 后端必填：Q4 GGUF 基座文件路径 |
 | `VULN_SCANNER_MODEL` | `garrywhite109909/graduation-vuln-scanner:v9max` | Ollama 模型名 |
 | `VULN_SCANNER_FALLBACK_MODEL` | `qwen3:8b` | 主模型拉取失败时的回退模型 |
+| `VULN_SCANNER_AUTO_INSTALL_DEPS` | 未设置 | `1` 强制重新检查/升级依赖；`0` 禁用自动安装（只打印手动命令） |
+| `VULN_SCANNER_PIP_INDEX` | 无 | 覆盖 pip 镜像源，例如 `https://pypi.tuna.tsinghua.edu.cn/simple` |
 | `VULN_SCANNER_RAG` | `0` | 设为 `1` 启用 RAG 知识库增强 |
 | `VULN_SCANNER_PREFILTER` | `1` | 设为 `0` 关闭传统工具预筛 |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama 服务地址 |
@@ -481,6 +508,12 @@ CVE-fix recall(真实集):  baseline 0.375 → v5 0.571 → v9max 0.950（HF 管
 ## 当前状态与待决策
 
 > **截至 2026-08-07**：exp_01~05 零样本基线 + Prompt 消融已完成；exp_06 完成 P0 parse_fail 修复、P1 CVE-fix 真实集校准、P2 本地 SFT 迭代（v2~v9）、**三模型数据蒸馏 + 云端 A800 训练 v9max 并已发布**。**v9max 为当前已发布里程碑**；最终模型 **Nivis-alpha.1** 将在此基础上完成 DPO/GRPO、数据飞轮与 CoT 教学，收敛 FPR 与 CWE 归因。
+
+> **2026-08-08 追加**：`fix_suggestion` 已从"完整可运行修复代码（``` 围栏）"改为
+> **行号锚定的单行局部修复建议**（如 `line 3: 应改为 ...`），原因：客户端 6K~8K
+> 上下文放不下完整修复代码，且 FixVerifier 已证伪（14/15 空建议是模型没输出，不是
+> 验证器问题）。schema/evaluate/verify-fix 已同步新口径，训练数据统一转换脚本见
+> `experiments/exp_06_finetune/scripts/convert_fix_to_localized.py`。
 
 | 阶段 | 内容 | 状态 |
 |---|---|---|

@@ -15,20 +15,25 @@ pydantic>=2.0.0
 uvicorn[standard]>=0.30.0
 python-multipart>=0.0.9
 
-# 进程内推理后端（transformers：Q4 基座 + FP16 LoRA，复现 95% 召回管道）
-# 仅在设置 VULN_SCANNER_BACKEND=transformers（或配置了 VULN_SCANNER_ADAPTER）时需要；
-# 默认 Ollama 一键启动形态不需要以下依赖。启用时执行：
-#   pip install "transformers>=4.45.0" "peft>=0.13.0" "accelerate>=1.0.0" "bitsandbytes>=0.43.0"
-# 注意：Windows 需要支持 Windows 的 bitsandbytes 构建（>=0.43）；模型合并工具 tools/merge_lora.py 同需 peft。
-# peft>=0.13.0
-# transformers>=4.45.0
-# accelerate>=1.0.0
-# bitsandbytes>=0.43.0
-
-# 启动器硬件检测（bootstrap.py 用 psutil 探测 RAM；未安装时回退到 wmic/sysctl，但显式安装更稳）
+# 启动器硬件检测与依赖安装（bootstrap.py / dependency_installer.py 必需）
 psutil>=5.9.0
 
 # 以下是间接依赖中较关键的，显式列出方便排查
 # numpy          (chromadb / sentence-transformers 依赖)
-# torch          (sentence-transformers 依赖)
+# torch          (sentence-transformers / 可选 transformers 后端依赖；由启动器按硬件自动安装)
 # onnxruntime    (chromadb 默认 embedding 依赖)
+
+# =============================================================================
+# 进程内推理后端（transformers / llamacpp）属于可选依赖，默认不安装。
+# 当用户选择对应后端时，启动器会调用 app/launcher/dependency_installer.py
+# 按当前操作系统和 GPU 自动下载正确版本的 torch / transformers / peft /
+# bitsandbytes / llama-cpp-python。
+#
+# 如需手动安装，可参考：
+#   python -m app.launcher.dependency_installer transformers --dry-run
+#   python -m app.launcher.dependency_installer llamacpp --dry-run
+#
+# 关闭自动安装：
+#   set VULN_SCANNER_AUTO_INSTALL_DEPS=0        (Windows)
+#   export VULN_SCANNER_AUTO_INSTALL_DEPS=0     (Linux/macOS)
+# =============================================================================

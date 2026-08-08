@@ -29,6 +29,8 @@ from pathlib import Path
 
 import requests
 
+from app.launcher import dependency_installer
+
 # 项目根目录（Graduation-Project/）
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 # 默认模型（从模型注册表读取当前默认版本，如 v9max；导入失败时回退到 v9max 全名）
@@ -53,40 +55,78 @@ def resolve_backend() -> str:
     return "ollama"
 
 
+def select_backend() -> str:
+    """交互式选择推理后端，允许用户覆盖自动解析结果。
+
+    自动解析规则：
+        - 已设置 VULN_SCANNER_BACKEND 时直接使用
+        - 已设置 VULN_SCANNER_ADAPTER 时自动选 transformers
+        - 否则默认 ollama
+
+    非交互式环境（如 CI）直接返回自动解析结果，避免 input 挂起。
+    """
+    default_backend = resolve_backend()
+    if not sys.stdin.isatty():
+        return default_backend
+
+    print()
+    print("=" * 60)
+    print("  推理后端选择")
+    print("=" * 60)
+    print(f"  自动检测到: {default_backend}")
+    print("  [1] Ollama    —— 默认一键启动（推荐，兼容性最好）")
+    print("  [2] Transformers —— 进程内 NF4 基座 + FP16 LoRA（需 6GB+ 显存或足够内存）")
+    print("  [3] LlamaCPP —— 实验性，Q4 GGUF + 运行时 LoRA（需适配 CMAKE）")
+    print("  [0] 保持自动检测结果")
+    print("-" * 60)
+    while True:
+        choice = input(f"请选择推理后端 [0/1/2/3]（默认 0={default_backend}）: ").strip()
+        if choice in ("", "0"):
+            return default_backend
+        if choice == "1":
+            return "ollama"
+        if choice == "2":
+            return "transformers"
+        if choice == "3":
+            return "llamacpp"
+        print("[启动器] 无效输入，请重新选择。")
+
+
 def check_inprocess_backend_ready(backend: str) -> bool:
     """校验进程内推理后端（transformers/llamacpp）的依赖与模型配置。
+
+    依赖检查已前置由 dependency_installer 完成；本函数主要验证：
+        - transformers: VULN_SCANNER_ADAPTER 是否存在
+        - llamacpp: VULN_SCANNER_GGUF 与 VULN_SCANNER_ADAPTER 是否存在
 
     返回 True 表示就绪；False 时已打印具体缺失项与修复命令。
     """
     ok = True
     if backend == "transformers":
-        missing = []
-        for mod in ("torch", "transformers", "peft", "bitsandbytes"):
-            try:
-                __import__(mod)
-            except ImportError:
-                missing.append(mod)
-        if missing:
-            print(f"[错误] transformers 后端缺少依赖: {', '.join(missing)}")
-            print("  安装命令: pip install transformers peft bitsandbytes accelerate")
-            print("  （Windows 需要支持 Windows 的 bitsandbytes 构建；")
-            print("   或设置 VULN_SCANNER_BACKEND=ollama 改用 Ollama 后端）")
-            ok = False
         adapter = os.environ.get("VULN_SCANNER_ADAPTER", "").strip()
         if not adapter:
             print("[错误] transformers 后端需要 VULN_SCANNER_ADAPTER 指向 LoRA adapter 目录")
             print("  （目录内需含 adapter_model.safetensors / adapter_model.bin）")
+            print("  示例: set VULN_SCANNER_ADAPTER=D:\\models\\v9max_lora")
             ok = False
         elif not Path(adapter).is_dir():
             print(f"[错误] LoRA adapter 路径不存在: {adapter}")
             ok = False
     elif backend == "llamacpp":
-        try:
-            __import__("llama_cpp")
-        except ImportError:
-            print("[错误] llamacpp 后端缺少依赖 llama-cpp-python")
-            print("  安装命令: pip install llama-cpp-python")
-            print("  （或设置 VULN_SCANNER_BACKEND=ollama 改用 Ollama 后端）")
+        gguf = os.environ.get("VULN_SCANNER_GGUF", "").strip()
+        adapter = os.environ.get("VULN_SCANNER_ADAPTER", "").strip()
+        if not gguf:
+            print("[错误] llamacpp 后端需要 VULN_SCANNER_GGUF 指向 Q4 GGUF 文件")
+            print("  示例: set VULN_SCANNER_GGUF=D:\\models\\qwen3-8b-q4_k_m.gguf")
+            ok = False
+        elif not Path(gguf).is_file():
+            print(f"[错误] GGUF 文件不存在: {gguf}")
+            ok = False
+        if not adapter:
+            print("[错误] llamacpp 后端需要 VULN_SCANNER_ADAPTER 指向 FP16 LoRA adapter 目录")
+            ok = False
+        elif not Path(adapter).is_dir():
+            print(f"[错误] LoRA adapter 路径不存在: {adapter}")
             ok = False
     return ok
 
@@ -753,8 +793,8 @@ def main():
     print("  AI 漏洞扫描器 —— 启动中（模式: %s）" % mode)
     print("=" * 60)
 
-    # 0. 解析推理后端并传给后端子进程（scanner.py 按同一规则解析，显式设置避免漂移）
-    backend = resolve_backend()
+    # 0. 选择并锁定推理后端
+    backend = select_backend()
     os.environ["VULN_SCANNER_BACKEND"] = backend
     use_ollama = backend == "ollama"
     print(f"[启动器] 推理后端: {backend}")
@@ -786,9 +826,22 @@ def main():
 
         print("[2/5] Ollama 服务已运行")
     else:
-        # 进程内后端（transformers/llamacpp）：不依赖 Ollama，校验依赖与 adapter 配置
+        # 进程内后端（transformers/llamacpp）：不依赖 Ollama，自动安装依赖并校验配置
+        deps_ok = dependency_installer.install_backend_dependencies(
+            backend,
+            python_executable=sys.executable,
+            dry_run=False,
+            auto_confirm=None,  # 按 VULN_SCANNER_AUTO_INSTALL_DEPS 环境变量，默认自动安装
+        )
+        if not deps_ok:
+            print("\n[错误] 进程内推理后端依赖未就绪。")
+            dependency_installer.print_manual_install_commands(backend, sys.executable)
+            print("\n  或设置 VULN_SCANNER_BACKEND=ollama 改用 Ollama 后端。")
+            input("\n按回车键退出...")
+            return
+
         if not check_inprocess_backend_ready(backend):
-            print("\n[错误] 进程内推理后端未就绪，请按上方提示修复后重试。")
+            print("\n[错误] 进程内推理后端配置未就绪，请按上方提示修复后重试。")
             input("\n按回车键退出...")
             return
         print(f"[1/5] {backend} 后端依赖就绪")

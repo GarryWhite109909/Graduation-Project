@@ -53,7 +53,7 @@ from graduation_project.prompts import (
     EVAL_SYSTEM_VARIANTS,
 )
 from graduation_project.schema import parse_verdict, normalize_has_vulnerability
-from graduation_project.fix_verifier import FixVerifier
+from graduation_project.fix_verifier import FixVerifier, extract_line_refs, has_code_fence
 from experiments.utils import (
     load_manifest, read_sample_code, compute_detection_metrics,
     compute_repeat_metrics, save_results_json,
@@ -185,19 +185,20 @@ def compute_strict_metrics(results: list[dict]) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# 修复可用性评估：第一指标（参考1.md）
+# 修复建议评估（2026-08-08 起：行号锚定的局部修复建议）
 # ---------------------------------------------------------------------------
-# 动机：参考1.md（路线A）明确"修复方案可用性"是第一评判标准，CWE 准确率仅作参考。
-# 用 FixVerifier 对每个漏洞样本（模型判 True）的 fix_suggestion 做自动化校验：
-#   1. 语法通过（syntax_valid）
-#   2. 危险模式已移除（tests_passed=True）—— 即"真正修掉了漏洞"
-# 只有同时满足才算"修复可用"。这一指标优先于 detection/CWE 作为主结论。
+# 动机：schema 的 fix_suggestion 已改为"行号锚定的简短修复建议"（单行、不含
+# 完整代码），FixVerifier 的"完整代码抽取→语法校验→危险模式移除"只对仍输出
+# 代码块的样本有意义。主指标改为：
+#   1. fix_suggested_rate：漏洞且判 True 的样本中给出非空建议的比例
+#   2. fix_anchored_rate：建议含行号引用且所有引用行号都落在代码真实行数内
+#      （自动抓"第几行"幻觉）
+# 代码块指标（fix_extracted/fix_syntax_ok/fix_usable）保留为辅助口径。
 _LANG_MAP = {
     "python": "python", "py": "python", "python3": "python",
     "javascript": "javascript", "js": "javascript", "node": "javascript",
     "java": "java",
 }
-
 
 def lang_for_fix(language: str) -> str:
     """把 manifest 的 language 字段映射到 FixVerifier 支持的语法标签。"""
@@ -205,29 +206,37 @@ def lang_for_fix(language: str) -> str:
 
 
 def compute_fix_metrics(results: list[dict], verifier: FixVerifier) -> dict:
-    """计算修复可用性指标（第一指标）。
+    """计算修复建议指标。
 
     只对"漏洞样本且模型判 True"的样本做修复校验（真正的修复场景）。
-    安全样本（expected_present=False）或模型判 False 的样本不参与修复可用性统计。
+    安全样本（expected_present=False）或模型判 False 的样本不参与修复建议统计。
 
     Returns:
         {
             "fix_applicable": 应尝试修复的样本数（漏洞且模型判 True）
-            "fix_extracted": 能从 fix_suggestion 抽到代码块的数量
-            "fix_syntax_ok": 语法通过的数量
+            "fix_suggested": 给出非空建议的数量
+            "fix_suggested_rate": fix_suggested / fix_applicable
+            "fix_anchored": 行号引用全部落在代码行数范围内的数量
+            "fix_anchored_rate": fix_anchored / fix_applicable
+            "fix_line_ref_invalid": 有行号引用但至少一个超出代码行数范围的数量
+            "fix_extracted": 建议含代码围栏且能抽到代码块的数量（辅助口径）
+            "fix_syntax_ok": 上述代码块语法通过的数量
             "fix_removed_vuln": 危险模式移除的数量（tests_passed=True）
-            "fix_usable": 语法通过 且 危险模式移除 的数量
+            "fix_usable": 语法通过 且 危险模式移除 的数量（辅助口径）
             "fix_usable_rate": fix_usable / fix_applicable
-            "fix_unusable_reasons": {reason: count} 各类失败原因
+            "fix_issues": {reason: count} 各类问题计数
             "per_sample": 每个样本的修复校验结果
         }
     """
     fix_applicable = 0
+    fix_suggested = 0
+    fix_anchored = 0
+    fix_line_ref_invalid = 0
     fix_extracted = 0
     fix_syntax_ok = 0
     fix_removed_vuln = 0
     fix_usable = 0
-    reasons: dict[str, int] = {}
+    issues: dict[str, int] = {}
     per_sample = []
 
     for r in results:
@@ -242,52 +251,78 @@ def compute_fix_metrics(results: list[dict], verifier: FixVerifier) -> dict:
         fix_suggestion = r.get("model_fix_suggestion", "")
         language = lang_for_fix(r.get("language", ""))
 
-        vres = verifier.verify_fix(original_code, fix_suggestion, language=language)
-
-        if vres.fixed_code is None:
-            # 区分"模型根本没输出 fix_suggestion"（上游 prompt/模型行为问题）
-            # 与"输出了但无代码围栏"（格式问题），两者修复路径完全不同
-            if not (fix_suggestion or "").strip():
-                reasons["模型未输出fix_suggestion"] = reasons.get("模型未输出fix_suggestion", 0) + 1
-            else:
-                reasons["未抽到代码块"] = reasons.get("未抽到代码块", 0) + 1
+        # 主口径 1：是否给出非空建议
+        suggested = bool((fix_suggestion or "").strip())
+        if suggested:
+            fix_suggested += 1
         else:
-            fix_extracted += 1
-            if vres.syntax_valid:
-                fix_syntax_ok += 1
-            else:
-                reasons["语法错误"] = reasons.get("语法错误", 0) + 1
-            if vres.tests_passed is True:
-                fix_removed_vuln += 1
-            elif vres.tests_passed is False:
-                reasons["危险模式仍在"] = reasons.get("危险模式仍在", 0) + 1
-            # None = 无法判定（原始代码未命中已知危险模式），不算通过也不算失败
+            issues["模型未输出fix_suggestion"] = issues.get("模型未输出fix_suggestion", 0) + 1
 
-        usable = vres.syntax_valid and (vres.tests_passed is True)
-        if usable:
-            fix_usable += 1
+        # 主口径 2：行号引用是否落在真实代码行数内
+        line_refs = extract_line_refs(fix_suggestion or "")
+        total_lines = len((original_code or "").split("\n"))
+        refs_valid = bool(line_refs) and all(1 <= n <= total_lines for n in line_refs)
+        if line_refs and not refs_valid:
+            fix_line_ref_invalid += 1
+            issues["行号超出代码范围"] = issues.get("行号超出代码范围", 0) + 1
+        if refs_valid:
+            fix_anchored += 1
+
+        # 辅助口径：仍输出代码围栏时，用 FixVerifier 做旧式校验
+        code_block = has_code_fence(fix_suggestion or "")
+        vres = verifier.verify_fix(original_code, fix_suggestion, language=language) if code_block else None
+        if vres is None:
+            if suggested and not code_block:
+                issues["建议未含代码块（新格式正常）"] = issues.get("建议未含代码块（新格式正常）", 0) + 1
+        else:
+            if vres.fixed_code is None:
+                issues["未抽到代码块"] = issues.get("未抽到代码块", 0) + 1
+            else:
+                fix_extracted += 1
+                if vres.syntax_valid:
+                    fix_syntax_ok += 1
+                else:
+                    issues["语法错误"] = issues.get("语法错误", 0) + 1
+                if vres.tests_passed is True:
+                    fix_removed_vuln += 1
+                elif vres.tests_passed is False:
+                    issues["危险模式仍在"] = issues.get("危险模式仍在", 0) + 1
+            if vres.syntax_valid and (vres.tests_passed is True):
+                fix_usable += 1
 
         per_sample.append({
             "file": r.get("file", ""),
             "language": r.get("language", ""),
             "expected_cwe": r.get("expected_cwe", ""),
             "model_vulnerability_type": r.get("model_vulnerability_type", ""),
-            "fix_extracted": vres.fixed_code is not None,
-            "syntax_valid": vres.syntax_valid,
-            "tests_passed": vres.tests_passed,
-            "fix_usable": usable,
-            "error_message": vres.error_message,
+            "fix_suggested": suggested,
+            "line_refs": sorted(line_refs),
+            "total_lines": total_lines,
+            "fix_anchored": refs_valid,
+            "fix_code_block": code_block,
+            "fix_extracted": vres.fixed_code is not None if vres else False,
+            "syntax_valid": vres.syntax_valid if vres else None,
+            "tests_passed": vres.tests_passed if vres else None,
+            "fix_usable": (vres.syntax_valid and vres.tests_passed is True) if vres else False,
+            "error_message": vres.error_message if vres else None,
         })
 
+    fix_suggested_rate = fix_suggested / fix_applicable if fix_applicable else None
+    fix_anchored_rate = fix_anchored / fix_applicable if fix_applicable else None
     fix_usable_rate = fix_usable / fix_applicable if fix_applicable else None
     return {
         "fix_applicable": fix_applicable,
+        "fix_suggested": fix_suggested,
+        "fix_suggested_rate": round(fix_suggested_rate, 4) if fix_suggested_rate is not None else None,
+        "fix_anchored": fix_anchored,
+        "fix_anchored_rate": round(fix_anchored_rate, 4) if fix_anchored_rate is not None else None,
+        "fix_line_ref_invalid": fix_line_ref_invalid,
         "fix_extracted": fix_extracted,
         "fix_syntax_ok": fix_syntax_ok,
         "fix_removed_vuln": fix_removed_vuln,
         "fix_usable": fix_usable,
         "fix_usable_rate": round(fix_usable_rate, 4) if fix_usable_rate is not None else None,
-        "fix_unusable_reasons": reasons,
+        "fix_issues": issues,
         "per_sample": per_sample,
     }
 
@@ -820,17 +855,21 @@ def main():
         print(f"  strict_recall_with_parse_fail: {strict_metrics['strict_recall_with_parse_fail']}  (含 parse_fail 的召回率)")
         print(f"  strict_accuracy: {strict_metrics['strict_accuracy']}  (loose accuracy={metrics['accuracy']})")
 
-        # 修复可用性（第一指标，参考1.md）
+        # 修复建议评估（主指标：给出建议 + 行号锚定）
         fix_verifier = FixVerifier(timeout=30)
         fix_metrics = compute_fix_metrics(representative_results, fix_verifier)
-        print("\n=== 修复可用性（第一指标）===")
+        print("\n=== 修复建议评估 ===")
         print(f"  应修复样本（漏洞且判True）: {fix_metrics['fix_applicable']}")
-        print(f"  抽到代码块: {fix_metrics['fix_extracted']} | 语法通过: {fix_metrics['fix_syntax_ok']}")
-        print(f"  危险模式已移除: {fix_metrics['fix_removed_vuln']}")
-        print(f"  ★修复可用（语法通过+危险移除）: {fix_metrics['fix_usable']} "
+        print(f"  ★给出建议: {fix_metrics['fix_suggested']} "
+              f"({fix_metrics['fix_suggested_rate']}) | 行号锚定合法: {fix_metrics['fix_anchored']} "
+              f"({fix_metrics['fix_anchored_rate']})")
+        if fix_metrics["fix_line_ref_invalid"]:
+            print(f"  行号超出代码范围: {fix_metrics['fix_line_ref_invalid']}")
+        print(f"  [辅助口径·旧代码块格式] 抽到代码块: {fix_metrics['fix_extracted']} | "
+              f"语法通过: {fix_metrics['fix_syntax_ok']} | 修复可用: {fix_metrics['fix_usable']} "
               f"({fix_metrics['fix_usable_rate']})")
-        if fix_metrics['fix_unusable_reasons']:
-            print(f"  失败原因: {fix_metrics['fix_unusable_reasons']}")
+        if fix_metrics['fix_issues']:
+            print(f"  问题计数: {fix_metrics['fix_issues']}")
 
         # 多种子聚合
         multi_summary = None
@@ -869,7 +908,7 @@ def main():
             "all_runs": all_runs if args.seeds > 1 else None,
             "metrics": metrics,  # 来自 run1 (seed=42)
             "strict_metrics": strict_metrics,
-            "fix_metrics": fix_metrics,  # 修复可用性（第一指标）
+            "fix_metrics": fix_metrics,  # 修复建议评估
             "multiseed_summary": multi_summary,
         }
         # 多种子场景：额外保存 metrics_mean 字段（多种子均值），供下游对比脚本使用

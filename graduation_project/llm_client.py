@@ -55,7 +55,7 @@ _STRUCTURED_OUTPUT_SCHEMA = {
         },
         "fix_suggestion": {
             "type": "string",
-            "description": "完整、可运行的修复版代码，用 ``` 围栏包裹（含语言标签，如 ```python）。必须是基于原代码修改后的完整版本，禁止只给片段、省略号或补丁说明；无漏洞填 'no fix needed'"
+            "description": "行号锚定的简短修复建议（单行、不含换行），格式如 'line 3: 应改为 ...' 或 '第 3 行：... 建议改为 ...'；指出应修改的具体行与改法即可，禁止输出完整代码/补丁/围栏代码块，行号必须是代码中真实存在的；无漏洞填 'no fix needed'"
         }
     },
     "required": ["has_vulnerability", "vulnerability_type", "risk_level",

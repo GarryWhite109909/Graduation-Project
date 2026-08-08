@@ -2,8 +2,11 @@
 修复建议验证模块 —— 对 LLM 生成的 fix_suggestion 做基础自动化校验。
 
 设计目标：
-- LLM 扫描器在 SingleResult.fix_suggestion 中给出修复建议文本（通常含 markdown
-  代码围栏）。本模块从中抽取修复后的代码，做两件事：
+- 2026-08-08 起 schema 要求 fix_suggestion 为"行号锚定的简短修复建议"
+  （单行、不含完整代码）。本模块主职责改为**行号锚定校验**：提取建议中的
+  line N / 第 N 行 引用，核对是否落在原始代码真实行数内（抓幻觉行号）。
+- 对仍输出 markdown 代码围栏的旧格式建议，保留完整代码抽取 + 语法校验 +
+  漏洞模式移除检查：
   1. 语法校验：Python 用 ast.parse / py_compile，JavaScript 用 node --check，
      Java 用 javac（如可用），其他语言跳过（返回 True）。
   2. 漏洞模式移除检查：复用 schema.py 中精挑细选的 _VULN_SIGNATURE_PATTERNS，
@@ -50,6 +53,44 @@ _EXTRA_DANGER_PATTERNS = [
     re.compile(r"redirect\s*\([^)]*\+"),                         # Flask 开放重定向拼接
     re.compile(r"@app\.route[\s\S]{0,400}?render_template_string", re.IGNORECASE),  # SSTI 组合特征
 ]
+
+# 行号引用提取（新格式 fix_suggestion 的主校验）
+_LINE_REF_RE = re.compile(r"(?:line\s*|第\s*)(\d+)(?:\s*行)?", re.IGNORECASE)
+_CODE_FENCE_RE = re.compile(r"```[a-zA-Z0-9_+-]*\n", re.MULTILINE)
+
+
+def extract_line_refs(text: str) -> set[int]:
+    """从修复建议中提取引用的行号（line N / 第 N 行）。"""
+    if not text:
+        return set()
+    return {int(n) for n in _LINE_REF_RE.findall(text)}
+
+
+def has_code_fence(text: str) -> bool:
+    """建议里是否仍包含 markdown 代码围栏（旧格式，辅助口径用）。"""
+    return bool(text) and bool(_CODE_FENCE_RE.search(text))
+
+
+def validate_fix_suggestion(suggestion: str, original_code: str) -> dict:
+    """校验局部修复建议的行号锚定是否合法。
+
+    Returns:
+        {
+            "line_refs": list[int],        # 建议中引用的行号
+            "total_lines": int,            # 原始代码总行数
+            "all_refs_valid": bool,        # 有引用且全部落在 1..total_lines
+            "code_block": bool,            # 是否仍含代码围栏（旧格式）
+        }
+    """
+    refs = extract_line_refs(suggestion or "")
+    total = len((original_code or "").split("\n"))
+    valid = bool(refs) and all(1 <= n <= total for n in refs)
+    return {
+        "line_refs": sorted(refs),
+        "total_lines": total,
+        "all_refs_valid": valid,
+        "code_block": has_code_fence(suggestion or ""),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -104,7 +145,7 @@ class FixVerifier:
         """从 fix_suggestion 文本中抽取 markdown 代码围栏内的代码。
 
         匹配 ```lang ... ``` 或 ``` ... ``` 形式。返回最后一个代码块的内容
-        （修复建议通常在最后给出完整修复代码）；无代码围栏时返回 None。
+        （旧格式的修复建议通常在最后给出完整修复代码）；无代码围栏时返回 None。
         """
         if not fix_suggestion:
             return None
@@ -112,7 +153,7 @@ class FixVerifier:
         matches = re.findall(r"```[a-zA-Z0-9_+-]*\n(.*?)```", fix_suggestion, re.DOTALL)
         if not matches:
             return None
-        # 取最后一个代码块（修复建议末尾通常是完整修复代码）
+        # 取最后一个代码块（旧格式修复建议末尾通常是完整修复代码）
         return matches[-1].strip()
 
     # ------------------------------------------------------------------

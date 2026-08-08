@@ -58,7 +58,7 @@ from app.backend.services.scheduler import (
 # 高级能力模块（外部工具扫描 / 修复验证 / 多模型投票 / vLLM 推理加速）
 from graduation_project.external_scanner import ExternalScanner
 from graduation_project.two_stage_scanner import TwoStageScanner, tool_recall_monitor_snapshot
-from graduation_project.fix_verifier import FixVerifier
+from graduation_project.fix_verifier import FixVerifier, validate_fix_suggestion
 from graduation_project.multi_model_scanner import MultiModelScanner
 from graduation_project.vllm_client import VLLMClient
 from graduation_project.schema import parse_verdict, normalize_has_vulnerability
@@ -766,19 +766,32 @@ def external_scan(req: ExternalScanRequest):
 # ---------------------------------------------------------------------------
 @app.post("/api/verify-fix")
 def verify_fix(req: VerifyFixRequest):
-    """对 LLM 生成的 fix_suggestion 做语法校验 + 危险模式移除检查。"""
+    """校验修复建议：行号锚定合法性 + 旧式代码块语法/危险模式检查。
+
+    schema 已改为"行号锚定的局部修复建议"（单行、不含完整代码），因此主校验是
+    提取建议中的 line N / 第 N 行 引用并核对是否落在原始代码真实行数内。
+    若建议仍包含代码围栏（旧格式），顺带跑 FixVerifier 的语法 + 危险模式移除检查。
+    """
     verifier = FixVerifier()
+    anchor = validate_fix_suggestion(req.fix_suggestion, req.original_code)
     result = verifier.verify_fix(
         original_code=req.original_code,
         fix_suggestion=req.fix_suggestion,
         language=req.language,
-    )
+    ) if anchor["code_block"] else None
     return {
-        "syntax_valid": result.syntax_valid,
-        "tests_passed": result.tests_passed,
-        "fixed_code": result.fixed_code,
-        "error_message": result.error_message,
-        "duration": round(result.duration, 2),
+        "mode": "code_block" if anchor["code_block"] else "localized",
+        "line_refs": anchor["line_refs"],
+        "total_lines": anchor["total_lines"],
+        "all_refs_valid": anchor["all_refs_valid"],
+        "code_block": anchor["code_block"],
+        "syntax_valid": result.syntax_valid if result else None,
+        "tests_passed": result.tests_passed if result else None,
+        "fixed_code": result.fixed_code if result else None,
+        "error_message": result.error_message if result else (
+            None if anchor["all_refs_valid"] else "建议未引用代码中真实存在的行号"
+        ),
+        "duration": round(result.duration, 2) if result else 0.0,
     }
 
 

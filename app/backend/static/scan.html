@@ -1461,7 +1461,7 @@
             buttons += '<button type="button" class="download-single text-xs text-[var(--vuln-ink-3)] hover:text-[var(--vuln-brand)] font-medium ml-3" data-code="' + escapeAttr(r._orig) + '" data-lang="' + escapeAttr(r._lang || 'python') + '" data-filename="' + escapeAttr(r.filename || 'code') + '">下载单文件报告</button>';
           }
           if (r.fix_suggestion && r.fix_suggestion !== 'no fix needed' && r._orig) {
-            buttons += '<button type="button" class="verify-fix text-xs text-[var(--vuln-state-success)] hover:opacity-80 font-medium ml-3" data-fix="' + escapeAttr(r.fix_suggestion) + '" data-orig="' + escapeAttr(r._orig) + '" data-lang="' + escapeAttr(r._lang || 'python') + '">验证修复</button>';
+            buttons += '<button type="button" class="verify-fix text-xs text-[var(--vuln-state-success)] hover:opacity-80 font-medium ml-3" data-fix="' + escapeAttr(r.fix_suggestion) + '" data-orig="' + escapeAttr(r._orig) + '" data-lang="' + escapeAttr(r._lang || 'python') + '">校验修复建议</button>';
           }
           buttons = delBtn + buttons;
 
@@ -1546,21 +1546,32 @@
           var resultEl = btn.closest('.result-card').querySelector('.verify-result');
           btn.disabled = true;
           btn.textContent = '验证中…';
-          resultEl.innerHTML = '<p class="text-xs text-[var(--vuln-ink-3)]">正在校验语法与危险模式移除…</p>';
+          resultEl.innerHTML = '<p class="text-xs text-[var(--vuln-ink-3)]">正在校验行号锚定…</p>';
 
           postJSON('/api/verify-fix', { original_code: orig, fix_suggestion: fix, language: lang }).then(function (d) {
             btn.disabled = false;
-            btn.textContent = '验证修复';
-            var syntaxBadge = d.syntax_valid
-              ? '<span class="text-[var(--vuln-state-success)]">语法通过</span>'
-              : '<span class="text-[var(--vuln-state-error)]">语法错误</span>';
-            var testBadge = d.tests_passed === true
-              ? '<span class="text-[var(--vuln-state-success)]">危险模式已移除</span>'
-              : (d.tests_passed === false ? '<span class="text-[var(--vuln-state-error)]">危险模式仍存在</span>' : '<span class="text-[var(--vuln-ink-3)]">无法判定</span>');
-            resultEl.innerHTML = '<div class="flex items-center gap-3 text-xs font-medium p-2 rounded-md bg-[var(--vuln-bg)] border border-[var(--vuln-line)]">' + syntaxBadge + ' · ' + testBadge + (d.error_message ? ' · <span class="text-[var(--vuln-state-error)]">' + escapeHtml(d.error_message) + '</span>' : '') + '</div>';
+            btn.textContent = '校验修复建议';
+            var badges = [];
+            if (d.mode === 'localized') {
+              var anchorBadge = d.all_refs_valid
+                ? '<span class="text-[var(--vuln-state-success)]">行号锚定有效（' + (d.line_refs || []).join(', ') + '）</span>'
+                : '<span class="text-[var(--vuln-state-error)]">行号锚定无效</span>';
+              badges.push(anchorBadge);
+              if (d.error_message) badges.push('<span class="text-[var(--vuln-state-error)]">' + escapeHtml(d.error_message) + '</span>');
+            } else {
+              var syntaxBadge = d.syntax_valid
+                ? '<span class="text-[var(--vuln-state-success)]">语法通过</span>'
+                : '<span class="text-[var(--vuln-state-error)]">语法错误</span>';
+              var testBadge = d.tests_passed === true
+                ? '<span class="text-[var(--vuln-state-success)]">危险模式已移除</span>'
+                : (d.tests_passed === false ? '<span class="text-[var(--vuln-state-error)]">危险模式仍存在</span>' : '<span class="text-[var(--vuln-ink-3)]">无法判定</span>');
+              badges.push(syntaxBadge, testBadge);
+              if (d.error_message) badges.push('<span class="text-[var(--vuln-state-error)]">' + escapeHtml(d.error_message) + '</span>');
+            }
+            resultEl.innerHTML = '<div class="flex items-center gap-3 text-xs font-medium p-2 rounded-md bg-[var(--vuln-bg)] border border-[var(--vuln-line)]">' + badges.join(' · ') + '</div>';
           }).catch(function (err) {
             btn.disabled = false;
-            btn.textContent = '验证修复';
+            btn.textContent = '校验修复建议';
             resultEl.innerHTML = '<p class="text-xs text-[var(--vuln-state-error)]">验证失败: ' + escapeHtml(err.message) + '</p>';
           });
         }
