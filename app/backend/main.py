@@ -253,6 +253,176 @@ def health():
     return base
 
 
+def _build_backend_info() -> dict:
+    """构造当前推理后端的精度/流程信息，供前端展示。"""
+    client = scanner.client
+    cls_name = type(client).__name__
+    backend = {
+        "OllamaClient": "ollama",
+        "TransformersClient": "transformers",
+        "LlamaCppClient": "llamacpp",
+        "VLLMClient": "vllm",
+    }.get(cls_name, cls_name)
+
+    # 通用环境变量
+    num_ctx = int(os.environ.get("VULN_SCANNER_NUM_CTX", "0") or "0")
+    num_gpu = int(os.environ.get("VULN_SCANNER_NUM_GPU", "-1") or "-1")
+
+    info: dict = {
+        "backend": backend,
+        "backend_class": cls_name,
+        "num_ctx": num_ctx if num_ctx > 0 else None,
+        "num_gpu": num_gpu if num_gpu >= 0 else None,
+    }
+
+    if backend == "ollama":
+        model = getattr(client, "model", os.environ.get("VULN_SCANNER_MODEL", ""))
+        q_label = "GGUF Q4_K_M"
+        if "q6" in model.lower() or "q6_k" in model.lower():
+            q_label = "GGUF Q6_K"
+        elif "q5" in model.lower():
+            q_label = "GGUF Q5_K_M"
+        elif "q4" in model.lower() or "v9max" in model.lower():
+            q_label = "GGUF Q4_K_M"
+        info.update({
+            "model": model,
+            "base_quantization": q_label,
+            "lora_quantized": True,
+            "lora_precision": "Base + LoRA 合并后整体量化为 Q4_K_M（LoRA 被二次量化）",
+            "compute_dtype": None,
+            "device_type": "Ollama 托管",
+            "num_gpu_layers": None,
+            "precision_note": (
+                "Ollama 发布版把微调后的 Base + LoRA 先合并，再整体压成 GGUF Q4_K_M。"
+                "这会把原本 FP16 的 LoRA 增量再次量化，导致真实 CVE-fix 召回从 HF 管道的 0.95 掉到约 0.75~0.79。"
+            ),
+        })
+
+    elif backend == "transformers":
+        adapter = getattr(client, "adapter", "") or os.environ.get("VULN_SCANNER_ADAPTER", "")
+        model_id = getattr(client, "model_id", "") or os.environ.get("VULN_SCANNER_MODEL_ID", "Qwen/Qwen3-8B")
+        quantize = bool(getattr(client, "quantize", True))
+        compute_dtype = (getattr(client, "compute_dtype", "") or "").lower()
+        if not compute_dtype:
+            # 与 transformers_client 默认保持一致
+            compute_dtype = "bf16" if "rocm" in os.environ.get("VULN_SCANNER_COMPUTE_DTYPE", "").lower() else "fp16"
+
+        # 探测实际运行设备（torch 已安装才走此分支）
+        device_type = "未知"
+        try:
+            import torch
+            if torch.cuda.is_available():
+                device_type = "ROCm" if getattr(torch.version, "hip", None) else "CUDA"
+            else:
+                device_type = "CPU"
+        except Exception:
+            device_type = "未知（未加载）"
+
+        info.update({
+            "model": model_id,
+            "adapter_path": adapter,
+            "base_quantization": "NF4 4bit" if quantize else "FP16/FP32（未量化）",
+            "lora_quantized": False,
+            "lora_precision": "FP16（运行时叠加并合并，保持 LoRA 精度）",
+            "compute_dtype": compute_dtype,
+            "device_type": device_type,
+            "num_gpu_layers": num_gpu if num_gpu >= 0 else None,
+            "precision_note": (
+                "Transformers 管道：Base 用 bitsandbytes NF4 4bit 量化，LoRA 以 FP16 精度在运行时叠加并合并。"
+                "只压缩基座，不压缩 LoRA，复现了 G0 冻结集 95% CVE-fix recall 的管道。"
+            ),
+        })
+
+    elif backend == "llamacpp":
+        base_gguf = getattr(client, "base_gguf", "") or os.environ.get("VULN_SCANNER_GGUF", "")
+        adapter = getattr(client, "adapter", "") or os.environ.get("VULN_SCANNER_ADAPTER", "")
+        gguf_name = Path(base_gguf).name if base_gguf else ""
+        q_label = "GGUF Q4（常见）"
+        if gguf_name:
+            lowered = gguf_name.lower()
+            if "q6" in lowered:
+                q_label = "GGUF Q6"
+            elif "q5" in lowered:
+                q_label = "GGUF Q5"
+            elif "q4" in lowered:
+                q_label = "GGUF Q4"
+            elif "q8" in lowered:
+                q_label = "GGUF Q8"
+        gpu_layers = getattr(client, "gpu_layers", -1)
+        info.update({
+            "model": gguf_name or "未配置 GGUF",
+            "gguf_path": base_gguf,
+            "adapter_path": adapter,
+            "base_quantization": q_label,
+            "lora_quantized": False,
+            "lora_precision": "FP16（运行时通过 lora_path 叠加）",
+            "compute_dtype": "FP16",
+            "device_type": "GPU" if gpu_layers != 0 else "CPU",
+            "num_gpu_layers": gpu_layers if gpu_layers >= 0 else None,
+            "precision_note": (
+                "llama.cpp 加载 Q4 GGUF 基座，同时把 FP16 LoRA 作为独立权重在运行时叠加。"
+                "速度优于 transformers，但量化/反量化细节与 transformers 不同，召回需单独验证。"
+            ),
+        })
+
+    else:
+        info.update({
+            "model": getattr(client, "model", ""),
+            "base_quantization": "未知",
+            "lora_quantized": None,
+            "lora_precision": "未知",
+            "compute_dtype": None,
+            "device_type": "未知",
+            "num_gpu_layers": None,
+            "precision_note": "未知后端，无法判断精度信息。",
+        })
+
+    return info
+
+
+@app.get("/api/backend/info")
+def backend_info():
+    """当前推理后端与模型精度信息。
+
+    供前端显式展示：用的哪个后端、基座量化位宽、LoRA 是否被量化、运行设备等。
+    """
+    return _build_backend_info()
+
+
+@app.get("/api/backend/options")
+def backend_options():
+    """列出所有可选推理后端及其简要精度特征，供前端切换时提示。"""
+    return {
+        "current": _build_backend_info(),
+        "available": [
+            {
+                "id": "ollama",
+                "name": "Ollama",
+                "recommended": True,
+                "precision_summary": "GGUF Q4_K_M（Base+LoRA 合并后再量化）",
+                "pros": "一键启动、兼容性好、CPU 也能跑",
+                "cons": "LoRA 被二次量化，真实召回最低（约 75~79%）",
+            },
+            {
+                "id": "transformers",
+                "name": "Transformers",
+                "recommended": False,
+                "precision_summary": "NF4 Base + FP16 LoRA（LoRA 不量化）",
+                "pros": "精度最高，复现 95% CVE-fix recall",
+                "cons": "依赖大、显存/内存占用高、速度较慢",
+            },
+            {
+                "id": "llamacpp",
+                "name": "LlamaCPP",
+                "recommended": False,
+                "precision_summary": "Q4 GGUF + 运行时 FP16 LoRA",
+                "pros": "llama.cpp 内核快，LoRA 精度保留",
+                "cons": "实验性，ROCm/Metal 需自行编译 llama-cpp-python",
+            },
+        ],
+    }
+
+
 def _record_scan(batch: BatchResult, source: str = "batch") -> None:
     """记录一次扫描到统计中（进程内，重启后清零）。
 

@@ -44,7 +44,7 @@
 | pip | 任意可用版本 | 首次运行自动 `pip install -r requirements.txt && pip install -e .` |
 | 磁盘空间 | ≥ 8 GB | 模型权重约 5 GB + 依赖包约 2 GB + 向量库缓存 |
 | 内存 | ≥ 8 GB | 模型推理需要占用内存；8 GB 为最低线，16 GB 以上更流畅 |
-| GPU（可选） | NVIDIA ≥ 4 GB / Apple Silicon | 无 GPU 时自动回退 CPU 推理（速度约为 GPU 的 1/10） |
+| GPU（可选） | NVIDIA / AMD(ROCm) / Apple Silicon ≥ 4 GB | 无 GPU 时自动回退 CPU 推理（速度约为 GPU 的 1/10~1/20） |
 | Ollama | 首次运行自动安装 | 若自动安装失败，请手动从 [ollama.com/download](https://ollama.com/download) 安装 |
 | git（可选） | 任意版本 | 仅 GitHub 仓库扫描功能需要 |
 | 网络 | 首次需要联网 | 下载依赖包 + Ollama 模型；后续可离线运行 |
@@ -141,7 +141,10 @@ bash app/launcher/start_linux_macos.sh
 
 Windows 使用 `set` 代替 `export`。选择进程内后端后，启动器会自动按你的 OS/GPU 下载对应版本的 `torch`、`transformers`、`llama-cpp-python` 等依赖。
 
-> ⚠️ **显存门槛**：Transformers 后端推荐 NVIDIA 显存 ≥ 6GB；4GB 显存会被强制走 CPU，速度显著下降。Apple Silicon / ROCm 暂不支持 `bitsandbytes` 量化，启动器会跳过并提示改用 Ollama 或关闭量化。
+> ⚠️ **显存与平台说明**
+> - Transformers 后端推荐 NVIDIA/AMD 显存 ≥ 6GB；4GB 显存会被强制走 CPU，速度显著下降。
+> - `bitsandbytes` 已支持 NVIDIA CUDA、AMD ROCm（Linux 预览，部分 Windows 预览）、CPU-only（Windows/Linux/macOS）以及 Apple Silicon（慢速 CPU 路径）。启动器会自动安装，但 ROCm/Apple/CPU 上 4bit 速度远慢于 NVIDIA CUDA，追求速度请改用 Ollama 后端。
+> - LlamaCPP 后端可纯 CPU 运行（`n_gpu_layers=0`），也可按编译选项启用 CUDA/ROCm/Metal。
 
 ### 环境变量配置
 

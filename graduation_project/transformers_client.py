@@ -170,11 +170,25 @@ class TransformersClient:
         peft = _lazy_import_peft()
 
         try:
+            has_cuda = torch.cuda.is_available()
             is_rocm = bool(getattr(torch.version, "hip", None))
 
-            # 计算精度：默认 ROCm→bf16（fp16 在部分 CDNA 卡上慢），NVIDIA→fp16（消费级 2x 速率）。
-            compute_dtype_str = self.compute_dtype or ("bf16" if is_rocm else "fp16")
-            dtype = torch.bfloat16 if compute_dtype_str == "bf16" else torch.float16
+            # 计算精度：
+            #   - ROCm→bf16（fp16 在部分 CDNA 卡上慢）
+            #   - NVIDIA→fp16（消费级 2x 速率）
+            #   - CPU→fp32（ safest，部分 CPU 不支持 bf16/fp16 高效向量指令）
+            compute_dtype_str = self.compute_dtype or (
+                "bf16" if is_rocm else "fp16" if has_cuda else "fp32"
+            )
+            if compute_dtype_str == "bf16":
+                dtype = torch.bfloat16
+            elif compute_dtype_str == "fp32":
+                dtype = torch.float32
+            else:
+                dtype = torch.float16
+
+            # 设备映射：无 GPU 时走 CPU（bitsandbytes CPU 4bit 已支持）
+            device_map: Union[str, dict] = {"": 0} if has_cuda else "cpu"
 
             print(f"[TransformersClient] 加载 tokenizer: {self.model_id}")
             tokenizer = tf["AutoTokenizer"].from_pretrained(
@@ -183,11 +197,9 @@ class TransformersClient:
             if tokenizer.pad_token is None:
                 tokenizer.pad_token = tokenizer.eos_token
 
-            # 注意力后端：真正的可用性探测（原实现 try 内不抛异常，等于永远宣称用 flash，需修复）
-            #   - ROCm：flash_attention_2 需 hip flash，通常未安装 → 用 sdpa
-            #   - NVIDIA：用 transformers 的 is_flash_attn_2_available() 探测
+            # 注意力后端：flash_attn 仅 NVIDIA CUDA；ROCm/CPU 用 sdpa
             attn_impl = "sdpa"
-            if self.flash_attn and torch.cuda.is_available() and not is_rocm:
+            if self.flash_attn and has_cuda and not is_rocm:
                 try:
                     from transformers.utils import is_flash_attn_2_available
                     if is_flash_attn_2_available():
@@ -196,7 +208,7 @@ class TransformersClient:
                     attn_impl = "sdpa"
 
             kwargs: dict = {
-                "device_map": {"": 0},
+                "device_map": device_map,
                 "trust_remote_code": True,
                 "torch_dtype": dtype,
                 "attn_implementation": attn_impl,
@@ -209,8 +221,9 @@ class TransformersClient:
                     bnb_4bit_use_double_quant=True,
                 )
 
+            device_label = "ROCm" if is_rocm else "CUDA" if has_cuda else "CPU"
             print(f"[TransformersClient] 加载基座 {self.model_id} "
-                  f"(quantize={self.quantize}, dtype={compute_dtype_str}, attn={attn_impl})")
+                  f"(device={device_label}, quantize={self.quantize}, dtype={compute_dtype_str}, attn={attn_impl})")
             model = tf["AutoModelForCausalLM"].from_pretrained(self.model_id, **kwargs)
 
             print(f"[TransformersClient] 加载 LoRA adapter: {self.adapter}")
@@ -219,11 +232,11 @@ class TransformersClient:
             model = model.merge_and_unload()
             print("[TransformersClient] LoRA 已合并")
 
-            # torch.compile：默认 NVIDIA 开（reduce-overhead + CUDA graph 消除每 token 启动开销），
-            # ROCm 关（稳定性/编译慢）；VULN_SCANNER_COMPILE=0/1 可强制覆盖。
+            # torch.compile：默认仅 NVIDIA CUDA 开启（reduce-overhead + CUDA graph）。
+            # ROCm/CPU 默认关闭：ROCm 稳定性差，CPU 无收益。
             do_compile = self.compile_requested
             if do_compile is None:
-                do_compile = not is_rocm
+                do_compile = has_cuda and not is_rocm
             if do_compile:
                 try:
                     model = torch.compile(model, mode="reduce-overhead")

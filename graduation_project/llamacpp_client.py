@@ -123,13 +123,25 @@ class LlamaCppClient:
 
         try:
             llama = _lazy_import_llama_cpp()
+            gpu_layers = self.gpu_layers
+            # n_gpu_layers=-1 表示"尽量卸载到 GPU"；若当前 llama-cpp-python 编译时
+            # 未开启任何 GPU 后端，则传 -1 会报错，自动降级为 0（纯 CPU）。
+            if gpu_layers < 0:
+                try:
+                    import llama_cpp
+                    supports_gpu = getattr(llama_cpp, "llama_supports_gpu_offload", lambda: True)()
+                    if not supports_gpu:
+                        gpu_layers = 0
+                except Exception:
+                    pass
+
             print(f"[LlamaCppClient] 加载 GGUF 基座 {self.base_gguf} "
-                  f"(LoRA={self.adapter}, n_ctx={self.num_ctx}, gpu_layers={self.gpu_layers})")
+                  f"(LoRA={self.adapter}, n_ctx={self.num_ctx}, gpu_layers={gpu_layers})")
             self._llm = llama["Llama"](
                 model_path=self.base_gguf,
                 lora_path=self.adapter,   # 运行时叠加 FP16 LoRA，保留精度
                 n_ctx=self.num_ctx,
-                n_gpu_layers=self.gpu_layers,
+                n_gpu_layers=gpu_layers,
                 verbose=self.verbose,
             )
             self._load_error = None

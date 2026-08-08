@@ -5,7 +5,7 @@
     1. 检测操作系统、CPU 架构、GPU 厂商（NVIDIA / AMD / Apple Silicon / CPU）。
     2. 根据所选推理后端（transformers / llamacpp）和硬件组合，生成正确的 pip 安装命令。
     3. 检查依赖是否已安装；缺失时自动下载安装（支持 dry-run、超时、进度回调）。
-    4. 对不支持的组合（如 Apple Silicon / ROCm + bitsandbytes）给出明确警告和回退方案。
+    4. 对预览/慢速组合（如 ROCm / Apple Silicon / CPU-only + bitsandbytes）给出明确警告。
 
 使用方式（由 bootstrap.py 调用）：
     from app.launcher.dependency_installer import install_backend_dependencies
@@ -368,19 +368,51 @@ def _torch_spec(platform_info: PlatformInfo, gpu: GPUInfo, python_executable: st
     )
 
 
-def _bitsandbytes_spec(platform_info: PlatformInfo, gpu: GPUInfo) -> Optional[InstallSpec]:
-    """bitsandbytes 目前仅官方支持 Windows/Linux + NVIDIA CUDA。"""
-    if gpu.vendor == "nvidia" and platform_info.os_name in ("windows", "linux"):
-        return InstallSpec(
-            description="bitsandbytes (Windows/Linux CUDA)",
-            packages=["bitsandbytes>=0.43.0"],
-            check_modules=["bitsandbytes"],
+def _bitsandbytes_spec(platform_info: PlatformInfo, gpu: GPUInfo) -> InstallSpec:
+    """生成 bitsandbytes 安装规格。
+
+    bitsandbytes 官方当前支持：
+      - NVIDIA CUDA（Windows/Linux）
+      - AMD ROCm（Linux 预览轮；Windows 预览需 ROCm SDK，见官方文档）
+      - CPU-only（Windows/Linux/macOS，慢但可用）
+      - Apple Silicon（macOS arm64，通过 CPU 路径慢速运行）
+
+    因此除明确禁用的场景外，一律安装 bitsandbytes，让用户在对应平台获得
+    4bit/8bit 量化能力；不支持的组合会在运行时由 transformers_client 回退到
+    CPU 或非量化路径。
+    """
+    platform_label = {
+        "windows": "Windows", "linux": "Linux", "darwin": "macOS"
+    }.get(platform_info.os_name, platform_info.os_name)
+    gpu_label = gpu.vendor.upper() if gpu.vendor else "CPU"
+
+    warning: Optional[str] = None
+    if gpu.vendor == "amd":
+        warning = (
+            f"{platform_label} + ROCm 的 bitsandbytes 支持仍处于预览阶段，"
+            "需兼容的 ROCm PyTorch 环境；安装失败时可设置 VULN_SCANNER_QUANTIZE=0 关闭量化。"
         )
-    return None
+    elif gpu.vendor == "apple":
+        warning = (
+            "Apple Silicon 上的 bitsandbytes 走 CPU 路径，4bit 推理速度较慢；"
+            "追求速度请改用 Ollama 后端。"
+        )
+    elif gpu.vendor is None:
+        warning = (
+            "CPU-only 模式下 bitsandbytes 4bit 可用但速度显著慢于 GPU；"
+            "大模型建议改用 Ollama 后端。"
+        )
+
+    return InstallSpec(
+        description=f"bitsandbytes ({platform_label} {gpu_label})",
+        packages=["bitsandbytes>=0.43.0"],
+        check_modules=["bitsandbytes"],
+        warning=warning,
+    )
 
 
 def _transformers_specs(platform_info: PlatformInfo, gpu: GPUInfo, python_executable: str) -> List[InstallSpec]:
-    """transformers 后端：torch + transformers + peft + accelerate + bitsandbytes（如支持）。"""
+    """transformers 后端：torch + transformers + peft + accelerate + bitsandbytes。"""
     specs: List[InstallSpec] = []
 
     specs.append(_torch_spec(platform_info, gpu, python_executable))
@@ -389,28 +421,7 @@ def _transformers_specs(platform_info: PlatformInfo, gpu: GPUInfo, python_execut
         packages=["transformers>=4.45.0", "peft>=0.13.0", "accelerate>=1.0.0"],
         check_modules=["transformers", "peft", "accelerate"],
     ))
-
-    bnb = _bitsandbytes_spec(platform_info, gpu)
-    if bnb:
-        specs.append(bnb)
-    else:
-        # 占位 spec，用于打印警告，不执行安装
-        platform_label = {
-            "windows": "Windows", "linux": "Linux", "darwin": "macOS"
-        }.get(platform_info.os_name, platform_info.os_name)
-        gpu_label = gpu.vendor.upper() if gpu.vendor else "CPU-only"
-        specs.append(InstallSpec(
-            description="bitsandbytes（当前硬件/OS不支持，跳过）",
-            packages=[],
-            check_modules=["bitsandbytes"],
-            required=False,
-            warning=(
-                f"bitsandbytes 不支持 {gpu_label} + {platform_label} 组合，"
-                "transformers 后端加载时将无法使用 4bit 量化（NF4）。"
-                "Apple Silicon / ROCm 用户建议改用 Ollama 后端；"
-                "如仍想用 transformers，请设置 VULN_SCANNER_QUANTIZE=0 并确保内存/显存足够。"
-            ),
-        ))
+    specs.append(_bitsandbytes_spec(platform_info, gpu))
     return specs
 
 
