@@ -141,6 +141,12 @@ def _detect_nvidia() -> tuple[Optional[str], Optional[int]]:
 
     try:
         import torch  # type: ignore
+        # ROCm 版 torch 也会让 torch.cuda.is_available() 返回 True（复用 CUDA 命名空间），
+        # 但那是 AMD GPU 而非 NVIDIA。必须排除 hip 构建，否则 AMD+ROCm 会被误判成 NVIDIA
+        # 而错误地要求安装 CUDA 版 torch。
+        if torch.version.hip:
+            # ROCm 构建：不是 NVIDIA
+            return None, None
         if torch.cuda.is_available():
             name = torch.cuda.get_device_name(0)
             props = torch.cuda.get_device_properties(0)
@@ -523,6 +529,217 @@ def _build_pip_cmd(spec: InstallSpec, python_executable: str) -> List[str]:
     return cmd
 
 
+def _query_torch_build(python_executable: str) -> Optional[str]:
+    """查询目标解释器里已装 torch 的构建标识（如 'cu130' / 'rocm7.2' / 'cpu'）。
+
+    返回：
+        - '+后缀' 的小写形式（如 'cu130'）：torch.__version__ 形如 2.12.1+cu130
+        - '' ：torch 已装但无构建后缀（旧版 / 官方 pypi 版）
+        - None：torch 未安装或查询失败
+    """
+    try:
+        r = subprocess.run(
+            [python_executable, "-c", "import torch; print(torch.__version__)"],
+            capture_output=True, text=True, timeout=60,
+            encoding="utf-8", errors="replace",
+        )
+        if r.returncode != 0:
+            return None
+        ver = r.stdout.strip()
+        if "+" in ver:
+            return ver.split("+", 1)[1].lower()
+        return ""
+    except Exception:
+        return None
+
+
+def _required_torch_family(platform_info: PlatformInfo, gpu: GPUInfo) -> str:
+    """根据硬件确定当前应安装的 torch 构建族。
+
+    - NVIDIA   → 'cu'（CUDA 构建，如 cu130）
+    - AMD+Linux → 'rocm'（ROCm 构建，如 rocm7.2）
+    - 其余（CPU / Apple Silicon / AMD on Windows·macOS）→ 'cpu'
+    """
+    if gpu.vendor == "nvidia":
+        return "cu"
+    if gpu.vendor == "amd" and platform_info.os_name == "linux":
+        return "rocm"
+    return "cpu"
+
+
+def torch_needs_reinstall(
+    platform_info: PlatformInfo,
+    gpu: GPUInfo,
+    python_executable: str,
+) -> bool:
+    """判断已装 torch 是否与当前硬件匹配，不匹配则需要重装。
+
+    规则：
+        - 当前硬件需要的构建族 = NVIDIA→cu / AMD+Linux→rocm / 其余→cpu
+        - torch 未安装 → 需要装
+        - 需要 cu/rocm 但已装构建不匹配 → 需要重装（例如 AMD 机器上装了 CUDA 版 torch，
+          或 ROCm 机器上被误判成 NVIDIA 而要求 cu）
+        - CPU 族 → 任何已装构建都能跑，不重装
+    """
+    required = _required_torch_family(platform_info, gpu)
+    installed = _torch_build(python_executable)
+
+    if installed is None:
+        return True
+    if required in ("cu", "rocm"):
+        return not installed.startswith(required)
+    return False
+
+
+def _conda_envs_dir() -> Optional[Path]:
+    """定位 conda 的 envs 目录（尽可能不依赖特定调用方式）。
+
+    优先级：
+        1. sys.executable 路径中出现的 envs 目录（env python 形如 .../envs/<名>/bin/python3）
+        2. 从 sys.executable 向上找到 conda 根目录（含 conda-meta）下的 envs/
+        3. conda 可执行文件在 PATH 时，从它推导根目录下的 envs/
+    """
+    p = Path(sys.executable).resolve()
+    # 1) env python：路径里含 /envs/<名>/bin/python3
+    for parent in p.parents:
+        if parent.name == "envs" and parent.is_dir():
+            return parent
+    # 2) base / 根目录：找到含 conda-meta 的目录，取其 envs 子目录
+    for parent in p.parents:
+        if (parent / "conda-meta").is_dir():
+            envs = parent / "envs"
+            if envs.is_dir():
+                return envs
+    # 3) conda 在 PATH（即使当前解释器不是 conda python）：从 conda 可执行文件推导
+    conda_exe = shutil.which("conda")
+    if conda_exe:
+        root = Path(conda_exe).resolve().parent.parent  # <root>/bin/conda -> <root>
+        envs = root / "envs"
+        if envs.is_dir():
+            return envs
+    return None
+
+
+def _env_python(env: Path) -> Optional[str]:
+    """返回某个 conda 环境内的 python 可执行文件（按平台区分路径）。"""
+    if sys.platform == "win32":
+        candidates = [env / "python.exe"]
+    else:
+        candidates = [env / "bin" / "python3", env / "bin" / "python"]
+    for c in candidates:
+        if c.is_file():
+            return str(c)
+    return None
+
+
+def _list_conda_env_pythons() -> List[str]:
+    """列出所有 conda 环境里的 python 解释器（平台感知）。
+
+    优先用 `conda env list --json`；conda 不在 PATH 时回退到直接扫描 envs 目录。
+    Windows 环境解释器为 <env>/python.exe，linux/macOS 为 <env>/bin/python3。
+    """
+    pythons: List[str] = []
+
+    def _collect(env_path: str) -> None:
+        p = _env_python(Path(env_path))
+        if p:
+            pythons.append(p)
+
+    # 1) conda 命令方式（最准确）
+    try:
+        r = subprocess.run(
+            ["conda", "env", "list", "--json"],
+            capture_output=True, text=True, timeout=15,
+            encoding="utf-8", errors="replace",
+        )
+        if r.returncode == 0:
+            import json
+            data = json.loads(r.stdout)
+            for env_path in data.get("envs", []):
+                _collect(env_path)
+            if pythons:
+                return pythons
+    except Exception:
+        pass
+    # 2) 回退：扫描 envs 目录
+    envs_dir = _conda_envs_dir()
+    if envs_dir is not None:
+        try:
+            for env in sorted(envs_dir.iterdir()):
+                if env.is_dir():
+                    _collect(str(env))
+        except Exception:
+            pass
+    return pythons
+
+
+def _torch_build_in_process() -> Optional[str]:
+    """进程内获取当前解释器 torch 构建标识（如 'rocm7.2' / 'cu130' / '' / None）。
+
+    与 _query_torch_build 不同：直接 import torch，避免子进程在 GPU 初始化时
+    超时/失败导致误判（这是 re-exec 死循环的根因之一）。
+    """
+    try:
+        import torch  # type: ignore
+    except Exception:
+        return None
+    v = getattr(torch, "__version__", "")
+    if "+" in v:
+        return v.split("+", 1)[1].lower()
+    return "" if v else None
+
+
+def _torch_build(python_executable: str) -> Optional[str]:
+    """统一读取指定解释器的 torch 构建标识。
+
+    - 目标是当前进程的解释器：用进程内 import（可靠，不受 GPU 初始化子进程干扰）
+    - 目标是其他环境的解释器：用子进程查询
+    """
+    try:
+        same = os.path.realpath(python_executable) == os.path.realpath(sys.executable)
+    except Exception:
+        same = python_executable == sys.executable
+    if same:
+        return _torch_build_in_process()
+    return _query_torch_build(python_executable)
+
+
+def discover_best_python(
+    platform_info: Optional[PlatformInfo] = None,
+    gpu: Optional[GPUInfo] = None,
+) -> Optional[str]:
+    """为当前硬件寻找一个 torch 构建匹配的 python 解释器。
+
+    解决"不同用户必须分配到合适依赖"：不同机器/环境可能装了不同 torch 构建，
+    本函数优先返回当前解释器（若其 torch 已匹配硬件），否则在 conda 环境里
+    寻找一个 torch 构建匹配的解释器。找不到或非 GPU 场景返回 None。
+
+    返回的路径可交给启动器重新执行（re-exec），从而自动用对的环境跑推理后端，
+    避免"装了 CUDA 版 torch 的 base/graproj 在 AMD 机器上落到 CPU"。
+    """
+    if platform_info is None:
+        platform_info = detect_platform()
+    if gpu is None:
+        gpu = detect_gpu(platform_info)
+
+    required = _required_torch_family(platform_info, gpu)
+    # CPU 族不需要特定 torch 构建，无需切换环境
+    if required not in ("cu", "rocm"):
+        return None
+
+    # 当前解释器已匹配 → 无需切换（用进程内 import，可靠）
+    cur = _torch_build_in_process()
+    if cur is not None and cur.startswith(required):
+        return sys.executable
+
+    # 扫描 conda 环境，找一个 torch 匹配的
+    for env_py in _list_conda_env_pythons():
+        build = _query_torch_build(env_py)
+        if build is not None and build.startswith(required):
+            return env_py
+    return None
+
+
 def install_backend_dependencies(
     backend: str,
     python_executable: Optional[str] = None,
@@ -559,12 +776,34 @@ def install_backend_dependencies(
 
     specs = get_backend_requirements(backend, platform_info, gpu, python_executable)
 
+    # torch 构建必须匹配当前硬件（CUDA/ROCm/CPU）。
+    # 之前只检查"torch 是否已 import"，导致 CUDA 版 torch 在 AMD/ROCm 机器上被误判
+    # 为已就绪而跳过，模型最终加载到 CPU。这里识别出"torch 存在但构建不匹配"，
+    # 强制重装为正确版本。
+    torch_spec_idx = next(
+        (i for i, s in enumerate(specs) if s.check_modules == ["torch"]), None
+    )
+    torch_mismatch = (
+        torch_spec_idx is not None
+        and torch_needs_reinstall(platform_info, gpu, python_executable)
+    )
+    if torch_mismatch:
+        _emit(
+            f"[依赖安装] 检测到 torch 构建不匹配（本机需要 "
+            f"{_required_torch_family(platform_info, gpu)}，当前 "
+            f"{_torch_build(python_executable) or '未安装'}），将重装为匹配本机硬件的版本",
+            callback,
+        )
+
     # 先检查必须 spec 是否已全部就绪
     if not _force_reinstall():
         all_ready = True
         for spec in specs:
             if not spec.required:
                 continue
+            if torch_mismatch and spec.check_modules == ["torch"]:
+                all_ready = False
+                break
             missing = [m for m in spec.check_modules if not check_module_installed(m)]
             if missing:
                 all_ready = False
@@ -614,7 +853,11 @@ def install_backend_dependencies(
 
         # 若该 spec 的校验模块已全部就绪且未强制重装，则跳过（避免重复下载 torch 等大包）
         if not _force_reinstall():
-            already_ok = all(check_module_installed(m) for m in spec.check_modules)
+            if torch_mismatch and spec.check_modules == ["torch"]:
+                # torch 已装但构建不匹配硬件：必须重装，不能跳过
+                already_ok = False
+            else:
+                already_ok = all(check_module_installed(m) for m in spec.check_modules)
             if already_ok:
                 _emit(f"[依赖安装] {spec.description} 已就绪，跳过", callback)
                 continue

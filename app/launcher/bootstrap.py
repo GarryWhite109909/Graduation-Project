@@ -537,10 +537,16 @@ def detect_hardware() -> dict:
         pass
 
     # 2) nvidia-smi 失败则尝试 torch.cuda（torch 是 sentence-transformers 的间接依赖）
+    #    注意：ROCm 版 torch 会让 torch.cuda.is_available() 返回 True（复用 CUDA 命名空间），
+    #    但那是 AMD GPU 而非 NVIDIA。必须排除 hip 构建，否则 AMD/ROCm 机器会被误判成
+    #    NVIDIA 而套用错误的 NVIDIA 推理参数，且会跳过后续步骤 4 的 AMD 检测。
     if not hardware["has_nvidia_gpu"]:
         try:
             import torch  # type: ignore
-            if torch.cuda.is_available():
+            if torch.version.hip:
+                # ROCm 构建：属于 AMD GPU，交给步骤 4 检测
+                pass
+            elif torch.cuda.is_available():
                 hardware["has_nvidia_gpu"] = True
                 hardware["gpu_name"] = torch.cuda.get_device_name(0)
                 props = torch.cuda.get_device_properties(0)
@@ -916,6 +922,26 @@ def main():
         print("[2/5] Ollama 服务已运行")
     else:
         # 进程内后端（transformers/llamacpp）：不依赖 Ollama，自动安装依赖并校验配置
+        # 自动识别匹配当前硬件（CUDA/ROCm）的 python 环境并切换到它，避免
+        # base/graproj 装的是 CUDA 版 torch 导致 AMD/ROCm 机器上落到 CPU。
+        # VULN_SCANNER_REEXEC 守卫：只允许切换一次，防止环境间来回切换形成死循环。
+        best_python = dependency_installer.discover_best_python()
+        already_reexec = os.environ.get("VULN_SCANNER_REEXEC", "0") == "1"
+        if (
+            not already_reexec
+            and best_python
+            and os.path.realpath(best_python) != os.path.realpath(sys.executable)
+            and os.environ.get("VULN_SCANNER_FORCE_ENV", "1").strip() != "0"
+        ):
+            print(f"[启动器] 当前 Python ({sys.executable}) 的 torch 与硬件不匹配，")
+            print(f"          自动切换到已匹配的环境: {best_python}")
+            print(f"[启动器] 正在用该环境重新启动...\n")
+            # 用匹配的解释器重新执行本启动器（交互流程在子进程里再次进行）
+            env = os.environ.copy()
+            env["VULN_SCANNER_REEXEC"] = "1"
+            code = subprocess.call([best_python, "-m", "app.launcher.bootstrap", *sys.argv[1:]], env=env)
+            sys.exit(code)
+
         deps_ok = dependency_installer.install_backend_dependencies(
             backend,
             python_executable=sys.executable,

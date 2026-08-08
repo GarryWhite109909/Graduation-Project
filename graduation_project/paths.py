@@ -56,52 +56,60 @@ def is_valid_adapter_dir(path: Path) -> bool:
     return any((path / name).is_file() for name in weight_names)
 
 
-def discover_adapter_dir(project_root: Optional[Path] = None) -> Optional[Path]:
-    """在项目约定目录中自动探测 LoRA adapter。
+def _pick_best(candidates: list[Path]) -> Path:
+    """从候选目录中按名称启发式挑选最优 adapter 目录。
 
-    搜索范围（按优先级）：
-        1. project_root / "models" 下的直接子目录
-        2. project_root / "models" 本身（adapter 文件直接放 models/ 下）
-        3. project_root / "experiments" / "exp_06_finetune" / "outputs" / ** / "best"
-
-    若 models/ 下存在多个合法 adapter 目录，优先选择包含 "v9max" / "best" / "adapter"
-    字样的目录；仍无法确定时返回找到的第一个。
+    优先选择包含 "v9max" / "best" / "adapter" 字样的目录；仍无法确定时返回第一个。
     """
-    root = (project_root or find_project_root()).resolve()
-
-    candidates: list[Path] = []
-
-    # 1) models/ 子目录
-    models_dir = root / "models"
-    if models_dir.is_dir():
-        for child in sorted(models_dir.iterdir()):
-            if child.is_dir() and is_valid_adapter_dir(child):
-                candidates.append(child)
-        # models/ 本身也可能直接放权重
-        if is_valid_adapter_dir(models_dir):
-            candidates.append(models_dir)
-
-    # 2) 训练输出目录兜底（兼容旧路径）
-    outputs_dir = root / "experiments" / "exp_06_finetune" / "outputs"
-    if outputs_dir.is_dir():
-        for best_dir in sorted(outputs_dir.rglob("best")):
-            if is_valid_adapter_dir(best_dir):
-                candidates.append(best_dir)
-
-    if not candidates:
-        return None
     if len(candidates) == 1:
         return candidates[0]
-
-    # 启发式排序：优先包含版本/标识关键字的目录
     score_map = {"v9max": 3, "best": 2, "adapter": 1}
 
     def _score(p: Path) -> int:
         lowered = p.name.lower()
         return max((score_map.get(k, 0) for k in score_map if k in lowered), default=0)
 
-    candidates.sort(key=_score, reverse=True)
-    return candidates[0]
+    return sorted(candidates, key=_score, reverse=True)[0]
+
+
+def discover_adapter_dir(project_root: Optional[Path] = None) -> Optional[Path]:
+    """在项目约定目录中自动探测 LoRA adapter。
+
+    搜索范围（按优先级分层，主位置永远优先于兜底位置）：
+        1. 主位置 project_root / "models"：
+           - 直接子目录
+           - models/ 本身（adapter 文件直接放 models/ 下）
+        2. 兜底位置 project_root / "experiments" / "exp_06_finetune" / "outputs" / ** / "best"
+
+    仅当主位置 models/ 下没有任何合法 adapter 时，才回退到训练输出目录。
+    这样项目根 models/ 下直接放置的 adapter 不会被实验归档目录覆盖。
+    """
+    root = (project_root or find_project_root()).resolve()
+
+    # 1) 主位置：models/（子目录 + 本身）
+    tier1: list[Path] = []
+    models_dir = root / "models"
+    if models_dir.is_dir():
+        for child in sorted(models_dir.iterdir()):
+            if child.is_dir() and is_valid_adapter_dir(child):
+                tier1.append(child)
+        # models/ 本身也可能直接放权重
+        if is_valid_adapter_dir(models_dir):
+            tier1.append(models_dir)
+    if tier1:
+        return _pick_best(tier1)
+
+    # 2) 兜底位置：训练输出目录（兼容旧路径）
+    tier2: list[Path] = []
+    outputs_dir = root / "experiments" / "exp_06_finetune" / "outputs"
+    if outputs_dir.is_dir():
+        for best_dir in sorted(outputs_dir.rglob("best")):
+            if is_valid_adapter_dir(best_dir):
+                tier2.append(best_dir)
+    if tier2:
+        return _pick_best(tier2)
+
+    return None
 
 
 def resolve_adapter_path(
