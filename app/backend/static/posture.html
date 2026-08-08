@@ -662,7 +662,8 @@
         const svg = document.getElementById('chart-trend');
         if (!svg) return;
         // 趋势图只显示 GitHub 仓库扫描的历史（取最近 MAX_HISTORY 条，避免历史变多后溢出布局）
-        const hist = getHistory().filter(function (entry) {
+        // 数据源：activeHistory（后端 /api/stats 优先）或 localStorage 回退
+        const hist = (activeHistory || getHistory()).filter(function (entry) {
           return entry.source === 'github';
         }).slice(-MAX_HISTORY);
         const countEl = document.getElementById('trend-count');
@@ -893,8 +894,8 @@
       }
 
       /* ---------- 扫描概览（新增卡片） ---------- */
-      function computeScanSummary() {
-        var hist = getHistory().filter(function (e) { return e.source === 'github'; });
+      function computeScanSummary(entries) {
+        var hist = entries || (activeHistory || getHistory()).filter(function (e) { return e.source === 'github'; });
         var scans = hist.length;
         var files = 0, vuln = 0, safe = 0;
         hist.forEach(function (e) {
@@ -963,15 +964,13 @@
         applyRemediationFilter();
       });
 
-      /* ---------- 从历史数据初始化看板（仅 GitHub 仓库扫描数据） ---------- */
-      function loadDashboardFromHistory() {
-        const hist = getHistory();
-        if (!hist.length) return false;
-        // 安全态势只显示 GitHub 仓库扫描的数据，其他来源（粘贴/URL/演示）归仪表盘
-        const repoScans = hist.filter(function (entry) {
-          return entry.source === 'github';
-        });
-        if (!repoScans.length) return false;
+      /* ---------- 看板渲染（后端 / localStorage 共用） ---------- */
+      /* activeHistory：当前生效的数据源（时间正序的扫描记录数组）。
+         优先来自后端 /api/stats（真实 API），后端无数据/不可达时回退 localStorage。 */
+      var activeHistory = null;
+
+      function renderDashboard(repoScans, provenance) {
+        if (!repoScans || !repoScans.length) return false;
         const allResults = [];
         let totalFiles = 0;
         let lastDate = '';
@@ -980,7 +979,7 @@
             entry.results.forEach(function (r) { allResults.push(r); });
           }
           totalFiles += entry.total_files != null ? entry.total_files : (entry.total || 0);
-          lastDate = entry.date;
+          lastDate = entry.date || entry.timestamp || lastDate;
         });
         if (!allResults.length) return false;
 
@@ -1018,16 +1017,62 @@
         renderRemediation(allResults);
         renderTypeDist(allResults);
         renderTopFiles(allResults);
-        renderScanSummary(computeScanSummary());
+        renderScanSummary(computeScanSummary(repoScans));
 
-        setText('meta-repo-text', '仓库扫描历史');
+        setText('meta-repo-text', provenance || '仓库扫描历史');
         setText('meta-time-text', relativeTime(lastDate));
         setText('meta-files-text', '累计扫描 ' + totalFiles + ' 个文件');
         return true;
       }
 
+      /* ---------- 从后端 /api/stats 加载（首选真实数据源） ---------- */
+      async function loadDashboardFromBackend() {
+        let stats;
+        try {
+          const resp = await fetch(BACKEND_URL + '/api/stats', { signal: AbortSignal.timeout ? AbortSignal.timeout(5000) : undefined });
+          if (!resp.ok) return false;
+          stats = await resp.json();
+        } catch (e) {
+          return false;  /* 后端不可达，回退 localStorage */
+        }
+        const recent = Array.isArray(stats.recent_scans) ? stats.recent_scans : [];
+        if (!recent.length) return false;
+        // 安全态势只显示 GitHub 仓库扫描的数据（source 缺失的历史记录按 github 兼容处理）
+        const repoScans = recent.filter(function (entry) {
+          return !entry.source || entry.source === 'github';
+        }).map(function (entry) {
+          const counts = aggregateResults(entry.results || []);
+          return {
+            date: entry.timestamp,
+            timestamp: entry.timestamp,
+            source: entry.source || 'github',
+            total_files: entry.total_files,
+            vulnerable: entry.vulnerable,
+            safe: entry.safe,
+            score: calcScore(counts),
+            results: entry.results || []
+          };
+        }).reverse();  /* 后端 insert(0) 最新在前，翻转为时间正序 */
+        if (!repoScans.length) return false;
+        activeHistory = repoScans;
+        return renderDashboard(repoScans, '后端扫描记录（实时）');
+      }
+
+      /* ---------- 从历史数据初始化看板（仅 GitHub 仓库扫描数据，localStorage 回退） ---------- */
+      function loadDashboardFromHistory() {
+        const hist = getHistory();
+        if (!hist.length) return false;
+        // 安全态势只显示 GitHub 仓库扫描的数据，其他来源（粘贴/URL/演示）归仪表盘
+        const repoScans = hist.filter(function (entry) {
+          return entry.source === 'github';
+        });
+        if (!repoScans.length) return false;
+        activeHistory = repoScans;
+        return renderDashboard(repoScans, '仓库扫描历史（本地）');
+      }
+
       /* ---------- 初始化 ---------- */
-      function init() {
+      async function init() {
         const btn = document.getElementById('btn-analyze-repo');
         if (btn) btn.addEventListener('click', analyzeRepo);
 
@@ -1041,8 +1086,9 @@
           });
         }
 
-        // 优先用 localStorage 历史数据渲染；没有数据时才显示默认空状态
-        const loaded = loadDashboardFromHistory();
+        // 数据源优先级：后端 /api/stats（真实 API）→ localStorage 历史 → 默认空状态
+        let loaded = await loadDashboardFromBackend();
+        if (!loaded) loaded = loadDashboardFromHistory();
         window.__postureHasData = loaded;   /* renderRemediation 据此区分两种空态 */
         if (!loaded) {
           animateRing(0);
@@ -1056,7 +1102,7 @@
           renderScanSummary();
         }
 
-        // 趋势图：从 localStorage 渲染
+        // 趋势图：从 activeHistory（后端优先）渲染
         renderTrendChart();
 
         // 后端健康检查

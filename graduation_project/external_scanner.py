@@ -51,6 +51,7 @@ _TAINT_RULES_DIR: str = os.path.join(os.path.dirname(os.path.abspath(__file__)),
 _TAINT_TYPE_BY_RULE: dict[str, tuple[str, str]] = {
     "sqli": ("SQL Injection", "high"),
     "cmdi": ("Command Injection", "high"),
+    "codei": ("Code Injection", "critical"),  # CWE-95，勿并入 cmdi（CWE-78）
 }
 
 
@@ -117,12 +118,14 @@ def normalize_severity(value: str) -> str:
 
 
 def _extract_taint_endpoint(extra: dict, name: str) -> tuple[str, int]:
-    """从 semgrep taint finding 的 extra.metavars 提取 source/sink 的表达式与行号。
+    """从 semgrep taint finding 提取 source/sink 的表达式与行号。
 
-    taint 模式下 semgrep 会把 $SOURCE / $SINK metavar 注入 metavars：
-        extra.metavars["$SOURCE"]["abstract_content"]   # 实际表达式
-        extra.metavars["$SOURCE"]["start"]["line"]       # 行号
-    部分版本用 extra.taint_source / extra.taint_sink 的 {content, location}。
+    按优先级尝试三个来源：
+      1. extra.metavars["$SOURCE"/"$SINK"]（部分版本/pro 引擎注入）
+      2. extra.dataflow_trace.taint_source / taint_sink（带 --dataflow-traces 时）
+      3. extra.taint_source / extra.taint_sink 顶层字段（旧版本）
+    注意：semgrep OSS（实测 1.172）taint 结果的 JSON 不含以上任何字段——
+    finding 的 start 行即 sink 行，source 位置需由 TaintTracker 或裁决层补全。
 
     Returns:
         (表达式字符串, 行号)；取不到时返回 ("", 0)。
@@ -134,6 +137,16 @@ def _extract_taint_endpoint(extra: dict, name: str) -> tuple[str, int]:
         content = mv.get("abstract_content") or mv.get("content") or ""
         line = int((mv.get("start") or {}).get("line", 0) or 0)
         return str(content), line
+
+    # dataflow_trace（--dataflow-traces / pro 引擎）
+    dt = extra.get("dataflow_trace") or {}
+    node = dt.get("taint_source" if name == "SOURCE" else "taint_sink") or {}
+    if node:
+        loc = node.get("location") or {}
+        content = node.get("content") or loc.get("content") or ""
+        line = int((loc.get("start") or node.get("start") or {}).get("line", 0) or 0)
+        if content or line:
+            return str(content), line
 
     # 兜底：taint_source / taint_sink 字段
     field = "taint_source" if name == "SOURCE" else "taint_sink"
@@ -195,11 +208,17 @@ class ExternalScanner:
                    未安装或未知的工具名会被忽略。
         """
         requested = list(tools) if tools is not None else list(_ALL_TOOLS)
-        # 探测已安装工具，保存可执行文件路径
+        # 探测已安装工具，保存可执行文件路径。
+        # 环境变量 <TOOL>_BIN（如 SEMGREP_BIN）可显式指定可执行文件路径，
+        # 覆盖 PATH 探测（例如 semgrep 装在独立 venv、未加入 PATH 的场景）。
         self._installed: dict[str, str] = {}
         for name in requested:
             if name not in _ALL_TOOLS:
                 continue  # 未知工具名，忽略
+            env_bin = os.environ.get(f"{name.upper()}_BIN", "").strip()
+            if env_bin and Path(env_bin).is_file():
+                self._installed[name] = env_bin
+                continue
             resolved = shutil.which(name)
             if resolved:
                 self._installed[name] = resolved
@@ -346,6 +365,10 @@ class ExternalScanner:
         但 stdout 仍可能包含 JSON。
         """
         try:
+            # 用 __init__ 探测到的绝对路径替换裸命令名（支持 <TOOL>_BIN 环境变量
+            # 覆盖 PATH 探测，例如 semgrep 装在独立 venv 未加入 PATH 的场景）
+            if cmd:
+                cmd = [self._installed.get(cmd[0], cmd[0]), *cmd[1:]]
             proc = subprocess.run(
                 cmd,
                 capture_output=True,
@@ -466,9 +489,11 @@ class ExternalScanner:
             start = r.get("start", {}) or {}
             rule_id = str(r.get("check_id", ""))
             # 从规则 id 推断 taint_type 与默认严重度（sqli→SQL Injection 等）
+            # 注意顺序：codei（CWE-95 代码注入）必须先于 cmdi 判断，避免子串误归
             taint_type, sev = _TAINT_TYPE_BY_RULE.get(
                 "sqli" if "sqli" in rule_id else (
-                    "cmdi" if "cmdi" in rule_id else ""),
+                    "codei" if "codei" in rule_id else (
+                        "cmdi" if "cmdi" in rule_id else "")),
                 ("Unknown", "medium"),
             )
             source, source_line = _extract_taint_endpoint(extra, "SOURCE")

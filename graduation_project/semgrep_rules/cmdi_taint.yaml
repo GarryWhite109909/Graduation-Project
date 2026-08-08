@@ -7,9 +7,12 @@
 rules:
   - id: python-cmdi-taint
     mode: taint
-    message: "用户可控输入($SOURCE)流入命令执行($SINK)，疑似命令注入（待 LLM 裁决）"
+    message: "污点命中：用户可控输入流入命令执行，疑似命令注入（待 LLM 裁决）"
     severity: ERROR
     languages: [python]
+    metadata:
+      cwe: "CWE-78"   # OS Command Injection；eval/exec 属 CWE-95，见 codei_taint.yaml
+      category: command-injection
     pattern-sources:
       # Flask / Django / 通用 WSGI 输入
       - pattern: request.GET.get(...)
@@ -28,6 +31,13 @@ rules:
       - pattern: sys.argv
       - pattern: os.environ
       - pattern: os.environ.get(...)
+      # Web 框架路由路径参数（@app.route("/x/<id>") 绑定的形参同样是用户可控输入）
+      - patterns:
+          - pattern-inside: |
+              @$APP.$METHOD(...)
+              def $F(..., $PARAM, ...):
+                ...
+          - pattern: $PARAM
     pattern-sinks:
       - pattern: os.system(...)
       - pattern: os.popen(...)
@@ -38,8 +48,16 @@ rules:
       - pattern: subprocess.check_output(...)
       - pattern: subprocess.getoutput(...)
       - pattern: subprocess.getstatusoutput(...)
-      - pattern: eval(...)
-      - pattern: exec(...)
+      # 注意：eval(...)/exec(...) 已从本规则移除 —— 它们是 CWE-95 代码注入，
+      # 归到 CWE-78 会污染裁决层的 CWE 归因（见 codei_taint.yaml）
+    pattern-sanitizers:
+      # 真实消毒函数（显式声明；其余库函数不假定安全，见 options 注释）
+      - pattern: shlex.quote(...)
+      - pattern: pipes.quote(...)
     options:
-      taint_assume_safe_functions: true
+      # false = 不假定库函数消毒。曾为 true，实测会把 os.path.join 等当成
+      # 消毒函数切断污点链（cve_fix_0012: request.form.get → os.path.join →
+      # subprocess.run(shell=True) 漏报）。两阶段架构允许工具高 FPR、由裁决层
+      # 抑制，因此宁可多报。真正的消毒函数在 pattern-sanitizers 显式声明。
+      taint_assume_safe_functions: false
       taint_assume_safe_comparisons: true

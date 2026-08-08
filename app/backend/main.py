@@ -253,8 +253,14 @@ def health():
     return base
 
 
-def _record_scan(batch: BatchResult) -> None:
-    """记录一次扫描到统计中（进程内，重启后清零）。"""
+def _record_scan(batch: BatchResult, source: str = "batch") -> None:
+    """记录一次扫描到统计中（进程内，重启后清零）。
+
+    Args:
+        batch: 扫描批次结果。
+        source: 扫描来源标记（"github" / "url" / "batch"），供前端按来源过滤
+                （如安全态势页只统计 GitHub 仓库扫描）。
+    """
     _scan_stats["total_scans"] += 1
     _scan_stats["total_files"] += batch.total_files
     _scan_stats["total_vulnerable"] += batch.vulnerable
@@ -263,6 +269,7 @@ def _record_scan(batch: BatchResult) -> None:
     # 记录最近 20 条
     entry = {
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "source": source,
         "total_files": batch.total_files,
         "vulnerable": batch.vulnerable,
         "safe": batch.safe,
@@ -487,7 +494,7 @@ async def batch_scan(
 
         batch.total_duration = time.time() - batch_start
         _last_batch = batch
-        _record_scan(batch)
+        _record_scan(batch, source="batch")
         yield json.dumps({
             "type": "done",
             "summary": batch.to_dict(),
@@ -570,7 +577,7 @@ async def url_scan(req: UrlScanRequest, request: Request):
     batch = await _scan_files_scheduled(files, req.use_rag, client_id)
     global _last_batch
     _last_batch = batch
-    _record_scan(batch)
+    _record_scan(batch, source="url")
 
     return {
         "url": req.url,
@@ -659,7 +666,7 @@ async def github_scan(req: GithubScanRequest, request: Request):
         batch = await _scan_files_scheduled(code_files, req.use_rag, client_id)
         global _last_batch
         _last_batch = batch
-        _record_scan(batch)
+        _record_scan(batch, source="github")
 
         return {
             "repo": req.repo_url,

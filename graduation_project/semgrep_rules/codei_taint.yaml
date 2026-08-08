@@ -1,0 +1,48 @@
+# 代码注入污点规则 —— 两阶段架构 Stage 1（工具召回）。
+#
+# 与 cmdi_taint.yaml 分离的原因：eval(...)/exec(...) 执行的是代码而非系统命令，
+# 属 CWE-95（Code Injection），不是 CWE-78（OS Command Injection）。
+# 混在同一条规则里会让裁决层把代码注入误归因到命令注入。
+# 同样仅做召回，真伪与安全写法（如白名单字符过滤后的 eval）由 Stage 2 LLM 裁决。
+rules:
+  - id: python-codei-taint
+    mode: taint
+    message: "污点命中：用户可控输入流入动态代码执行，疑似代码注入（待 LLM 裁决）"
+    severity: ERROR
+    languages: [python]
+    metadata:
+      cwe: "CWE-95"   # Improper Neutralization of Directives in Dynamically Evaluated Code
+      category: code-injection
+    pattern-sources:
+      # Flask / Django / 通用 WSGI 输入
+      - pattern: request.GET.get(...)
+      - pattern: request.args.get(...)
+      - pattern: request.form.get(...)
+      - pattern: request.POST.get(...)
+      - pattern: request.values.get(...)
+      - pattern: request.json
+      - pattern: request.data
+      - pattern: request.cookies
+      - pattern: request.COOKIES
+      - pattern: request.headers
+      - pattern: request.META
+      # 命令行 / 环境变量 / 标准输入
+      - pattern: input(...)
+      - pattern: sys.argv
+      - pattern: os.environ
+      - pattern: os.environ.get(...)
+      # Web 框架路由路径参数（@app.route("/x/<id>") 绑定的形参同样是用户可控输入）
+      - patterns:
+          - pattern-inside: |
+              @$APP.$METHOD(...)
+              def $F(..., $PARAM, ...):
+                ...
+          - pattern: $PARAM
+    pattern-sinks:
+      - pattern: eval(...)
+      - pattern: exec(...)
+    options:
+      # false = 不假定库函数消毒（与 cmdi/sqli 规则一致，避免传播链被切断）。
+      # 白名单字符过滤等有效防御会命中造成召回误报，由 Stage 2 裁决层放行。
+      taint_assume_safe_functions: false
+      taint_assume_safe_comparisons: true

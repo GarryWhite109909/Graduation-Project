@@ -892,7 +892,60 @@
 
 
 
-### P4 错题闭环（待运行）
+### v9max 三模型蒸馏 + 云端 A800 训练（2026-08-02 ~ 08-07，已发布为当前最佳）
+
+> 本地 SFT 数据到极限（v9）后转云端放大。详细过程见 docs/论文/第5章_训练主线.md 与 docs/过程.md。
+
+| 字段 | 值 |
+|---|---|
+| 训练数据 | 三模型 API 蒸馏（DeepSeek V4-Flash / Kimi K3 / GLM-5.2），清洗后 7692 条（漏洞 3493 / 安全 4199） |
+| 训练配置 | Qwen3-8B bf16 全精度 LoRA（r=8, alpha=16, dropout=0.1, rsLoRA），A800，train 6539 / dev 1153，2 epoch，lr=1e-4，max_seq 6144，1636 步 ≈ 4.1h，train_loss ≈ 0.529 |
+| 发布形态 | base+LoRA 合并后 Q4_K_M 量化，发布为 Ollama 模型 `garrywhite109909/graduation-vuln-scanner:v9max` |
+
+**v9max 评估锚点（HF 评估管道：NF4 4bit 基座 + FP16 LoRA 增量叠加，evaluate.py 默认口径）**：
+| 测试集 | recall | FPR | accuracy | strict_recall |
+|---|---|---|---|---|
+| 合成集 87 | **1.000** | 0.423 | 0.874 | **0.607** |
+| CVE-fix 20 | **0.950** | - | - | 0.650 |
+
+### G0 方法学修复重跑 + prompt 对照 + 量化缺口诊断（2026-08-08）
+
+> 背景：REGRUN_AFTER_FIX.md 的 9 条方法学修复中 #1（文件名泄漏）改变了所有 LLM 实验的 prompt 构造，历史指标不可比。本日完成 exp_01/04/05/06 四项 G0 必跑。详细分析见 docs/过程.md 2026-08-08 节。
+
+**G0 重跑结果**：
+| 实验 | 结果 |
+|---|---|
+| exp_01 基础扫描 | 准确率 92.9%（泄漏修复生效，不再是 100%） |
+| exp_05 prompt 消融（repeat=3） | combined 最优（FPR 7.7%），消融结论成立 |
+| exp_04 难样本集（repeat=3） | 完成（非独立 held-out，仅趋势参考） |
+
+**v9max 3 变体 prompt 对照（合成集 87，Ollama Q4_K_M）**：
+| 指标 | base | anti_fp_cot | combined |
+|---|---|---|---|
+| recall | 0.934 | 0.918 | **0.951** |
+| FPR | 0.192 | 0.115 | **0.077** |
+| accuracy | 0.897 | 0.908 | **0.943** |
+| strict_recall | 0.639 | 0.623 | 0.623 |
+
+**v9max CVE-fix 20 真实召回（关键口径更正）**：
+| 管道/变体 | recall | strict_recall | parse_fail |
+|---|---|---|---|
+| Ollama base | 0.789（15/19） | 0.737 | 1（0007） |
+| Ollama combined | 0.750（15/20） | 0.750 | 0 |
+| HF NF4+FP16 LoRA（08-06） | **0.950** | 0.650 | 0 |
+
+- **README 旧表述 "CVE-fix recall 0.95" 是 HF 评估管道口径**；Ollama 发布形态（base+LoRA 合并后整体 Q4_K_M，LoRA 信号被重量化）实测 0.75~0.79。缺口是两种 4-bit 管道的差距，不是"量化 vs 未量化"。README 已更正。
+- **决策**：evaluate.py `--variant` 默认由 base 切为 combined。
+- FN 根因（0001/0003/0005/0006）：全是"过度信任防御"，支撑两阶段"工具召回 + LLM 裁决"架构（有效的是 taint/信任边界分析，不是 RAG）。
+
+**fix_usable=0 瓶颈证伪（2026-08-08 重算）**：
+- 旧结论"fix_usable=0 瓶颈在 FixVerifier 危险模式覆盖面"——FixVerifier 扩 12 条补充模式后自检通过，但对 20 条 CVE-fix 结果（`exp_06_eval.ollama_garrywhite109909\graduation-vuln-scanner_v9max.20260808_131115.json`）用扩展后 FixVerifier 重算：**fix_usable 仍 0/15，指标无任何变化**。
+- 真正瓶颈在上游：14/15 样本 `model_fix_suggestion` 为空——模型 verdict JSON 未输出 fix_suggestion 字段（BASE_PROMPT 有要求"完整修复版代码用 ``` 围栏包裹"，Ollama v9max 在该 eval 配置下未遵守）。FixVerifier 根本没有输入可验。
+- 唯一抽到代码块的 cve_fix_0004（CWE-306 类缺失认证）tests_passed=None 属合理：该类漏洞无"危险拼接模式"可判。
+- 评估侧已改进：compute_fix_metrics 的失败原因拆分"模型未输出fix_suggestion"与"未抽到代码块"，避免再误判瓶颈位置。
+- 下一步（Nivis-alpha.1）：修复方向是 prompt/输出契约与解析兜底，而非继续扩 FixVerifier 模式表。
+
+### P4 错题闭环（已终止——被云端路线取代，见上 v9max 条目）
 | 时间 | 文件 | 错题来源 | recall | FPR | strict_recall | 状态 |
 |---|---|---|---|---|---|---|
 | - | - | - | - | - | - | ⏳ 待 P3 完成 |

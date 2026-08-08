@@ -8,13 +8,14 @@
 #   external_scanner.scan_taint() 据此提取实际 source/sink 表达式与行号。
 # - 本规则只做"召回"，不做"终判"：即使命中也交由 Stage 2 LLM 裁决层
 #   判定是否真漏洞（参数化查询等有效防御会由裁决层识别并放行）。
-# - taint_assume_safe_functions:true 表示"库函数默认消毒"：文件内自定义
-#   辅助函数的污点传播不受影响（semgrep 能看到函数体），仅阻断经外部库的
-#   传播。文件内跨函数召回由 TaintTracker 的过程间摘要兜底，两者互补。
+# - taint_assume_safe_functions:false 表示"不假定库函数消毒"（2026-08-08 实测
+#   true 会把 os.path.join 等当消毒点切断污点链，造成真实 CVE 漏报）；
+#   真实消毒函数在 pattern-sanitizers 显式声明。文件内跨函数召回由
+#   TaintTracker 的过程间摘要兜底，两者互补。
 rules:
   - id: python-sqli-taint
     mode: taint
-    message: "用户可控输入($SOURCE)流入 SQL 执行($SINK)，疑似 SQL 注入（待 LLM 裁决）"
+    message: "污点命中：用户可控输入流入 SQL 执行，疑似 SQL 注入（待 LLM 裁决）"
     severity: ERROR
     languages: [python]
     pattern-sources:
@@ -35,6 +36,14 @@ rules:
       - pattern: sys.argv
       - pattern: os.environ
       - pattern: os.environ.get(...)
+      # Web 框架路由路径参数（@app.route("/x/<id>") 绑定的形参同样是用户可控输入；
+      # 2026-08-08 实测 cve_fix_0009 的 charge_id 路径参数 SQLi 曾因缺此 source 漏报）
+      - patterns:
+          - pattern-inside: |
+              @$APP.$METHOD(...)
+              def $F(..., $PARAM, ...):
+                ...
+          - pattern: $PARAM
     pattern-sinks:
       # DB-API
       - pattern: cursor.execute(...)
@@ -47,6 +56,15 @@ rules:
       - pattern: session.execute(...)
       - pattern: engine.execute(...)
       - pattern: conn.execute(...)
+    pattern-sanitizers:
+      # 真实消毒/类型收敛函数（显式声明；其余库函数不假定安全，见 options 注释）
+      - pattern: int(...)
+      - pattern: float(...)
+      - pattern: shlex.quote(...)
     options:
-      taint_assume_safe_functions: true
+      # false = 不假定库函数消毒（原为 true，会把 str 处理/拼接辅助函数当成
+      # 消毒点切断污点链造成漏报）。两阶段架构允许工具高 FPR、由裁决层抑制；
+      # 真正的消毒函数在 pattern-sanitizers 显式声明。
+      # 文件内跨函数召回由 TaintTracker 的过程间摘要兜底，两者互补。
+      taint_assume_safe_functions: false
       taint_assume_safe_comparisons: true

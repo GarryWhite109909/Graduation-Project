@@ -1,8 +1,10 @@
 # 实验 06 报告：网络安全专用模型训练主线（Qwen3-8B 路线）
 
+> 🔄 **更新（2026-08-08）**：本报告为本地 SFT 阶段（v2~v9）的历史记录，"当前最佳"指当时。此后已发布 **v9max**（三模型蒸馏 + 云端 A800 训练，2026-08-07）成为新的最佳：HF 评估管道合成集 recall 1.000 / strict_recall 0.607、CVE-fix recall 0.950；Ollama 发布形态（GGUF Q4_K_M）CVE-fix recall 0.75~0.79（G0 方法学修复重跑，2026-08-08）。最新口径以 README「核心结果」与 EXPERIMENT_LEDGER 为准。
+
 > 📋 **一句话结论**：基于 Qwen3-8B 的 4bit QLoRA SFT 迭代至 v5 后，在 87 段合成集上达到 **recall=1.000、FPR=0.231、strict_recall=0.590**，在 7 段 CVE-fix 真实集上 recall=0.571；但本地 16GB GPU 无法运行 DPO，v6 hard-negative SFT 引发负迁移，后续方向待决策。
 >
-> | 关键指标 | Qwen3-8B baseline | SFT v5（当前最佳） | 变化 |
+> | 关键指标 | Qwen3-8B baseline | SFT v5（当时最佳，现已被 v9max 超越） | 变化 |
 > | --- | --- | --- | --- |
 > | 合成集 recall | 0.967 | **1.000** | +3.3pp |
 > | 合成集 FPR | 0.269 | **0.231** | -3.8pp |

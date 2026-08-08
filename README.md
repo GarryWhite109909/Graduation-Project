@@ -456,18 +456,23 @@ IntelliJ 插件提供编辑器内选中代码的扫描功能，结果以气球�
 
 当前已发布最佳模型 **v9max**（Qwen3-8B-Instruct + 三模型蒸馏数据 7692 条，云端 A800 bf16 全精度 LoRA r=8 + rsLoRA 训练，Q4_K_M 量化部署）。
 
+下表为 **HF 评估管道**（evaluate.py：NF4 4bit 基座 + FP16 LoRA 增量叠加）的结果：
+
 | 测试集 | 样本数 | recall | FPR | accuracy | strict_recall |
 |---|---|---|---|---|---|
 | 合成集（87 段） | 87 | **1.000** | 0.423 | 0.874 | **0.607** |
 | CVE-fix 真实集 | 20 | **0.950** | - | - | 0.650 |
 
-与 Qwen3-8B 零样本锚点基线对比，v9max 将 **合成集 strict_recall 从 0.459 提升到 0.607（+14.8pp）**、recall 保持 1.000（0 FN），同时将 **CVE-fix 真实集 recall 从 0.375 提升到 0.950（+57.5pp）**，大幅增强真实漏洞检出能力（合成集虚高 59.2pp 的问题在真实集上被有效收敛）。
+**发布形态（Ollama GGUF Q4_K_M 合并量化）指标低于上表**——G0 方法学修复重跑（2026-08-08）实测：CVE-fix 真实集 recall **0.75~0.79**（base 15/19 含 1 条 parse_fail；combined 15/20）、合成集 recall 0.93~0.95。缺口来源不是"量化 vs 未量化"，而是**两种 4-bit 管道的差异**：HF 管道 LoRA 增量保持 FP16 精度，Ollama 发布形态把 base+LoRA 合并后整体压进 Q4_K_M，LoRA 信号被一并重量化。新装的 transformers 进程内后端（NF4 基座 + FP16 LoRA，设 `VULN_SCANNER_ADAPTER` 启用）可在部署侧复现 HF 管道精度。
+
+与 Qwen3-8B 零样本锚点基线对比，v9max 将 **合成集 strict_recall 从 0.459 提升到 0.607（+14.8pp）**、recall 保持 1.000（0 FN），同时将 **CVE-fix 真实集 recall 从 0.375 提升到 0.950（+57.5pp，HF 管道；Ollama 发布形态为 0.75~0.79）**，大幅增强真实漏洞检出能力（合成集虚高 59.2pp 的问题在真实集上被有效收敛）。
 
 > FPR（合成集 0.423）偏高，根因是模型"模式匹配 > 深度理解"，对部分防御措施（subprocess 参数化列表、shlex.quote、whitelist+abspath）产生误报；用户结论"误报总比漏报好"，FPR 收敛留待最终模型 Nivis-alpha.1 通过 DPO/GRPO/CoT 教学解决。
 
 ```text
 strict_recall(合成集):  baseline 0.459 → v5 0.590 → v9max 0.607
-CVE-fix recall(真实集):  baseline 0.375 → v5 0.571 → v9max 0.950
+CVE-fix recall(真实集):  baseline 0.375 → v5 0.571 → v9max 0.950（HF 管道）
+                         v9max Ollama 发布形态（GGUF Q4_K_M）: 0.75~0.79（G0 重跑，2026-08-08）
 ```
 > 完整台账见 [EXPERIMENT_LEDGER.md](experiments/exp_06_finetune/results/EXPERIMENT_LEDGER.md)；v9max 训练与评估详见 [docs/论文/第5章_训练主线.md](docs/论文/第5章_训练主线.md)。
 
@@ -687,7 +692,7 @@ Graduation-Project/
 │       │   ├── v2/                        #     SFT v2 评估结果
 │       │   ├── v3/                        #     SFT v3 评估结果
 │       │   ├── v4_failed/                 #     SFT v4（已废弃，训练-测试泄漏）
-│       │   ├── v5/                        #     SFT v5 当前最佳
+│       │   ├── v5/                        #     SFT v5 评估结果（历史最佳，已被 v9max 超越）
 │       │   ├── v6_failed/                 #     SFT v6 hard-negative（已归档）
 │       │   ├── phase1_sweep_summary.md    #     Phase 1 sweep 汇总表（历史）
 │       │   ├── phase2_summary.md          #     Phase 2 汇总表（历史）
@@ -749,7 +754,8 @@ Graduation-Project/
 
 - **三模型数据蒸馏**：DeepSeek V4-Flash / Kimi K3 / GLM-5.2 三模型 API 蒸馏生成大规模训练数据，原始目标约 11200 条，经 CWE 归一化、泄漏审计、矛盾/重复清洗后最终 **7692 条**（漏洞 3493 / 安全 4199，安全占比 54.6%）。
 - **云端 A800 训练**：Qwen3-8B bf16 全精度 LoRA（r=8 + alpha=16 + dropout=0.1 + rsLoRA），train 6539 / dev 1153，2 epoch，lr=1e-4，max_seq 6144，1636 步，约 4.1h，train_loss ≈ 0.529。
-- **v9max 评估**：合成集 87 段 recall 1.000 / FPR 0.423 / strict_recall 0.607；真实 CVE-fix 20 段 recall 0.95 / strict_recall 0.65 / fix_extracted 17/20，大幅增强真实漏洞检出。
+- **v9max 评估**（HF 管道：NF4 基座 + FP16 LoRA）：合成集 87 段 recall 1.000 / FPR 0.423 / strict_recall 0.607；真实 CVE-fix 20 段 recall 0.95 / strict_recall 0.65 / fix_extracted 17/20，大幅增强真实漏洞检出。
+- **G0 方法学修复重跑（2026-08-08）**：文件名泄漏修复后全量重跑。Ollama 发布形态（GGUF Q4_K_M 合并量化）CVE-fix recall 实测 0.75~0.79（base 15/19 含 1 parse_fail；combined 15/20），与 HF 管道 0.95 的缺口来自 LoRA 增量是否保 FP16 精度；exp_05 消融结论（combined 变体最优）在 v9max 合成集上成立（FPR 19.2%→7.7%），但不迁移到真实 CVE。详见 [docs/过程.md](docs/过程.md) 2026-08-08 节。
 - **发布**：Q4_K_M 量化，发布为 Ollama 模型 `garrywhite109909/graduation-vuln-scanner:v9max`。
 - 详见 [docs/论文/第5章_训练主线.md](docs/论文/第5章_训练主线.md)、[docs/v9max_数据生成提示词.md](docs/v9max_数据生成提示词.md) 与 [docs/过程.md](docs/过程.md)
 
@@ -788,7 +794,7 @@ Graduation-Project/
 | P2 v8 | 对比 CoT SFT | 引入判别性对比 CoT | FN↑、FP 激增（判别焦虑 + 冲突信号） | 对比 CoT 得不偿失 |
 | P2 v9 | SFT 收敛 | 清洗冲突样本 + 多样安全代码 + 降 epoch | 数据到极限，转云端放大 | 本地数据量是硬瓶颈 |
 | P3 | DPO | `dpo_merged.jsonl` 104 条偏好对 | 本地 16GB GPU 不可行（8bit OOM、4bit 梯度失效） | 消费级 GPU 硬件约束 → 转云 |
-| **v9max** | **三模型蒸馏 + A800 训练** | 7692 条蒸馏数据 + bf16 LoRA(r=8,rsLoRA) | **合成集 recall 1.000 / FPR 0.423 / strict_recall 0.607；CVE-fix recall 0.95** | **本地探索 → 云端放大路线验证** |
+| **v9max** | **三模型蒸馏 + A800 训练** | 7692 条蒸馏数据 + bf16 LoRA(r=8,rsLoRA) | **合成集 recall 1.000 / FPR 0.423 / strict_recall 0.607；CVE-fix recall 0.95（HF 管道）；Ollama 发布形态 CVE-fix recall 0.75~0.79（G0 重跑）** | **本地探索 → 云端放大路线验证** |
 
 > 详细数据见 [EXPERIMENT_LEDGER.md](experiments/exp_06_finetune/results/EXPERIMENT_LEDGER.md)；方法体系见 [docs/方法.md](docs/方法.md) 与 [docs/论文/第5章_训练主线.md](docs/论文/第5章_训练主线.md)。
 

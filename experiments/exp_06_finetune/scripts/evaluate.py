@@ -245,7 +245,12 @@ def compute_fix_metrics(results: list[dict], verifier: FixVerifier) -> dict:
         vres = verifier.verify_fix(original_code, fix_suggestion, language=language)
 
         if vres.fixed_code is None:
-            reasons["未抽到代码块"] = reasons.get("未抽到代码块", 0) + 1
+            # 区分"模型根本没输出 fix_suggestion"（上游 prompt/模型行为问题）
+            # 与"输出了但无代码围栏"（格式问题），两者修复路径完全不同
+            if not (fix_suggestion or "").strip():
+                reasons["模型未输出fix_suggestion"] = reasons.get("模型未输出fix_suggestion", 0) + 1
+            else:
+                reasons["未抽到代码块"] = reasons.get("未抽到代码块", 0) + 1
         else:
             fix_extracted += 1
             if vres.syntax_valid:
