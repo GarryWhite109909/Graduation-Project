@@ -34,7 +34,7 @@ from typing import Optional
 
 from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -1596,6 +1596,14 @@ def queue_cancel(task_id: str):
 # ---------------------------------------------------------------------------
 _static_dir = Path(__file__).resolve().parent / "static"
 if _static_dir.is_dir():
+    # 根路径返回欢迎页，其余静态资源由 StaticFiles 托管
+    @app.get("/", response_class=HTMLResponse)
+    async def welcome():
+        welcome_file = _static_dir / "welcome.html"
+        if welcome_file.is_file():
+            return FileResponse(str(welcome_file))
+        return FileResponse(str(_static_dir / "index.html"))
+
     app.mount("/", StaticFiles(directory=str(_static_dir), html=True), name="static")
 else:
     @app.get("/", response_class=HTMLResponse)

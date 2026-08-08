@@ -32,7 +32,7 @@
   function resolveInitial() {
     var s = getStored();
     if (s === DARK || s === LIGHT) return s;
-    return DARK;
+    return LIGHT;
   }
 
   /* ---- 图标 ---- */
