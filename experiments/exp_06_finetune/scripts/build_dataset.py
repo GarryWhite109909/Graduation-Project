@@ -1291,7 +1291,7 @@ def redirect_url():
 )
 
 # ===========================================================================
-# 28. 日志注入（CWE-532）
+# 28. 日志注入（CWE-117）
 # ===========================================================================
 
 add(
@@ -1302,7 +1302,7 @@ def login():
     app.logger.info(f'User login: {username}')
 """,
     "python", "vuln_log_injection.py",
-    True, "CWE-532 日志注入", "Low",
+    True, "CWE-117 日志注入", "Low",
     "request.form['username']", "app.logger.info(f'... {username}')",
     "username 含 \\n → 伪造日志条目，混淆审计",
     "过滤换行符或使用结构化日志",

@@ -448,6 +448,9 @@
           </div>
         </div>
 
+        <!-- CWE 编号准确性提示：模型可能因幻觉产生编号偏差，属已知限制，优化中 -->
+        <p class="mb-3 text-xs text-[var(--vuln-ink-3)]">提示：漏洞类型与编号由 LLM 生成，受模型幻觉影响可能不准确，正在优化校准中。请以分析说明与原始代码为准复核。</p>
+
         <!-- 最近一轮扫描提醒：工作台保留所有轮次结果，最近一轮会打标记，可只看本轮/清空本轮 -->
         <div id="round-banner" class="hidden mb-3 flex items-center justify-between flex-wrap gap-2 rounded-lg border border-[var(--vuln-brand)]/30 bg-[var(--vuln-brand)]/5 px-3 py-2 text-xs">
           <span id="round-banner-text" class="text-[var(--vuln-ink-2)]"></span>
