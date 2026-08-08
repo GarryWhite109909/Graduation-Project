@@ -7,11 +7,8 @@
   "repository": { "type": "git", "url": "https://github.com/GarryWhite109909/Graduation-Project.git" },
   "icon": "assets/icon-light.png",
   "engines": { "vscode": "^1.80.0" },
-  "categories": ["Security", "Other"],
+  "categories": ["Linters", "Other"],
   "activationEvents": [
-    "onCommand:vulnScanner.analyzeFile",
-    "onCommand:vulnScanner.scanWorkspace",
-    "onCommand:vulnScanner.scanFolder",
     "onLanguage:python",
     "onLanguage:javascript",
     "onLanguage:typescript",

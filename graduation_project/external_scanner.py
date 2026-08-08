@@ -19,9 +19,11 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Optional
 
 
@@ -31,13 +33,25 @@ from typing import Optional
 _TOOL_TIMEOUT: int = 60  # 每个工具子进程超时（秒）
 
 # 全部支持的工具名（与 shutil.which 检测的命令名一致）
-_ALL_TOOLS: list[str] = ["bandit", "semgrep", "gitleaks", "trivy"]
+_ALL_TOOLS: list[str] = ["bandit", "semgrep", "gitleaks", "trivy",
+                         "pip-audit", "detect-secrets"]
 
 # Semgrep 固定规则集（保证 Stage 1 工具层结果可复现；自写 taint 规则文件可追加到此列表）
 _SEMGREP_CONFIGS: list[str] = [
     "p/security-audit",
     "p/owasp-top-10",
 ]
+
+# 自研 Semgrep taint 规则目录（两阶段架构 Stage 1 召回）。
+# scan_taint() 对本目录下全部 *.yaml 规则做整文件 taint 扫描。
+# 目录不存在或为空时，scan_taint() 返回空列表（降级为 TaintTracker/Prefilter 召回）。
+_TAINT_RULES_DIR: str = os.path.join(os.path.dirname(os.path.abspath(__file__)), "semgrep_rules")
+
+# taint 规则 id 前缀 → (taint_type, 默认严重度) 映射，用于把 semgrep finding 映射到统一结构
+_TAINT_TYPE_BY_RULE: dict[str, tuple[str, str]] = {
+    "sqli": ("SQL Injection", "high"),
+    "cmdi": ("Command Injection", "high"),
+}
 
 
 # ---------------------------------------------------------------------------
@@ -100,6 +114,55 @@ def normalize_severity(value: str) -> str:
     if "low" in s or "info" in s:
         return "low"
     return "info"
+
+
+def _extract_taint_endpoint(extra: dict, name: str) -> tuple[str, int]:
+    """从 semgrep taint finding 的 extra.metavars 提取 source/sink 的表达式与行号。
+
+    taint 模式下 semgrep 会把 $SOURCE / $SINK metavar 注入 metavars：
+        extra.metavars["$SOURCE"]["abstract_content"]   # 实际表达式
+        extra.metavars["$SOURCE"]["start"]["line"]       # 行号
+    部分版本用 extra.taint_source / extra.taint_sink 的 {content, location}。
+
+    Returns:
+        (表达式字符串, 行号)；取不到时返回 ("", 0)。
+    """
+    metavars = extra.get("metavars") or {}
+    key = f"${name}"
+    if key in metavars:
+        mv = metavars[key] or {}
+        content = mv.get("abstract_content") or mv.get("content") or ""
+        line = int((mv.get("start") or {}).get("line", 0) or 0)
+        return str(content), line
+
+    # 兜底：taint_source / taint_sink 字段
+    field = "taint_source" if name == "SOURCE" else "taint_sink"
+    ts = extra.get(field) or {}
+    content = ts.get("content") or (ts.get("location") or {}).get("content") or ""
+    line = int((ts.get("location") or {}).get("start", {}).get("line", 0) or 0)
+    return str(content), line
+
+
+def _extract_taint_path(extra: dict) -> list[str]:
+    """从 semgrep taint finding 提取传播链（source→...→sink 的中间变量）。
+
+    优先取 extra.dataflow_trace.intermediate_vars（sink 视图中逐跳传播）；
+    其次取 extra.taint_trace 的 taint_source 内容。提取失败返回空列表。
+    """
+    trace = extra.get("dataflow_trace") or {}
+    intermediates = trace.get("intermediate_vars") or []
+    chain: list[str] = []
+    for iv in intermediates:
+        content = ((iv or {}).get("location") or {}).get("content") or ""
+        if content:
+            chain.append(str(content))
+    if chain:
+        return chain
+
+    # 兜底：taint_source 的内容作为传播头
+    ts = extra.get("taint_source") or {}
+    head = ts.get("content") or (ts.get("location") or {}).get("content") or ""
+    return [str(head)] if head else []
 
 
 # ---------------------------------------------------------------------------
@@ -207,9 +270,12 @@ class ExternalScanner:
         Returns:
             密钥发现列表（category="secret"）
         """
-        if "gitleaks" not in self._installed:
-            return []
-        return self._run_gitleaks(path)
+        findings: list[ExternalFinding] = []
+        if "gitleaks" in self._installed:
+            findings.extend(self._run_gitleaks(path))
+        if "detect-secrets" in self._installed:
+            findings.extend(self._run_detect_secrets(path))
+        return findings
 
     def scan_sca(self, path: str) -> list[ExternalFinding]:
         """运行 SCA 工具（Trivy fs）扫描依赖漏洞。
@@ -223,9 +289,12 @@ class ExternalScanner:
         Returns:
             依赖漏洞发现列表（category="sca"）
         """
-        if "trivy" not in self._installed:
-            return []
-        return self._run_trivy_fs(path)
+        findings: list[ExternalFinding] = []
+        if "trivy" in self._installed:
+            findings.extend(self._run_trivy_fs(path))
+        if "pip-audit" in self._installed:
+            findings.extend(self._run_pip_audit(path))
+        return findings
 
     def scan_iac(self, path: str) -> list[ExternalFinding]:
         """运行 IaC 配置扫描工具（Trivy config）。
@@ -242,6 +311,29 @@ class ExternalScanner:
         if "trivy" not in self._installed:
             return []
         return self._run_trivy_config(path)
+
+    def scan_taint(self, path: str, language: str = "python") -> list[dict]:
+        """对整文件运行 Semgrep taint 规则，返回带污点路径的候选 finding。
+
+        两阶段架构 Stage 1 的核心召回：对原始整文件跑一次 taint 分析，
+        修复长文件切片后 source/sink 跨 chunk 割裂的问题。每条结果带
+        source / sink / 传播链 / 行号，供 Stage 2 LLM 裁决层判定真伪。
+
+        Args:
+            path: 待扫描的文件路径（整文件）
+            language: 语言标签（当前规则面向 Python；其他语言不命中）
+
+        Returns:
+            候选 finding 的 dict 列表，每项含：
+                rule_id / source / sink / taint_type / source_line /
+                sink_line / path / severity / evidence / tool="semgrep"
+            若 semgrep 未安装、规则目录缺失或解析失败，返回空列表（降级）。
+        """
+        if "semgrep" not in self._installed:
+            return []
+        if not os.path.isdir(_TAINT_RULES_DIR):
+            return []
+        return self._run_semgrep_taint(path, language)
 
     # ------------------------------------------------------------------
     # 子进程执行
@@ -340,6 +432,69 @@ class ExternalScanner:
             ))
         return findings
 
+    def _run_semgrep_taint(self, path: str, language: str) -> list[dict]:
+        """运行自研 Semgrep taint 规则，解析污点路径 finding。
+
+        命令：semgrep --json --quiet --config <semgrep_rules 目录> <path>
+        输出 JSON 含 results 数组，每项含 check_id / path / start.line /
+        extra.severity / extra.message / extra.metavars。
+
+        semgrep 的 taint 模式会自动向 extra.metavars 注入 $SOURCE / $SINK
+        （source/sink 的实际表达式与位置），据此填充 source/sink/行号；
+        传播链从 extra.dataflow_trace 或 extra.taint_source 提取。
+
+        Returns:
+            候选 finding dict 列表（见 scan_taint 文档）。失败/无结果返回 []。
+        """
+        out = self._run_subprocess(
+            ["semgrep", "--json", "--quiet", "--config", _TAINT_RULES_DIR, path]
+        )
+        if not out or not out.strip():
+            return []
+        try:
+            data = json.loads(out)
+        except json.JSONDecodeError:
+            return []
+        if data.get("errors"):
+            print(f"[ExternalScanner] semgrep taint 报告错误: "
+                  f"{str(data['errors'][0])[:200]}")
+            return []
+
+        findings: list[dict] = []
+        for r in data.get("results", []):
+            extra = r.get("extra", {}) or {}
+            start = r.get("start", {}) or {}
+            rule_id = str(r.get("check_id", ""))
+            # 从规则 id 推断 taint_type 与默认严重度（sqli→SQL Injection 等）
+            taint_type, sev = _TAINT_TYPE_BY_RULE.get(
+                "sqli" if "sqli" in rule_id else (
+                    "cmdi" if "cmdi" in rule_id else ""),
+                ("Unknown", "medium"),
+            )
+            source, source_line = _extract_taint_endpoint(extra, "SOURCE")
+            sink, sink_line = _extract_taint_endpoint(extra, "SINK")
+            # 行号兜底：取 finding 起止行
+            if not source_line:
+                source_line = int(start.get("line", 0) or 0)
+            if not sink_line:
+                sink_line = int(start.get("line", 0) or 0)
+            # 传播链：优先 dataflow_trace.intermediate_vars，其次 taint_source
+            path_chain = _extract_taint_path(extra)
+
+            findings.append({
+                "rule_id": rule_id,
+                "source": source,
+                "sink": sink,
+                "taint_type": taint_type,
+                "source_line": source_line,
+                "sink_line": sink_line,
+                "path": path_chain,
+                "severity": normalize_severity(str(extra.get("severity", sev))),
+                "evidence": str(extra.get("message", "")) or rule_id,
+                "tool": "semgrep",
+            })
+        return findings
+
     def _run_gitleaks(self, path: str) -> list[ExternalFinding]:
         """运行 Gitleaks（密钥检测）。
 
@@ -436,11 +591,81 @@ class ExternalScanner:
                 findings.append(ExternalFinding(
                     tool="trivy",
                     rule_id=str(m.get("ID", "") or m.get("AVDID", "")),
-                    severity=str(m.get("Severity", "UNKNOWN")).lower(),
+                    severity=normalize_severity(str(m.get("Severity", "UNKNOWN"))),
                     message=str(m.get("Message", "")),
                     filename=target,
                     line=default_line,
                     category="iac",
+                ))
+        return findings
+
+    def _run_pip_audit(self, path: str) -> list[ExternalFinding]:
+        """运行 pip-audit（Python 依赖漏洞，SCA）。
+
+        命令：pip-audit -r <requirements.txt> -f json --progress-spinner off
+        输出 JSON：{"dependencies": [{"name","version","vulns":[{"id",
+        "fix_versions","description","aliases"}]}]}
+        仅扫描路径顶层的 requirements*.txt（递归依赖锁文件交给 trivy fs）。
+        """
+        base = Path(path)
+        req_files: list[Path] = []
+        if base.is_file() and base.name.startswith("requirements") and base.suffix == ".txt":
+            req_files = [base]
+        elif base.is_dir():
+            req_files = sorted(base.glob("requirements*.txt"))
+        findings: list[ExternalFinding] = []
+        for req in req_files:
+            out = self._run_subprocess(
+                ["pip-audit", "-r", str(req), "-f", "json", "--progress-spinner", "off"]
+            )
+            if not out or not out.strip():
+                continue
+            try:
+                data = json.loads(out)
+            except json.JSONDecodeError:
+                continue
+            for dep in data.get("dependencies", []):
+                for v in dep.get("vulns", []):
+                    aliases = v.get("aliases") or []
+                    cve = next((a for a in aliases if str(a).startswith("CVE-")), "")
+                    findings.append(ExternalFinding(
+                        tool="pip-audit",
+                        rule_id=str(v.get("id", "")),
+                        severity="high",  # pip-audit 不带等级，有 CVE 的依赖漏洞默认 high
+                        message=(f"{dep.get('name')}=={dep.get('version')} "
+                                 f"{cve or v.get('id', '')}: "
+                                 f"{str(v.get('description', ''))[:200]}"),
+                        filename=str(req),
+                        line=0,  # 依赖漏洞无行号
+                        category="sca",
+                    ))
+        return findings
+
+    def _run_detect_secrets(self, path: str) -> list[ExternalFinding]:
+        """运行 detect-secrets（熵值 + 正则双引擎密钥检测，误报低于纯正则）。
+
+        命令：detect-secrets scan --all-files <path>
+        输出 baseline JSON：{"results": {"<file>": [{"type","line_number",
+        "hashed_secret","is_verified"}]}}
+        """
+        out = self._run_subprocess(["detect-secrets", "scan", "--all-files", path])
+        if not out or not out.strip():
+            return []
+        try:
+            data = json.loads(out)
+        except json.JSONDecodeError:
+            return []
+        findings: list[ExternalFinding] = []
+        for filename, items in (data.get("results") or {}).items():
+            for item in items:
+                findings.append(ExternalFinding(
+                    tool="detect-secrets",
+                    rule_id=str(item.get("type", "Secret")),
+                    severity="high",  # 密钥泄露默认高危（与 gitleaks 口径一致）
+                    message=f"检测到疑似密钥: {item.get('type', '')}",
+                    filename=str(filename),
+                    line=int(item.get("line_number", 0) or 0),
+                    category="secret",
                 ))
         return findings
 
@@ -477,6 +702,18 @@ if __name__ == "__main__":
                 print(f"  {f}")
         else:
             print("未发现安全问题（或工具无输出）。")
+
+        # taint 规则演示：对 semgrep_rules 目录本身做一次（通常无命中）
+        print("\n--- Semgrep taint 召回演示 ---")
+        taint_findings = scanner.scan_taint(demo_path)
+        if taint_findings:
+            print(f"  taint 共召回 {len(taint_findings)} 条候选:")
+            for t in taint_findings:
+                print(f"  {t['tool']} {t['rule_id']} "
+                      f"L{t['source_line']}:{t['source']} -> "
+                      f"L{t['sink_line']}:{t['sink']} ({t['taint_type']})")
+        else:
+            print("  taint 未召回候选（semgrep 未安装或规则目录为空）。")
     else:
         print("未检测到任何外部工具，模块以降级模式运行（所有 scan 返回空列表）。")
         print("安装示例: pip install bandit semgrep  |  choco install gitleaks trivy")

@@ -30,6 +30,27 @@ from typing import Optional
 # 复用 schema.py 中精挑细选的漏洞特征正则，避免重复维护
 from graduation_project.schema import _VULN_SIGNATURE_PATTERNS
 
+# 补充危险模式（仅用于"修复移除检查"，不影响 schema 后处理逻辑）。
+# 动机：CVE-fix 真实样本评估中 11/20 的 tests_passed 为 None——schema 的
+# 11 条签名主要覆盖 Python Web 场景，Java/反序列化/SSRF/弱加密等真实 CVE
+# 常见形态未覆盖，导致"原始代码未命中已知模式 → 无法判定"。
+# 选取原则：必须是"危险用法"（拼接/弱算法），而非"API 存在"——
+# 否则修复后代码（如 prepareStatement 参数化）仍命中，会误判修复无效。
+_EXTRA_DANGER_PATTERNS = [
+    re.compile(r"yaml\.load(?:_all)?\s*\("),                    # yaml.load 非安全反序列化（schema 表遗漏）
+    re.compile(r"Runtime\.(?:getRuntime\(\)\.)?exec\s*\("),     # Java 命令执行
+    re.compile(r"ProcessBuilder\s*\("),                          # Java 命令执行（列表形式相对安全，但需复核）
+    re.compile(r"execute(?:Query|Update)\s*\([^)]*\+"),          # Java SQL 拼接
+    re.compile(r"new\s+File(?:InputStream|OutputStream|Reader|Writer)?\s*\([^)]*\+"),  # Java 路径拼接
+    re.compile(r"render_template_string\s*\([^)]*\+"),           # Flask SSTI 拼接
+    re.compile(r"hashlib\.(?:md5|sha1)\s*\("),                   # Python 弱哈希
+    re.compile(r"MessageDigest\.getInstance\(\s*\"(?:MD5|SHA-?1)\"", re.IGNORECASE),  # Java 弱哈希
+    re.compile(r"urlopen\s*\([^)]*\+"),                          # Python SSRF 拼接
+    re.compile(r"sendRedirect\s*\([^)]*\+"),                     # Java 开放重定向拼接
+    re.compile(r"redirect\s*\([^)]*\+"),                         # Flask 开放重定向拼接
+    re.compile(r"@app\.route[\s\S]{0,400}?render_template_string", re.IGNORECASE),  # SSTI 组合特征
+]
+
 
 # ---------------------------------------------------------------------------
 # 验证结果
@@ -201,8 +222,9 @@ class FixVerifier:
         return not fixed_has_vuln
 
     def _has_vuln_pattern(self, code: str) -> bool:
-        """检查代码是否命中任一已知危险模式（复用 schema.py 的正则）。"""
-        return any(pat.search(code) for pat in _VULN_SIGNATURE_PATTERNS)
+        """检查代码是否命中任一已知危险模式（schema 签名表 + 补充模式表）。"""
+        return any(pat.search(code) for pat in _VULN_SIGNATURE_PATTERNS) or \
+            any(pat.search(code) for pat in _EXTRA_DANGER_PATTERNS)
 
     # ------------------------------------------------------------------
     # 主入口
@@ -297,6 +319,20 @@ if __name__ == "__main__":
          '```python\n'
          'y = 3\nprint(y)\n```',
          "python", True, None),
+
+        # --- 补充模式：yaml.load → safe_load（原 schema 表未覆盖，曾为 None）---
+        ("yaml反序列化修复(有效)",
+         'import yaml\ndata = yaml.load(user_payload)',
+         '```python\nimport yaml\ndata = yaml.safe_load(user_payload)\n```',
+         "python", True, True),
+
+        # --- 补充模式：Java 弱哈希 MD5 → SHA-256 ---
+        ("Java弱哈希修复(有效)",
+         'MessageDigest md = MessageDigest.getInstance("MD5");',
+         '```java\npublic class Main {\n    static String h(byte[] d) throws Exception {\n'
+         '        java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");\n'
+         '        return new String(md.digest(d));\n    }\n}\n```',
+         "java", True, True),
 
         # --- 抽取失败（无代码围栏）---
         ("无代码块(抽取失败)",

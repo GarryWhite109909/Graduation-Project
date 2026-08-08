@@ -15,10 +15,15 @@ pydantic>=2.0.0
 uvicorn[standard]>=0.30.0
 python-multipart>=0.0.9
 
-# 模型合并（tools/merge_lora.py，仅台式机开发时需要）
+# 进程内推理后端（transformers：Q4 基座 + FP16 LoRA，复现 95% 召回管道）
+# 仅在设置 VULN_SCANNER_BACKEND=transformers（或配置了 VULN_SCANNER_ADAPTER）时需要；
+# 默认 Ollama 一键启动形态不需要以下依赖。启用时执行：
+#   pip install "transformers>=4.45.0" "peft>=0.13.0" "accelerate>=1.0.0" "bitsandbytes>=0.43.0"
+# 注意：Windows 需要支持 Windows 的 bitsandbytes 构建（>=0.43）；模型合并工具 tools/merge_lora.py 同需 peft。
 # peft>=0.13.0
 # transformers>=4.45.0
 # accelerate>=1.0.0
+# bitsandbytes>=0.43.0
 
 # 启动器硬件检测（bootstrap.py 用 psutil 探测 RAM；未安装时回退到 wmic/sysctl，但显式安装更稳）
 psutil>=5.9.0

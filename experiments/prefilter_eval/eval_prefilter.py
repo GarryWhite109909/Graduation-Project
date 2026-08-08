@@ -127,6 +127,7 @@ def compute_metrics(records: list[dict]) -> dict:
     # strict（CWE 匹配口径）
     strict_tp = 0
     strict_fn = 0  # 漏洞样本未严格命中（判 False / None / True但CWE不匹配）
+    strict_unverifiable = 0  # expected_cwe 缺失（N/A），无法校验 CWE，既不计 TP 也不计 FN
     cwe_mismatch = 0  # 判对方向(True) 但 CWE 不匹配
     abstain_vuln = 0  # 漏洞样本弃权
     abstain_safe = 0  # 安全样本弃权
@@ -159,8 +160,10 @@ def compute_metrics(records: list[dict]) -> dict:
             if verdict is True:
                 # 需要 CWE 匹配
                 if not expected_cwes:
-                    # expected_cwe 缺失（如 N/A），无法校验，按 loose TP 处理（保守计为 strict_TP）
-                    strict_tp += 1
+                    # expected_cwe 缺失（如 N/A）→ 无法校验，从 strict 分母中剔除。
+                    # 注意：原先"保守计为 strict_TP"实际是**虚高** strict 指标
+                    # （未验证的样本按正确计），方向与注释相反，已修正
+                    strict_unverifiable += 1
                 elif set(hit_cwes) & set(expected_cwes):
                     strict_tp += 1
                 else:
@@ -181,8 +184,10 @@ def compute_metrics(records: list[dict]) -> dict:
 
     # 【主口径】被调用子集准确率：分母=明确判定数，弃权(None)不计入
     # 这才是衡量 prefilter "判了就要对" 的正确口径
+    # strict 口径再把"无法校验 CWE"的样本从分母剔除（既不算对也不算错）
+    strict_decided = decided - strict_unverifiable
     loose_accuracy_decided = (tp + tn) / decided if decided else None
-    strict_accuracy_decided = (strict_tp + tn) / decided if decided else None
+    strict_accuracy_decided = (strict_tp + tn) / strict_decided if strict_decided else None
 
     # 判"漏洞"(True) 子集准确率：prefilter 判 True 会直接报告漏洞
     true_loose_accuracy = tp / decided_true if decided_true else None
@@ -193,9 +198,10 @@ def compute_metrics(records: list[dict]) -> dict:
 
     # 覆盖率 / 短路率
     coverage = decided / n if n else None
-    # 漏洞召回（None 算漏报）
+    # 漏洞召回（None 算漏报）；strict 召回分母剔除无法校验 CWE 的样本
     recall = tp / vuln_total if vuln_total else None
-    strict_recall = strict_tp / vuln_total if vuln_total else None
+    strict_vuln_total = vuln_total - strict_unverifiable
+    strict_recall = strict_tp / strict_vuln_total if strict_vuln_total else None
     # 安全误报（None 不算 FP，分母仍为 safe_total）
     fpr = fp / safe_total if safe_total else None
 
@@ -210,6 +216,7 @@ def compute_metrics(records: list[dict]) -> dict:
         },
         "strict_confusion": {
             "strict_tp": strict_tp, "strict_fn": strict_fn,
+            "strict_unverifiable": strict_unverifiable,
             "cwe_mismatch": cwe_mismatch,
             # 安全样本的 TN/FP 与 loose 一致
             "tn": tn, "fp": fp,

@@ -206,7 +206,9 @@ def collect_files_from_dir(directory: str, recursive: bool = True) -> list[Path]
 
     skip_dirs = {".git", "node_modules", "vendor", "__pycache__", ".venv", "venv", "dist", "build"}
     files: list[Path] = []
-    for p in root.rglob("*" if recursive else "*"):
+    # --no-recursive 时只扫顶层（原先两个分支都是 rglob("*")，死分支）
+    iterator = root.rglob("*") if recursive else root.glob("*")
+    for p in iterator:
         if p.is_file() and p.suffix.lower() in EXT_TO_LANG:
             # 跳过依赖目录
             if any(part in skip_dirs for part in p.parts):

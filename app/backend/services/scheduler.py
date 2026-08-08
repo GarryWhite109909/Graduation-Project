@@ -93,12 +93,15 @@ class ScanScheduler:
         max_queue: int = 50,
         max_per_client: int = 8,
         queue_timeout: float = 600.0,
+        exec_timeout: float = 900.0,
     ):
         """
         Args:
             max_queue: 全局队列上限，超过则拒绝入队（防止无限堆积）。
             max_per_client: 单个 client_id 最多排队任务数（防批量扫描霸占）。
             queue_timeout: 任务在队列中等待的最长时间（秒），超时自动失败。
+            exec_timeout: 执行超阈值（秒）。线程无法安全强杀，故不硬中断，
+                仅在 status() 中标记 possibly_stuck 供监控告警。
         """
         self._heap: list[ScanTask] = []
         self._cv = threading.Condition(threading.Lock())
@@ -106,9 +109,11 @@ class ScanScheduler:
         self._max_queue = max_queue
         self._max_per_client = max_per_client
         self._queue_timeout = queue_timeout
+        self._exec_timeout = exec_timeout
 
         self._running = True
         self._current_task: Optional[ScanTask] = None
+        self._current_started_at: Optional[float] = None
         self._client_counts: dict[str, int] = {}
         self._total_done = 0
         self._total_canceled = 0
@@ -239,6 +244,10 @@ class ScanScheduler:
                 continue
 
             # 3) 执行（同步阻塞调用 Ollama，在当前工作线程）
+            # 记录执行开始时间：线程无法安全强杀，执行超时无法硬中断，
+            # 但通过 status() 暴露 running_seconds/possibly_stuck 供监控发现卡死
+            with self._cv:
+                self._current_started_at = time.time()
             try:
                 result = task.execute()
                 self._finish_task(task, result=result)
@@ -247,6 +256,7 @@ class ScanScheduler:
             finally:
                 with self._cv:
                     self._total_done += 1
+                    self._current_started_at = None
 
     def _finish_task(
         self,
@@ -321,6 +331,8 @@ class ScanScheduler:
                     oldest_wait = age
 
             current = self._current_task
+            started_at = self._current_started_at
+            running_seconds = (time.time() - started_at) if started_at else None
             return {
                 "queue_size": len(self._heap),
                 "max_queue": self._max_queue,
@@ -337,6 +349,9 @@ class ScanScheduler:
                     "description": current.description,
                     "priority": PRIORITY_LABELS.get(current.priority, str(current.priority)),
                     "elapsed": round(time.time() - current.enqueued_at, 2),
+                    "running_seconds": round(running_seconds, 2) if running_seconds else None,
+                    # 执行超过 exec_timeout 视为疑似卡死（线程无法强杀，仅供监控告警）
+                    "possibly_stuck": bool(running_seconds and running_seconds > self._exec_timeout),
                 } if current else None,
                 "oldest_wait_seconds": round(oldest_wait, 2) if oldest_wait else 0,
                 "stats": {

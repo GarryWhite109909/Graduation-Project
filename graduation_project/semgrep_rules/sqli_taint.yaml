@@ -1,0 +1,52 @@
+# SQL 注入污点规则 —— 两阶段架构 Stage 1（工具召回）。
+#
+# 说明：
+# - mode: taint 让 semgrep 对"整文件"做单文件内跨函数的 source→sink 追踪，
+#   修复了长文件切片后 chunk A 的 source 与 chunk B 的 sink 被割裂的问题。
+# - pattern-sources：用户可控输入点；pattern-sinks：SQL 执行点。
+# - semgrep 会自动向 finding 的 extra.metavars 注入 $SOURCE / $SINK，
+#   external_scanner.scan_taint() 据此提取实际 source/sink 表达式与行号。
+# - 本规则只做"召回"，不做"终判"：即使命中也交由 Stage 2 LLM 裁决层
+#   判定是否真漏洞（参数化查询等有效防御会由裁决层识别并放行）。
+# - taint_assume_safe_functions:true 表示"库函数默认消毒"：文件内自定义
+#   辅助函数的污点传播不受影响（semgrep 能看到函数体），仅阻断经外部库的
+#   传播。文件内跨函数召回由 TaintTracker 的过程间摘要兜底，两者互补。
+rules:
+  - id: python-sqli-taint
+    mode: taint
+    message: "用户可控输入($SOURCE)流入 SQL 执行($SINK)，疑似 SQL 注入（待 LLM 裁决）"
+    severity: ERROR
+    languages: [python]
+    pattern-sources:
+      # Flask / Django / 通用 WSGI 输入
+      - pattern: request.GET.get(...)
+      - pattern: request.args.get(...)
+      - pattern: request.form.get(...)
+      - pattern: request.POST.get(...)
+      - pattern: request.values.get(...)
+      - pattern: request.json
+      - pattern: request.data
+      - pattern: request.cookies
+      - pattern: request.COOKIES
+      - pattern: request.headers
+      - pattern: request.META
+      # 命令行 / 环境变量 / 标准输入
+      - pattern: input(...)
+      - pattern: sys.argv
+      - pattern: os.environ
+      - pattern: os.environ.get(...)
+    pattern-sinks:
+      # DB-API
+      - pattern: cursor.execute(...)
+      - pattern: cursor.executemany(...)
+      - pattern: connection.execute(...)
+      - pattern: db.execute(...)
+      - pattern: execute_query(...)
+      - pattern: execute_update(...)
+      # SQLAlchemy（Core 与 ORM）
+      - pattern: session.execute(...)
+      - pattern: engine.execute(...)
+      - pattern: conn.execute(...)
+    options:
+      taint_assume_safe_functions: true
+      taint_assume_safe_comparisons: true

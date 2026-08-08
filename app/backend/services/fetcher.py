@@ -52,8 +52,23 @@ class FetchResult:
         return len(self.scripts)
 
 
+def _resolve_ips(host: str, port: int) -> set:
+    """解析主机名的全部 IP（解析失败返回空集）。"""
+    try:
+        infos = socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
+    except OSError:
+        return set()
+    return {info[4][0] for info in infos}
+
+
 def validate_target_url(url: str) -> str | None:
-    """校验目标 URL 是否允许抓取；返回 None=允许，否则返回错误信息。"""
+    """校验目标 URL 是否允许抓取；返回 None=允许，否则返回错误信息。
+
+    含 DNS rebinding 缓解：requests 无法把"校验时的解析结果"钉到连接上
+    （TOCTOU 窗口客观存在，HTTPS 下改写 Host 又会破坏 SNI/TLS），此处采用
+    双重解析一致性校验收窄窗口——两次解析 IP 集合不一致（rebinding 特征）
+    则直接拒绝。
+    """
     try:
         parsed = urlparse(url)
         port = parsed.port
@@ -68,17 +83,19 @@ def validate_target_url(url: str) -> str | None:
         return "端口号无效"
     host = hostname.rstrip(".").lower()
     default_port = 443 if parsed.scheme.lower() == "https" else 80
-    try:
-        infos = socket.getaddrinfo(host, port or default_port, proto=socket.IPPROTO_TCP)
-    except OSError:
+    ips_first = _resolve_ips(host, port or default_port)
+    if not ips_first:
         return f"无法解析主机名: {host}"
-    for info in infos:
-        ip = ipaddress.ip_address(info[4][0])
+    for ip_str in ips_first:
+        ip = ipaddress.ip_address(ip_str)
         if (
             ip.is_private or ip.is_loopback or ip.is_link_local
             or ip.is_multicast or ip.is_reserved or ip.is_unspecified
         ):
-            return f"禁止访问内网/保留地址: {info[4][0]}"
+            return f"禁止访问内网/保留地址: {ip_str}"
+    # 二次解析一致性校验（DNS rebinding 缓解）
+    if _resolve_ips(host, port or default_port) != ips_first:
+        return f"DNS 解析结果不一致（疑似 DNS rebinding）: {host}"
     return None
 
 

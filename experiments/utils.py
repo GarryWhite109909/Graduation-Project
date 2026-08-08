@@ -291,6 +291,8 @@ def compute_detection_metrics(
         "total": len(records),
         "valid": valid,
         "invalid": invalid,
+        "invalid_vuln": invalid_vuln,
+        "invalid_safe": invalid_safe,
         "tp": tp, "tn": tn, "fp": fp, "fn": fn,
         "vuln_total": vuln_total, "safe_total": safe_total,
         "recall": recall,
@@ -320,7 +322,7 @@ def format_metrics_text(metrics: dict) -> str:
     awpf = m.get("accuracy_with_parse_fail")
     if rwpf is not None or awpf is not None:
         lines.append(f"--- 严格口径（parse_fail 计入漏报/错误，论文主结论应优先引用）---")
-        lines.append(f"严格召回率 = {m['tp']}/{m['vuln_total']+m['invalid']} = {pct(rwpf)}")
+        lines.append(f"严格召回率 = {m['tp']}/{m['vuln_total']+m.get('invalid_vuln', 0)} = {pct(rwpf)}")
         lines.append(f"严格准确率 = {m['tp']+m['tn']}/{m['total']} = {pct(awpf)}")
     es = m["elapsed_stats"]
     if es["count"]:

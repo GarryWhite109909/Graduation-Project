@@ -29,6 +29,30 @@ from app.backend.services.model_registry import get_default_model, get_prompt_fo
 DEFAULT_MODEL = os.environ.get("VULN_SCANNER_MODEL", get_default_model())
 # 回退模型：官方 Qwen3-8B（未微调，用户首次未 pull 自定义模型时可用）
 FALLBACK_MODEL = os.environ.get("VULN_SCANNER_FALLBACK_MODEL", "qwen3:8b")
+
+def _resolve_default_backend() -> str:
+    """解析默认推理后端，消除"scanner 默认 transformers vs 启动器纯 Ollama"的矛盾：
+
+    - VULN_SCANNER_BACKEND 显式设置时优先（transformers / llamacpp / ollama）
+    - 配置了 VULN_SCANNER_ADAPTER（LoRA adapter 目录）时用 transformers：
+      Q4 基座（bitsandbytes NF4）+ FP16 LoRA 进程内推理，复现 evaluate.py 95% 召回那套，
+      LoRA 增量保持 FP16 精度（避免 GGUF 整体量化的精度损失）
+    - 否则回退 ollama：GGUF Q4_K_M 合并量化的发布模型，对应一键启动形态，
+      不要求 transformers/peft/bitsandbytes 依赖
+    """
+    backend = os.environ.get("VULN_SCANNER_BACKEND", "").strip().lower()
+    if backend:
+        return backend
+    if os.environ.get("VULN_SCANNER_ADAPTER", "").strip():
+        return "transformers"
+    return "ollama"
+
+
+DEFAULT_BACKEND = _resolve_default_backend()
+# transformers 后端加载参数（Q4 基座 + FP16 LoRA）
+DEFAULT_TRANSFORMERS_MODEL_ID = os.environ.get("VULN_SCANNER_MODEL_ID", "Qwen/Qwen3-8B")
+DEFAULT_TRANSFORMERS_ADAPTER = os.environ.get("VULN_SCANNER_ADAPTER", "")
+DEFAULT_TRANSFORMERS_NUM_CTX = int(os.environ.get("VULN_SCANNER_NUM_CTX", "6144"))
 # Chroma 知识库集合名
 KNOWLEDGE_COLLECTION = "vuln_knowledge"
 
@@ -137,9 +161,13 @@ class Scanner:
         use_taint_tracking: bool = False,
         keep_alive=0,
         client: Optional[OllamaClient] = None,
+        backend: Optional[str] = None,
     ):
-        # 允许注入外部客户端（如 vLLM 后端），默认使用 Ollama
-        self.client = client if client is not None else OllamaClient(base_url=base_url, model=model)
+        # 允许注入外部客户端（如 vLLM 后端），默认按 backend 选择推理后端
+        if client is not None:
+            self.client = client
+        else:
+            self.client = self._build_default_client(model, backend)
         self.model = model
         self.use_rag = use_rag
         self.use_prefilter = use_prefilter
@@ -158,6 +186,34 @@ class Scanner:
         self._chroma = None  # 延迟初始化（首次用 RAG 时才连 Chroma）
         # 模型切换锁：switch_model 与 scan_code 互斥，避免多 chunk 扫描中途切模型撕裂结果
         self._model_lock = threading.RLock()
+
+    @staticmethod
+    def _build_default_client(model: str, backend: Optional[str]):
+        """按后端类型构建默认推理客户端。
+
+        backend 取值：
+            - "transformers"（默认）：TransformersClient（NF4 基座 + FP16 LoRA 进程内推理）
+            - "ollama"：OllamaClient（GGUF Q4_K_M 发布模型）
+            - "llamacpp"（实验性）：LlamaCppClient（Q4 GGUF 基座 + 运行时 FP16 LoRA，
+              llama.cpp 内核快 + LoRA 保精度，需 llama-cpp-python 且 VULN_SCANNER_GGUF 指向基座）
+        """
+        backend = backend or DEFAULT_BACKEND
+        if backend == "transformers":
+            from graduation_project.transformers_client import TransformersClient
+            return TransformersClient(
+                model_id=DEFAULT_TRANSFORMERS_MODEL_ID,
+                adapter=DEFAULT_TRANSFORMERS_ADAPTER,
+                num_ctx=DEFAULT_TRANSFORMERS_NUM_CTX,
+            )
+        if backend == "llamacpp":
+            from graduation_project.llamacpp_client import LlamaCppClient
+            return LlamaCppClient(
+                base_gguf=os.environ.get("VULN_SCANNER_GGUF", ""),
+                adapter=DEFAULT_TRANSFORMERS_ADAPTER,
+                num_ctx=DEFAULT_TRANSFORMERS_NUM_CTX,
+            )
+        # 默认回退 Ollama
+        return OllamaClient(base_url="http://localhost:11434", model=model)
 
     def switch_model(self, model: str) -> None:
         """运行时切换活动模型。队列中的待执行任务也会用新模型。
@@ -199,19 +255,44 @@ class Scanner:
         return self._taint_tracker
 
     def check_health(self) -> dict:
-        """健康检查：Ollama 连接 + 模型可用性 + 各层开关状态。"""
-        connected = self.client.check_connection()
-        models = self.client.list_models() if connected else []
-        model_available = self.model in models
+        """健康检查：后端连接 + 模型可用性 + 各层开关状态。
+
+        兼容非 Ollama 后端（transformers/llamacpp 无 list_models 等管理接口）：
+        管理类能力缺失时对应字段返回空/None，不抛异常。
+        """
+        try:
+            connected = self.client.check_connection()
+        except Exception:
+            connected = False
+        models = []
+        if connected and hasattr(self.client, "list_models"):
+            try:
+                models = self.client.list_models()
+            except Exception:
+                models = []
+        caps = self.model_management_capabilities()
         return {
-            "ollama_connected": connected,
+            "backend": type(self.client).__name__,
+            "ollama_connected": connected,  # 字段名保留兼容前端；非 Ollama 后端表示"推理后端已连接"
             "model": self.model,
-            "model_available": model_available,
+            # 无模型列表能力的后端（进程内推理）视为模型随进程就绪
+            "model_available": (self.model in models) if caps["list"] else connected,
             "available_models": models,
+            "model_management": caps,
             "rag_enabled": self.use_rag,
             "prefilter_enabled": self.use_prefilter,
             "structured_fallback_enabled": self.use_structured_fallback,
             "taint_tracking_enabled": self.use_taint_tracking,
+        }
+
+    def model_management_capabilities(self) -> dict:
+        """当前推理客户端支持的模型管理能力（Ollama 全支持，进程内后端全不支持）。"""
+        c = self.client
+        return {
+            "list": hasattr(c, "list_models"),
+            "pull": hasattr(c, "pull_model"),
+            "delete": hasattr(c, "delete_model"),
+            "activate": hasattr(c, "model"),  # 只有按名切换模型的客户端支持 activate
         }
 
     def _retrieve_rag_context(self, code: str) -> Optional[str]:
@@ -340,16 +421,53 @@ class Scanner:
         )
 
         # 逐 chunk 分析
+        # 批量解码优化：多 chunk 且后端支持 generate_batch 时，一次 generate 走完整 batch。
+        # 单条自回归解码是显存带宽瓶颈（GPU 等权重读取，功耗上不去），batch 摊薄权重读取
+        # → 算术强度上升、真正吃满 GPU。TransformersClient 支持；Ollama/VLLM 不支持则顺序执行。
         chunk_results: list[SingleResult] = []
-        for chunk in slice_result.chunks:
-            r = self._analyze_chunk(
-                chunk.code, language, filename, rag_context,
-                chunk_name=chunk.name,
-                taint_context=taint_context,
+        chunks = slice_result.chunks
+        if len(chunks) > 1 and hasattr(self.client, "generate_batch"):
+            # 构建所有 chunk 的 prompt（上下文与 _analyze_chunk 一致）
+            prompts = []
+            for chunk in chunks:
+                display_name = f"{filename}::{chunk.name}" if chunk.name else filename
+                combined_context = None
+                if rag_context and taint_context:
+                    combined_context = rag_context + "\n\n" + taint_context
+                elif rag_context:
+                    combined_context = rag_context
+                elif taint_context:
+                    combined_context = taint_context
+                prompts.append(build_user_prompt(
+                    code=chunk.code, language=language,
+                    filename=display_name, rag_context=combined_context,
+                ))
+            gen_results = self.client.generate_batch(
+                prompts,
+                system_prompt=self.system_prompt,
+                max_tokens=2048,
+                num_ctx=self._num_ctx,
             )
-            r.sliced = slice_result.sliced
-            r.chunk_count = slice_result.chunk_count
-            chunk_results.append(r)
+            for chunk, res in zip(chunks, gen_results):
+                r = self._analyze_chunk(
+                    chunk.code, language, filename, rag_context,
+                    chunk_name=chunk.name,
+                    taint_context=taint_context,
+                    result=res,
+                )
+                r.sliced = slice_result.sliced
+                r.chunk_count = slice_result.chunk_count
+                chunk_results.append(r)
+        else:
+            for chunk in chunks:
+                r = self._analyze_chunk(
+                    chunk.code, language, filename, rag_context,
+                    chunk_name=chunk.name,
+                    taint_context=taint_context,
+                )
+                r.sliced = slice_result.sliced
+                r.chunk_count = slice_result.chunk_count
+                chunk_results.append(r)
 
         # 合并：任一 chunk 有漏洞 → 整文件有漏洞；任一 chunk 报错且无漏洞 → 整文件报错
         if len(chunk_results) == 1:
@@ -395,6 +513,7 @@ class Scanner:
         rag_context: Optional[str],
         chunk_name: str = "",
         taint_context: Optional[str] = None,
+        result: Optional[dict] = None,
     ) -> SingleResult:
         """分析单个代码 chunk。
 
@@ -403,6 +522,10 @@ class Scanner:
         2. 若 parse 失败且 use_structured_fallback=True：
            用 Ollama format=json 约束解码重试，数学上保证输出可解析
         3. 污点分析上下文（如有）与 RAG 上下文一并注入 prompt
+
+        Args:
+            result: 若传入预生成的 generate 结果 dict，则跳过本轮 LLM 调用，
+                直接进入解析与兜底（供批量解码路径复用；None 时自行调用 generate）。
         """
         display_name = f"{filename}::{chunk_name}" if chunk_name else filename
         # 合并 RAG + 污点上下文
@@ -419,16 +542,19 @@ class Scanner:
             filename=display_name, rag_context=combined_context,
         )
 
-        start = time.time()
-        result = self.client.generate(
-            prompt=prompt,
-            system_prompt=self.system_prompt,
-            keep_alive=self.keep_alive,
-            num_ctx=self._num_ctx,
-            num_gpu=self._num_gpu,
-            num_thread=self._num_thread,
-        )
-        duration = time.time() - start
+        if result is None:
+            start = time.time()
+            result = self.client.generate(
+                prompt=prompt,
+                system_prompt=self.system_prompt,
+                keep_alive=self.keep_alive,
+                num_ctx=self._num_ctx,
+                num_gpu=self._num_gpu,
+                num_thread=self._num_thread,
+            )
+            duration = time.time() - start
+        else:
+            duration = result.get("duration", 0.0)
 
         if result["error"]:
             return SingleResult(

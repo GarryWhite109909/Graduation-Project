@@ -57,6 +57,7 @@ from app.backend.services.scheduler import (
 
 # 高级能力模块（外部工具扫描 / 修复验证 / 多模型投票 / vLLM 推理加速）
 from graduation_project.external_scanner import ExternalScanner
+from graduation_project.two_stage_scanner import TwoStageScanner, tool_recall_monitor_snapshot
 from graduation_project.fix_verifier import FixVerifier
 from graduation_project.multi_model_scanner import MultiModelScanner
 from graduation_project.vllm_client import VLLMClient
@@ -152,6 +153,15 @@ class VllmAnalyzeRequest(BaseModel):
     code: str = Field(..., max_length=MAX_CODE_CHARS)
     language: str = "python"
     filename: str = "pasted_code.py"
+    use_rag: Optional[bool] = None
+
+
+class TwoStageRequest(BaseModel):
+    """两阶段扫描请求（工具召回 + LLM 裁决）。"""
+    code: str = Field(..., max_length=MAX_CODE_CHARS)
+    language: str = "python"
+    filename: str = "pasted_code.py"
+    n_samples: int = Field(5, ge=1, le=10)   # 自一致率采样次数
     use_rag: Optional[bool] = None
 
 
@@ -340,6 +350,57 @@ async def analyze(req: AnalyzeRequest, request: Request):
     if err is not None:
         return err
     return result.to_dict()
+
+
+# ---------------------------------------------------------------------------
+# 两阶段扫描（工具召回 + LLM 裁决）
+# ---------------------------------------------------------------------------
+@app.post("/api/analyze/two-stage")
+async def analyze_two_stage(req: TwoStageRequest, request: Request):
+    """两阶段架构扫描：Stage 1 工具召回候选 + Stage 2 LLM 裁决（自一致率）。
+
+    与旧 /api/analyze 的"LLM 为主、工具为辅"不同，本端点反转为"工具召回 +
+    LLM 裁决"：只有有候选的少数文件才触发 LLM，且 LLM 只做封闭二分类（判定
+    某 source→sink 证据链真伪），以 N 次采样自一致率作为置信度。
+
+    复用全局 scanner 的 client 与 system_prompt（同一推理后端，避免重复加载
+    模型），走调度器 HIGH 优先级（与旧 analyze 一致，避免抢占串行 Ollama）。
+    """
+    client_id = resolve_client_id(request.headers.get("x-client-type"))
+    priority = resolve_priority(request.headers.get("x-scan-scope"), PRIORITY_HIGH)
+
+    def _run():
+        # 与 scan_code 互斥：N 次采样裁决期间不允许 switch_model，
+        # 否则中途切模型会出现"旧 system prompt + 新模型"的撕裂结果
+        with scanner._model_lock:
+            ts = TwoStageScanner(
+                client=scanner.client,
+                system_prompt=scanner.system_prompt,
+                n_samples=req.n_samples,
+                keep_alive=scanner.keep_alive,
+                num_ctx=scanner._num_ctx,
+                use_rag=False,      # 默认关闭；req.use_rag=True 时经 scan_code 参数启用（Chroma 不可用时自动降级）
+            )
+            return ts.scan_code(
+                code=req.code, language=req.language,
+                filename=req.filename, use_rag=req.use_rag,
+            )
+
+    _, future = scheduler.submit(
+        priority, client_id, _run,
+        description=f"two-stage:{req.filename}",
+    )
+    result, err = await _await_scan(future)
+    if err is not None:
+        return err
+    # ?format=sarif → 返回 SARIF 2.1.0（GitHub Code Scanning / IDE 原生可消费）
+    if request.query_params.get("format") == "sarif":
+        from graduation_project.sarif_report import to_sarif
+        return to_sarif([result], tool_version=scanner.model)
+    out = result.to_dict()
+    # 附带工具层召回监控（抽样复核计数），供前端/论文追踪 Stage 1 漏报率
+    out["tool_recall_monitor"] = tool_recall_monitor_snapshot()
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -559,7 +620,8 @@ def _clone_and_collect(req: GithubScanRequest) -> tuple[Optional[str], Optional[
 
     code_files = []
     for root, _dirs, fnames in os.walk(clone_target):
-        if any(skip in root for skip in [".git", "node_modules", "vendor", "__pycache__"]):
+        # 按路径段精确匹配跳过依赖/版本目录（子串匹配会误伤 x.gitlab 等合法目录名）
+        if set(Path(root).parts) & {".git", "node_modules", "vendor", "__pycache__"}:
             continue
         for fname in fnames:
             ext = Path(fname).suffix.lower()
@@ -802,12 +864,36 @@ def models_registry():
     return {"models": list_registry()}
 
 
+def _model_mgmt_gate(capability: str):
+    """非 Ollama 后端（transformers/llamacpp 等进程内推理）无模型管理接口，
+    对应路由返回 501 而非 500/误报。"""
+    caps = scanner.model_management_capabilities()
+    if not caps.get(capability):
+        return JSONResponse(
+            {"error": f"当前推理后端（{type(scanner.client).__name__}）不支持模型{capability}操作，"
+                      "模型管理仅 Ollama 后端可用",
+             "backend": type(scanner.client).__name__,
+             "model_management": caps},
+            status_code=501,
+        )
+    return None
+
+
 @app.get("/api/models/installed")
 def models_installed():
     """返回已安装的模型列表（从 Ollama /api/tags 过滤 garrywhite109909 命名空间）。
 
     每个模型附带注册表中的元数据（display_name / deprecated 等）和磁盘占用。
+    非 Ollama 后端无模型列表能力：返回空列表 + management_supported=false。
     """
+    caps = scanner.model_management_capabilities()
+    if not caps["list"]:
+        return {
+            "installed": [],
+            "active_model": scanner.model,
+            "management_supported": False,
+            "backend": type(scanner.client).__name__,
+        }
     registry = {m["full_name"]: m for m in list_registry()}
     installed = []
     for name in scanner.client.list_models():
@@ -819,6 +905,7 @@ def models_installed():
     return {
         "installed": installed,
         "active_model": scanner.model,
+        "management_supported": True,
     }
 
 
@@ -833,6 +920,9 @@ async def models_pull(req: ModelActionRequest):
         return JSONResponse(
             {"error": f"模型 {req.model} 不在允许列表中"}, status_code=403,
         )
+    gate = _model_mgmt_gate("pull")
+    if gate is not None:
+        return gate
 
     async def stream():
         import queue as _q
@@ -891,6 +981,9 @@ def models_delete(model_name: str):
         return JSONResponse(
             {"error": f"模型 {model_name} 不在允许列表中"}, status_code=403,
         )
+    gate = _model_mgmt_gate("delete")
+    if gate is not None:
+        return gate
     # 如果删除的是当前活动模型，先切回默认模型
     if scanner.model == model_name:
         default = get_default_model()
@@ -917,6 +1010,9 @@ def models_activate(req: ModelActionRequest):
         return JSONResponse(
             {"error": f"模型 {req.model} 不在允许列表中"}, status_code=403,
         )
+    gate = _model_mgmt_gate("activate")
+    if gate is not None:
+        return gate
     # 检查模型是否已安装
     installed = scanner.client.list_models()
     if req.model not in installed:

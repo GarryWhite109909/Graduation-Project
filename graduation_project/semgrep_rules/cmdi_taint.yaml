@@ -1,0 +1,45 @@
+# 命令注入污点规则 —— 两阶段架构 Stage 1（工具召回）。
+#
+# 与 sqli_taint.yaml 同理：仅做召回，交由 Stage 2 LLM 裁决层判定真伪。
+# 注意：subprocess.run([...]) 列表参数形式（shell=False）是安全写法，会命中
+# 本规则造成召回误报，但裁决层会识别该有效防御并放行 —— 这正是"工具召回 +
+# LLM 裁决"架构中"允许工具高 FPR、靠裁决层抑制"的设计意图。
+rules:
+  - id: python-cmdi-taint
+    mode: taint
+    message: "用户可控输入($SOURCE)流入命令执行($SINK)，疑似命令注入（待 LLM 裁决）"
+    severity: ERROR
+    languages: [python]
+    pattern-sources:
+      # Flask / Django / 通用 WSGI 输入
+      - pattern: request.GET.get(...)
+      - pattern: request.args.get(...)
+      - pattern: request.form.get(...)
+      - pattern: request.POST.get(...)
+      - pattern: request.values.get(...)
+      - pattern: request.json
+      - pattern: request.data
+      - pattern: request.cookies
+      - pattern: request.COOKIES
+      - pattern: request.headers
+      - pattern: request.META
+      # 命令行 / 环境变量 / 标准输入
+      - pattern: input(...)
+      - pattern: sys.argv
+      - pattern: os.environ
+      - pattern: os.environ.get(...)
+    pattern-sinks:
+      - pattern: os.system(...)
+      - pattern: os.popen(...)
+      - pattern: subprocess.run(...)
+      - pattern: subprocess.Popen(...)
+      - pattern: subprocess.call(...)
+      - pattern: subprocess.check_call(...)
+      - pattern: subprocess.check_output(...)
+      - pattern: subprocess.getoutput(...)
+      - pattern: subprocess.getstatusoutput(...)
+      - pattern: eval(...)
+      - pattern: exec(...)
+    options:
+      taint_assume_safe_functions: true
+      taint_assume_safe_comparisons: true

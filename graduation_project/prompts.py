@@ -441,6 +441,103 @@ def build_full_prompt_variant(
     return system + "\n\n" + user
 
 
+# ---------------------------------------------------------------------------
+# 两阶段架构：finding 裁决 prompt（Stage 2 裁决层）
+# ---------------------------------------------------------------------------
+# 与主扫描不同，裁决层任务是"对具体 finding 判定真伪"（封闭判别），而非
+# "在全文中发现漏洞"（开放生成）。因此 prompt 聚焦一条 source→sink 证据链，
+# 并显式要求检查防御是否有效。system prompt 仍沿用 model_registry 选择的
+# system_prompt（v9max→BASE_PROMPT），与训练/主扫描保持一致。
+_TRIAGE_SCHEMA = """\
+{"is_confirmed": true/false, "reason": "...", "fix_suggestion": "..."}
+"""
+
+
+def build_triage_prompt(
+    finding,
+    code_context: str,
+    language: str = "python",
+    filename: str = "",
+    rag_context: Optional[str] = None,
+) -> str:
+    """构造 finding 裁决 prompt：封闭二分类，带证据链锚点。
+
+    对 Stage 1 工具召回的单个候选 finding，请 LLM 判定该 source→sink 证据链
+    是否为真实漏洞。判定要点：
+    1. source 是否真的用户可控、sink 是否真的危险；
+    2. source→sink 之间是否有**有效**防御（参数化查询/转义/白名单/列表参数）；
+    3. 输出 is_confirmed=true/false 及 reason 与修复建议。
+
+    Args:
+        finding: ToolFinding（含 rule_id/source/sink/taint_type/source_line/
+                 sink_line/path/severity/evidence）
+        code_context: 切片后的相关代码（只含 source/sink 所在 chunk，聚焦注意力）
+        language: 代码语言
+        filename: 文件名（仅作展示上下文，不注入 prompt 文本，避免文件名泄漏）
+        rag_context: 可选 RAG 知识（如 CWE 安全模式）
+
+    Returns:
+        完整的 user prompt 文本（配合 system prompt 使用）。
+    """
+    rule_id = getattr(finding, "rule_id", "unknown-rule")
+    taint_type = getattr(finding, "taint_type", "Unknown")
+    source = getattr(finding, "source", "")
+    sink = getattr(finding, "sink", "")
+    source_line = getattr(finding, "source_line", 0)
+    sink_line = getattr(finding, "sink_line", 0)
+    severity = getattr(finding, "severity", "medium")
+    path_chain = getattr(finding, "path", None) or []
+    evidence = getattr(finding, "evidence", "")
+
+    # 传播链：source -> ... -> sink
+    if path_chain:
+        chain_repr = " -> ".join([f"L{source_line}:{source}"] + list(path_chain)
+                                 + [f"L{sink_line}:{sink}"])
+    else:
+        chain_repr = f"L{source_line}:{source} -> L{sink_line}:{sink}"
+
+    parts = []
+    parts.append("【安全分析任务：裁决一个静态工具告警是否为真漏洞】")
+    parts.append("")
+    parts.append("静态工具报告了一个可疑代码流，请判定它是否为真实漏洞（is_confirmed）。")
+    parts.append("")
+    parts.append("可疑数据流：")
+    parts.append(f"- 规则: {rule_id}")
+    parts.append(f"- 漏洞类型: {taint_type}")
+    parts.append(f"- 严重度: {severity}")
+    parts.append(f"- 污染源: {source}  (line {source_line})")
+    parts.append(f"- 危险点: {sink}  (line {sink_line})")
+    parts.append(f"- 传播链: {chain_repr}")
+    if evidence:
+        parts.append(f"- 工具证据: {evidence}")
+    parts.append("")
+    parts.append("相关代码片段（已切片聚焦）：")
+    parts.append("```" + (language or "text") + "\n" + code_context + "\n```")
+
+    if rag_context:
+        parts.append("")
+        parts.append(
+            f"【知识库检索结果（仅供参考，可能与当前代码相关也可能无关）】\n{rag_context}\n"
+            "使用要求：若知识标注 safe_pattern=true 或描述的是安全写法，"
+            "应作为「避免误报」的依据，而非漏洞证据。"
+        )
+
+    parts.append("")
+    parts.append("判定要求：")
+    parts.append("1. 确认 source 是否真的用户可控、sink 是否真的危险。")
+    parts.append("2. 检查 source→sink 之间是否有**有效**防御（参数化查询/转义/白名单/列表参数 subprocess）。")
+    parts.append("   有效防御意味着该 finding 是误报，is_confirmed=false。")
+    parts.append("3. 严禁捏造代码中不存在的 API 参数或行为；判定必须基于代码实际内容。")
+    parts.append("4. 若判定为真漏洞，输出 is_confirmed=true 并给出简洁 reason 与修复建议；否则 is_confirmed=false。")
+    parts.append("")
+    parts.append("请先给出简短分析过程，然后在回答最后输出如下 JSON：")
+    parts.append("```json")
+    parts.append(_TRIAGE_SCHEMA)
+    parts.append("```")
+
+    return "\n".join(parts)
+
+
 if __name__ == "__main__":
     # 自检
     test_code = "cursor.execute(\"SELECT * FROM u WHERE name='\" + name + \"'\")"

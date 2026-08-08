@@ -1,5 +1,12 @@
 """
-启动器 —— 首次使用检测 Ollama + 模型，后续直接启动后端 + 打开浏览器。
+启动器 —— 首次使用检测推理后端与模型，后续直接启动后端 + 打开浏览器。
+
+推理后端（与 app/backend/services/scanner.py 的解析规则一致）：
+    - transformers：配置了 VULN_SCANNER_ADAPTER 时启用（Q4 基座 + FP16 LoRA 进程内推理，
+      复现 95% 召回管道），需要 transformers/peft/bitsandbytes，不依赖 Ollama
+    - ollama：默认一键启动形态（GGUF Q4_K_M 发布模型），自动安装/启动 Ollama 并拉取模型
+    - llamacpp：实验性（Q4 GGUF 基座 + 运行时 FP16 LoRA），需要 llama-cpp-python
+    可用 VULN_SCANNER_BACKEND 显式覆盖。
 
 跨平台入口：
     python -m app.launcher.bootstrap
@@ -34,6 +41,54 @@ except Exception:
 FALLBACK_MODEL = os.environ.get("VULN_SCANNER_FALLBACK_MODEL", "qwen3:8b")
 # 后端端口
 PORT = 8765
+
+
+def resolve_backend() -> str:
+    """解析推理后端（规则与 scanner.py._resolve_default_backend 保持一致）。"""
+    backend = os.environ.get("VULN_SCANNER_BACKEND", "").strip().lower()
+    if backend:
+        return backend
+    if os.environ.get("VULN_SCANNER_ADAPTER", "").strip():
+        return "transformers"
+    return "ollama"
+
+
+def check_inprocess_backend_ready(backend: str) -> bool:
+    """校验进程内推理后端（transformers/llamacpp）的依赖与模型配置。
+
+    返回 True 表示就绪；False 时已打印具体缺失项与修复命令。
+    """
+    ok = True
+    if backend == "transformers":
+        missing = []
+        for mod in ("torch", "transformers", "peft", "bitsandbytes"):
+            try:
+                __import__(mod)
+            except ImportError:
+                missing.append(mod)
+        if missing:
+            print(f"[错误] transformers 后端缺少依赖: {', '.join(missing)}")
+            print("  安装命令: pip install transformers peft bitsandbytes accelerate")
+            print("  （Windows 需要支持 Windows 的 bitsandbytes 构建；")
+            print("   或设置 VULN_SCANNER_BACKEND=ollama 改用 Ollama 后端）")
+            ok = False
+        adapter = os.environ.get("VULN_SCANNER_ADAPTER", "").strip()
+        if not adapter:
+            print("[错误] transformers 后端需要 VULN_SCANNER_ADAPTER 指向 LoRA adapter 目录")
+            print("  （目录内需含 adapter_model.safetensors / adapter_model.bin）")
+            ok = False
+        elif not Path(adapter).is_dir():
+            print(f"[错误] LoRA adapter 路径不存在: {adapter}")
+            ok = False
+    elif backend == "llamacpp":
+        try:
+            __import__("llama_cpp")
+        except ImportError:
+            print("[错误] llamacpp 后端缺少依赖 llama-cpp-python")
+            print("  安装命令: pip install llama-cpp-python")
+            print("  （或设置 VULN_SCANNER_BACKEND=ollama 改用 Ollama 后端）")
+            ok = False
+    return ok
 
 
 def is_port_in_use(port: int) -> bool:
@@ -698,33 +753,48 @@ def main():
     print("  AI 漏洞扫描器 —— 启动中（模式: %s）" % mode)
     print("=" * 60)
 
-    # 1. 检测 Ollama
-    if not check_ollama_installed():
-        # 尝试自动安装
-        if not try_install_ollama():
-            print("\n[错误] Ollama 自动安装失败。请手动安装：")
-            print("  下载地址：https://ollama.com/download")
-            print("  安装后重新运行本启动器。")
-            input("\n按回车键退出...")
-            return
-        # 安装后重新检查 PATH
+    # 0. 解析推理后端并传给后端子进程（scanner.py 按同一规则解析，显式设置避免漂移）
+    backend = resolve_backend()
+    os.environ["VULN_SCANNER_BACKEND"] = backend
+    use_ollama = backend == "ollama"
+    print(f"[启动器] 推理后端: {backend}")
+
+    if use_ollama:
+        # 1. 检测 Ollama
         if not check_ollama_installed():
-            print("\n[错误] Ollama 已安装但不在 PATH 中。")
-            print("  请重启终端后重新运行本启动器，或手动将 ollama 加入 PATH。")
+            # 尝试自动安装
+            if not try_install_ollama():
+                print("\n[错误] Ollama 自动安装失败。请手动安装：")
+                print("  下载地址：https://ollama.com/download")
+                print("  安装后重新运行本启动器。")
+                input("\n按回车键退出...")
+                return
+            # 安装后重新检查 PATH
+            if not check_ollama_installed():
+                print("\n[错误] Ollama 已安装但不在 PATH 中。")
+                print("  请重启终端后重新运行本启动器，或手动将 ollama 加入 PATH。")
+                input("\n按回车键退出...")
+                return
+
+        print("[1/5] Ollama 已安装")
+
+        # 2. 确保 Ollama 服务运行
+        if not ensure_ollama_running():
+            print("\n[错误] Ollama 服务无法启动。请手动运行 `ollama serve` 后重试。")
             input("\n按回车键退出...")
             return
 
-    print("[1/5] Ollama 已安装")
+        print("[2/5] Ollama 服务已运行")
+    else:
+        # 进程内后端（transformers/llamacpp）：不依赖 Ollama，校验依赖与 adapter 配置
+        if not check_inprocess_backend_ready(backend):
+            print("\n[错误] 进程内推理后端未就绪，请按上方提示修复后重试。")
+            input("\n按回车键退出...")
+            return
+        print(f"[1/5] {backend} 后端依赖就绪")
+        print("[2/5] 跳过 Ollama（进程内推理后端不需要）")
 
-    # 2. 确保 Ollama 服务运行
-    if not ensure_ollama_running():
-        print("\n[错误] Ollama 服务无法启动。请手动运行 `ollama serve` 后重试。")
-        input("\n按回车键退出...")
-        return
-
-    print("[2/5] Ollama 服务已运行")
-
-    # 3. 硬件检测 + 自适应推理参数（在拉取模型前完成，便于后续 scanner.py 读取）
+    # 3. 硬件检测 + 自适应推理参数（在拉取/加载模型前完成，便于后续 scanner.py 读取）
     hardware = detect_hardware()
     config = recommend_config(hardware)
     print_hardware_summary(hardware, config)
@@ -735,17 +805,18 @@ def main():
 
     print("[3/5] 硬件检测完成")
 
-    # 4. 确保模型可用
-    model = os.environ.get("VULN_SCANNER_MODEL", DEFAULT_MODEL)
-    if not ensure_model_available(model):
-        # 回退到官方 Qwen3-8B
-        print(f"[启动器] {model} 不可用，尝试回退模型 {FALLBACK_MODEL}")
-        if not ensure_model_available(FALLBACK_MODEL):
-            print(f"\n[错误] 无法获取任何可用模型。请手动运行：")
-            print(f"  ollama pull {model}")
-            input("\n按回车键退出...")
-            return
-        os.environ["VULN_SCANNER_MODEL"] = FALLBACK_MODEL
+    # 4. 确保模型可用（仅 Ollama 后端需要拉取；进程内后端在首次推理时懒加载）
+    if use_ollama:
+        model = os.environ.get("VULN_SCANNER_MODEL", DEFAULT_MODEL)
+        if not ensure_model_available(model):
+            # 回退到官方 Qwen3-8B
+            print(f"[启动器] {model} 不可用，尝试回退模型 {FALLBACK_MODEL}")
+            if not ensure_model_available(FALLBACK_MODEL):
+                print(f"\n[错误] 无法获取任何可用模型。请手动运行：")
+                print(f"  ollama pull {model}")
+                input("\n按回车键退出...")
+                return
+            os.environ["VULN_SCANNER_MODEL"] = FALLBACK_MODEL
 
     print(f"[4/5] 模型就绪")
 

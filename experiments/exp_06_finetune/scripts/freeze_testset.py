@@ -36,6 +36,14 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+# Windows 默认 GBK 控制台无法编码 ✓/✗/⚠ 等字符，会抛 UnicodeEncodeError 导致
+# verify 实际通过却被判定为失败。强制 stdout/stderr 使用 UTF-8（带 replace 兜底）。
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, OSError):
+        pass
+
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_LOCK = PROJECT_ROOT / "experiments/exp_06_finetune/data/frozen_lock.json"
 

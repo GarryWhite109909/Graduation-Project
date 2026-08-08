@@ -8,7 +8,8 @@ python3 -c "import fastapi, uvicorn, pydantic, requests, tree_sitter, tree_sitte
     echo "[Setup] First run: installing dependencies..."
 
     # 根据 GPU 类型预装 torch，避免 AMD 机器误装 NVIDIA CUDA 包。
-    # 大模型推理由 Ollama 负责，Python 侧 torch 仅用于 sentence-transformers embedding。
+    # 默认一键启动后端的推理由 Ollama 负责，Python 侧 torch 仅用于 sentence-transformers embedding。
+    # （transformers 进程内后端需另行安装 transformers/peft/bitsandbytes，见 requirements.txt）
     # AMD ROCm 环境准备可参考 tools/install_rocm_7.2.4.sh。
     if [ "$(uname -s)" = "Linux" ]; then
         if command -v rocm-smi >/dev/null 2>&1 || lspci -nn 2>/dev/null | grep -qiE '(vga|3d|display).*(amd|radeon|ati)'; then
