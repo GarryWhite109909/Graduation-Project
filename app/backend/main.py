@@ -64,7 +64,7 @@ from app.backend.services.multi_model_scanner import MultiModelScanner
 from graduation_project.vllm_client import VLLMClient
 from graduation_project.schema import parse_verdict, normalize_has_vulnerability
 from graduation_project.prompts import build_user_prompt
-from graduation_project.paths import resolve_adapter_path, find_project_root
+from graduation_project.paths import resolve_adapter_path, resolve_base_model_path, find_project_root
 
 # ---------------------------------------------------------------------------
 # 全局 Scanner 实例（单例，避免重复初始化 Chroma/OllamaClient）
@@ -264,7 +264,7 @@ def _detect_model_available(backend: str, client) -> tuple[bool | None, str]:
     - 其他: 返回 (None, "未实现检测")
     """
     if backend == "transformers":
-        model_id = getattr(client, "model_id", "") or os.environ.get("VULN_SCANNER_MODEL_ID", "Qwen/Qwen3-8B")
+        model_id = getattr(client, "model_id", "") or resolve_base_model_path()
         # 若已加载到内存，肯定可用
         if getattr(client, "_model", None) is not None:
             return True, "已加载到内存"
@@ -272,7 +272,13 @@ def _detect_model_available(backend: str, client) -> tuple[bool | None, str]:
         load_err = getattr(client, "_load_error", None)
         if load_err:
             return False, f"加载失败：{load_err}"
-        # 用 huggingface_hub 检测本地 cache
+        # 本地目录路径（models/hf_models/...）→ 直接检查目录内 config.json
+        local_dir = Path(model_id).expanduser()
+        if local_dir.is_dir():
+            if (local_dir / "config.json").is_file():
+                return True, "已就绪（本地基座模型）"
+            return False, f"本地基座目录缺少 config.json：{model_id}"
+        # 否则用 huggingface_hub 检测本地 cache
         try:
             from huggingface_hub import try_to_load_from_cache
             # 检测 config.json 是否在本地 cache（模型下载的标志文件）
@@ -1326,9 +1332,7 @@ def models_local_resources():
     resources: list[dict] = []
 
     if cls_name == "TransformersClient":
-        model_id = getattr(client, "model_id", "") or os.environ.get(
-            "VULN_SCANNER_MODEL_ID", "Qwen/Qwen3-8B"
-        )
+        model_id = getattr(client, "model_id", "") or resolve_base_model_path()
         available, status = _detect_model_available("transformers", client)
         # 下载目标：models/hf_models/<model_id 最后一段>（与 download-hf 端点一致）
         dest_dir = _models_dir() / "hf_models" / model_id.split("/")[-1]

@@ -141,3 +141,26 @@ def resolve_adapter_path(
         return str(found.resolve())
 
     return ""
+
+
+def resolve_base_model_path(explicit: str = "") -> str:
+    """解析基座模型路径（HF id 或本地目录）。
+
+    解析优先级：
+        1. explicit 参数（非空）
+        2. VULN_SCANNER_MODEL_ID 环境变量（用户显式指定，可为 HF id 或本地路径）
+        3. 项目本地缓存 models/hf_models/Qwen3-8B（存在时优先本地，离线可用）
+        4. 回退官方 HF id Qwen/Qwen3-8B
+    """
+    if explicit:
+        return explicit
+
+    env_id = os.environ.get("VULN_SCANNER_MODEL_ID", "").strip()
+    if env_id:
+        return env_id
+
+    local = find_project_root() / "models" / "hf_models" / "Qwen3-8B"
+    if (local / "config.json").is_file():
+        return str(local)
+
+    return "Qwen/Qwen3-8B"

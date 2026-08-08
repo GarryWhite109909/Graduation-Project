@@ -11,7 +11,7 @@ LoRA 信号被一并重量化，导致 20 真实召回从 95%（全精度 LoRA�
 check_connection / list_models / unload_model / model），便于 Scanner 无缝切换。
 
 使用约定（环境变量）：
-    VULN_SCANNER_MODEL_ID   基座模型（默认 Qwen/Qwen3-8B）
+    VULN_SCANNER_MODEL_ID   基座模型（默认项目本地 models/hf_models/Qwen3-8B，缺失回退 Qwen/Qwen3-8B）
     VULN_SCANNER_ADAPTER    LoRA adapter 目录（必填，含 adapter_model.safetensors）
     VULN_SCANNER_NUM_CTX    上下文长度（默认 6144，用户指定）
     VULN_SCANNER_QUANTIZE   是否 NF4 4bit 量化基座（默认 1）
@@ -78,7 +78,7 @@ def _lazy_import_peft():
 # 复用 graduation_project.prompts 的 build_user_prompt 组装 user prompt。
 from graduation_project.prompts import build_user_prompt
 from graduation_project.schema import parse_verdict, normalize_has_vulnerability
-from graduation_project.paths import resolve_adapter_path
+from graduation_project.paths import resolve_adapter_path, resolve_base_model_path
 
 
 class TransformersClient:
@@ -105,7 +105,7 @@ class TransformersClient:
         flash_attn: bool = True,
         compile_: bool = False,
     ):
-        self.model_id = model_id or os.environ.get("VULN_SCANNER_MODEL_ID", "Qwen/Qwen3-8B")
+        self.model_id = resolve_base_model_path(model_id)
         self.adapter = resolve_adapter_path(adapter)
         self.num_ctx = int(os.environ.get("VULN_SCANNER_NUM_CTX", str(num_ctx)))
         self.quantize = quantize if not os.environ.get("VULN_SCANNER_QUANTIZE") else (
@@ -261,6 +261,26 @@ class TransformersClient:
     def check_connection(self) -> bool:
         """模型是否已加载（进程内，无需网络探测）。"""
         return self._model is not None
+
+    def _base_resolvable(self) -> bool:
+        """基座是否可加载：本地目录含 config.json，或为 HF id（可本地缓存/在线拉取）。"""
+        p = Path(self.model_id).expanduser()
+        if p.is_dir():
+            return (p / "config.json").is_file()
+        return bool(self.model_id)
+
+    def is_ready(self) -> bool:
+        """进程内后端是否就绪：已加载，或本地基座 + adapter 资源齐全。
+
+        与 check_connection() 不同：check_connection() 仅表示模型是否已读入显存；
+        is_ready() 表示“引擎可用”——资源已就绪、首次扫描时才懒加载（8B NF4 约 6GB，
+        若每次健康检查都强制加载会占用显存且拖慢启动）。
+        """
+        if self._model is not None:
+            return True
+        if self._check_adapter():
+            return False
+        return self._base_resolvable()
 
     def list_models(self) -> List[str]:
         """返回当前模型名（进程内仅一个模型）。"""

@@ -23,7 +23,7 @@ from graduation_project.schema import parse_verdict, normalize_has_vulnerability
 from graduation_project.code_slicer import CodeSlicer, SliceResult
 from graduation_project.prefilter import Prefilter, PrefilterResult
 from app.backend.services.model_registry import get_default_model, get_prompt_for_model
-from graduation_project.paths import resolve_adapter_path
+from graduation_project.paths import resolve_adapter_path, resolve_base_model_path
 from graduation_project.result_types import SingleResult, BatchResult
 
 # 默认模型：从环境变量读取，缺省为注册表中的默认模型（当前 v9max）
@@ -53,7 +53,7 @@ def _resolve_default_backend() -> str:
 
 DEFAULT_BACKEND = _resolve_default_backend()
 # transformers 后端加载参数（Q4 基座 + FP16 LoRA）
-DEFAULT_TRANSFORMERS_MODEL_ID = os.environ.get("VULN_SCANNER_MODEL_ID", "Qwen/Qwen3-8B")
+DEFAULT_TRANSFORMERS_MODEL_ID = os.environ.get("VULN_SCANNER_MODEL_ID", "") or resolve_base_model_path()
 # LoRA adapter 路径：优先 VULN_SCANNER_ADAPTER，其次自动探测项目根目录 models/
 DEFAULT_TRANSFORMERS_ADAPTER = resolve_adapter_path()
 DEFAULT_TRANSFORMERS_NUM_CTX = int(os.environ.get("VULN_SCANNER_NUM_CTX", "6144"))
@@ -209,12 +209,20 @@ class Scanner:
             except Exception:
                 models = []
         caps = self.model_management_capabilities()
+        # 进程内后端（transformers/llamacpp/vllm）默认懒加载，模型未读入显存不代表引擎不可用。
+        # 用 is_ready()（资源就绪即可）判定"引擎就绪"，避免健康检查强制加载 8B 模型。
+        ready = connected
+        if not caps["list"] and hasattr(self.client, "is_ready"):
+            try:
+                ready = self.client.is_ready()
+            except Exception:
+                ready = connected
         return {
             "backend": type(self.client).__name__,
-            "ollama_connected": connected,  # 字段名保留兼容前端；非 Ollama 后端表示"推理后端已连接"
+            "ollama_connected": ready,  # 字段名保留兼容前端；非 Ollama 后端表示"推理后端就绪"
             "model": self.model,
-            # 无模型列表能力的后端（进程内推理）视为模型随进程就绪
-            "model_available": (self.model in models) if caps["list"] else connected,
+            # 无模型列表能力的后端（进程内推理）视为引擎随资源就绪
+            "model_available": (self.model in models) if caps["list"] else ready,
             "available_models": models,
             "model_management": caps,
             "rag_enabled": self.use_rag,

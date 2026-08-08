@@ -62,6 +62,8 @@ outputs/
 !models/**/adapter_model.gguf
 !models/**/adapter_config.json
 !models/**/README.md
+# 本地基座模型权重（models/hf_models/，大文件 + 版权，绝不入库）
+models/hf_models/
 
 # RAG 向量数据库（本地持久化，体积大且无需入库）
 # 训练/蒸馏数据已移至训练机器，仓库不再保存（experiments/exp_06_finetune/data/ 整体排除）
