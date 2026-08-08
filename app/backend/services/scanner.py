@@ -292,6 +292,10 @@ class Scanner:
                 has_vulnerability=None, error="empty code",
             )
 
+        # 记录整文件分析的起始时刻，返回给前端的 duration 覆盖切片/预筛/RAG/污点/多 chunk 等全部耗时，
+        # 而非仅单次 LLM generate 的耗时（否则长文件/排队会导致前端显示时间远小于实际等待时间）
+        _scan_start = time.time()
+
         rag_enabled = self.use_rag if use_rag is None else use_rag
         rag_context = self._retrieve_rag_context(code) if rag_enabled else None
 
@@ -349,6 +353,7 @@ class Scanner:
 
         # 合并：任一 chunk 有漏洞 → 整文件有漏洞；任一 chunk 报错且无漏洞 → 整文件报错
         if len(chunk_results) == 1:
+            chunk_results[0].duration = time.time() - _scan_start
             return chunk_results[0]
 
         # 多 chunk：取风险最高的；但若有 error 且无漏洞，整文件判 error（避免部分失败被误判为安全）
@@ -378,6 +383,8 @@ class Scanner:
                 ]
                 merged.has_vulnerability = None
                 merged.error = "部分 chunk 分析失败: " + "; ".join(err_msgs)
+        # 设置为整文件分析总耗时（覆盖所有 chunk 的 LLM 调用）
+        merged.duration = time.time() - _scan_start
         return merged
 
     def _analyze_chunk(

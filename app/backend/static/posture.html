@@ -661,10 +661,10 @@
       function renderTrendChart() {
         const svg = document.getElementById('chart-trend');
         if (!svg) return;
-        // 趋势图只显示 GitHub 仓库扫描的历史
+        // 趋势图只显示 GitHub 仓库扫描的历史（取最近 MAX_HISTORY 条，避免历史变多后溢出布局）
         const hist = getHistory().filter(function (entry) {
           return entry.source === 'github';
-        });
+        }).slice(-MAX_HISTORY);
         const countEl = document.getElementById('trend-count');
         if (!hist.length) {
           svg.innerHTML = '<text x="320" y="125" text-anchor="middle" fill="var(--vuln-ink-3)" font-size="13">暂无仓库扫描数据，分析仓库后将显示趋势</text>';

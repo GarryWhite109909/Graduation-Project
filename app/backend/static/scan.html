@@ -287,8 +287,11 @@
 
         <div class="tab-panels">
           <div id="panel-paste" role="tabpanel" class="tab-panel">
-            <div class="flex items-center justify-between mb-2">
+            <div class="mb-2">
               <label for="code-input" class="block text-xs text-[var(--vuln-ink-2)]">粘贴需要审计的源代码</label>
+            </div>
+            <div class="flex items-center gap-2 mb-2">
+              <input id="filename-input" type="text" class="flex-1 min-w-0 text-xs bg-[var(--vuln-bg)] border border-[var(--vuln-line)] rounded px-2 py-1 text-[var(--vuln-ink)] placeholder:text-[var(--vuln-ink-3)] focus:outline-none focus:ring-1 focus:ring-[var(--vuln-brand)]" placeholder="自定义文件名（留空则按时间自动命名）" />
               <select id="lang-select" class="text-xs bg-[var(--vuln-bg)] border border-[var(--vuln-line)] rounded px-2 py-1 text-[var(--vuln-ink)] focus:outline-none focus:ring-1 focus:ring-[var(--vuln-brand)]">
                 <option value="python">Python</option>
                 <option value="javascript">JavaScript</option>
@@ -863,6 +866,19 @@
           showToast('已清空最近一轮结果', 'success');
         }
 
+        /* 报告历史「回到本轮」：把工作台定位到指定轮次（只看本轮），并滚动到结果区 */
+        function focusRound(roundId) {
+          if (!roundId) return;
+          var ts = parseInt(String(roundId).replace(/^[rR]/, '').split('_')[0], 10);
+          currentRound = { id: roundId, startedAt: (isNaN(ts) ? new Date() : new Date(ts)) };
+          roundOnly = true;
+          renderResults();
+          updateRoundUI();
+          var panel = document.getElementById('results-panel');
+          if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          if (roundResults().length === 0) showToast('该轮结果可能已被清空，可点击「显示全部」查看历史', 'warning');
+        }
+
         /* ==================== Analyze dispatcher ==================== */
         analyzeBtn.addEventListener('click', function () {
           if (activeTab === 'paste') analyzePaste();
@@ -877,7 +893,7 @@
           var code = document.getElementById('code-input').value;
           if (!code.trim()) { alert('请输入要分析的代码'); return; }
           var lang = document.getElementById('lang-select').value;
-          var filename = 'pasted_code.' + (LANG_EXT[lang] || 'py');
+          var filename = resolvePasteFilename(lang);
           var useVllm = document.querySelector('input[name="backend"]:checked').value === 'vllm';
           var useMulti = multiModelCb.checked;
           var useExternal = document.getElementById('opt-external').checked;
@@ -937,6 +953,22 @@
 
         function getSelectedModels() {
           return Array.from(document.querySelectorAll('.model-cb:checked')).map(function (cb) { return cb.value; });
+        }
+
+        /* 解析粘贴代码的文件名：优先用用户自定义名（缺扩展名按语言补全），留空则按时间自动命名 */
+        function resolvePasteFilename(lang) {
+          var input = document.getElementById('filename-input');
+          var name = input ? input.value.trim() : '';
+          var ext = LANG_EXT[lang] || 'py';
+          if (name) {
+            if (!/\.[a-zA-Z0-9]+$/.test(name)) name += '.' + ext;
+            return name;
+          }
+          var now = new Date();
+          var pad = function (n) { return String(n).padStart(2, '0'); };
+          var code = document.getElementById('code-input').value;
+          var stamp = pad(now.getMonth() + 1) + '-' + pad(now.getDate()) + ' ' + pad(now.getHours()) + '-' + pad(now.getMinutes()) + '-' + pad(now.getSeconds());
+          return (code ? 'paste' : 'sample') + '_' + stamp + '.' + ext;
         }
 
         /* ---------- Upload mode (batch NDJSON stream) ---------- */
@@ -1149,6 +1181,9 @@
             .then(function (code) {
               document.getElementById('code-input').value = code;
               document.getElementById('lang-select').value = DEMO_LANG_MAP[s.language] || 'python';
+              // 演示样本填入真实文件名，便于后续报告历史区分
+              var fi = document.getElementById('filename-input');
+              if (fi) fi.value = s.file;
               switchTab(0);
               if (autoAnalyze) analyzePaste();
             })
@@ -1233,6 +1268,14 @@
             return sev === currentFilter;
           });
 
+          // 显示全部时按「最近一轮 → 历史轮次」倒序排列，新结果置顶，方便快速查看最新扫描
+          if (!roundOnly && filtered.length > 1) {
+            filtered = filtered.slice().sort(function (a, b) {
+              var ta = roundTs(a), tb = roundTs(b);
+              return tb - ta;
+            });
+          }
+
           resultCount.innerHTML = '共 <strong class="text-[var(--vuln-ink)]">' + filtered.length + '</strong> 项' + (roundOnly ? '（本轮）' : '');
 
           if (scanResults.length === 0 && !isStreaming) {
@@ -1262,13 +1305,12 @@
             hasMore = true;
           }
 
-          var html = visible.map(function (r, i) {
-            return cardHTML(r, i);
-          }).join('');
+          // 结果按扫描轮次分组展示，卡片逐轮堆叠，便于短时间多次检测时区分各轮结果
+          var html = renderGrouped(visible, 0);
 
           if (hasMore) {
             html += '<div id="collapsed-results" class="hidden space-y-3">' +
-              collapsed.map(function (r, i) { return cardHTML(r, i + 5); }).join('') +
+              renderGrouped(collapsed, visible.length) +
               '</div>' +
               '<button id="toggle-collapsed" type="button" class="w-full mt-3 py-2 text-xs font-medium text-[var(--vuln-brand)] border border-[var(--vuln-line)] rounded-md hover:bg-[var(--vuln-surface-2)] focus:outline-none focus:ring-2 focus:ring-[var(--vuln-brand)]">' +
               '展开其余 ' + collapsed.length + ' 条结果' +
@@ -1297,6 +1339,58 @@
           if (r.has_vulnerability === false) return 'info';
           var risk = (r.risk_level || '').toLowerCase();
           return RISK_TO_SEV[risk] || 'info';
+        }
+
+        /* 从 _roundId（形如 'r1699..._abcd'）提取轮次时间戳（'r' 与 '_' 之间），用于倒序排序；无轮次记 0 */
+        function roundTs(r) {
+          if (!r || !r._roundId) return 0;
+          var t = parseInt(String(r._roundId).replace(/^[rR]/, '').split('_')[0], 10);
+          return isNaN(t) ? 0 : t;
+        }
+
+        /* 将结果列表按扫描轮次分组；arr 需已按「新→旧」排序，分组结果保持该顺序 */
+        function groupResultsByRound(arr) {
+          var groups = [];
+          var map = {};
+          arr.forEach(function (r) {
+            var rid = (r && r._roundId) || '';
+            var key = rid || 'legacy';
+            if (!map[key]) {
+              map[key] = { rid: rid, ts: roundTs(r), results: [] };
+              groups.push(map[key]);
+            }
+            map[key].results.push(r);
+          });
+          return groups;
+        }
+
+        function formatRoundTime(ts) {
+          var d = new Date(ts);
+          if (isNaN(d.getTime())) return '';
+          var pad = function (n) { return String(n).padStart(2, '0'); };
+          return pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+        }
+
+        /* 轮次分组标题：时间 + 条数 + 分隔线；无有效轮次的历史数据归到「历史结果」 */
+        function roundHeaderHTML(g) {
+          var t = (g.ts > 0) ? formatRoundTime(g.ts) : '历史结果';
+          return '<div class="flex items-center gap-2 mt-4 mb-1">' +
+            '<span class="text-xs font-semibold text-[var(--vuln-ink-2)]">' + t + '</span>' +
+            '<span class="text-xs text-[var(--vuln-ink-3)]">' + g.results.length + ' 项</span>' +
+            '<span class="flex-1 h-px bg-[var(--vuln-line)]"></span>' +
+          '</div>';
+        }
+
+        /* 分组渲染：每个轮次一个标题 + 其下卡片，卡片索引从 startIndex 起全局递增（用于错帧动画） */
+        function renderGrouped(arr, startIndex) {
+          if (!arr.length) return '';
+          var idx = startIndex;
+          var html = '';
+          groupResultsByRound(arr).forEach(function (g) {
+            html += roundHeaderHTML(g);
+            g.results.forEach(function (r) { html += cardHTML(r, idx++); });
+          });
+          return html;
         }
 
         function cardHTML(r, index) {
@@ -1604,7 +1698,7 @@
         var SCAN_RESULTS_KEY = 'vuln_scan_results_v1';
         var HISTORY_KEY = 'vuln_scan_history';
         var REPORTS_KEY = 'vuln_scan_reports_v1';
-        var MAX_HISTORY = 7;
+        var MAX_HISTORY = 1000; // 放宽历史条数上限，让仪表盘「累计」统计覆盖全部扫描
         var MAX_REPORTS = 20;
 
         function recordScanHistory(list) {
@@ -1742,10 +1836,13 @@
             id: 'r_' + Date.now(),
             date: new Date().toISOString(),
             source: activeTab || 'scan',
+            // 关联扫描轮次，便于报告历史「回到本轮」定位工作台结果
+            roundId: currentRound ? currentRound.id : null,
             total_files: total,
             vulnerable: findings.length,
             safe: total - findings.length - errors,
             errors: errors,
+            files: Array.from(new Set(list.map(function (r) { return (r && r.filename) ? r.filename : ''; }).filter(Boolean))),
             markdown: buildReportMarkdown(list),
             summary: findings.slice(0, 10).map(function (r) {
               return { filename: r.filename || '—', vulnerability_type: r.vulnerability_type || '', risk_level: r.risk_level || '' };
@@ -1812,6 +1909,13 @@
               rp.safe = Math.max(0, (rp.total_files || 0) - (rp.vulnerable || 0) - mdErrors);
               needPersist = true;
             }
+            // 旧数据无 files 字段：从 markdown 的「### 文件名」标题回填真实文件名
+            if (!Array.isArray(rp.files)) {
+              rp.files = (rp.markdown.match(/^### (.+)$/gm) || [])
+                .map(function (h) { return h.replace(/^### /, '').trim(); })
+                .filter(Boolean);
+              needPersist = true;
+            }
           }
           if (needPersist) {
             try { localStorage.setItem(REPORTS_KEY, JSON.stringify(reports)); } catch (e) {}
@@ -1841,14 +1945,22 @@
           else if (r.errors > 0) { sevColor = 'error'; sevText = '分析失败'; }
           else { sevColor = 'success'; sevText = '全部安全'; }
           var sourceLabel = { paste: '粘贴', upload: '上传', url: 'URL', github: 'GitHub', demo: '演示' }[r.source] || r.source;
+          // 报告文件名：单文件显示真实文件名，多文件显示「N 个文件 · 首个文件名」；旧数据无 files 字段时回退为文件数
+          var filesLabel;
+          if (Array.isArray(r.files) && r.files.length === 1) {
+            filesLabel = r.files[0];
+          } else if (Array.isArray(r.files) && r.files.length > 1) {
+            filesLabel = r.files.length + ' 个文件 · ' + r.files[0];
+          } else {
+            filesLabel = '文件 ' + r.total_files;
+          }
           return '<article class="report-item glass-card rounded-lg p-3" data-id="' + r.id + '" style="cursor:pointer">' +
             '<div class="flex items-center justify-between gap-2 mb-1">' +
               '<span class="text-xs font-mono text-[var(--vuln-ink-3)]">' + dateStr + ' · ' + sourceLabel + '</span>' +
               '<span class="text-xs font-medium px-2 py-0.5 rounded-full bg-[var(--vuln-state-' + sevColor + ')]/10 text-[var(--vuln-state-' + sevColor + ')]">' + sevText + '</span>' +
             '</div>' +
             '<div class="flex items-center gap-3 text-xs text-[var(--vuln-ink-2)]">' +
-              '<span>文件 ' + r.total_files + '</span>' +
-              '<span>·</span>' +
+              '<span class="flex-1 min-w-0 truncate" title="' + escapeAttr(filesLabel) + '">' + escapeHtml(filesLabel) + '</span>' +
               '<span>漏洞 ' + r.vulnerable + '</span>' +
               '<span>·</span>' +
               '<span>安全 ' + r.safe + '</span>' +
@@ -1857,6 +1969,7 @@
             '<div class="flex items-center gap-2 mt-2">' +
               '<button type="button" class="view-report text-xs text-[var(--vuln-brand)] hover:underline font-medium" data-id="' + r.id + '">查看</button>' +
               '<button type="button" class="dl-report text-xs text-[var(--vuln-ink-3)] hover:text-[var(--vuln-brand)] font-medium" data-id="' + r.id + '">下载</button>' +
+              (r.roundId ? '<button type="button" class="loc-report text-xs text-[var(--vuln-ink-3)] hover:text-[var(--vuln-brand)] font-medium" data-id="' + r.id + '" data-round="' + escapeAttr(r.roundId) + '">回到本轮</button>' : '') +
               '<button type="button" class="del-report text-xs text-[var(--vuln-ink-3)] hover:text-[var(--vuln-state-error)] font-medium" data-id="' + r.id + '">删除</button>' +
             '</div>' +
           '</article>';
@@ -1901,6 +2014,12 @@
               e.stopPropagation();
               deleteReport(btn.getAttribute('data-id'));
               showToast('报告已删除', 'success');
+            });
+          });
+          container.querySelectorAll('.loc-report').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+              e.stopPropagation();
+              focusRound(btn.getAttribute('data-round'), null);
             });
           });
           container.querySelectorAll('.report-item').forEach(function (item) {

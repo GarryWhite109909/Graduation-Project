@@ -268,7 +268,7 @@
         <div id="chart-trend-card" class="card-primary p-6 animate-in col-8" style="animation-delay:240ms">
           <div class="flex items-center justify-between mb-5">
             <h3 class="text-sm font-semibold" style="color: var(--vuln-ink)">扫描活动趋势</h3>
-            <span class="text-xs text-muted-foreground">近 7 次扫描</span>
+            <span class="text-xs text-muted-foreground">近 7 天扫描趋势</span>
           </div>
           <div style="width:100%">
             <svg id="chart-trend" viewBox="0 0 640 256" style="width:100%;height:auto;display:block" role="img" aria-label="扫描趋势折线图">
@@ -562,14 +562,16 @@
       svg.innerHTML = '<line x1="40" y1="216" x2="620" y2="216" stroke="var(--vuln-line)"/><text x="320" y="125" text-anchor="middle" fill="var(--vuln-ink-3)" font-size="13">暂无历史数据，完成首次扫描后将显示趋势</text>';
       return;
     }
-    // 按天聚合：同一天多次扫描合并为一个 x 点（趋势图 x 轴按日期展示）
+    // 按天聚合：只统计近 7 天的扫描（同一天多次扫描合并为一个 x 点，x 轴按日期展示）
+    var TREND_DAYS = 7;
+    var cutoff = Date.now() - TREND_DAYS * 24 * 3600 * 1000;
     var byDay = {};
     var dayOrder = [];
     hist.forEach(function (entry) {
       var dd = new Date(entry.date);
-      var key = isNaN(dd.getTime())
-        ? 'raw-' + dayOrder.length
-        : dd.getFullYear() + '-' + String(dd.getMonth() + 1).padStart(2, '0') + '-' + String(dd.getDate()).padStart(2, '0');
+      if (isNaN(dd.getTime())) return;            // 跳过无有效日期的条目
+      if (dd.getTime() < cutoff) return;          // 只保留近 7 天内的记录
+      var key = dd.getFullYear() + '-' + String(dd.getMonth() + 1).padStart(2, '0') + '-' + String(dd.getDate()).padStart(2, '0');
       if (!byDay[key]) {
         byDay[key] = { date: entry.date, total: 0, vulnerable: 0, safe: 0, errors: 0 };
         dayOrder.push(key);
@@ -579,7 +581,7 @@
       byDay[key].safe += (entry.safe || 0);
       byDay[key].errors += (entry.errors || 0);
     });
-    var data = dayOrder.slice(-MAX_HISTORY).map(function (k) { return byDay[k]; });
+    var data = dayOrder.map(function (k) { return byDay[k]; });
     var left=40, right=620, top=30, bottom=216;
     var w = right-left;
     // Y 轴最大值向上取整到漂亮刻度（5/10 的倍数），避免数据微小变化导致刻度频繁跳动

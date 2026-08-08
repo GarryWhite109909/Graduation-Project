@@ -11,7 +11,9 @@
   'use strict';
 
   var HISTORY_KEY = 'vuln_scan_history';
-  var MAX_HISTORY = 7;
+  // 历史条数上限：默认只留 7 条会导致「累计分析文件/漏洞待修复」等 KPI 只统计最近 7 次扫描，
+  // 与"累计"语义不符。放宽到 1000 条，让仪表盘累计统计覆盖全部历史（趋势图另行按近 7 天过滤）。
+  var MAX_HISTORY = 1000;
 
   /* ====== 1. 工具函数 ====== */
   window.NivisUtil = {
