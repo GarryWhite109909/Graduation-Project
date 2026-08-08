@@ -126,6 +126,7 @@ class AdjudicationVerdict:
     reasoning: str = ""             # 首个判真模型的分析
     fix_suggestion: str = ""        # 修复建议
     raw_outputs: list[str] = field(default_factory=list)  # N 次采样原始输出
+    finding: Optional[dict] = None  # 关联的候选 finding（含 taint_type/severity/source/sink）
 
     def to_dict(self) -> dict:
         return {
@@ -137,6 +138,7 @@ class AdjudicationVerdict:
             "reasoning": self.reasoning,
             "fix_suggestion": self.fix_suggestion,
             "raw_outputs": self.raw_outputs,
+            "finding": self.finding,
         }
 
 
@@ -150,6 +152,8 @@ class TwoStageResult:
     findings: list[ToolFinding] = field(default_factory=list)     # 全部候选
     adjudications: list[AdjudicationVerdict] = field(default_factory=list)
     reviewer_findings: list[dict] = field(default_factory=list)   # 低置信需人工复核
+    vulnerability_type: str = ""      # 文件级漏洞类型（取已确认裁决中最高严重度 finding）
+    risk_level: str = "None"          # 文件级风险等级（同样取最高严重度）
     total_duration: float = 0.0
     error: Optional[str] = None
 
@@ -162,6 +166,8 @@ class TwoStageResult:
             "findings": [f.to_dict() for f in self.findings],
             "adjudications": [a.to_dict() for a in self.adjudications],
             "reviewer_findings": self.reviewer_findings,
+            "vulnerability_type": self.vulnerability_type,
+            "risk_level": self.risk_level,
             "total_duration": round(self.total_duration, 2),
             "error": self.error,
         }
@@ -171,10 +177,46 @@ class TwoStageResult:
 _CONF_AUTO = 0.8
 _CONF_MANUAL = 0.5
 
+# 严重度排序（用于文件级取最高风险 finding）
+_SEV_RANK = {"critical": 5, "high": 4, "medium": 3, "low": 2, "info": 1, "none": 0}
+
 
 # ---------------------------------------------------------------------------
 # 裁决结果解析
 # ---------------------------------------------------------------------------
+def _extract_json_object(text: str) -> Optional[str]:
+    """从文本中提取第一个完整 JSON 对象（花括号平衡匹配）。
+
+    非贪婪 `\{.*?\}` 在 reason 等字段含 `}` 时会提前截断导致 JSON 解析失败，
+    这里从每个 `{` 起做括号深度匹配，取第一个能完整闭合的对象。
+    """
+    start = -1
+    depth = 0
+    in_str = False
+    escape = False
+    for i, ch in enumerate(text):
+        if in_str:
+            if escape:
+                escape = False
+            elif ch == "\\":
+                escape = True
+            elif ch == '"':
+                in_str = False
+            continue
+        if ch == '"':
+            in_str = True
+        elif ch == "{":
+            if start < 0:
+                start = i
+            depth += 1
+        elif ch == "}":
+            if depth > 0:
+                depth -= 1
+                if depth == 0:
+                    return text[start:i + 1]
+    return None
+
+
 def parse_triage_verdict(raw_output: str) -> Optional[dict]:
     """从裁决模型输出中解析 is_confirmed JSON。
 
@@ -187,11 +229,11 @@ def parse_triage_verdict(raw_output: str) -> Optional[dict]:
     fences = re.findall(r"```(?:json)?\s*(.*?)\s*```", raw_output, re.DOTALL)
     candidates = fences + [raw_output]
     for text in candidates:
-        m = re.search(r"\{.*?\}", text, re.DOTALL)
-        if not m:
+        obj = _extract_json_object(text)
+        if not obj:
             continue
         try:
-            parsed = json.loads(m.group(0))
+            parsed = json.loads(obj)
             if isinstance(parsed, dict) and "is_confirmed" in parsed:
                 return parsed
         except json.JSONDecodeError:
@@ -434,7 +476,7 @@ class TwoStageScanner:
         for item in raw:
             findings.append(ToolFinding(
                 rule_id=item.get("rule_id", "semgrep-taint"),
-                category="sast",
+                category="taint",  # semgrep taint 与 taint_tracker 同属污点召回
                 source=item.get("source", ""),
                 sink=item.get("sink", ""),
                 taint_type=item.get("taint_type", "Unknown"),
@@ -520,11 +562,30 @@ class TwoStageScanner:
             return re.sub(r"\s+", "", s or "").lower()
 
         seen: dict[tuple, ToolFinding] = {}
-        for f in findings:
+        # 辅助索引：(taint_type, sink_line) → 已见 key。
+        # semgrep OSS 的 taint JSON 不含 metavars（source/sink 为空、行号=sink 行），
+        # 与 TaintTracker 同流 finding 的主键永不相等；此索引让"空证据 + 同 sink 行
+        # + 同类型"的候选能合并到已有 finding 上，避免同一流被裁决两次
+        by_sink_line: dict[tuple, tuple] = {}
+
+        # 两遍处理（顺序无关）：先收有证据的 finding 并建索引，再收空证据候选——
+        # Stage 1 的召回顺序是 semgrep 在前，单遍处理会让空证据候选抢先进 seen，
+        # 导致同流的 taint_tracker finding 无法归并
+        def _has_evidence(f: ToolFinding) -> bool:
+            return bool(_norm(f.source) or _norm(f.sink))
+
+        ordered = [f for f in findings if _has_evidence(f)] + \
+                  [f for f in findings if not _has_evidence(f)]
+        for f in ordered:
             norm_src, norm_sink = _norm(f.source), _norm(f.sink)
             key = (f.taint_type or "").lower(), norm_src, norm_sink
             if not norm_src and not norm_sink:
-                key = key + (f.rule_id,)  # 空证据候选按规则区分，不误合并
+                # 空证据候选：先尝试按 (类型, sink 行) 归并到已有 finding
+                line_key = ((f.taint_type or "").lower(), f.sink_line)
+                if f.sink_line and line_key in by_sink_line:
+                    key = by_sink_line[line_key]
+                else:
+                    key = key + (f.rule_id,)  # 无法归并则按规则区分，不误合并
             if key in seen:
                 existing = seen[key]
                 # 合并工具标注（按实际工具集合，而非硬编码）
@@ -544,20 +605,23 @@ class TwoStageScanner:
                     existing.sink_line = f.sink_line
             else:
                 seen[key] = f
+                # 有证据的 finding 注册 sink 行索引，供后续空证据候选归并
+                if (norm_src or norm_sink) and f.sink_line:
+                    by_sink_line[((f.taint_type or "").lower(), f.sink_line)] = key
         return list(seen.values())
 
     @staticmethod
     def _stage1_stats(findings: list[ToolFinding]) -> dict:
-        """统计各工具召回数量。"""
+        """统计各工具召回数量（合并项按工具集合拆分计数）。"""
         counts = {"semgrep": 0, "taint_tracker": 0, "prefilter": 0}
         merged = 0
         for f in findings:
-            if f.tool == "semgrep+taint_tracker":
+            tools = f.tool.split("+")
+            if len(tools) > 1:
                 merged += 1
-                counts["semgrep"] += 1
-                counts["taint_tracker"] += 1
-            elif f.tool in counts:
-                counts[f.tool] += 1
+            for t in tools:
+                if t in counts:
+                    counts[t] += 1
         return {
             "total_candidates": len(findings),
             "by_tool": counts,
@@ -574,8 +638,9 @@ class TwoStageScanner:
         for finding in findings:
             code_context = self._slice_context(code, language, finding)
             verdict = self._adjudicate_one(finding, code_context, language, filename, rag_context)
+            # 关联回源 finding（含 taint_type/severity），供前端逐条展示投票与置信度
+            verdict.finding = finding.to_dict()
             verdict_dict = verdict.to_dict()
-            verdict_dict["finding"] = finding.to_dict()
             # 置信度映射到最终结论
             if verdict.confirmed:
                 if verdict.confidence >= _CONF_AUTO:
@@ -621,8 +686,13 @@ class TwoStageScanner:
             body_count = c.end_line - c.start_line + 1
             chunk_lines = c.code.split("\n")
             # chunk.code = 文件级上下文头 + 函数体（尾部 body_count 行）：
-            # 头部单独输出且不带行号，函数体从原文件按行截取保证行号精确
-            header = chunk_lines[:-body_count] if len(chunk_lines) > body_count else []
+            # 头部单独输出且不带行号，函数体从原文件按行截取保证行号精确。
+            # 整文件 chunk（is_full_file）没有拼装头部，禁止拆分——
+            # 否则代码以 \n 结尾时 split 多出的尾部空串会让首行被误判为 header
+            if not c.is_full_file and len(chunk_lines) > body_count:
+                header = chunk_lines[:-body_count]
+            else:
+                header = []
             body_lines = orig_lines[c.start_line - 1:c.end_line]
             if len(hit_chunks) > 1:
                 parts.append(f"# ==== 切片 {c.name}（L{c.start_line}-L{c.end_line}） ====")
@@ -690,8 +760,9 @@ class TwoStageScanner:
             else:
                 votes_false += 1
 
+        final_confirmed = votes_true > votes_false
         return AdjudicationVerdict(
-            confirmed=votes_true > votes_false,
+            confirmed=final_confirmed,
             # 置信度 = 多数方票数占比（而非恒取判真票）：否则 confirmed=False 时
             # confidence 恒 ≤0.5，dismissed_safe（≥_CONF_AUTO）永远不可达，
             # 所有被否决 finding 都会涌入人工复核队列
@@ -699,8 +770,10 @@ class TwoStageScanner:
             votes_true=votes_true,
             votes_false=votes_false,
             votes_invalid=votes_invalid,
-            reasoning=reason,
-            fix_suggestion=fix,
+            # reason/fix 仅在最终判真时保留：最终判假却携带"是漏洞"的论证
+            # 会让输出自相矛盾（少数票的论证不代表裁决结论）
+            reasoning=reason if final_confirmed else "",
+            fix_suggestion=fix if final_confirmed else "",
             raw_outputs=raw_outputs,
         )
 
@@ -741,24 +814,42 @@ class TwoStageScanner:
         - 全部 confirmed=False，或无候选 → 文件判 False
         - 有 finding 但全部解析失败（votes_invalid==N 或 votes_true==votes_false 平票）
           → 保守判 None（需复核）
+        同时从已确认的裁决中取最高严重度 finding，填充文件级
+        vulnerability_type / risk_level（供前端展示真实类型与风险等级）。
         """
+        # 文件级漏洞类型/风险：取已确认裁决中严重度最高的 finding
+        confirmed = [a for a in result.adjudications if a.confirmed and a.finding]
+        if confirmed:
+            top = max(confirmed, key=lambda a: _SEV_RANK.get(
+                ((a.finding or {}).get("severity") or "medium").lower(), 1))
+            sev = ((top.finding or {}).get("severity") or "medium").lower()
+            result.risk_level = sev.capitalize()
+            result.vulnerability_type = (
+                (top.finding.get("taint_type") or "")
+                or (top.finding.get("rule_id") or "")
+            )
+
         if not result.adjudications:
             result.has_vulnerability = False
             return
+        # 高置信确认（≥_CONF_AUTO）才能直接判漏洞；低置信确认已进入复核队列，
+        # 文件级不能输出确定性 True（否则"需复核"信号在汇总层被掩盖）
+        strong_confirmed = any(
+            a.confirmed and a.confidence >= _CONF_AUTO for a in result.adjudications
+        )
         any_confirmed = any(a.confirmed for a in result.adjudications)
         all_invalid = all(a.votes_invalid >= self.n_samples for a in result.adjudications)
-        if any_confirmed:
+        if strong_confirmed:
             result.has_vulnerability = True
         elif all_invalid:
             result.has_vulnerability = None
             if not result.error:
                 result.error = "所有 finding 裁决解析失败，需人工复核"
-        elif result.reviewer_findings:
-            # 有 finding 进入复核队列（平票/低置信否决）→ 文件级判 None，
-            # 不掩盖"需复核"信号（原先直接判 False 会让复核需求在汇总层消失）
+        elif any_confirmed or result.reviewer_findings:
+            # 低置信确认 / 平票 / 低置信否决 → 需复核，文件级判 None
             result.has_vulnerability = None
             if not result.error:
-                result.error = "存在平票/低置信裁决，需人工复核"
+                result.error = "存在低置信或平票裁决，需人工复核"
         else:
             result.has_vulnerability = False
 

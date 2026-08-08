@@ -48,9 +48,11 @@ _SEMGREP_CONFIGS: list[str] = [
 _TAINT_RULES_DIR: str = os.path.join(os.path.dirname(os.path.abspath(__file__)), "semgrep_rules")
 
 # taint 规则 id 前缀 → (taint_type, 默认严重度) 映射，用于把 semgrep finding 映射到统一结构
+# severity 与 two_stage_scanner._SEVERITY_BY_TYPE 保持一致（映射表是权威来源，
+# YAML 里的 severity 仅用于 semgrep 自身的展示，不参与裁决层分级）
 _TAINT_TYPE_BY_RULE: dict[str, tuple[str, str]] = {
     "sqli": ("SQL Injection", "high"),
-    "cmdi": ("Command Injection", "high"),
+    "cmdi": ("Command Injection", "critical"),
     "codei": ("Code Injection", "critical"),  # CWE-95，勿并入 cmdi（CWE-78）
 }
 
@@ -514,7 +516,9 @@ class ExternalScanner:
                 "source_line": source_line,
                 "sink_line": sink_line,
                 "path": path_chain,
-                "severity": normalize_severity(str(extra.get("severity", sev))),
+                # 已知规则用映射表 severity（权威）；未知规则回退 YAML severity 归一化
+                "severity": sev if taint_type != "Unknown"
+                else normalize_severity(str(extra.get("severity", "INFO"))),
                 "evidence": str(extra.get("message", "")) or rule_id,
                 "tool": "semgrep",
             })
