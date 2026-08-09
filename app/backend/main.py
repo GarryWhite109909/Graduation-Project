@@ -28,6 +28,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import threading
 import time
 from pathlib import Path
 from typing import Optional
@@ -74,6 +75,42 @@ scanner = Scanner(
     use_rag=os.environ.get("VULN_SCANNER_RAG", "0") == "1",
     use_prefilter=os.environ.get("VULN_SCANNER_PREFILTER", "1") != "0",  # 默认启用预筛
 )
+
+# ---------------------------------------------------------------------------
+# transformers 后端后台预热（让首次分析立即可用）
+# ---------------------------------------------------------------------------
+# 进程内 transformers 后端默认是"首次扫描才懒加载"（8B NF4 约 6GB、加载约数十秒）。
+# 为免用户等第一次扫描干等，这里在「选完 transformers 且模型资源就绪」后、以及
+# 「基座模型下载完成」后，都主动在后台线程加载基座并合并 LoRA。
+# 用 VULN_SCANNER_PRELOAD=0 可关闭预加载。
+_warmup_lock = threading.Lock()
+_warmup_started = False
+
+
+def _trigger_transformers_warmup() -> None:
+    """后台加载 transformers 模型（基座 + 合并 LoRA），幂等、仅触发一次。"""
+    global _warmup_started
+    if os.environ.get("VULN_SCANNER_PRELOAD", "1") == "0":
+        return
+    client = scanner.client
+    if type(client).__name__ != "TransformersClient":
+        return
+    with _warmup_lock:
+        if _warmup_started:
+            return
+        if client._model is not None:
+            _warmup_started = True
+            return
+        _warmup_started = True
+
+    def _warm():
+        try:
+            if not client.load_model():
+                print(f"[Warmup] transformers 模型加载失败: {client._load_error}")
+        except Exception as e:
+            print(f"[Warmup] transformers 模型加载异常: {type(e).__name__}: {e}")
+
+    threading.Thread(target=_warm, daemon=True, name="transformers-warmup").start()
 
 # ---------------------------------------------------------------------------
 # 扫描请求调度器（单例）
@@ -189,6 +226,8 @@ async def _bind_scheduler_loop() -> None:
     """启动时把事件循环绑定到调度器，使其能回填 asyncio.Future 结果。"""
     import asyncio
     scheduler.bind_loop(asyncio.get_running_loop())
+    # transformers 后端：若模型资源已就绪，后台预热加载基座并合并 LoRA，使首次分析立即可用
+    _trigger_transformers_warmup()
 
 
 @app.on_event("shutdown")
@@ -1469,10 +1508,29 @@ async def models_download_hf(req: HfDownloadRequest):
             yield json.dumps({"status": "error", "error": done_flag["error"]}, ensure_ascii=False) + "\n"
         elif done_flag["result"]:
             r = done_flag["result"]
+            # 下载完成后：若下载的正是当前 transformers 后端预期的基座（按仓库名匹配），
+            # 直接把客户端指向本地路径并后台加载，避免"需重启"的空窗期，首次分析立即可用。
+            auto_loaded = False
+            try:
+                client = scanner.client
+                if type(client).__name__ == "TransformersClient":
+                    if Path(r["dest"]).name == (client.model_id or "").split("/")[-1]:
+                        if (Path(r["dest"]) / "config.json").is_file():
+                            client.model_id = str(Path(r["dest"]))
+                            client.model = client.model_id
+                            _trigger_transformers_warmup()
+                            auto_loaded = True
+            except Exception:
+                auto_loaded = False
+            msg = (
+                f"基座模型已下载到 {r['dest']}，已开始后台加载（首次分析立即可用）"
+                if auto_loaded else
+                f"基座模型已下载到 {r['dest']}，请重启后端以加载（设置 VULN_SCANNER_MODEL_ID={r['model_id']} 或指向本地路径）"
+            )
             yield json.dumps({
                 "status": "success", "completed": True,
                 "dest": r["dest"],
-                "message": f"基座模型已下载到 {r['dest']}，请重启后端以加载（设置 VULN_SCANNER_MODEL_ID={r['model_id']} 或指向本地路径）",
+                "message": msg,
             }, ensure_ascii=False) + "\n"
 
     return StreamingResponse(stream(), media_type="application/x-ndjson")

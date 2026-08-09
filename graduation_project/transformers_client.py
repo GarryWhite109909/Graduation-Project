@@ -128,6 +128,8 @@ class TransformersClient:
         self._model = None  # 懒加载
         self._tokenizer = None
         self._gen_lock = threading.Lock()
+        # 加载锁：防止"后台预热"与"首次扫描"并发同时进入 load_model 重复加载
+        self._load_lock = threading.Lock()
         self._load_error: Optional[str] = None
 
     # ------------------------------------------------------------------
@@ -160,6 +162,15 @@ class TransformersClient:
         if self._load_error:
             return False
 
+        # 串行化加载：后台预热线程与首次扫描线程可能同时调用，避免重复加载
+        with self._load_lock:
+            if self._model is not None:
+                return True
+            if self._load_error:
+                return False
+            return self._do_load()
+
+    def _do_load(self) -> bool:
         err = self._check_adapter()
         if err:
             self._load_error = err
