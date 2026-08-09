@@ -59,7 +59,7 @@ if errorlevel 1 (
 
 REM New-framework legacy security tools (auto-install, latest stable)
 if not "%VULN_SCANNER_SKIP_TOOLS%"=="1" (
-    echo [Setup] Checking/installing security tools (latest stable)...
+    echo [Setup] Checking/installing security tools ^(latest stable^)...
     "%PY%" -m app.launcher.dependency_installer tools
 )
 
