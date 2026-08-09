@@ -101,6 +101,12 @@ def _trigger_transformers_warmup() -> None:
         if client._model is not None:
             _warmup_started = True
             return
+        # 基座权重未完整下载时跳过预热：避免启动即触发 16GB 下载。
+        # 下载完成后（设置页下载端点）会再次触发预热。
+        if not client.is_ready():
+            _, base_status = client.model_availability()
+            print(f"[Warmup] 基座未就绪，跳过预热（{base_status}）")
+            return
         _warmup_started = True
 
     def _warm():
@@ -304,6 +310,12 @@ def _detect_model_available(backend: str, client) -> tuple[bool | None, str]:
     - 其他: 返回 (None, "未实现检测")
     """
     if backend == "transformers":
+        # 客户端自带完整性检测（区分未下载/下载中/已完整），优先复用
+        if hasattr(client, "model_availability"):
+            try:
+                return client.model_availability()
+            except Exception as e:  # noqa: BLE001
+                return None, f"检测异常：{e}"
         model_id = getattr(client, "model_id", "") or resolve_base_model_path()
         # 若已加载到内存，肯定可用
         if getattr(client, "_model", None) is not None:
@@ -1425,15 +1437,22 @@ def models_local_resources():
         available, status = _detect_model_available("transformers", client)
         # 下载目标：models/hf_models/<model_id 最后一段>（与 download-hf 端点一致）
         dest_dir = _models_dir() / "hf_models" / model_id.split("/")[-1]
+        # 自动下载（from_pretrained）实际落盘位置：HF 默认 cache
+        try:
+            from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
+            cache_path = str(HUGGINGFACE_HUB_CACHE)
+        except Exception:  # noqa: BLE001
+            cache_path = None
         resources.append({
             "type": "huggingface",
             "id": model_id,
             "name": model_id,
-            "description": "基座模型（HuggingFace，约 15GB）",
+            "description": "基座模型（HuggingFace，约 16GB）",
             "available": available,
             "status": status,
             "download_endpoint": "/api/models/download-hf",
             "download_path": str(dest_dir),
+            "cache_path": cache_path,
             "mirror": HF_MIRROR,
         })
         adapter = resolve_adapter_path(getattr(client, "adapter", ""))

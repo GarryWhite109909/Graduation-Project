@@ -28,6 +28,7 @@ check_connection / list_models / unload_model / model），便于 Scanner 无缝
 
 from __future__ import annotations
 
+import json
 import os
 import threading
 import time
@@ -129,6 +130,59 @@ def is_transformers_runtime_compatible() -> tuple[bool, str]:
             "或改用 Ollama 后端（VULN_SCANNER_BACKEND=ollama）。"
         )
     return True, "ok"
+
+
+def _local_dir_state(local_dir: Path) -> tuple[bool | None, str]:
+    """检查本地基座目录是否完整（config + 权重分片）。"""
+    if not (local_dir / "config.json").is_file():
+        return False, f"本地基座目录缺少 config.json：{local_dir}"
+    if (local_dir / "model.safetensors").is_file():
+        return True, "已就绪（本地基座模型）"
+    index = local_dir / "model.safetensors.index.json"
+    if index.is_file():
+        try:
+            shards = set(json.loads(index.read_text(encoding="utf-8")).get("weight_map", {}).values())
+            present = {p.name for p in local_dir.glob("*.safetensors")}
+            if shards.issubset(present):
+                return True, "已就绪（本地基座模型）"
+            return False, f"本地基座不完整（{len(present & shards)}/{len(shards)} 个权重分片）"
+        except Exception as e:  # noqa: BLE001
+            return None, f"本地基座检测异常：{e}"
+    if any(local_dir.glob("pytorch_model*.bin")) or any(local_dir.glob("*.bin")):
+        return True, "已就绪（本地基座模型）"
+    return False, "本地基座缺少权重文件"
+
+
+def _hf_cache_state(model_id: str) -> tuple[bool | None, str]:
+    """检查 HF 基座在默认 cache 的下载完整度。
+
+    Returns:
+        (complete, reason)；complete=None 表示无法判断（huggingface_hub 缺失等）。
+    """
+    try:
+        from huggingface_hub import try_to_load_from_cache
+        from huggingface_hub.file_download import _CACHED_NO_EXIST
+    except ImportError:
+        return None, "未安装 huggingface_hub，无法检测"
+    try:
+        config = try_to_load_from_cache(model_id, "config.json")
+        if config is None or config is _CACHED_NO_EXIST:
+            return False, "未从 HuggingFace 下载（首次分析或设置页会下载/续传，约 16GB）"
+        single = try_to_load_from_cache(model_id, "model.safetensors")
+        if single is not None and single is not _CACHED_NO_EXIST:
+            return True, "已下载到 HF cache"
+        index = try_to_load_from_cache(model_id, "model.safetensors.index.json")
+        if index is None or index is _CACHED_NO_EXIST:
+            # 非 safetensors 模型（bin 权重）：有 config 即视为可加载
+            return True, "已下载到 HF cache（config 就绪）"
+        with open(index, encoding="utf-8") as f:
+            shards = set(json.load(f).get("weight_map", {}).values())
+        present = {p.name for p in Path(index).parent.glob("*.safetensors")}
+        if shards.issubset(present):
+            return True, "已完整下载到 HF cache"
+        return False, f"已下载部分（{len(present & shards)}/{len(shards)} 个权重分片，将继续下载）"
+    except Exception as e:  # noqa: BLE001
+        return None, f"缓存检测异常：{e}"
 
 
 class TransformersClient:
@@ -348,11 +402,24 @@ class TransformersClient:
         return self._model is not None
 
     def _base_resolvable(self) -> bool:
-        """基座是否可加载：本地目录含 config.json，或为 HF id（可本地缓存/在线拉取）。"""
-        p = Path(self.model_id).expanduser()
-        if p.is_dir():
-            return (p / "config.json").is_file()
-        return bool(self.model_id)
+        """基座是否可加载：本地目录或 HF cache 已**完整下载**权重。"""
+        ok, _ = self.model_availability()
+        return ok is True
+
+    def model_availability(self) -> tuple[bool | None, str]:
+        """查询基座模型下载状态。返回 (是否完整可用, 状态描述)。
+
+        与 is_ready() 不同：is_ready 只给布尔值，这里给出可展示的原因，
+        供健康检查/设置页区分「未下载」「下载中」「已完整」。
+        """
+        if self._model is not None:
+            return True, "已加载到内存"
+        if self._load_error:
+            return False, f"加载失败：{self._load_error}"
+        local_dir = Path(self.model_id).expanduser()
+        if local_dir.is_dir():
+            return _local_dir_state(local_dir)
+        return _hf_cache_state(self.model_id)
 
     def is_ready(self) -> bool:
         """进程内后端是否就绪：已加载，或本地基座 + adapter 资源齐全。
@@ -360,12 +427,16 @@ class TransformersClient:
         与 check_connection() 不同：check_connection() 仅表示模型是否已读入显存；
         is_ready() 表示“引擎可用”——资源已就绪、首次扫描时才懒加载（8B NF4 约 6GB，
         若每次健康检查都强制加载会占用显存且拖慢启动）。
+
+        注意：基座权重未完整下载（HF cache 只有 config / 部分分片）时返回 False，
+        避免健康检查/前端把“正在下载”误报成“就绪”。
         """
         if self._model is not None:
             return True
         if self._check_adapter():
             return False
-        return self._base_resolvable()
+        ok, _ = self.model_availability()
+        return ok is True
 
     def list_models(self) -> List[str]:
         """返回当前模型名（进程内仅一个模型）。"""

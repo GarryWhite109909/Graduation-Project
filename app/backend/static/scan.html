@@ -697,9 +697,11 @@
           }
 
           /* 引擎就绪状态：按当前配置的推理后端判定（vllm/llamacpp 等后端就绪即视为引擎就绪） */
+          /* 引擎标签显示实际基座模型（transformers=model_id / llamacpp=GGUF / ollama=模型名），而非注册表默认名 */
+          var engineModel = data.base_model || data.model || 'unknown';
           if (data.model_available) {
             setHealth('ok', '后端已连接 · 引擎就绪');
-            engineInfo.textContent = '引擎: ' + backendLabel + ' · ' + (data.model || 'unknown');
+            engineInfo.textContent = '引擎: ' + backendLabel + ' · ' + engineModel;
           } else {
             setHealth('warn', '后端已连接 · 引擎未就绪');
             engineInfo.textContent = '引擎: ' + backendLabel + ' · 未就绪';

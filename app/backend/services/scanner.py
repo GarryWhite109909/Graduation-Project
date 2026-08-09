@@ -237,6 +237,12 @@ class Scanner:
             "backend": type(self.client).__name__,
             "ollama_connected": ready,  # 字段名保留兼容前端；非 Ollama 后端表示"推理后端就绪"
             "model": self.model,
+            # 实际基座模型：transformers=model_id、llamacpp=GGUF 路径、ollama=模型名
+            "base_model": (
+                getattr(self.client, "model_id", None)
+                or getattr(self.client, "base_gguf", None)
+                or self.model
+            ),
             # 无模型列表能力的后端（进程内推理）视为引擎随资源就绪
             "model_available": (self.model in models) if caps["list"] else ready,
             "available_models": models,

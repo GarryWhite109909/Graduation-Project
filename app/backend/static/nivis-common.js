@@ -513,6 +513,7 @@
       var nameLine = r.type === 'huggingface' ? this.esc(r.id || '') : (r.path ? this.esc(r.path) : '未配置');
       var desc = r.description || '';
       var hintLine = r.hint ? '<div class="text-[11px] mt-0.5" style="color: var(--vuln-state-warning)">' + this.esc(r.hint) + '</div>' : '';
+      var statusLine = r.status ? '<div class="text-[11px] mt-0.5" style="color: var(--vuln-ink-2)">' + this.esc(r.status) + '</div>' : '';
 
       /* 下载按钮区：只有 huggingface / gguf 类型且未就绪时显示下载按钮；adapter / vllm_server 不可下载 */
       var btnArea;
@@ -539,6 +540,9 @@
 
       /* 下载目标路径：告诉用户模型会下载到哪里 */
       var dlPath = r.download_path ? '<div class="text-[11px] mt-0.5 font-mono" style="color: var(--vuln-ink-3)">下载到: ' + this.esc(r.download_path) + '</div>' : '';
+      var cacheLine = (r.type === 'huggingface' && r.cache_path)
+        ? '<div class="text-[11px] mt-0.5 font-mono" style="color: var(--vuln-ink-3)">自动下载位置（HF cache）: ' + this.esc(r.cache_path) + '</div>'
+        : '';
       var mirrorTag = r.mirror ? '<div class="text-[11px] mt-0.5" style="color: var(--vuln-ink-3)">镜像: ' + this.esc(r.mirror) + '</div>' : '';
       var errLine = (prog && prog.error) ? '<div class="text-[11px] mt-1" style="color: var(--vuln-state-error)">' + this.esc(prog.error) + '</div>' : '';
 
@@ -548,7 +552,7 @@
             '<div class="text-sm font-medium" style="color: var(--vuln-ink)">' + this.esc(title) + statusBadge + '</div>' +
             '<div class="text-[11px] mt-0.5 font-mono" style="color: var(--vuln-ink-3)">' + nameLine + '</div>' +
             (desc ? '<div class="text-[11px] mt-0.5" style="color: var(--vuln-ink-3)">' + this.esc(desc) + '</div>' : '') +
-            hintLine + dlPath + mirrorTag + errLine +
+            hintLine + statusLine + dlPath + cacheLine + mirrorTag + errLine +
           '</div>' +
           '<div class="flex-shrink-0 w-[120px] flex items-start justify-end">' + btnArea + '</div>' +
         '</div>' +
