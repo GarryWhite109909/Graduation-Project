@@ -27,6 +27,10 @@
         pip 单次网络请求超时（秒），默认 60；网络差时 pip 会重试而不是直接失败。
     VULN_SCANNER_PIP_RETRIES
         pip 请求重试次数，默认 5。
+    VULN_SCANNER_PIP_PROGRESS
+        pip 进度条模式（on/off/raw），默认 raw（管道输出下仍显示进度）。
+    VULN_SCANNER_FORCE_GPU_TORCH
+        设为 1 时，即使显存不足也强制安装 CUDA/ROCm 版 torch（高级用户，可能 OOM）。
 """
 
 from __future__ import annotations
@@ -54,6 +58,24 @@ if sys.platform == "win32":
 PIP_TOTAL_TIMEOUT = int(os.environ.get("VULN_SCANNER_PIP_TIMEOUT", "7200"))
 PIP_SOCKET_TIMEOUT = int(os.environ.get("VULN_SCANNER_PIP_SOCKET_TIMEOUT", "60"))
 PIP_RETRIES = int(os.environ.get("VULN_SCANNER_PIP_RETRIES", "5"))
+PIP_PROGRESS_BAR = os.environ.get("VULN_SCANNER_PIP_PROGRESS", "raw").strip().lower()
+# 8B NF4 基座约 4.7GB + KV/激活，低于 6GB 显存装不下，transformers 应走 CPU
+TORCH_GPU_VRAM_MIN_MB = 6144
+
+
+def _force_gpu_torch() -> bool:
+    """高级用户强制在低显存机器上安装 GPU 版 torch。"""
+    return os.environ.get("VULN_SCANNER_FORCE_GPU_TORCH", "").strip() == "1"
+
+
+def _low_vram_cpu_mode(gpu: GPUInfo) -> bool:
+    """显存不足时 transformers 后端应使用 CPU torch（避免误卸 CPU 版）。"""
+    return (
+        gpu.vendor in ("nvidia", "amd")
+        and gpu.vram_mb is not None
+        and gpu.vram_mb < TORCH_GPU_VRAM_MIN_MB
+        and not _force_gpu_torch()
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -510,6 +532,22 @@ def _torch_spec(platform_info: PlatformInfo, gpu: GPUInfo, python_executable: st
     base_pkgs = ["torch"]
     family = classify_gpu(gpu)
 
+    # 显存不足（如 4G 卡）强制选 transformers 时：保留 CPU torch 走 CPU 推理，
+    # 不卸载现有 CPU 版、不下载数 GB 的 CUDA/ROCm wheel（GPU 也装不下 8B 模型）。
+    if _low_vram_cpu_mode(gpu):
+        return InstallSpec(
+            description=f"PyTorch (CPU-only，{family.label} 显存不足无法 GPU 跑 8B NF4)",
+            packages=base_pkgs,
+            index_url="https://download.pytorch.org/whl/cpu",
+            check_modules=["torch"],
+            warning=(
+                f"检测到显存 {gpu.vram_mb}MB < {TORCH_GPU_VRAM_MIN_MB}MB，"
+                "transformers 后端将使用 CPU 推理（4bit 可用但速度慢）；"
+                "要 GPU 加速请改用 Ollama 后端。"
+                "如确要强装 GPU 版 torch，可设 VULN_SCANNER_FORCE_GPU_TORCH=1（可能 OOM）。"
+            ),
+        )
+
     if gpu.vendor == "nvidia":
         index_url, description, warning = _NVIDIA_TORCH_INDEX[family.family]
         return InstallSpec(
@@ -777,6 +815,8 @@ def _add_pip_network_flags(cmd: List[str]) -> None:
         cmd.extend(["--timeout", str(PIP_SOCKET_TIMEOUT)])
     if PIP_RETRIES > 0:
         cmd.extend(["--retries", str(PIP_RETRIES)])
+    if PIP_PROGRESS_BAR in ("on", "raw"):
+        cmd.extend(["--progress-bar", PIP_PROGRESS_BAR])
 
 
 def _run_pip_install(
@@ -847,6 +887,9 @@ def _required_torch_family(platform_info: PlatformInfo, gpu: GPUInfo) -> str:
 
     返回形如 'cu128' / 'cu126' / 'rocm7.2' / 'cpu'，用于判断已装 torch 是否匹配。
     """
+    # 显存不足时 transformers 走 CPU：已装的 CPU torch 视为匹配，不触发重装/卸载
+    if _low_vram_cpu_mode(gpu):
+        return "cpu"
     family = classify_gpu(gpu)
     if gpu.vendor == "nvidia":
         index_url, _, _ = _NVIDIA_TORCH_INDEX[family.family]

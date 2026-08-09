@@ -183,10 +183,17 @@ def check_inprocess_backend_ready(backend: str) -> bool:
     if backend == "transformers":
         ok_runtime, reason_runtime = is_transformers_runtime_compatible()
         if not ok_runtime:
-            print(f"[错误] 当前环境无法运行 transformers 后端: {reason_runtime}")
-            print("  建议：设置 VULN_SCANNER_BACKEND=ollama 改用 Ollama 后端，")
-            print("  或安装与显卡匹配的 torch/bitsandbytes 后再试。")
-            ok = False
+            # CPU torch（无 CUDA/ROCm）是低显存机器上 transformers 的预期路径：
+            # 保留 CPU 版走 4bit CPU 推理，不当作错误拦截。
+            cpu_mode = "CUDA/ROCm" in reason_runtime or "未检测到" in reason_runtime
+            if cpu_mode:
+                print(f"[启动器] ⚠ transformers 后端将使用 CPU 推理（{reason_runtime}）；"
+                      "4bit 仍可用但速度慢，建议改用 Ollama")
+            else:
+                print(f"[错误] 当前环境无法运行 transformers 后端: {reason_runtime}")
+                print("  建议：设置 VULN_SCANNER_BACKEND=ollama 改用 Ollama 后端，")
+                print("  或安装与显卡匹配的 torch/bitsandbytes 后再试。")
+                ok = False
         adapter = resolve_adapter_path()
         if not adapter:
             print("[错误] transformers 后端需要 LoRA adapter 目录")
