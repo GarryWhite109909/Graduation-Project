@@ -65,7 +65,12 @@ from app.backend.services.multi_model_scanner import MultiModelScanner
 from graduation_project.vllm_client import VLLMClient
 from graduation_project.schema import parse_verdict, normalize_has_vulnerability
 from graduation_project.prompts import build_user_prompt
-from graduation_project.paths import resolve_adapter_path, resolve_base_model_path, find_project_root
+from graduation_project.paths import (
+    resolve_adapter_path,
+    resolve_base_model_path,
+    find_project_root,
+    local_hf_model_dir,
+)
 
 # ---------------------------------------------------------------------------
 # 全局 Scanner 实例（单例，避免重复初始化 Chroma/OllamaClient）
@@ -471,9 +476,9 @@ def _build_backend_info() -> dict:
         # 模型未下载时给出下载提示
         if model_available is False:
             info["download_hint"] = (
-                f"基座模型 {model_id} 未从 HuggingFace 下载。"
-                f"请手动下载：huggingface-cli download {model_id}"
-                f" 或在首次扫描时等待自动拉取（约 15GB）。"
+                f"基座模型 {model_id} 未下载。"
+                f"首次分析或设置页下载时会自动拉取到 "
+                f"{local_hf_model_dir(model_id)}（约 16GB，支持断点续传）。"
             )
 
     elif backend == "llamacpp":
@@ -1435,14 +1440,9 @@ def models_local_resources():
     if cls_name == "TransformersClient":
         model_id = getattr(client, "model_id", "") or resolve_base_model_path()
         available, status = _detect_model_available("transformers", client)
-        # 下载目标：models/hf_models/<model_id 最后一段>（与 download-hf 端点一致）
-        dest_dir = _models_dir() / "hf_models" / model_id.split("/")[-1]
-        # 自动下载（from_pretrained）实际落盘位置：HF 默认 cache
-        try:
-            from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
-            cache_path = str(HUGGINGFACE_HUB_CACHE)
-        except Exception:  # noqa: BLE001
-            cache_path = None
+        # 下载/检测唯一位置：models/hf_models/<model_id 最后一段>
+        # （自动下载、设置页下载按钮、就绪检测三处共用同一路径）
+        dest_dir = local_hf_model_dir(model_id)
         resources.append({
             "type": "huggingface",
             "id": model_id,
@@ -1452,7 +1452,6 @@ def models_local_resources():
             "status": status,
             "download_endpoint": "/api/models/download-hf",
             "download_path": str(dest_dir),
-            "cache_path": cache_path,
             "mirror": HF_MIRROR,
         })
         adapter = resolve_adapter_path(getattr(client, "adapter", ""))

@@ -540,9 +540,6 @@
 
       /* 下载目标路径：告诉用户模型会下载到哪里 */
       var dlPath = r.download_path ? '<div class="text-[11px] mt-0.5 font-mono" style="color: var(--vuln-ink-3)">下载到: ' + this.esc(r.download_path) + '</div>' : '';
-      var cacheLine = (r.type === 'huggingface' && r.cache_path)
-        ? '<div class="text-[11px] mt-0.5 font-mono" style="color: var(--vuln-ink-3)">自动下载位置（HF cache）: ' + this.esc(r.cache_path) + '</div>'
-        : '';
       var mirrorTag = r.mirror ? '<div class="text-[11px] mt-0.5" style="color: var(--vuln-ink-3)">镜像: ' + this.esc(r.mirror) + '</div>' : '';
       var errLine = (prog && prog.error) ? '<div class="text-[11px] mt-1" style="color: var(--vuln-state-error)">' + this.esc(prog.error) + '</div>' : '';
 
@@ -552,7 +549,7 @@
             '<div class="text-sm font-medium" style="color: var(--vuln-ink)">' + this.esc(title) + statusBadge + '</div>' +
             '<div class="text-[11px] mt-0.5 font-mono" style="color: var(--vuln-ink-3)">' + nameLine + '</div>' +
             (desc ? '<div class="text-[11px] mt-0.5" style="color: var(--vuln-ink-3)">' + this.esc(desc) + '</div>' : '') +
-            hintLine + statusLine + dlPath + cacheLine + mirrorTag + errLine +
+            hintLine + statusLine + dlPath + mirrorTag + errLine +
           '</div>' +
           '<div class="flex-shrink-0 w-[120px] flex items-start justify-end">' + btnArea + '</div>' +
         '</div>' +

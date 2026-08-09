@@ -79,7 +79,11 @@ def _lazy_import_peft():
 # 复用 graduation_project.prompts 的 build_user_prompt 组装 user prompt。
 from graduation_project.prompts import build_user_prompt
 from graduation_project.schema import parse_verdict, normalize_has_vulnerability
-from graduation_project.paths import resolve_adapter_path, resolve_base_model_path
+from graduation_project.paths import (
+    resolve_adapter_path,
+    resolve_base_model_path,
+    local_hf_model_dir,
+)
 
 
 def is_transformers_runtime_compatible() -> tuple[bool, str]:
@@ -151,38 +155,6 @@ def _local_dir_state(local_dir: Path) -> tuple[bool | None, str]:
     if any(local_dir.glob("pytorch_model*.bin")) or any(local_dir.glob("*.bin")):
         return True, "已就绪（本地基座模型）"
     return False, "本地基座缺少权重文件"
-
-
-def _hf_cache_state(model_id: str) -> tuple[bool | None, str]:
-    """检查 HF 基座在默认 cache 的下载完整度。
-
-    Returns:
-        (complete, reason)；complete=None 表示无法判断（huggingface_hub 缺失等）。
-    """
-    try:
-        from huggingface_hub import try_to_load_from_cache
-        from huggingface_hub.file_download import _CACHED_NO_EXIST
-    except ImportError:
-        return None, "未安装 huggingface_hub，无法检测"
-    try:
-        config = try_to_load_from_cache(model_id, "config.json")
-        if config is None or config is _CACHED_NO_EXIST:
-            return False, "未从 HuggingFace 下载（首次分析或设置页会下载/续传，约 16GB）"
-        single = try_to_load_from_cache(model_id, "model.safetensors")
-        if single is not None and single is not _CACHED_NO_EXIST:
-            return True, "已下载到 HF cache"
-        index = try_to_load_from_cache(model_id, "model.safetensors.index.json")
-        if index is None or index is _CACHED_NO_EXIST:
-            # 非 safetensors 模型（bin 权重）：有 config 即视为可加载
-            return True, "已下载到 HF cache（config 就绪）"
-        with open(index, encoding="utf-8") as f:
-            shards = set(json.load(f).get("weight_map", {}).values())
-        present = {p.name for p in Path(index).parent.glob("*.safetensors")}
-        if shards.issubset(present):
-            return True, "已完整下载到 HF cache"
-        return False, f"已下载部分（{len(present & shards)}/{len(shards)} 个权重分片，将继续下载）"
-    except Exception as e:  # noqa: BLE001
-        return None, f"缓存检测异常：{e}"
 
 
 class TransformersClient:
@@ -293,6 +265,21 @@ class TransformersClient:
         peft = _lazy_import_peft()
 
         try:
+            # 基座统一下载到项目目录 models/hf_models/<名称>（与设置页按钮、就绪检测一致）。
+            # 本地已有则直接使用；VULN_SCANNER_HF_LOCAL_DIR=0 可关闭本地化（走 HF 默认 cache）。
+            load_model_id = self.model_id
+            local_dir = self._resolved_local_dir()
+            if local_dir is not None and not Path(self.model_id).expanduser().is_dir():
+                if not (local_dir / "config.json").is_file():
+                    print(
+                        f"[TransformersClient] 首次下载基座到 {local_dir}"
+                        "（约 16GB，支持断点续传；可在设置页查看进度）..."
+                    )
+                    from huggingface_hub import snapshot_download
+                    snapshot_download(repo_id=self.model_id, local_dir=str(local_dir))
+                if (local_dir / "config.json").is_file():
+                    load_model_id = str(local_dir)
+
             has_cuda = torch.cuda.is_available()
             is_rocm = bool(getattr(torch.version, "hip", None))
 
@@ -315,9 +302,9 @@ class TransformersClient:
 
             print("[TransformersClient] 首次加载：需加载基座并合并 LoRA 权重，耗时较长（数分钟级），请耐心等待……")
             print("[TransformersClient] 加载完成后模型将常驻显存/内存，直到关闭后端服务；如需释放请退出本程序。")
-            print(f"[TransformersClient] 加载 tokenizer: {self.model_id}")
+            print(f"[TransformersClient] 加载 tokenizer: {load_model_id}")
             tokenizer = tf["AutoTokenizer"].from_pretrained(
-                self.model_id, trust_remote_code=True
+                load_model_id, trust_remote_code=True
             )
             if tokenizer.pad_token is None:
                 tokenizer.pad_token = tokenizer.eos_token
@@ -347,9 +334,9 @@ class TransformersClient:
                 )
 
             device_label = "ROCm" if is_rocm else "CUDA" if has_cuda else "CPU"
-            print(f"[TransformersClient] 加载基座 {self.model_id} "
+            print(f"[TransformersClient] 加载基座 {load_model_id} "
                   f"(device={device_label}, quantize={self.quantize}, dtype={compute_dtype_str}, attn={attn_impl})")
-            model = tf["AutoModelForCausalLM"].from_pretrained(self.model_id, **kwargs)
+            model = tf["AutoModelForCausalLM"].from_pretrained(load_model_id, **kwargs)
 
             print(f"[TransformersClient] 加载 LoRA adapter: {self.adapter}")
             model = peft["PeftModel"].from_pretrained(model, self.adapter)
@@ -406,8 +393,29 @@ class TransformersClient:
         ok, _ = self.model_availability()
         return ok is True
 
+    def _resolved_local_dir(self) -> Optional[Path]:
+        """基座下载/检测目录：本地路径 > VULN_SCANNER_HF_LOCAL_DIR > 项目约定目录。
+
+        项目约定目录为 models/hf_models/<repo 名>（与设置页下载按钮、paths.local_hf_model_dir
+        一致）；设 VULN_SCANNER_HF_LOCAL_DIR=0/none/off 可禁用本地目录下载。
+        """
+        p = Path(self.model_id).expanduser()
+        if p.is_dir():
+            return p
+        env_dir = os.environ.get("VULN_SCANNER_HF_LOCAL_DIR", "").strip()
+        if env_dir.lower() in ("0", "none", "off"):
+            return None
+        if env_dir:
+            return Path(env_dir).expanduser()
+        try:
+            return local_hf_model_dir(self.model_id)
+        except Exception:  # noqa: BLE001
+            return None
+
     def model_availability(self) -> tuple[bool | None, str]:
-        """查询基座模型下载状态。返回 (是否完整可用, 状态描述)。
+        """查询基座模型下载状态（只检查项目本地目录，不再看 HF 默认 cache）。
+
+        返回 (是否完整可用, 状态描述)。
 
         与 is_ready() 不同：is_ready 只给布尔值，这里给出可展示的原因，
         供健康检查/设置页区分「未下载」「下载中」「已完整」。
@@ -416,10 +424,12 @@ class TransformersClient:
             return True, "已加载到内存"
         if self._load_error:
             return False, f"加载失败：{self._load_error}"
-        local_dir = Path(self.model_id).expanduser()
-        if local_dir.is_dir():
-            return _local_dir_state(local_dir)
-        return _hf_cache_state(self.model_id)
+        local_dir = self._resolved_local_dir()
+        if local_dir is None:
+            return False, "未配置本地基座下载目录（VULN_SCANNER_HF_LOCAL_DIR=0）"
+        if not local_dir.exists():
+            return False, f"未下载（首次分析/设置页将自动下载到 {local_dir}）"
+        return _local_dir_state(local_dir)
 
     def is_ready(self) -> bool:
         """进程内后端是否就绪：已加载，或本地基座 + adapter 资源齐全。

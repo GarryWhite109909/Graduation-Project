@@ -172,3 +172,15 @@ def resolve_base_model_path(explicit: str = "") -> str:
         return str(local)
 
     return "Qwen/Qwen3-8B"
+
+
+def local_hf_model_dir(repo_id: str) -> Path:
+    """HF 仓库 id → 项目本地基座下载目录（models/hf_models/<名称>）。
+
+    这是 transformers 后端**唯一**的基座下载/检测位置：
+    - 自动下载（首次加载）落到这里；
+    - 设置页手动下载按钮也落到这里；
+    - 就绪检测只检查这个目录。
+    """
+    name = repo_id.split("/")[-1] if "/" in repo_id else repo_id
+    return find_project_root() / "models" / "hf_models" / name
