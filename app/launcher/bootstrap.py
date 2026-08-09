@@ -31,6 +31,7 @@ import requests
 
 from app.launcher import dependency_installer
 from graduation_project.paths import resolve_adapter_path, find_project_root
+from graduation_project.transformers_client import is_transformers_runtime_compatible
 
 # 项目根目录（Graduation-Project/）
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -54,7 +55,11 @@ def resolve_backend() -> str:
     if os.environ.get("VULN_SCANNER_ADAPTER", "").strip():
         return "transformers"
     if resolve_adapter_path():
-        return "transformers"
+        ok, reason = is_transformers_runtime_compatible()
+        if ok:
+            return "transformers"
+        print(f"[启动器] 检测到 models/ LoRA adapter，但当前环境不适合 transformers 后端: {reason}")
+        print("[启动器] 已自动回退 ollama（如确要用 transformers，请显式设置 VULN_SCANNER_BACKEND=transformers）")
     return "ollama"
 
 
@@ -76,6 +81,12 @@ def _recommend_backend_by_vram() -> tuple[str, str]:
 
     if vram_mb and vram_mb >= 8192:
         g = gpu_name or "GPU"
+        ok, reason = is_transformers_runtime_compatible()
+        if not ok:
+            return "ollama", (
+                f"检测到 {g} 显存约 {vram_mb // 1024}GB，但当前 torch 环境不兼容"
+                f"（{reason[:80]}），推荐 Ollama（兼容性最好）"
+            )
         return "transformers", f"检测到 {g} 显存约 {vram_mb // 1024}GB，可跑 NF4 基座 + FP16 LoRA（精度最高）"
     if has_gpu and vram_mb:
         g = gpu_name or "GPU"
@@ -105,6 +116,7 @@ def select_backend() -> str:
         "ollama": "Ollama",
         "transformers": "Transformers",
         "llamacpp": "LlamaCPP",
+        "vllm": "vLLM",
     }
     default_label = label_map.get(default_backend, default_backend)
 
@@ -112,15 +124,18 @@ def select_backend() -> str:
         "ollama": "一键启动（兼容性最好，CPU/GPU 皆可）",
         "transformers": "进程内 NF4 基座 + FP16 LoRA（需 8GB+ 显存，精度最高）",
         "llamacpp": "实验性，Q4 GGUF + 运行时 LoRA（需适配 CMAKE）",
+        "vllm": "独立服务，AWQ/GPTQ 基座 + FP16 LoRA（高吞吐，需 NVIDIA GPU）",
     }
 
     # 显存推荐：只有未显式锁定后端时才用于覆盖默认值
     recommended, reason = _recommend_backend_by_vram()
     if not os.environ.get("VULN_SCANNER_BACKEND", "").strip():
         # 推荐 transformers 但没有任何 adapter 时它跑不起来，退回 ollama
-        if recommended == "transformers" and not resolve_adapter_path():
+        if recommended == "transformers" and (
+            not resolve_adapter_path() or not is_transformers_runtime_compatible()[0]
+        ):
             recommended = "ollama"
-            reason = "显存充足可跑 transformers，但需先放置 LoRA adapter（models/ 目录），当前退回 Ollama"
+            reason = "显存充足但当前环境无法运行 transformers 后端（缺 adapter 或 torch 内核不匹配），退回 Ollama"
         default_backend = recommended
         default_label = label_map.get(default_backend, default_backend)
 
@@ -131,13 +146,13 @@ def select_backend() -> str:
     print(f"  [{reason}]")
     print(f"  推荐: {label_map.get(recommended, recommended)}（按回车直接使用）")
     print("-" * 60)
-    for idx, bid in enumerate(("ollama", "transformers", "llamacpp"), start=1):
+    for idx, bid in enumerate(("ollama", "transformers", "llamacpp", "vllm"), start=1):
         mark = "  ← 当前" if bid == default_backend else ""
         tag = label_map.get(bid, bid)
         print(f"  [{idx}] {tag:<13}—— {desc[bid]}{mark}")
     print("-" * 60)
     while True:
-        choice = input(f"请选择推理后端（回车=使用 {default_label}，1/2/3=切换）: ").strip()
+        choice = input(f"请选择推理后端（回车=使用 {default_label}，1/2/3/4=切换）: ").strip()
         if choice == "":
             return default_backend
         if choice == "1":
@@ -146,15 +161,18 @@ def select_backend() -> str:
             return "transformers"
         if choice == "3":
             return "llamacpp"
+        if choice == "4":
+            return "vllm"
         print("[启动器] 无效输入，请重新选择。")
 
 
 def check_inprocess_backend_ready(backend: str) -> bool:
-    """校验进程内推理后端（transformers/llamacpp）的依赖与模型配置。
+    """校验进程内 / 独立服务的推理后端（transformers/llamacpp/vllm）的依赖与模型配置。
 
     依赖检查已前置由 dependency_installer 完成；本函数主要验证：
         - transformers: LoRA adapter 目录是否存在（支持 models/ 自动探测）
         - llamacpp: VULN_SCANNER_GGUF 与 LoRA adapter 是否存在
+        - vllm: VULN_SCANNER_VLLM_MODEL 指向的基座模型目录/id 是否合法
 
     返回 True 表示就绪；False 时已打印具体缺失项与修复命令。
     """
@@ -163,6 +181,12 @@ def check_inprocess_backend_ready(backend: str) -> bool:
     models_dir = project_root / "models"
 
     if backend == "transformers":
+        ok_runtime, reason_runtime = is_transformers_runtime_compatible()
+        if not ok_runtime:
+            print(f"[错误] 当前环境无法运行 transformers 后端: {reason_runtime}")
+            print("  建议：设置 VULN_SCANNER_BACKEND=ollama 改用 Ollama 后端，")
+            print("  或安装与显卡匹配的 torch/bitsandbytes 后再试。")
+            ok = False
         adapter = resolve_adapter_path()
         if not adapter:
             print("[错误] transformers 后端需要 LoRA adapter 目录")
@@ -195,6 +219,37 @@ def check_inprocess_backend_ready(backend: str) -> bool:
             ok = False
         else:
             os.environ["VULN_SCANNER_ADAPTER"] = adapter
+    elif backend == "vllm":
+        # vLLM 是独立服务，基座模型由 VULN_SCANNER_VLLM_MODEL 指定（HF id 或本地 AWQ/GPTQ 目录）。
+        # 优先自动探测 models/ 下的量化目录；未探测到时要求显式配置。
+        model = os.environ.get("VULN_SCANNER_VLLM_MODEL", "").strip()
+        if not model:
+            candidates = ["vllm", "awq", "gptq", "Qwen3-8B-AWQ", "Qwen3-8B-GPTQ"]
+            for cand in candidates:
+                d = models_dir / cand
+                if (d / "config.json").is_file():
+                    model = str(d)
+                    os.environ["VULN_SCANNER_VLLM_MODEL"] = model
+                    break
+        if not model:
+            print("[错误] vllm 后端需要 VULN_SCANNER_VLLM_MODEL 指向基座模型")
+            print("  （HF id 或本地 AWQ/GPTQ 量化目录，需含 config.json）")
+            print(f"  示例: set VULN_SCANNER_VLLM_MODEL=D:\\models\\qwen3-8b-awq")
+            print(f"  或将量化目录放到 {models_dir}\\vllm")
+            ok = False
+        elif not (model.startswith("/") or ":" in model or "\\" in model or "." in model):
+            # 看起来很可能是 HF id（如 Qwen/Qwen3-8B-AWQ），无需本地校验
+            pass
+        elif Path(model).expanduser().is_dir():
+            local = Path(model).expanduser()
+            if not (local / "config.json").is_file():
+                print(f"[错误] vLLM 模型目录缺少 config.json: {local}")
+                ok = False
+        else:
+            print(f"[错误] vLLM 模型路径不存在（既不是 HF id 也不是本地目录）: {model}")
+            ok = False
+        # 为 vllm_server.py 固化对外模型名（与 scanner.py 的 model 一致）
+        os.environ.setdefault("VULN_SCANNER_MODEL", DEFAULT_MODEL)
     return ok
 
 
@@ -434,6 +489,63 @@ def enable_ansi_on_windows() -> None:
             kernel32.SetConsoleMode(h, mode.value | 0x0004)  # ENABLE_VIRTUAL_TERMINAL_PROCESSING
     except Exception:
         pass
+
+
+def start_vllm_service() -> subprocess.Popen | None:
+    """启动 vLLM 独立推理服务（vllm_server.py）。
+
+    vLLM 是常驻服务进程：加载 AWQ/GPTQ 基座 + FP16 LoRA 到显存，
+    通过 OpenAI 兼容 API 对外提供。若 VULN_SCANNER_VLLM_PORT（默认 8000）
+    上已有可用的 vLLM 服务，则直接复用，不再重复拉起。
+
+    返回服务子进程（复用已有服务时返回 None）；启动失败返回 None。
+    """
+    port = int(os.environ.get("VULN_SCANNER_VLLM_PORT", "8000") or "8000")
+    # 已存在可用服务则直接复用
+    try:
+        resp = requests.get(
+            f"http://127.0.0.1:{port}/v1/models",
+            timeout=3, proxies={"http": None, "https": None},
+        )
+        if resp.status_code == 200:
+            print(f"[启动器] 检测到已运行的 vLLM 服务（http://127.0.0.1:{port}），直接复用。")
+            return None
+    except Exception:
+        pass
+
+    print(f"[启动器] 启动 vLLM 独立服务（端口 {port}，首次加载模型到显存可能需要数十秒到数分钟）...")
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(PROJECT_ROOT)
+    cmd = [sys.executable, "-m", "app.launcher.vllm_server"]
+    try:
+        proc = subprocess.Popen(cmd, env=env, cwd=str(PROJECT_ROOT))
+    except Exception as e:
+        print(f"[启动器] 拉起 vLLM 服务失败: {e}")
+        return None
+    return proc
+
+
+def wait_for_vllm_ready(port: int, timeout: int = 600, proc: subprocess.Popen | None = None) -> bool:
+    """等待 vLLM 服务就绪（/v1/models 可访问）。"""
+    url = f"http://127.0.0.1:{port}/v1/models"
+    for i in range(timeout):
+        if proc is not None and proc.poll() is not None:
+            print(f"[启动器] vLLM 服务进程已退出（退出码 {proc.returncode}）。")
+            return False
+        try:
+            resp = requests.get(
+                url, timeout=3, proxies={"http": None, "https": None},
+            )
+            if resp.status_code == 200:
+                print(f"[启动器] vLLM 服务就绪（第 {i + 1}/{timeout} 次尝试）。")
+                return True
+        except Exception:
+            pass
+        if i % 10 == 0:
+            print(f"[启动器] 等待 vLLM 服务就绪（已等待 {i} 秒）...")
+        time.sleep(1)
+    print(f"[启动器] 等待 vLLM 服务就绪超时（{timeout} 秒）。")
+    return False
 
 
 def start_backend(port: int = PORT) -> subprocess.Popen:
@@ -737,15 +849,21 @@ def recommend_config(hardware: dict) -> dict:
 
     # NVIDIA GPU 分支：按显存分档
     # q4_k_m 量化的 8B 模型权重约 4.7GB，加上 num_ctx 的 KV cache：
-    #   ≥8GB  → 全 GPU，num_ctx=8192
+    #   ≥10GB → 全 GPU，num_ctx=8192
+    #   8-10GB→ 全 GPU，num_ctx=6144（8G 卡贴显存，6144 比 8192 稳）
     #   6-8GB → 全 GPU，num_ctx=4096（6GB 勉强够 4.7GB 权重 + KV cache）
     #   4-6GB → 显存装不下，降级 CPU（避免 Ollama 反复试错 offload 导致启动卡住）
     #   <4GB  → CPU
     if hardware.get("has_nvidia_gpu") and hardware.get("vram_mb"):
         vram = hardware["vram_mb"]
-        if vram >= 8192:
+        if vram >= 10240:
             return {
                 "num_ctx": 8192, "num_gpu": -1, "num_thread": num_thread,
+                "quantization": "q4_k_m", "warning": None, "mode": "gpu",
+            }
+        elif vram >= 8192:
+            return {
+                "num_ctx": 6144, "num_gpu": -1, "num_thread": num_thread,
                 "quantization": "q4_k_m", "warning": None, "mode": "gpu",
             }
         elif vram >= 6144:
@@ -773,9 +891,14 @@ def recommend_config(hardware: dict) -> dict:
     # AMD/ROCm GPU 分支：Ollama 在 Linux 上支持 ROCm 后端，num_gpu=-1 表示尽量 offload
     if hardware.get("has_amd_gpu") and hardware.get("vram_mb"):
         vram = hardware["vram_mb"]
-        if vram >= 8192:
+        if vram >= 10240:
             return {
                 "num_ctx": 8192, "num_gpu": -1, "num_thread": num_thread,
+                "quantization": "q4_k_m", "warning": None, "mode": "rocm",
+            }
+        elif vram >= 8192:
+            return {
+                "num_ctx": 6144, "num_gpu": -1, "num_thread": num_thread,
                 "quantization": "q4_k_m", "warning": None, "mode": "rocm",
             }
         elif vram >= 4096:
@@ -810,9 +933,15 @@ def recommend_config(hardware: dict) -> dict:
 def print_hardware_summary(hardware: dict, config: dict) -> None:
     """将硬件检测结果打印到控制台。"""
     if hardware.get("has_nvidia_gpu") and hardware.get("gpu_name"):
-        print(f"[硬件检测] GPU: {hardware['gpu_name']} ({hardware['vram_mb']}MB)")
+        fam = dependency_installer.classify_gpu(dependency_installer.GPUInfo(
+            vendor="nvidia", name=hardware.get("gpu_name"), vram_mb=hardware.get("vram_mb"),
+        ))
+        print(f"[硬件检测] GPU: {hardware['gpu_name']} ({hardware['vram_mb']}MB) [{fam.label}]")
     elif hardware.get("has_amd_gpu") and hardware.get("gpu_name"):
-        print(f"[硬件检测] GPU: {hardware['gpu_name']} ({hardware['vram_mb']}MB) [AMD/ROCm]")
+        fam = dependency_installer.classify_gpu(dependency_installer.GPUInfo(
+            vendor="amd", name=hardware.get("gpu_name"), vram_mb=hardware.get("vram_mb"),
+        ))
+        print(f"[硬件检测] GPU: {hardware['gpu_name']} ({hardware['vram_mb']}MB) [AMD/ROCm · {fam.label}]")
     elif hardware.get("gpu_name") and "Apple M" in hardware["gpu_name"]:
         print(f"[硬件检测] GPU: {hardware['gpu_name']} (Apple Silicon)")
     else:
@@ -921,9 +1050,9 @@ def main():
 
         print("[2/5] Ollama 服务已运行")
     else:
-        # 进程内后端（transformers/llamacpp）：不依赖 Ollama，自动安装依赖并校验配置
-        # 自动识别匹配当前硬件（CUDA/ROCm）的 python 环境并切换到它，避免
-        # base/graproj 装的是 CUDA 版 torch 导致 AMD/ROCm 机器上落到 CPU。
+        # 进程内后端（transformers/llamacpp）与独立服务后端（vllm）：不依赖 Ollama，
+        # 自动安装依赖并校验配置。自动识别匹配当前硬件（CUDA/ROCm）的 python 环境并
+        # 切换到它，避免 base/graproj 装的是 CUDA 版 torch 导致 AMD/ROCm 机器上落到 CPU。
         # VULN_SCANNER_REEXEC 守卫：只允许切换一次，防止环境间来回切换形成死循环。
         best_python = dependency_installer.discover_best_python()
         already_reexec = os.environ.get("VULN_SCANNER_REEXEC", "0") == "1"
@@ -949,18 +1078,21 @@ def main():
             auto_confirm=None,  # 按 VULN_SCANNER_AUTO_INSTALL_DEPS 环境变量，默认自动安装
         )
         if not deps_ok:
-            print("\n[错误] 进程内推理后端依赖未就绪。")
+            print(f"\n[错误] {backend} 后端依赖未就绪。")
             dependency_installer.print_manual_install_commands(backend, sys.executable)
             print("\n  或设置 VULN_SCANNER_BACKEND=ollama 改用 Ollama 后端。")
             input("\n按回车键退出...")
             return
 
         if not check_inprocess_backend_ready(backend):
-            print("\n[错误] 进程内推理后端配置未就绪，请按上方提示修复后重试。")
+            print("\n[错误] 推理后端配置未就绪，请按上方提示修复后重试。")
             input("\n按回车键退出...")
             return
         print(f"[1/5] {backend} 后端依赖就绪")
-        print("[2/5] 跳过 Ollama（进程内推理后端不需要）")
+        if backend == "vllm":
+            print("[2/5] 跳过 Ollama（vllm 为独立服务，下一步单独启动）")
+        else:
+            print("[2/5] 跳过 Ollama（进程内推理后端不需要）")
 
     # 3. 安全工具：新框架（两阶段/外部扫描）所需传统工具的启动前自动下载
     print("[3/6] 检查安全工具（bandit/semgrep/gitleaks/trivy/pip-audit/detect-secrets）...")
@@ -993,6 +1125,16 @@ def main():
                 input("\n按回车键退出...")
                 return
             os.environ["VULN_SCANNER_MODEL"] = FALLBACK_MODEL
+    elif backend == "vllm":
+        # vLLM 是独立服务：此刻拉起 vllm_server.py 并等待其把基座 + LoRA 加载到显存
+        vllm_port = int(os.environ.get("VULN_SCANNER_VLLM_PORT", "8000") or "8000")
+        vllm_proc = start_vllm_service()
+        if not wait_for_vllm_ready(vllm_port, proc=vllm_proc):
+            print("\n[错误] vLLM 服务启动失败或超时，请参考上方日志排查。")
+            print("  常见原因：模型路径错误、显存不足、量化类型与权重不匹配。")
+            print("  可手动运行 `python -m app.launcher.vllm_server --dry-run` 查看将要执行的命令。")
+            input("\n按回车键退出...")
+            return
 
     print(f"[5/6] 模型就绪")
 

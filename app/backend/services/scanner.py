@@ -26,6 +26,7 @@ from graduation_project.prefilter import Prefilter, PrefilterResult
 from app.backend.services.model_registry import get_default_model, get_prompt_for_model
 from graduation_project.paths import resolve_adapter_path, resolve_base_model_path
 from graduation_project.result_types import SingleResult, BatchResult
+from graduation_project.transformers_client import is_transformers_runtime_compatible
 
 # 默认模型：从环境变量读取，缺省为注册表中的默认模型（当前 v9max）
 DEFAULT_MODEL = os.environ.get("VULN_SCANNER_MODEL", get_default_model())
@@ -48,7 +49,14 @@ def _resolve_default_backend() -> str:
     if os.environ.get("VULN_SCANNER_ADAPTER", "").strip():
         return "transformers"
     if resolve_adapter_path():
-        return "transformers"
+        # 自动探测到 models/ 下的 adapter：只有当前运行时确实能跑 transformers
+        # 才自动启用，否则回退 ollama——避免新机器/协作者一启动就撞上
+        # 'no kernel image'（显卡架构与 torch/bitsandbytes 内核不匹配）。
+        ok, reason = is_transformers_runtime_compatible()
+        if ok:
+            return "transformers"
+        print(f"[scanner] 检测到 models/ LoRA adapter，但当前环境不适合 transformers 后端: {reason}")
+        print("[scanner] 已自动回退 ollama（如确要用 transformers，请显式设置 VULN_SCANNER_BACKEND=transformers）")
     return "ollama"
 
 
@@ -136,6 +144,8 @@ class Scanner:
             - "ollama"：OllamaClient（GGUF Q4_K_M 发布模型）
             - "llamacpp"（实验性）：LlamaCppClient（Q4 GGUF 基座 + 运行时 FP16 LoRA，
               llama.cpp 内核快 + LoRA 保精度，需 llama-cpp-python 且 VULN_SCANNER_GGUF 指向基座）
+            - "vllm"：VLLMClient（OpenAI 兼容 API，PagedAttention + continuous batching 高吞吐，
+              需先用 app/launcher/vllm_server.py 启动 vLLM 服务，VULN_SCANNER_VLLM_URL 指向其地址）
         """
         backend = backend or DEFAULT_BACKEND
         if backend == "transformers":
@@ -152,6 +162,10 @@ class Scanner:
                 adapter=DEFAULT_TRANSFORMERS_ADAPTER,
                 num_ctx=DEFAULT_TRANSFORMERS_NUM_CTX,
             )
+        if backend == "vllm":
+            from graduation_project.vllm_client import VLLMClient
+            base_url = os.environ.get("VULN_SCANNER_VLLM_URL", "http://localhost:8000")
+            return VLLMClient(base_url=base_url, model=model)
         # 默认回退 Ollama
         return OllamaClient(base_url="http://localhost:11434", model=model)
 
@@ -543,7 +557,8 @@ class Scanner:
             language=language,
             chunk_name=chunk_name,
             has_vulnerability=has_vuln,
-            vulnerability_type=normalize_cwe_label(verdict.get("vulnerability_type", "none")),
+            vulnerability_type=normalize_cwe_label(
+                verdict.get("vulnerability_type", "none"), result["text"]),
             risk_level=verdict.get("risk_level", "None"),
             source=verdict.get("source", "N/A"),
             sink=verdict.get("sink", "N/A"),

@@ -81,6 +81,56 @@ from graduation_project.schema import parse_verdict, normalize_has_vulnerability
 from graduation_project.paths import resolve_adapter_path, resolve_base_model_path
 
 
+def is_transformers_runtime_compatible() -> tuple[bool, str]:
+    """检查当前环境能否运行 transformers 进程内后端（NF4 4bit + LoRA）。
+
+    主要排查两类会把协作者/新机器带崩的问题：
+    1. torch 内核不包含当前显卡架构（NVIDIA 典型报错 'no kernel image'）；
+    2. bitsandbytes 缺失（NF4 量化必需）。
+
+    Returns:
+        (ok, reason)；ok=False 时 reason 给出原因与改用 Ollama 的建议。
+    """
+    try:
+        torch = _lazy_import_torch()
+    except Exception as e:  # noqa: BLE001
+        return False, f"torch 未安装或无法导入: {e}"
+    try:
+        has_cuda = torch.cuda.is_available()
+    except Exception:  # noqa: BLE001
+        has_cuda = False
+    is_rocm = bool(getattr(torch.version, "hip", None))
+    if not has_cuda:
+        return False, "未检测到可用的 CUDA/ROCm 设备（CPU 上 4bit 推理不实用）"
+
+    # NVIDIA：核对当前显卡 compute capability 是否被 torch 内核覆盖
+    if not is_rocm:
+        try:
+            cap = torch.cuda.get_device_capability(0)
+            arch = f"sm_{cap[0]}{cap[1]}"
+            compute = f"compute_{cap[0]}{cap[1]}"
+            arch_list = torch.cuda.get_arch_list() or []
+            covered = any(arch in a for a in arch_list) or any(compute in a for a in arch_list)
+            if not covered:
+                return False, (
+                    f"当前 torch {torch.__version__} 的内核不支持此显卡 "
+                    f"(compute capability {cap[0]}.{cap[1]}，torch 支持: {arch_list or '未知'})；"
+                    "典型报错为 'no kernel image'。请安装匹配显卡的 torch，"
+                    "或改用 Ollama 后端（VULN_SCANNER_BACKEND=ollama）。"
+                )
+        except Exception:  # noqa: BLE001
+            pass  # 查询失败时不阻断，交由加载阶段给出具体报错
+
+    try:
+        import bitsandbytes  # noqa: F401
+    except ImportError:
+        return False, (
+            "未安装 bitsandbytes（NF4 量化必需）；请安装，"
+            "或改用 Ollama 后端（VULN_SCANNER_BACKEND=ollama）。"
+        )
+    return True, "ok"
+
+
 class TransformersClient:
     """transformers 进程内推理客户端（NF4 基座 + FP16 LoRA）。
 
@@ -104,12 +154,19 @@ class TransformersClient:
         quantize: bool = True,
         flash_attn: bool = True,
         compile_: bool = False,
+        merge: bool = True,
     ):
         self.model_id = resolve_base_model_path(model_id)
         self.adapter = resolve_adapter_path(adapter)
         self.num_ctx = int(os.environ.get("VULN_SCANNER_NUM_CTX", str(num_ctx)))
         self.quantize = quantize if not os.environ.get("VULN_SCANNER_QUANTIZE") else (
             os.environ.get("VULN_SCANNER_QUANTIZE", "1") != "0"
+        )
+        # merge 开关：默认合并 LoRA 进基座（快、但 LoRA 增量会被折回 NF4 存储）。
+        # 设 VULN_SCANNER_MERGE=0 时不合并，LoRA 保持 FP16 精度、运行时叠加（更保精度）。
+        # ⚠ 不合并时推理会变慢（每层多一次 LoRA 矩阵乘，且单条 decode 本就带宽受限）。
+        self.merge = bool(
+            os.environ.get("VULN_SCANNER_MERGE", "1" if merge else "0") != "0"
         )
         self.flash_attn = flash_attn if not os.environ.get("VULN_SCANNER_FLASH_ATTN") else (
             os.environ.get("VULN_SCANNER_FLASH_ATTN", "1") != "0"
@@ -242,9 +299,16 @@ class TransformersClient:
 
             print(f"[TransformersClient] 加载 LoRA adapter: {self.adapter}")
             model = peft["PeftModel"].from_pretrained(model, self.adapter)
-            # 合并 LoRA 权重加速推理（保留 FP16 精度，仅量化基座）
-            model = model.merge_and_unload()
-            print("[TransformersClient] LoRA 已合并")
+            if self.merge:
+                # 合并 LoRA 权重加速推理（保留 FP16 精度，仅量化基座）。
+                # 注意：合并后归一化权重会折回 NF4 存储，LoRA 增量精度有损。
+                model = model.merge_and_unload()
+                print("[TransformersClient] LoRA 已合并（VULN_SCANNER_MERGE=1 默认）")
+            else:
+                # ⚠ 不合并模式：LoRA 保持 FP16 精度、运行时叠加，推理会变慢。
+                # 设 VULN_SCANNER_MERGE=0 开启；仅在需要极致 LoRA 精度时建议使用。
+                print("[TransformersClient] 不合并 LoRA，运行时叠加（VULN_SCANNER_MERGE=0）")
+                print("       ⚠ 推理会比合并模式更慢（每层多一次 LoRA 矩阵乘）")
 
             # torch.compile：默认仅 NVIDIA CUDA 开启（reduce-overhead + CUDA graph）。
             # ROCm/CPU 默认关闭：ROCm 稳定性差，CPU 无收益。
@@ -264,7 +328,15 @@ class TransformersClient:
             self._load_error = None
             return True
         except Exception as e:
-            self._load_error = f"{type(e).__name__}: {e}"
+            msg = f"{type(e).__name__}: {e}"
+            low = msg.lower()
+            if "no kernel image" in low or "kernel image" in low or "bnb4bitquantize" in low:
+                msg += (
+                    " | 提示: 显卡与当前 torch/bitsandbytes 内核不匹配，"
+                    "建议设置 VULN_SCANNER_BACKEND=ollama 改用 Ollama 后端，"
+                    "或安装匹配显卡的 torch"
+                )
+            self._load_error = msg
             print(f"[TransformersClient] 模型加载失败: {self._load_error}")
             return False
 

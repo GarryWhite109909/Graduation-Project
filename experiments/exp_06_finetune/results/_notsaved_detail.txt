@@ -1,0 +1,309 @@
+======================================================================
+FILE: typical_14_idor.py
+LANG: Python  CATEGORY: idor  DIFF: easy
+MODEL_VULN_TYPE: CWE-312 Use Of Externally-Controlled Format String
+EXPECTED_CWE: CWE-639
+EXPECTED_VULN: IDOR：order_id 来自 URL 参数，未校验是否属于当前登录用户，可遍历他人订单
+RISK(exp/pred): None / None
+--- RAW_OUTPUT ---
+**分析过程**
+
+1. **第 7 行** `app.secret_key = "dev_key"`：硬编码 Flask session 密钥（CWE-798 Hardcoded Credentials
+
+2. **第 10 行** `if "user_id" not in session`：仅检查 session 中是否存在 user_id，未验证该值是否来自服务端生成的合法会话。攻击者可伪造 session cookie 或直接访问 `/order` 端点。
+
+3. **第 12-13 行** `request.args.get("order_id")` + 直接返回：无任何授权校验，任意登录用户（或未登录用户）均可通过修改 URL 参数读取任意订单详情。该端点缺少 CSRF 防护（CWE-352 Cross-Site Request Forgery (CSRF)
+
+4. **第 10 行** 的 session 检查是无效防御：Flask 默认使用服务端签名的 session cookie，但此处仅检查 key 是否存在，未验证其完整性。攻击者可构造任意 session 字典绕过。
+
+5. 综合来看，该代码存在硬编码凭证（CWE-798 Hardcoded Credentials
+
+```json
+{"has_vulnerability": true, "vulnerability_type": "CWE-312 Use Of Externally-Controlled Format String", "risk_level": "High", "source": "line 10: request.args.get(\"order_id\") 用户可控输入", "sink": "line 14: return f\"Order detail for {order_id}\" 字符串格式化拼接", "explanation": "用户通过 order_id 参数传入任意字符串 → 直接用于 f-string 拼接返回给客户端 → 攻击者可注入 %s 等格式化字符，导致信息泄露或异常输出", "fix_suggestion": "```python\nfrom flask import Flask, request, session\n\napp = Flask(__name__)\napp.secret_key = \"dev_key\"\n\n@app.route(\"/order\")\ndef view_order():\n    if \"user_id\" not in session:\n        return \"Please login\", 401\n    order_id = request.args.get(\"order_id\")\n    # 使用参数化方式，避免格式化注入\n    return f\"Order detail for {order_id}\"\n```"}
+```
+
+======================================================================
+FILE: typical_15_missing_authz.py
+LANG: Python  CATEGORY: missing_authorization  DIFF: easy
+MODEL_VULN_TYPE: CWE-798 Use of Hard-coded Credentials
+EXPECTED_CWE: CWE-862
+EXPECTED_VULN: 缺失授权：仅校验登录未校验角色，任何登录用户都能调用管理员接口
+RISK(exp/pred): None / None
+--- RAW_OUTPUT ---
+**分析过程**
+
+1. 第7行：`app.secret_key = "dev_key"` 硬编码 Flask session 加密密钥，该值直接写入源码且为固定字符串。
+2. 第9-10行：路由 `/admin/export_all_users` 仅检查 `session` 中是否存在 `user_id` 键（第10行），未验证用户角色或权限——任何登录过的用户均可访问此敏感接口。
+3. 第11行：返回 "Exporting all users data..."，该操作涉及导出所有用户数据，属于高危管理功能，但无任何授权校验。
+4. 结论：硬编码密钥（CWE-798）+ 未授权访问（CWE-862 Missing Authorization），同时存在敏感信息泄露风险。
+
+```json
+{"has_vulnerability": true, "vulnerability_type": "CWE-798 Use of Hard-coded Credentials", "risk_level": "High", "source": "line 5: app.secret_key = \"dev_key\" 硬编码密钥", "sink": "line 10: return \"Exporting all users data...\" 敏感操作未授权访问", "explanation": "硬编码 secret_key → 任意登录用户可导出所有用户数据（无角色校验）→ 违反最小权限原则", "fix_suggestion": "```python\nfrom flask import Flask, request, session, abort\nimport os\n\napp = Flask(__name__)\n# 从环境变量读取密钥，避免硬编码\ndb_password = os.environ.get('DB_PASSWORD')\nif not db_password:\n    raise RuntimeError(\"DB_PASSWORD environment variable must be set\")\napp.secret_key = db_password\n\n@app.route(\"/admin/export_all_users\")\ndef export_all_users():\n    if \"user_id\" not in session:\n        abort(401)\n    # 增加角色校验，仅管理员可访问\n    if session.get('role') != 'admin':\n        abort(403)\n    return \"Exporting all users data...\"\n```"}
+```
+
+======================================================================
+FILE: typical_16_session_fixation.py
+LANG: Python  CATEGORY: session_fixation  DIFF: easy
+MODEL_VULN_TYPE: CWE-798 Use of Hard-coded Credentials
+EXPECTED_CWE: CWE-384
+EXPECTED_VULN: 会话固定：登录成功后未重新生成 session id，可被会话固定攻击
+RISK(exp/pred): None / None
+--- RAW_OUTPUT ---
+**分析过程**
+
+1. **第7行**：`app.secret_key = "dev_key"` 是硬编码的 Flask session 密钥。该密钥用于加密 session 数据（如 `session["user_id"]`），若被泄露，攻击者可伪造任意用户会话。
+2. **第9-10行**：登录成功后将用户名存入 session 并返回 "Login success"。由于 secret_key 硬编码在源码中，任何能访问代码的人都能读取该密钥，导致会话固定或劫持攻击。
+3. **第12行**：`session["user_id"] = username` 将用户 ID 存入 session，但未使用安全的随机值（如 `secrets.token_urlsafe()`），且依赖硬编码密钥进行加密。若 secret_key 泄露，攻击者可解密并篡改 session 数据。
+4. **结论**：该代码存在 CWE-798 Use of Hard-coded Credentials
+
+```json
+{"has_vulnerability": true, "vulnerability_type": "CWE-798 Use of Hard-coded Credentials", "risk_level": "High", "source": "line 10: app.secret_key = \"dev_key\" 硬编码密钥", "sink": "line 12: session[\"user_id\"] 存储用户 ID，依赖硬编码密钥加密", "explanation": "硬编码 secret_key → 攻击者可读取源码获取密钥 → 伪造任意会话或篡改 session 数据", "fix_suggestion": "```python\nfrom flask import Flask, request, session\nimport os\n\napp = Flask(__name__)\n# 从环境变量读取，避免硬编码\napp.secret_key = os.environ.get(\"FLASK_SECRET_KEY\")\nif not app.secret_key:\n    raise ValueError(\"FLASK_SECRET_KEY environment variable must be set\")\n\n@app.route(\"/login\", methods=[\"POST\"])\ndef login():\n    username = request.form.get(\"username\")\n    password = request.form.get(\"password\")\n    # 假设这里是数据库校验，校验通过\n    if username and password:\n        session[\"user_id\"] = username\n        return \"Login success\"\n    return \"Invalid credentials\", 401\n```"}
+```
+</think>
+
+**分析过程**
+
+1. **第7行**：`app.secret_key = "dev_key"` 是硬编码的 Flask session 密钥。该密钥用于加密 session 数据（如 `session["user_id"]`），若被泄露，攻击者可伪造任意用户会话。
+2. **第9-10行**：登录成功后将用户名存入 session 并返回 "Login success"。由于 secret_key 硬编码在源码中，任何能访问代码的人都能读取该密钥，导致会话固定或劫持攻击。
+3. **第12行**：`session["user_id"] = username` 将用户 ID 存入 session，但未使用安全的随机值（如 `secrets.token_urlsafe()`），且依赖硬编码密钥进行加密。若 secret_key 泄露，攻击者可解密并篡改 session 数据。
+4. **结论**：该代码存在 CWE-798 Use of Hard-coded Credentials
+
+```json
+{"has_vulnerability": true, "vulnerability_type": "CWE-798 Use of Hard-coded Credentials", "risk_level": "High", "source": "line 10: app.secret_key = \"dev_key\" 硬编码密钥", "sink": "line 12: session[\"user_id\"] 存储用户 ID，依赖硬编码密钥加密", "explanation": "硬编码 secret_key → 攻击者可读取源码获取密钥 → 伪造任意会话或篡改 session 数据", "fix_suggestion": "```python\nfrom flask import Flask, request, session\nimport os\n\napp = Flask(__name__)\n# 从环境变量读取，避免硬编码\napp.secret_key = os.environ.get(\"FLASK_SECRET_KEY\")\nif not app.secret_key:\n    raise ValueError(\"FLASK_SECRET_KEY environment variable must be set\")\n\n@app.route(\"/login\", methods=[\"POST\"])\ndef login():\n    username = request.form.get(\"username\")\n    password = request.form.get(\"password\")\n    # 假设这里是数据库校验，校验通过\n    if username and password:\n        session[\"user_id\"] = username\n        return \"Login success\"\n    return \"Invalid credentials\", 401\n```"}
+```
+
+======================================================================
+FILE: typical_18_hardcoded_iv.py
+LANG: Python  CATEGORY: weak_cryptography  DIFF: easy
+MODEL_VULN_TYPE: CWE-798 Use of Hard-coded Credentials
+EXPECTED_CWE: CWE-329
+EXPECTED_VULN: 硬编码密钥 + 固定 IV：AES-CBC 加密使用静态 key 与 IV，破坏语义安全
+RISK(exp/pred): None / None
+--- RAW_OUTPUT ---
+**分析过程**
+
+1. 第7行：`SECRET_KEY` 从硬编码字符串 `b"this_is_a_hardcoded_secret_key_32_byte"` 截取前32字节作为 AES 密钥。该密钥直接写在源码中，属于 CWE-798 Use of Hard-coded Credentials
+2. 第10行：`STATIC_IV = b"fixed_iv_value_16"` 硬编码了 CBC 模式下的 IV 值。IV 应每次加密时随机生成并随密文一起传输，此处固定值可被攻击者预测。
+3. 第14-15行：`AES.new(SECRET_KEY, AES.MODE_CBC, STATIC_IV)` 使用硬编码的密钥和 IV 进行 CBC 加密。由于密钥和 IV 都是固定的，任何获取该源码的人都能解密所有历史数据（CWE-327 Use of a Broken or Risky Cryptographic Algorithm
+4. 第16-18行：`pad_len = 16 - (len(plaintext) % 16)` 计算填充长度并执行 PKCS7 填充。虽然填充逻辑正确，但密钥和 IV 的硬编码使整个加密过程可被完全逆向。
+```json
+{"has_vulnerability": true, "vulnerability_type": "CWE-798 Use of Hard-coded Credentials", "risk_level": "High", "source": "line 6: SECRET_KEY = b\"this_is_a_hardcoded_secret_key_32_byte\"[:32] 硬编码密钥", "sink": "line 10: STATIC_IV = b\"fixed_iv_value_16\" 硬编码 IV", "explanation": "硬编码的 SECRET_KEY 和 STATIC_IV 可被任何能读取源码的人获取 → 攻击者可解密所有历史加密数据，且无法通过 CBC 模式随机化 IV 提升安全性", "fix_suggestion": "```python\nimport os\nfrom Crypto.Cipher import AES\nfrom flask import Flask, request\n\napp = Flask(__name__)\n\n# 从环境变量读取密钥和 IV（生产环境必须配置）\nSECRET_KEY = os.environ.get('AES_SECRET_KEY', '').encode()\nSTATIC_IV = os.environ.get('AES_STATIC_IV', '').encode()\nif len(SECRET_KEY) != 32 or len(STATIC_IV) != 16:\n    raise ValueError(\"Invalid secret key/IV configuration\")\n\n@app.route(\"/encrypt\")\ndef encrypt():\n    plaintext = request.args.get(\"data\", \"\")\n    cipher = AES.new(SECRET_KEY, AES.MODE_CBC, STATIC_IV)\n    # PKCS7 填充\n    pad_len = 16 - (len(plaintext) % 16)\n    padded = plaintext.encode() + bytes([pad_len]) * pad_len\n    ciphertext = cipher.encrypt(padded)\n    return ciphertext.hex()\n```"}
+```
+
+======================================================================
+FILE: typical_20_insecure_tls.py
+LANG: Python  CATEGORY: insecure_tls  DIFF: easy
+MODEL_VULN_TYPE: CWE-918 Server-Side Request Forgery (SSRF)
+EXPECTED_CWE: CWE-295
+EXPECTED_VULN: 不安全 TLS：requests.get(verify=False) 关闭证书校验，可被中间人攻击
+RISK(exp/pred): None / None
+--- RAW_OUTPUT ---
+**分析过程**
+
+1. **第 8 行**：`url = request.args.get("url")` — 用户可控输入直接进入 `requests.get()` 的 URL 参数，无任何校验或白名单过滤。
+2. **第 9 行**：`resp = requests.get(url, verify=False)` — 使用 `verify=False` 明确关闭 SSL/TLS 证书验证（即不检查服务端身份），同时未对 URL 做协议、域名等限制，攻击者可传入 `https://evil.com@1.2.3.4:80/secret` 等恶意构造。
+3. **第 9 行**：`requests.get()` 在 Python 中默认使用 HTTP 协议（若 URL 不含 `http://` 或 `https://` 则自动补上），但此处用户输入完全可控，可注入任意协议（如 `file://`、`gopher://`）或利用 SSRF 访问内网。
+4. **第 9 行**：`verify=False` 导致中间人攻击时证书验证被绕过，攻击者可伪造服务端证书窃取传输数据。同时未设置超时限制，可能造成资源耗尽。
+
+```json
+{"has_vulnerability": true, "vulnerability_type": "CWE-918 Server-Side Request Forgery (SSRF)", "risk_level": "High", "source": "line 7: request.args.get(\"url\") 用户可控输入", "sink": "line 8: requests.get(url, verify=False) 直接发起请求且关闭证书验证", "explanation": "用户通过 url 参数传入任意 URL → requests.get 发起请求，verify=False 关闭 SSL 验证 → 攻击者可访问内网服务或窃取数据", "fix_suggestion": "```python\nimport requests\nfrom flask import Flask, request\nfrom urllib.parse import urlparse\n\napp = Flask(__name__)\n\ndef is_safe_url(url):\n    parsed = urlparse(url)\n    if not parsed.scheme in ('http', 'https'):\n        return False\n    host = parsed.hostname\n    # 仅允许访问公网 IP 或域名，禁止内网地址\n    if host and host.startswith(('10.', '172.', '192.')) or host.endswith('.local'):\n        return False\n    return True\n\n@app.route(\"/proxy_fetch\")\ndef proxy_fetch():\n    url = request.args.get(\"url\")\n    if not is_safe_url(url):\n        return \"Invalid URL\", 400\n    resp = requests.get(url, verify=True)\n    return resp.text\n```"}
+```
+
+======================================================================
+FILE: typical_22_csrf.py
+LANG: Python  CATEGORY: csrf  DIFF: easy
+MODEL_VULN_TYPE: CWE-306 Missing Authentication for Critical Function
+EXPECTED_CWE: CWE-352
+EXPECTED_VULN: CSRF：转账接口仅靠 cookie 鉴权，无 CSRF token，可被跨站请求伪造
+RISK(exp/pred): None / None
+--- RAW_OUTPUT ---
+**分析过程**
+
+1. 第 7 行 `if "user_id" not in session` — 仅检查 session 中是否存在 user_id 字段，未验证该字段是否为当前登录用户的真实标识（如通过服务端会话存储），攻击者可伪造 session 或利用其他漏洞绕过此检查。
+2. 第 8-9 行 `to = request.form.get("to")` / `amount = request.form.get("amount")` — 用户可控输入直接进入业务逻辑，未做任何身份绑定或权限校验（如验证当前用户是否为转账发起人）。
+3. 第 10 行 `return f"Transfer ${amount} to {to}"` — 转账操作仅在字符串拼接中演示，实际业务场景中应调用数据库更新接口并检查授权条件。此处缺少 CSRF token 校验（如 Flask-WTF 的 `csrf_token`），攻击者可构造跨站请求触发转账。
+4. 第 5 行 `app.secret_key = "dev_key"` — 硬编码生产环境密钥，违反 CWE-798 Use of Hard-coded Credentials
+
+**结论**
+```json
+{"has_vulnerability": true, "vulnerability_type": "CWE-306 Missing Authentication for Critical Function", "risk_level": "High", "source": "line 12: request.form.get(\"to\") / line 13: request.form.get(\"amount\") 用户可控输入", "sink": "line 15: return f\"Transfer ${amount} to {to}\" 转账操作", "explanation": "未验证 session 中 user_id 是否为当前登录用户 → 攻击者可伪造 session 绕过认证 → 执行任意转账", "fix_suggestion": "```python\nfrom flask import Flask, request, session, abort\nfrom functools import wraps\n\napp = Flask(__name__)\napp.secret_key = os.environ.get(\"FLASK_SECRET_KEY\")\n\n# 认证装饰器（检查当前用户）\ndef require_login(f):\n    @wraps(f)\n    def decorated_function(*args, **kwargs):\n        if \"user_id\" not in session:\n            abort(401)\n        return f(*args, **kwargs)\n    return decorated_function\n\n@app.route(\"/transfer\", methods=[\"POST\"])\n@require_login\ndef transfer():\n    to = request.form.get(\"to\")\n    amount = request.form.get(\"amount\")\n    # 实际业务：验证当前用户身份，检查转账目标是否为本人或授权账户\n    if not is_authorized_transfer(session[\"user_id\"], to):\n        return \"Unauthorized transfer\", 403\n    # 执行转账逻辑（示例）\n    update_balance(session[\"user_id\"], -float(amount))\n    return f\"Transfer ${amount} to {to}\"\n```"}
+```
+
+======================================================================
+FILE: typical_23_ssti.py
+LANG: Python  CATEGORY: ssti  DIFF: easy
+MODEL_VULN_TYPE: CWE-79 Cross-site Scripting (XSS)
+EXPECTED_CWE: CWE-1336; CWE-94; CWE-915
+EXPECTED_VULN: SSTI：用户输入直接拼接到 Jinja2 模板字符串并 from_string 渲染，可 RCE
+RISK(exp/pred): None / None
+--- RAW_OUTPUT ---
+**分析过程**
+
+1. **第 2 行**：`request.args.get("name")` 获取用户可控输入 `name`，作为模板字符串拼接的 source。
+2. **第 3 行**：`template_str = f"<h1>Hello {name}</h1>"` 将用户输入直接嵌入 HTML 模板字符串，未做任何转义或过滤。
+3. **第 4-5 行**：使用 `Environment(loader=BaseLoader())` 创建 Jinja2 环境，并通过 `env.from_string()` 加载模板。Jinja2 的 BaseLoader 默认不提供自动转义（除非显式配置），因此渲染时不会对 `<script>`、`{{7*7}}` 等表达式做 HTML 实体编码。
+4. **第 6 行**：`template.render()` 执行渲染，用户输入中的 `{{7*7}}` 或 `<img src=x onerror=alert(1)>` 会被 Jinja2 解析为模板语法或执行任意代码（取决于环境配置），构成存储型 XSS。
+5. **结论**：该路径未使用 `autoescape=True` 或 `html.escape()` 转义，且 BaseLoader 不提供自动转义功能，属于 CWE-79 Cross-site Scripting (XSS)
+
+```json
+{"has_vulnerability": true, "vulnerability_type": "CWE-79 Cross-site Scripting (XSS)", "risk_level": "High", "source": "line 10: request.args.get(\"name\", \"\") 获取用户输入", "sink": "line 14: template.render() 渲染未转义的模板字符串", "explanation": "name 参数 → 拼接进 template_str → env.from_string 加载 → template.render 渲染，无 autoescape 转义 → XSS", "fix_suggestion": "```python\nfrom flask import Flask, request\nfrom jinja2 import Environment, BaseLoader\n\napp = Flask(__name__)\n\n@app.route(\"/render\")\ndef render_template_user():\n    name = request.args.get(\"name\", \"\")\n    template_str = f\"<h1>Hello {name}</h1>\"\n    env = Environment(loader=BaseLoader(), autoescape=True)\n    template = env.from_string(template_str)\n    return template.render()\n```"}
+```
+
+======================================================================
+FILE: typical_25_nosql_injection.py
+LANG: Python  CATEGORY: nosql_injection  DIFF: easy
+MODEL_VULN_TYPE: CWE-89 SQL Injection
+EXPECTED_CWE: CWE-943
+EXPECTED_VULN: NoSQL 注入：MongoDB 查询直接用表单值，攻击者可传 password[$ne]=1 绕过密码
+RISK(exp/pred): None / None
+--- RAW_OUTPUT ---
+**分析过程**
+
+1. **第8行**：`username = request.form.get("username")` 和 `password = request.form.get("password")` 获取用户输入，作为 MongoDB 查询的字段值。
+2. **第9行**：`db.users.find_one({"username": username, "password": password})` 使用 Python 字典构造查询条件。MongoDB 的 `$where` 操作符和正则表达式等高级功能在字典中被原样传递，不经过任何转义或过滤。
+3. **第9行**：攻击者可提交 `username={"$ne":""}` 或 `password={"$regex":".*"}` 等 payload，绕过认证逻辑（如查询所有用户），实现 NoSQL 注入。该操作等价于 MongoDB 的 `$where` 操作符注入。
+4. **第9行**：虽然使用了参数化查询的字面量形式，但未对输入进行类型或内容校验，直接拼接进查询条件，属于典型的 NoSQL 注入模式。
+
+```json
+{"has_vulnerability": true, "vulnerability_type": "CWE-89 SQL Injection", "risk_level": "High", "source": "line 12: request.form.get(\"username\") 和 line 13: request.form.get(\"password\") 获取用户输入", "sink": "line 14: db.users.find_one({\"username\": username, \"password\": password}) 直接拼接进查询条件", "explanation": "用户可控的 username/password 字段直接进入 MongoDB 查询字典 → 攻击者可注入 $ne、$where 等操作符绕过认证逻辑", "fix_suggestion": "```python\nfrom flask import Flask, request\nfrom pymongo import MongoClient\nimport re\n\napp = Flask(__name__)\nclient = MongoClient(\"mongodb://localhost:27017\")\ndb = client[\"testdb\"]\n\n@app.route(\"/login_nosql\", methods=[\"POST\"])\ndef login_nosql():\n    username = request.form.get(\"username\")\n    password = request.form.get(\"password\")\n    # 输入校验：仅允许字母数字和下划线，防止 NoSQL 注入\n    if not re.match(r'^[a-zA-Z0-9_]+$', username) or not re.match(r'^[a-zA-Z0-9_]+$', password):\n        return \"Invalid\", 401\n    user = db.users.find_one({\"username\": username, \"password\": password})\n    if user:\n        return \"Login success\"\n    return \"Invalid\", 401\n```"}
+```
+
+======================================================================
+FILE: typical_28_info_disclosure.py
+LANG: Python  CATEGORY: information_disclosure  DIFF: easy
+MODEL_VULN_TYPE: CWE-89 SQL Injection
+EXPECTED_CWE: CWE-209
+EXPECTED_VULN: 信息泄露：异常直接返回客户端，含 SQL/文件路径/库版本
+RISK(exp/pred): None / None
+--- RAW_OUTPUT ---
+**分析过程**
+
+1. **第7行**：`user_id = request.args.get("id")` 获取用户可控输入，未做任何过滤或校验。
+2. **第13行**：SQL 语句使用 f-string 拼接 `user_id` 直接进入 `cursor.execute()`，构成 SQL 注入点（sink）。
+3. **第14-15行**：异常捕获返回错误信息给客户端。攻击者可构造 `' OR '1'='1` 使查询始终返回数据，或注入恶意列名触发其他数据库操作。
+4. **防御缺失**：未使用参数化查询（如 `?` 占位符），也未对输入做白名单校验，导致漏洞成立。
+
+```json
+{"has_vulnerability": true, "vulnerability_type": "CWE-89 SQL Injection", "risk_level": "High", "source": "line 10: request.args.get(\"id\") 获取用户可控参数", "sink": "line 14: cursor.execute(f\"SELECT nonexistent_col FROM users WHERE id = {user_id}\") 直接拼接SQL", "explanation": "user_id 参数未过滤直接拼入SQL语句 → 攻击者可注入恶意SQL片段（如 OR 1=1）绕过查询逻辑或泄露数据", "fix_suggestion": "```python\nimport sqlite3\nfrom flask import Flask, request\n\napp = Flask(__name__)\n\n@app.route(\"/user\")\ndef get_user():\n    user_id = request.args.get(\"id\")\n    conn = sqlite3.connect(\"app.db\")\n    cursor = conn.cursor()\n    try:\n        # 使用参数化查询，避免SQL注入\n        cursor.execute(\"SELECT id, name FROM users WHERE id = ?\", (user_id,))\n        result = cursor.fetchone()\n        if result:\n            return f\"User: {result[0]} - {result[1]}}\"\n        else:\n            return \"User not found\", 404\n    except Exception as e:\n        return f\"Database error: {e}\", 500\n```"}
+```
+
+======================================================================
+FILE: typical_33_php_type_juggling.php
+LANG: PHP  CATEGORY: type_juggling  DIFF: hard
+MODEL_VULN_TYPE: CWE-287 Use of Hard-coded Credentials
+EXPECTED_CWE: CWE-843
+EXPECTED_VULN: PHP 类型杂耍：用 == 比较 0e 开头字符串，被当作科学计数法转 float 后等于 0
+RISK(exp/pred): None / None
+--- RAW_OUTPUT ---
+**分析过程**
+
+1. 第 8 行：`$user_token = $_GET['token'] ?? '';` — 用户可控输入直接进入变量。
+2. 第 9-10 行：`if ($user_token == $expected_token)` — 使用 `==` 进行字符串比较，PHP 中 `"0e46..." == "0"` 为真（因为以数字开头的字符串会被当作数字比较）。
+3. 攻击者传入 `token=0` 即可绕过认证，无需知道真实 token 值。这是典型的 CWE-287 Use of Hard-coded Credentials
+```json
+{"has_vulnerability": true, "vulnerability_type": "CWE-287 Use of Hard-coded Credentials", "risk_level": "High", "source": "line 10: $user_token == $expected_token 使用宽松比较", "sink": "line 11-13: 认证成功分支，未校验 token 前缀或类型", "explanation": "硬编码 token + 宽松比较 → 攻击者传入 '0' 即可绕过认证", "fix_suggestion": "```php\n<?php\nheader('Content-Type: text/plain');\n\n// 系统下发的 token（实际场景从 DB 取）\n$expected_token = '0e462097431906509019562988736854';\n\n// 用户传入的 token\n$user_token = $_GET['token'] ?? '';\n\nif ($user_token === $expected_token) {\n    echo \"Auth success, welcome admin\\n\";\n} else {\n    echo \"Invalid token\\n\";\n}\n```"}
+```
+
+======================================================================
+FILE: hard_bypass_06_auth_string_compare.py
+LANG: Python  CATEGORY: timing_attack  DIFF: hard
+MODEL_VULN_TYPE: CWE-798 Use of Hard-coded Credentials
+EXPECTED_CWE: CWE-208
+EXPECTED_VULN: 时序攻击：用 == 比较 API token，逐字节比较的时序差异可被测量爆破
+RISK(exp/pred): None / None
+--- RAW_OUTPUT ---
+**分析过程**
+
+1. 第 7 行：`SECRET_API_TOKEN = "sup3r_s3cret_t0k3n_very_long"` 是硬编码的 API token 字面量，属于 CWE-798 Use of Hard-coded Credentials
+
+2. 第 14 行：`token == SECRET_API_TOKEN` 将该硬编码值用于认证比较。攻击者可从源码中直接提取该 token 并伪造请求。
+
+3. 无任何外部配置或环境变量引用，且 token 长度虽长但仍是固定字符串，无法通过运行时动态生成。
+
+4. 违反安全实践：生产代码中不应将凭证硬编码在源码中。正确做法是使用 `os.environ.get("API_TOKEN")` 或从密钥管理服务读取。
+```json
+{"has_vulnerability": true, "vulnerability_type": "CWE-798 Use of Hard-coded Credentials", "risk_level": "High", "source": "line 6: SECRET_API_TOKEN = \"sup3r_s3cret_t0k3n_very_long\" 硬编码凭证", "sink": "line 14: token == SECRET_API_TOKEN 使用硬编码值进行认证比较", "explanation": "源码中硬编码 API token → 攻击者可直接读取获取有效凭据 → 绕过认证访问敏感接口", "fix_suggestion": "```python\nfrom flask import Flask, request, abort\nimport os\n\napp = Flask(__name__)\n\n# 从环境变量读取，避免硬编码\nSECRET_API_TOKEN = os.environ.get(\"API_ADMIN_TOKEN\")\nif not SECRET_API_TOKEN:\n    abort(500, description=\"API token not configured\")\n\n@app.route(\"/api/admin\")\ndef admin_api():\n    token = request.headers.get(\"X-API-Token\", \"\")\n    if token == SECRET_API_TOKEN:\n        return \"Admin data\"\n    return \"Forbidden\", 403\n```"}
+```
+
+======================================================================
+FILE: hard_bypass_08_jwt_none_alg.py
+LANG: Python  CATEGORY: jwt_confusion  DIFF: hard
+MODEL_VULN_TYPE: CWE-798 Use of Hard-coded Credentials
+EXPECTED_CWE: CWE-347
+EXPECTED_VULN: JWT none 算法绕过：decode 未显式指定 algorithms，攻击者可伪造 alg=none 的 JWT
+RISK(exp/pred): None / None
+--- RAW_OUTPUT ---
+**分析过程**
+
+1. 第7行：`SECRET = "dev_secret"` 硬编码密钥字面量，违反 CWE-798 Use of Hard-coded Credentials
+2. 第13行：`jwt.decode(token, SECRET, verify=False)` 使用硬编码密钥且 `verify=False` 关闭签名验证，攻击者可伪造任意 token。
+3. 第14行：`payload.get('user')` 直接返回用户信息，未做权限校验（CWE-862 Missing Authorization
+4. 第15行：异常处理仅打印错误消息，不区分认证失败与业务逻辑错误，辅助攻击者探测系统。
+```json
+{"has_vulnerability": true, "vulnerability_type": "CWE-798 Use of Hard-coded Credentials", "risk_level": "High", "source": "line 10: SECRET = \"dev_secret\" 硬编码密钥", "sink": "line 23: jwt.decode(token, SECRET, verify=False) 使用硬编码密钥", "explanation": "SECRET 硬编码 → 凭据泄露风险 → jwt.decode 使用该密钥且 verify=False 关闭签名验证 → 攻击者可伪造任意 token", "fix_suggestion": "```python\nimport jwt\nfrom flask import Flask, request\n\napp = Flask(__name__)\n\n# 从环境变量读取，避免硬编码\nSECRET = os.environ.get(\"JWT_SECRET\", \"\")\nif not SECRET:\n    raise ValueError(\"JWT_SECRET environment variable is required\")\n\n@app.route(\"/api/profile\")\ndef profile():\n    token = request.headers.get(\"Authorization\", \"\").replace(\"Bearer \", \"\")\n    if not token:\n        return \"No token\", 401\n    try:\n        payload = jwt.decode(token, SECRET, verify=True)\n        return f\"Hello {payload.get('user')}\"\n    except Exception as e:\n        return f\"Invalid: {e}\", 401\n```"}
+```
+
+======================================================================
+FILE: hard_crossfile_03_sink.py
+LANG: Python  CATEGORY: idor  DIFF: hard
+MODEL_VULN_TYPE: CWE-862 Missing Authorization
+EXPECTED_CWE: CWE-639
+EXPECTED_VULN: 跨文件 IDOR：API 接收 user_id 参数未校验归属，直接调用 helper 查询任意用户
+RISK(exp/pred): None / None
+--- RAW_OUTPUT ---
+**分析过程**
+
+1. **第28行（source）**：`user_id` 来自 URL 路径参数 `<int:user_id>`，是用户可控输入。
+2. **第30-31行（sink）**：`get_user_by_id(user_id)` 将该值传入 helper 函数，helper 内部直接拼接进 SQL 查询字符串（实际代码中未展示，但此处假设存在），构成数据流。
+3. **第29行（防御缺失）**：虽然检查了 session 中的 `user_id` 是否存在，但这只是登录状态校验，并未验证当前请求中的 `user_id` 与会话中的 `user_id` 是否一致。攻击者可直接传入任意 `user_id`。
+4. **第29行（防御误判）**：`session` 中的 `user_id` 是服务端存储，但 helper 函数未做任何授权检查——只要用户已登录，即可访问任意用户的 ID 数据。这属于典型的缺失授权漏洞（CWE-862 Missing Authorization
+5. **结论**：攻击者可利用该接口越权访问其他用户数据。
+```json
+{"has_vulnerability": true, "vulnerability_type": "CWE-862 Missing Authorization", "risk_level": "High", "source": "line 19: /api/user/<int:user_id> 路由，user_id 来自 URL 路径参数", "sink": "line 23: get_user_by_id(user_id) 直接使用用户可控的 user_id 查询数据", "explanation": "攻击者可直接访问任意用户的 ID 数据（如 /api/user/100），无需验证当前会话中的 user_id 是否匹配请求参数", "fix_suggestion": "```python\nfrom flask import Flask, request, session\nfrom hard_crossfile_03_input import get_user_by_id\n\napp = Flask(__name__)\napp.secret_key = \"dev_key\"\n\n@app.route(\"/api/user/<int:user_id>\")\ndef get_user_info(user_id):\n    if \"user_id\" not in session:\n        return \"Please login\", 401\n    # 授权检查：确保当前会话中的 user_id 与请求参数一致\n    if session[\"user_id\"] != user_id:\n        return \"Forbidden\", 403\n    user = get_user_by_id(user_id)\n    return user\n```"}
+```
+
+======================================================================
+FILE: hard_longfile_03_hidden_ssti.py
+LANG: Python  CATEGORY: ssti  DIFF: hard
+MODEL_VULN_TYPE: CWE-79 Cross-site Scripting (XSS)
+EXPECTED_CWE: CWE-1336; CWE-94
+EXPECTED_VULN: SSTI 隐藏在长文件深处：~190 行用户管理服务中，/welcome 路由用 from_string 渲染用户输入
+RISK(exp/pred): None / None
+--- RAW_OUTPUT ---
+**分析过程**
+
+1. **第 24-36 行（register 路由）**：假设恶意输入 `username = "admin' OR '1'='1"`、`password = "anything"`。数据流路径为 request.form → 参数化 SQL 插入。防御验证：使用 `?` 占位符 + 元组参数 `(username, password_hash, email, int(time.time()))`，SQLite 驱动将用户输入作为字面值处理，不经过 shell 或解释器。攻击者无法注入 SQL 语句或绕过完整性检查。此路径安全。
+
+2. **第 40-51 行（login 路由）**：假设恶意输入 `username = "admin"`、`password = "pass' OR '1'='1"`。数据流路径为 request.form → 参数化 SQL 查询。防御验证：同样使用参数占位符 `(username, password_hash)`，且密码哈希后存储（SHA-256），攻击者无法通过修改输入改变查询逻辑或绕过认证。此路径安全。
+
+3. **第 70-81 行（list_orders 路由）**：假设恶意输入 `user_id = "1 OR 1=1"`。数据流路径为 session → 参数化 SQL 查询。防御验证：`session["user_id"]` 来自服务端会话，非用户直接控制；且查询使用参数占位符 `(session["user_id"],)`，即使会话被篡改（如通过 XSS），也无法注入额外的 SQL 语句。此路径安全。
+
+4. **第 85-93 行（profile 路由）**：假设恶意输入 `id = "1 OR 1=1"`。数据流路径为 session → 参数化 SQL 查询。防御验证：与 list_orders 相同，参数占位符阻断注入。此路径安全。
+
+5. **第 97-106 行（welcome 路由）**：假设恶意输入 `greeting = "<script>alert(1)</script>"` 或 `{{ config }}`。数据流路径为 request.args → Jinja2 模板渲染。防御验证：模板字符串拼接后传入 `env.from_string()`，但 Jinja2 的 `BaseLoader` 不会自动转义用户输入到 HTML 上下文——**此处存在 XSS 漏洞**（CWE-79 Cross-site Scripting (XSS)
+
+6. **第 109-118 行（admin_list_users 路由）**：假设恶意输入 `role = "admin"`。数据流路径为 session → 参数化 SQL 查询 + 角色检查。防御验证：`session.get("role") != "admin"` 是字符串比较，攻击者无法通过修改会话中的 role 值绕过（因为会话由服务端管理）。此路径安全。
+
+**结论**
+
+```json
+{"has_vulnerability": true, "vulnerability_type": "CWE-79 Cross-site Scripting (XSS)", "risk_level": "High", "source": "line 104: request.args.get(\"greeting\", \"Welcome\") 获取用户可控输入", "sink": "line 106: template.render(user=session.get(\"user_id\")) 渲染未转义的模板字符串", "explanation": "custom_greeting 来自请求参数 → 拼接进模板字符串 → render 时 Jinja2 不自动转义 HTML 特殊字符 → 攻击者可注入 <script> 标签执行任意脚本", "fix_suggestion": "```python\nfrom flask import Flask, request, session, redirect, url_for, jsonify\nfrom jinja2 import Environment, BaseLoader\nimport sqlite3\nimport hashlib\nimport time\nimport logging\n\napp = Flask(__name__)\napp.secret_key = \"very_long_dev_secret_key_for_testing_only\"\nlogger = logging.getLogger(__name__)\n\n# 数据库初始化\ndef init_db():\n    conn = sqlite3.connect(\"app.db\")\n    c = conn.cursor()\n    c.execute(\"\"\"\n        CREATE TABLE IF NOT EXISTS users (\n            id INTEGER PRIMARY KEY,\n            username TEXT UNIQUE,\n            password_hash TEXT,\n            email TEXT,\n            role TEXT DEFAULT 'user',\n            created_at INTEGER\n        )\n    \"\"\")\n    c.execute(\"\"\"\n        CREATE TABLE IF NOT EXISTS orders (\n            id INTEGER PRIMARY KEY,\n            user_id INTEGER,\n            product_name TEXT,\n            amount REAL,\n            status TEXT DEFAULT 'pending',\n            created_at INTEGER\n        )\n    \"\"\")\n    conn.commit()\n    conn.close()\n\n@app.route(\"/register\", methods=[\"POST\"])\ndef register():\n    username = request.form.get(\"username\", \"\")\n    password = request.form.get(\"password\", \"\")\n    email = request.form.get(\"email\", \"\")\n    if not username or not password:\n        return \"Missing fields\", 400\n    password_hash = hashlib.sha256(password.encode()).hexdigest()\n    conn = sqlite3.connect(\"app.db\")\n    c = conn.cursor()\n    try:\n        c.execute(\n            \"INSERT INTO users (username, password_hash, email, created_at) VALUES (?, ?, ?, ?)\",\n            (username, password_hash, email, int(time.time()))\n        )\n        conn.commit()\n        return \"Register success\"\n    except sqlite3.IntegrityError:\n        return \"User exists\", 400\n    finally:\n        conn.close()\n\n@app.route(\"/login\", methods=[\"POST\"])\ndef login():\n    username = request.form.get(\"username\", \"\")\n    password = request.form.get(\"password\", \"\")\n    password_hash = hashlib.sha256(password.encode()).hexdigest()\n    conn = sqlite3.connect(\"app.db\")\n    c = conn.cursor()\n    c.execute(\n        \"SELECT id, role FROM users WHERE username = ? AND password_hash = ?\",\n        (username, password_hash)\n    )\n    row = c.fetchone()\n    conn.close()\n    if row:\n        session[\"user_id\"] = row[0]\n        session[\"role\"] = row[1]\n        return \"Login success\"\n    return \"Invalid\", 401\n\n@app.route(\"/logout\")\ndef logout():\n    session.clear()\n    return redirect(url_for(\"login\"))\n\n@app.route(\"/orders\")\ndef list_orders():\n    if \"user_id\" not in session:\n        return \"Please login\", 401\n    conn = sqlite3.connect(\"app.db\")\n    c = conn.cursor()\n    c.execute(\n        \"SELECT id, product_name, amount, status FROM orders WHERE user_id = ?\",\n        (session[\"user_id\"],)\n    )\n    rows = c.fetchall()\n    conn.close()\n    return jsonify([{\"id\": r[0], \"product\": r[1], \"amount\": r[2], \"status\": r[3]} for r in rows])\n\n@app.route(\"/profile\")\ndef profile():\n    if \"user_id\" not in session:\n        return \"Please login\", 401\n    conn = sqlite3.connect(\"app.db\")\n    c = conn.cursor()\n    c.execute(\"SELECT username, email FROM users WHERE id = ?\", (session[\"user_id\"],))\n    row = c.fetchone()\n    conn.close()\n    return jsonify({\"username\": row[0], \"email\": row[1]})\n\n@app.route(\"/welcome\")\ndef welcome():\n    if \"user_id\" not in session:\n        return \"Please login\", 401\n    custom_greeting = request.args.get(\"greeting\", \"Welcome\")\n    env = Environment(loader=BaseLoader(), autoescape=True)\n    template = env.from_string(f\"<h1>{custom_greeting}, {{ user }}</h1>\")\n    return template.render(user=session.get(\"user_id\"))\n\n@app.route(\"/admin/users\")\ndef admin_list_users():\n    if \"user_id\" not in session:\n        return \"Please login\", 401\n    if session.get(\"role\") != \"admin\":\n        return \"Forbidden\", 403\n    conn = sqlite3.connect(\"app.db\")\n    c = conn.cursor()\n    c.execute(\"SELECT id, username, email FROM users\")\n    rows = c.fetchall()\n    conn.close()\n    return jsonify([{\"id\": r[0], \"username\": r[1], \"email\": r[2]} for r in rows])\n\n@app.route(\"/health\")\ndef health():\n    return \"OK\"\n\nif __name__ == \"__main__\":\n    init_db()\n    app.run(host=\"0.0.0.0\", port=5000)\n```"}
+```
+
+======================================================================
+FILE: hard_cve_05_spring4shell.java
+LANG: Java  CATEGORY: cve_real  DIFF: hard
+MODEL_VULN_TYPE: CWE-79 Cross-site Scripting (XSS)
+EXPECTED_CWE: CWE-915; CWE-94
+EXPECTED_VULN: Spring4Shell (CVE-2022-22965)：数据绑定未限制可绑定字段，class.module.classLoader 链可改 Tomcat 配置写 webshell
+RISK(exp/pred): None / None
+--- RAW_OUTPUT ---
+**分析过程**
+
+1. 第 9 行 `@PostMapping("/users/add")` 使用 Spring MVC 的数据绑定机制，Spring 容器会自动将 HTTP 请求体中的参数（如 name）通过反射注入到 UserForm 对象中。
+2. 第 10-11 行 `public String addUser(UserForm form)` 接收一个 UserForm 实例，该实例的字段由 Spring 自动填充。攻击者可构造 POST 请求 body：`{"name":"<script>alert(1)</script>"}`，Spring 会将 `<script>` 字符串原样赋值给 name 属性。
+3. 第 12 行 `return "User added: " + form.getName();` 将用户可控的字符串直接拼接到 HTTP 响应中。由于 Spring 的 Thymeleaf 模板引擎默认开启自动转义，但此处是纯 Java 字符串拼接返回给客户端（如浏览器），未经过任何 HTML 转义处理。
+4. 攻击者构造的 `<script>` 标签会直接出现在响应体中，浏览器将其解析为 HTML/JavaScript 执行，构成存储型 XSS。该漏洞属于 CWE-79 Cross-site Scripting (XSS)
+```json
+{"has_vulnerability": true, "vulnerability_type": "CWE-79 Cross-site Scripting (XSS)", "risk_level": "High", "source": "line 10: form.getName() 返回用户可控的 name 字符串", "sink": "line 12: return \"User added: \" + form.getName() 直接拼接到 HTTP 响应", "explanation": "HTTP 请求体 → Spring 自动绑定到 UserForm.name → line 12 拼接进响应字符串 → 浏览器执行恶意脚本", "fix_suggestion": "```java\nimport org.springframework.web.bind.annotation.*;\nimport org.springframework.stereotype.*;\nimport org.springframework.util.StringUtils;\n\n@RestController\npublic class UserController {\n\n    @PostMapping(\"/users/add\")\n    public String addUser(@RequestBody UserForm form) {\n        // 对用户输入进行 HTML 转义，防止 XSS\n        String safeName = StringUtils.cleanPath(form.getName());\n        return \"User added: \" + safeName;\n    }\n}\n\nclass UserForm {\n    private String name;\n    public String getName() { return name; }\n    public void setName(String name) { this.name = name; }\n}\n```"}
+```

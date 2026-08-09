@@ -72,7 +72,7 @@ except Exception:  # 独立运行兜底
     REQUEST_TIMEOUT = 180
     RETRY_BACKOFF = 4
 
-MAX_SUGGESTION_CHARS = 300
+MAX_SUGGESTION_CHARS = 500
 MAX_ANCHORS = 3
 
 FIX_SYSTEM_PROMPT = """\
@@ -255,8 +255,10 @@ def call_teacher(
             {"role": "system", "content": system},
             {"role": "user", "content": user},
         ],
+        # 关闭思考链：V4-Flash 思考会占满 max_tokens 导致 content 为空（见 config.py 注释）
+        "thinking": {"type": "disabled"},
         "temperature": 0.3,
-        "max_tokens": 512,
+        "max_tokens": 1024,
         "stream": False,
     }
     resp = requests.post(

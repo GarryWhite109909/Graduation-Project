@@ -300,6 +300,7 @@ def _detect_model_available(backend: str, client) -> tuple[bool | None, str]:
     - transformers: 检测 HuggingFace 本地 cache 是否已下载基座模型
     - ollama: 检测模型是否已 pull
     - llamacpp: 检测 GGUF 文件是否存在
+    - vllm: 检测 vLLM 服务是否运行且模型已加载
     - 其他: 返回 (None, "未实现检测")
     """
     if backend == "transformers":
@@ -351,6 +352,21 @@ def _detect_model_available(backend: str, client) -> tuple[bool | None, str]:
         if base_gguf and Path(base_gguf).exists():
             return True, "GGUF 文件存在"
         return False, f"GGUF 文件不存在：{base_gguf or '未配置'}"
+
+    elif backend == "vllm":
+        model = getattr(client, "model", os.environ.get("VULN_SCANNER_MODEL", ""))
+        try:
+            if not client.check_connection():
+                return False, "vLLM 服务未运行（请先启动 app/launcher/vllm_server.py）"
+            models = client.list_models()
+            if not models:
+                return False, "vLLM 服务已连接但未暴露任何模型"
+            if model and model in models:
+                return True, "vLLM 服务运行中，模型已加载"
+            # 模型名未精确匹配时，只要服务有模型即视为可用（served-model-name 可能不同）
+            return True, f"vLLM 服务运行中（已加载: {', '.join(models)}）"
+        except Exception as e:
+            return False, f"vLLM 检测异常：{e}"
 
     return None, "未实现检测"
 
@@ -482,6 +498,32 @@ def _build_backend_info() -> dict:
         if model_available is False:
             info["download_hint"] = f"GGUF 文件不存在：{base_gguf or '未配置'}，请下载后设置 VULN_SCANNER_GGUF 环境变量。"
 
+    elif backend == "vllm":
+        model = getattr(client, "model", os.environ.get("VULN_SCANNER_MODEL", ""))
+        base_url = os.environ.get("VULN_SCANNER_VLLM_URL", "http://localhost:8000")
+        # 由 GGUF / AWQ / GPTQ 权重文件名推断量化位宽（仅供参考，实际由 vLLM 服务加载决定）
+        q_label = "AWQ/GPTQ 4bit（常见）"
+        info.update({
+            "model": model or "未配置模型",
+            "server_url": base_url,
+            "base_quantization": f"vLLM 服务加载量化基座（{q_label}）",
+            "lora_quantized": False,
+            "lora_precision": "FP16（vLLM --enable-lora 运行时叠加）",
+            "compute_dtype": "FP16（vLLM 托管）",
+            "device_type": "vLLM 服务（GPU 高吞吐）",
+            "num_gpu_layers": None,
+            "precision_note": (
+                "vLLM 通过 OpenAI 兼容 API 提供高吞吐推理（PagedAttention + continuous batching）。"
+                "基座可用 AWQ/GPTQ 4bit 量化以适配 8GB 显存，LoRA 通过 --enable-lora 在运行时以 FP16 叠加。"
+                "需先用 app/launcher/vllm_server.py 启动服务。"
+            ),
+        })
+        if model_available is False:
+            info["download_hint"] = (
+                f"vLLM 服务未运行或未加载模型。请先用 app/launcher/vllm_server.py "
+                f"启动服务（默认 {base_url}，--served-model-name 需与当前模型 {model or '设置 VULN_SCANNER_MODEL'} 一致）。"
+            )
+
     else:
         info.update({
             "model": getattr(client, "model", ""),
@@ -535,6 +577,14 @@ def backend_options():
                 "precision_summary": "Q4 GGUF + 运行时 FP16 LoRA",
                 "pros": "llama.cpp 内核快，LoRA 精度保留",
                 "cons": "实验性，ROCm/Metal 需自行编译 llama-cpp-python",
+            },
+            {
+                "id": "vllm",
+                "name": "vLLM",
+                "recommended": False,
+                "precision_summary": "AWQ/GPTQ 4bit 基座 + FP16 LoRA",
+                "pros": "PagedAttention/continuous batching，高吞吐批量推理",
+                "cons": "需单独启动 vLLM 服务进程，显存占用高",
             },
         ],
     }
@@ -1415,6 +1465,21 @@ def models_local_resources():
             "path": str(adapter) if adapter else "",
             "available": bool(adapter) and Path(adapter).is_dir(),
             "description": "LoRA adapter（训练产物，自动探测 models/ 目录）",
+        })
+
+    elif cls_name == "VLLMClient":
+        # vLLM 是独立服务进程，模型在服务端加载。这里只报告服务连接与模型状态，
+        # 不提供下载端点（模型由 vllm_server.py 的 --model 指向的本地路径/AWQ 目录提供）。
+        public = getattr(client, "base_url", "") or os.environ.get("VULN_SCANNER_VLLM_URL", "http://localhost:8000")
+        available, status = _detect_model_available("vllm", client)
+        resources.append({
+            "type": "vllm_server",
+            "path": public,
+            "available": available,
+            "status": status,
+            "description": "vLLM 服务（OpenAI 兼容 API）",
+            "download_endpoint": None,
+            "hint": "用 app/launcher/vllm_server.py 启动服务；--served-model-name 需与当前模型一致",
         })
 
     return {

@@ -360,18 +360,18 @@
     render: function () {
       var self = this;
 
-      /* 进程内后端（transformers/llamacpp）：渲染本地资源（基座/adapter/GGUF）及下载按钮 */
+      /* 进程内 / 独立服务后端（transformers/llamacpp/vllm）：渲染本地资源（基座/adapter/GGUF/vLLM 服务）及下载按钮 */
       if (!this._mgmtSupported) {
         var resources = this._localResources || [];
-        /* 当前模型 = 实际基座模型（transformers 的 model_id / llamacpp 的 GGUF 路径）+ adapter，而非 Ollama 的 v9max */
+        /* 当前模型 = 实际基座模型（transformers 的 model_id / llamacpp 的 GGUF 路径 / vLLM 服务地址）+ adapter，而非 Ollama 的 v9max */
         var an0 = document.getElementById('model-active-name');
         var anLabel = document.getElementById('model-active-label');
-        var baseRes = resources.filter(function (r) { return r.type === 'huggingface' || r.type === 'gguf'; })[0];
+        var baseRes = resources.filter(function (r) { return r.type === 'huggingface' || r.type === 'gguf' || r.type === 'vllm_server'; })[0];
         var adapterRes = resources.filter(function (r) { return r.type === 'adapter'; })[0];
         if (anLabel) anLabel.textContent = '当前基座模型';
         if (an0) {
           if (baseRes) {
-            an0.textContent = baseRes.type === 'huggingface' ? baseRes.name : (adapterRes && adapterRes.path ? baseRes.path.split(/[\\/]/).pop() : baseRes.path || '—');
+            an0.textContent = baseRes.type === 'huggingface' ? baseRes.name : (baseRes.type === 'vllm_server' ? baseRes.path || '—' : (adapterRes && adapterRes.path ? baseRes.path.split(/[\\/]/).pop() : baseRes.path || '—'));
             an0.title = (baseRes.path || baseRes.name || '');
           } else {
             an0.textContent = '—';
@@ -496,9 +496,9 @@
       '</div>';
     },
 
-    /* ====== 进程内后端本地资源渲染（transformers 基座 / adapter / GGUF） ====== */
+    /* ====== 本地资源渲染（transformers 基座 / adapter / GGUF / vLLM 服务） ====== */
     renderResourceRow: function (r) {
-      var rid = (r.type === 'huggingface' ? 'hf:' + r.id : r.type === 'gguf' ? 'gguf:' + (r.path || 'gguf') : 'adapter:' + (r.path || 'adapter'));
+      var rid = (r.type === 'huggingface' ? 'hf:' + r.id : r.type === 'gguf' ? 'gguf:' + (r.path || 'gguf') : r.type === 'vllm_server' ? 'vllm:' + (r.path || 'vllm') : 'adapter:' + (r.path || 'adapter'));
       var available = r.available === true;
       var statusBadge;
       if (available) {
@@ -509,11 +509,12 @@
         statusBadge = '<span class="text-[10px] px-1.5 py-0.5 rounded ml-1.5" style="background: var(--vuln-surface-3); color: var(--vuln-ink-3)">未知</span>';
       }
 
-      var title = r.type === 'huggingface' ? '基座模型' : r.type === 'gguf' ? 'GGUF 基座' : 'LoRA Adapter';
+      var title = r.type === 'huggingface' ? '基座模型' : r.type === 'gguf' ? 'GGUF 基座' : r.type === 'vllm_server' ? 'vLLM 服务' : 'LoRA Adapter';
       var nameLine = r.type === 'huggingface' ? this.esc(r.id || '') : (r.path ? this.esc(r.path) : '未配置');
       var desc = r.description || '';
+      var hintLine = r.hint ? '<div class="text-[11px] mt-0.5" style="color: var(--vuln-state-warning)">' + this.esc(r.hint) + '</div>' : '';
 
-      /* 下载按钮区：只有 huggingface / gguf 类型且未就绪时显示下载按钮；adapter 不可下载 */
+      /* 下载按钮区：只有 huggingface / gguf 类型且未就绪时显示下载按钮；adapter / vllm_server 不可下载 */
       var btnArea;
       var prog = this._dlProgress[rid];
       var isPulling = !!this._dlPulling[rid];
@@ -521,6 +522,10 @@
         btnArea = available
           ? '<span class="text-xs" style="color: var(--vuln-ink-3)">训练产物</span>'
           : '<span class="text-xs" style="color: var(--vuln-state-warning)">未找到</span>';
+      } else if (r.type === 'vllm_server') {
+        btnArea = available
+          ? '<span class="text-xs" style="color: var(--vuln-state-success)">✓ 已连接</span>'
+          : '<span class="text-xs" style="color: var(--vuln-state-warning)">未连接</span>';
       } else if (available) {
         btnArea = '<span class="text-xs" style="color: var(--vuln-state-success)">✓ 已就绪</span>';
       } else if (isPulling) {
@@ -543,7 +548,7 @@
             '<div class="text-sm font-medium" style="color: var(--vuln-ink)">' + this.esc(title) + statusBadge + '</div>' +
             '<div class="text-[11px] mt-0.5 font-mono" style="color: var(--vuln-ink-3)">' + nameLine + '</div>' +
             (desc ? '<div class="text-[11px] mt-0.5" style="color: var(--vuln-ink-3)">' + this.esc(desc) + '</div>' : '') +
-            dlPath + mirrorTag + errLine +
+            hintLine + dlPath + mirrorTag + errLine +
           '</div>' +
           '<div class="flex-shrink-0 w-[120px] flex items-start justify-end">' + btnArea + '</div>' +
         '</div>' +
@@ -843,6 +848,10 @@
       if (info.compute_dtype) rows.push(this.row('计算精度', String(info.compute_dtype).toUpperCase()));
       if (info.device_type) rows.push(this.row('运行设备', info.device_type));
       if (info.num_ctx) rows.push(this.row('上下文长度', String(info.num_ctx)));
+      if (info.server_url) rows.push(this.row('服务地址', info.server_url));
+      if (info.num_gpu_layers != null) rows.push(this.row('GPU 层数', String(info.num_gpu_layers)));
+      if (info.gguf_path) rows.push(this.row('GGUF 路径', info.gguf_path));
+      if (info.adapter_path) rows.push(this.row('LoRA 路径', info.adapter_path));
 
       var alert = '';
       if (modelOk === false && info.download_hint) {

@@ -25,6 +25,7 @@
 from __future__ import annotations
 
 import os
+import re
 import platform
 import shutil
 import subprocess
@@ -77,6 +78,8 @@ class InstallSpec:
     warning: Optional[str] = None
     # 安装成功后需要能 import 的模块名（用于二次校验）
     check_modules: List[str] = field(default_factory=list)
+    # 额外的 pip 参数（如 --no-binary xx，用于强制源码编译）
+    pip_extra_args: List[str] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -292,6 +295,170 @@ def detect_gpu(platform_info: Optional[PlatformInfo] = None) -> GPUInfo:
     return GPUInfo(vendor=None, name=None, vram_mb=None)
 
 
+@dataclass
+class GPUFamilyInfo:
+    """GPU 系别（用于选择匹配的 torch/bitsandbytes 构建）。"""
+
+    family: str      # nvidia_50 / nvidia_40 / ... / amd_rdna4 / ... / unknown
+    label: str       # 用户可读描述
+
+
+def _query_nvidia_compute_cap() -> Optional[str]:
+    """查询 NVIDIA 显卡 compute capability（如 '12.0' / '8.9'）。"""
+    try:
+        code, out = _run_quiet(
+            ["nvidia-smi", "--query-gpu=compute_cap", "--format=csv,noheader,nounits"],
+            timeout=5.0,
+        )
+        if code == 0 and out.strip():
+            return out.strip().splitlines()[0].strip()
+    except Exception:
+        pass
+    return None
+
+
+def classify_gpu(gpu: GPUInfo) -> GPUFamilyInfo:
+    """把 GPU 归入系别，决定装哪个 torch 构建。
+
+    NVIDIA 优先用 compute capability（nvidia-smi 查询），失败时按型号名推断；
+    AMD 按 Radeon 型号前缀推断 RDNA 代数（决定 ROCm 版本）。
+    """
+    if gpu.vendor == "nvidia":
+        cap = _query_nvidia_compute_cap()
+        if cap:
+            major = cap.split(".", 1)[0]
+            if major == "12":
+                return GPUFamilyInfo("nvidia_50", "NVIDIA RTX 50 系（Blackwell, sm_120）")
+            if major == "9":
+                return GPUFamilyInfo("nvidia_dc", "NVIDIA 数据中心卡（Hopper/Blackwell, sm_90+）")
+            if cap.startswith("8.9"):
+                return GPUFamilyInfo("nvidia_40", "NVIDIA RTX 40 系（Ada, sm_89）")
+            if cap.startswith(("8.6", "8.0")):
+                return GPUFamilyInfo("nvidia_30", "NVIDIA RTX 30 系（Ampere, sm_86/80）")
+            if cap.startswith("7.5"):
+                return GPUFamilyInfo("nvidia_20", "NVIDIA RTX 20 / GTX 16 系（Turing, sm_75）")
+            if cap.startswith(("6.1", "6.0")):
+                return GPUFamilyInfo("nvidia_10", "NVIDIA GTX 10 系（Pascal, sm_61）")
+            return GPUFamilyInfo("nvidia_unknown", "NVIDIA（未知系别）")
+
+        name = (gpu.name or "").lower()
+        if re.search(r"(rtx\s*50\d{2}|rtx\s*50\b|b100|b200|gb10)", name):
+            return GPUFamilyInfo("nvidia_50", "NVIDIA RTX 50 系（Blackwell, sm_120）")
+        if re.search(r"rtx\s*40\d{2}", name):
+            return GPUFamilyInfo("nvidia_40", "NVIDIA RTX 40 系（Ada, sm_89）")
+        if re.search(r"(rtx\s*30\d{2}|rtx\s*a\d{4}|a100|a800)", name):
+            return GPUFamilyInfo("nvidia_30", "NVIDIA RTX 30 系（Ampere, sm_86/80）")
+        if re.search(r"(rtx\s*20\d{2}|gtx\s*16\d{2})", name):
+            return GPUFamilyInfo("nvidia_20", "NVIDIA RTX 20 / GTX 16 系（Turing, sm_75）")
+        if re.search(r"gtx\s*10\d{2}", name):
+            return GPUFamilyInfo("nvidia_10", "NVIDIA GTX 10 系（Pascal, sm_61）")
+        if re.search(r"(h100|h200|h800|a100|a800|b100|b200)", name):
+            return GPUFamilyInfo("nvidia_dc", "NVIDIA 数据中心卡（A/H/B 系列）")
+        return GPUFamilyInfo("nvidia_unknown", "NVIDIA（未知系别）")
+
+    if gpu.vendor == "amd":
+        name = (gpu.name or "").lower()
+        if re.search(r"(rx\s*9\d{3}|9000|9060|9070|9080|9090)", name):
+            return GPUFamilyInfo("amd_rdna4", "AMD Radeon RX 9000 系（RDNA4, gfx1200/1201）")
+        if re.search(r"rx\s*7\d{3}", name):
+            return GPUFamilyInfo("amd_rdna3", "AMD Radeon RX 7000 系（RDNA3, gfx1100）")
+        if re.search(r"rx\s*6\d{3}", name):
+            return GPUFamilyInfo("amd_rdna2", "AMD Radeon RX 6000 系（RDNA2, gfx1030）")
+        if re.search(r"rx\s*5(700|600|500|900)", name):
+            return GPUFamilyInfo("amd_rdna1", "AMD Radeon RX 5000 系（RDNA1, gfx1010）")
+        if re.search(r"(vega|radeon vii|rx\s*5\d{2}\b|rx\s*4\d{2}|r9\s)", name):
+            return GPUFamilyInfo("amd_gcn", "AMD Vega/Polaris（gfx900/gfx803）")
+        if re.search(r"(mi100|mi200|mi210|mi250|mi300|mi350)", name):
+            return GPUFamilyInfo("amd_dc", "AMD Instinct（CDNA）")
+        return GPUFamilyInfo("amd_unknown", "AMD（未知系别）")
+
+    if gpu.vendor == "apple":
+        return GPUFamilyInfo("apple", "Apple Silicon")
+    return GPUFamilyInfo("cpu", "无独立 GPU / CPU")
+
+
+# NVIDIA 系别 → torch CUDA 分支。RTX 50 系（sm_120）必须 cu128+，其余 cu126 通用。
+_NVIDIA_TORCH_INDEX: dict[str, tuple[str, str, Optional[str]]] = {
+    "nvidia_50": (
+        "https://download.pytorch.org/whl/cu128",
+        "PyTorch (CUDA 12.8, Blackwell sm_120)",
+        "RTX 50 系需要 CUDA 12.8+ 驱动（NVIDIA 驱动 ≥570）；"
+        "bitsandbytes 需 ≥0.45.5（含 Blackwell 内核），Windows 缺 "
+        "libbitsandbytes_cuda128.dll 时请升级到最新版。",
+    ),
+    "nvidia_40": (
+        "https://download.pytorch.org/whl/cu126",
+        "PyTorch (CUDA 12.6, Ada sm_89)",
+        None,
+    ),
+    "nvidia_30": (
+        "https://download.pytorch.org/whl/cu126",
+        "PyTorch (CUDA 12.6, Ampere sm_86/80)",
+        None,
+    ),
+    "nvidia_20": (
+        "https://download.pytorch.org/whl/cu121",
+        "PyTorch (CUDA 12.1, Turing sm_75)",
+        "Turing（RTX 20/GTX 16）用 cu121；若该索引没有可用轮子可手动改 cu118。",
+    ),
+    "nvidia_10": (
+        "https://download.pytorch.org/whl/cu118",
+        "PyTorch (CUDA 11.8, Pascal sm_61)",
+        "Pascal（GTX 10 系）太老，4bit 量化支持有限，强烈建议改用 Ollama 后端。",
+    ),
+    "nvidia_dc": (
+        "https://download.pytorch.org/whl/cu126",
+        "PyTorch (CUDA 12.6, A/H 系列)",
+        None,
+    ),
+    "nvidia_unknown": (
+        "https://download.pytorch.org/whl/cu126",
+        "PyTorch (CUDA 12.6, 通用)",
+        "未能识别 NVIDIA 具体系别，按 CUDA 12.6 安装；若报 no kernel image，"
+        "可设 VULN_SCANNER_TORCH_INDEX=https://download.pytorch.org/whl/cu128 覆盖。",
+    ),
+}
+
+# AMD 系别 → torch ROCm 分支（仅 Linux 有官方轮子）。
+_AMD_TORCH_INDEX: dict[str, tuple[str, str, Optional[str]]] = {
+    "amd_rdna4": (
+        "https://download.pytorch.org/whl/rocm7.2",
+        "PyTorch (ROCm 7.2, RDNA4 gfx1200/1201)",
+        "RDNA4 需要较新的 Linux 内核 + ROCm 驱动；装不上可回退 rocm6.3 或改用 Ollama。",
+    ),
+    "amd_rdna3": (
+        "https://download.pytorch.org/whl/rocm6.3",
+        "PyTorch (ROCm 6.3, RDNA3 gfx1100)",
+        None,
+    ),
+    "amd_rdna2": (
+        "https://download.pytorch.org/whl/rocm6.2",
+        "PyTorch (ROCm 6.2, RDNA2 gfx1030)",
+        "RDNA2 若在 ROCm 6.2 上驱动异常，可回退 rocm5.7。",
+    ),
+    "amd_rdna1": (
+        "https://download.pytorch.org/whl/rocm5.7",
+        "PyTorch (ROCm 5.7, RDNA1 gfx1010)",
+        "RDNA1 较老，ROCm 支持有限，建议优先 Ollama。",
+    ),
+    "amd_gcn": (
+        "https://download.pytorch.org/whl/rocm5.7",
+        "PyTorch (ROCm 5.7, Vega/Polaris)",
+        "Vega/Polaris 太老，ROCm 支持有限，强烈建议改用 Ollama 后端。",
+    ),
+    "amd_dc": (
+        "https://download.pytorch.org/whl/rocm6.3",
+        "PyTorch (ROCm 6.3, Instinct CDNA)",
+        None,
+    ),
+    "amd_unknown": (
+        "https://download.pytorch.org/whl/rocm6.3",
+        "PyTorch (ROCm 6.3, 通用)",
+        "未能识别 AMD 具体系别，按 ROCm 6.3 安装；可设 VULN_SCANNER_TORCH_INDEX 覆盖。",
+    ),
+}
+
+
 # ---------------------------------------------------------------------------
 # 依赖规格生成
 # ---------------------------------------------------------------------------
@@ -325,29 +492,30 @@ def _pip_index_args(spec: InstallSpec) -> List[str]:
 
 
 def _torch_spec(platform_info: PlatformInfo, gpu: GPUInfo, python_executable: str) -> InstallSpec:
-    """生成 PyTorch 安装规格。"""
+    """生成 PyTorch 安装规格（按平台 + GPU 系别选择构建）。"""
     # 项目只需要 torch；不安装 torchvision/torchaudio，避免与 torch 版本/index 不匹配。
     base_pkgs = ["torch"]
+    family = classify_gpu(gpu)
 
     if gpu.vendor == "nvidia":
-        # RTX 20/30/40/50 + A/H 系列均支持 CUDA 12.6；旧卡 Maxwell/Pascal 也兼容。
-        # cu126 是最新稳定、兼容性最广的 CUDA 分支（覆盖 RTX 20~50 全系）。
-        # 需要 Blackwell（RTX 50）原生 CUDA 13 时可改 cu130，但驱动要求更高。
+        index_url, description, warning = _NVIDIA_TORCH_INDEX[family.family]
         return InstallSpec(
-            description="PyTorch (CUDA 12.6)",
+            description=description,
             packages=base_pkgs,
-            index_url="https://download.pytorch.org/whl/cu126",
+            index_url=index_url,
             check_modules=["torch"],
+            warning=warning,
         )
 
     if gpu.vendor == "amd":
         if platform_info.os_name == "linux":
+            index_url, description, warning = _AMD_TORCH_INDEX[family.family]
             return InstallSpec(
-                description="PyTorch (ROCm 7.2)",
+                description=description,
                 packages=base_pkgs,
-                index_url="https://download.pytorch.org/whl/rocm7.2",
+                index_url=index_url,
                 check_modules=["torch"],
-                warning="ROCm 7.2 需要兼容的 Linux 内核与 ROCm 驱动；安装失败时请改回 Ollama 后端。",
+                warning=warning or "ROCm 需要兼容的 Linux 内核与驱动；安装失败时请改回 Ollama 后端。",
             )
         # AMD on Windows/macOS：PyTorch 无官方 ROCm  wheel，只能走 CPU
         return InstallSpec(
@@ -355,7 +523,8 @@ def _torch_spec(platform_info: PlatformInfo, gpu: GPUInfo, python_executable: st
             packages=base_pkgs,
             index_url="https://download.pytorch.org/whl/cpu",
             check_modules=["torch"],
-            warning="Windows/macOS 上的 AMD GPU 暂不支持 ROCm 加速，PyTorch 将使用 CPU。",
+            warning=f"{family.label}：Windows/macOS 上的 AMD GPU 无官方 ROCm 轮子，PyTorch 将使用 CPU；"
+                    "要 GPU 加速请用 Ollama 后端，或改用 Linux + ROCm。",
         )
 
     if gpu.vendor == "apple":
@@ -393,7 +562,15 @@ def _bitsandbytes_spec(platform_info: PlatformInfo, gpu: GPUInfo) -> InstallSpec
     }.get(platform_info.os_name, platform_info.os_name)
     gpu_label = gpu.vendor.upper() if gpu.vendor else "CPU"
 
+    family = classify_gpu(gpu)
     warning: Optional[str] = None
+    if gpu.vendor == "nvidia" and family.family == "nvidia_50":
+        warning = (
+            "RTX 50 系需要 bitsandbytes ≥0.45.5（含 Blackwell/sm_120 内核）；"
+            "Windows 若报缺 libbitsandbytes_cuda128.dll，请升级到最新版。"
+        )
+    elif gpu.vendor == "nvidia" and family.family == "nvidia_10":
+        warning = "Pascal（GTX 10 系）的 4bit 支持有限，建议改用 Ollama 后端。"
     if gpu.vendor == "amd":
         warning = (
             f"{platform_label} + ROCm 的 bitsandbytes 支持仍处于预览阶段，"
@@ -436,23 +613,69 @@ def _llamacpp_specs(platform_info: PlatformInfo, gpu: GPUInfo, python_executable
     """llamacpp 后端：llama-cpp-python（按硬件加 CMAKE_ARGS）。"""
     env: dict = {}
     description = "llama-cpp-python"
+    # GPU 平台必须从源码编译：llama-cpp-python 的 PyPI wheel 是 CPU-only，
+    # 直接 pip install 会用 wheel 而忽略 CMAKE_ARGS，导致 GPU offload 静默失效。
+    # 故用 --no-binary 强制走 sdist 源码编译，CMAKE_ARGS 才真正生效。
+    pip_extra_args: List[str] = []
 
     if gpu.vendor == "nvidia":
         env = {"CMAKE_ARGS": "-DLLAMA_CUDA=on"}
         description = "llama-cpp-python (CUDA)"
+        pip_extra_args = ["--no-binary", "llama-cpp-python"]
     elif gpu.vendor == "apple":
         env = {"CMAKE_ARGS": "-DLLAMA_METAL=on"}
         description = "llama-cpp-python (Metal)"
+        pip_extra_args = ["--no-binary", "llama-cpp-python"]
     elif gpu.vendor == "amd" and platform_info.os_name == "linux":
         env = {"CMAKE_ARGS": "-DGGML_HIP=ON"}
         description = "llama-cpp-python (ROCm)"
+        pip_extra_args = ["--no-binary", "llama-cpp-python"]
 
     # Windows AMD / CPU：使用 PyPI 预编译 wheel，不额外传 CMAKE_ARGS
     return [InstallSpec(
         description=description,
         packages=["llama-cpp-python"],
         env=env,
+        pip_extra_args=pip_extra_args,
         check_modules=["llama_cpp"],
+    )]
+
+
+def _vllm_specs(platform_info: PlatformInfo, gpu: GPUInfo, python_executable: str) -> List[InstallSpec]:
+    """vllm 后端：torch + vllm。vLLM 自带对 CUDA 的依赖，常以一个巨型 wheel 安装。
+
+    说明：
+    - vLLM 官方仅正式支持 NVIDIA CUDA 与 Apple Silicon（Metal）；AMD ROCm 属实验性。
+    - 为避免与 transformers 的 torch 构建冲突，这里不重复定义 torch 专用 spec，
+      由 vllm 的依赖自动解析 torch（vllm>=0.9 要求 torch>=2.5，与其解算的最小版本一致）。
+    """
+    platform_label = {
+        "windows": "Windows", "linux": "Linux", "darwin": "macOS"
+    }.get(platform_info.os_name, platform_info.os_name)
+    gpu_label = gpu.vendor.upper() if gpu.vendor else "CPU"
+
+    warning: Optional[str] = None
+    if gpu.vendor == "apple":
+        warning = (
+            "vLLM 在 Apple Silicon 上支持 Metal，但安装与运行限制较多；"
+            "若失败可改用 llamacpp（Metal）或 ollama 后端。"
+        )
+    elif gpu.vendor == "amd":
+        warning = (
+            f"{platform_label} + {gpu_label} 的 vLLM/ROCm 支持属实验性，"
+            "安装与运行可能失败；建议优先 ollama（ROCm 支持最成熟）。"
+        )
+    elif gpu.vendor is None:
+        warning = (
+            "未检测到 NVIDIA GPU：vLLM 在纯 CPU 上无法高效运行，"
+            "强烈建议改用 ollama / llamacpp（支持 CPU）后端。"
+        )
+
+    return [InstallSpec(
+        description=f"vLLM ({platform_label})",
+        packages=["vllm"],
+        check_modules=["vllm"],
+        warning=warning,
     )]
 
 
@@ -474,6 +697,8 @@ def get_backend_requirements(
         return _transformers_specs(platform_info, gpu, python_executable)
     if backend in ("llamacpp", "llama-cpp", "llama_cpp", "gguf"):
         return _llamacpp_specs(platform_info, gpu, python_executable)
+    if backend == "vllm":
+        return _vllm_specs(platform_info, gpu, python_executable)
     raise ValueError(f"不支持自动安装的后端: {backend}")
 
 
@@ -507,6 +732,8 @@ def get_missing_modules(backend: str) -> List[str]:
         required = ["torch", "transformers", "peft", "accelerate", "bitsandbytes"]
     elif backend in ("llamacpp", "llama-cpp", "llama_cpp", "gguf"):
         required = ["llama_cpp"]
+    elif backend == "vllm":
+        required = ["vllm"]
     else:
         return []
     return [m for m in required if not check_module_installed(m)]
@@ -525,6 +752,7 @@ def _force_reinstall() -> bool:
 def _build_pip_cmd(spec: InstallSpec, python_executable: str) -> List[str]:
     cmd = _pip_base_cmd(python_executable)
     cmd.extend(_pip_index_args(spec))
+    cmd.extend(spec.pip_extra_args)
     cmd.extend(spec.packages)
     return cmd
 
@@ -554,17 +782,45 @@ def _query_torch_build(python_executable: str) -> Optional[str]:
 
 
 def _required_torch_family(platform_info: PlatformInfo, gpu: GPUInfo) -> str:
-    """根据硬件确定当前应安装的 torch 构建族。
+    """根据硬件确定当前应安装的 torch 构建后缀。
 
-    - NVIDIA   → 'cu'（CUDA 构建，如 cu130）
-    - AMD+Linux → 'rocm'（ROCm 构建，如 rocm7.2）
-    - 其余（CPU / Apple Silicon / AMD on Windows·macOS）→ 'cpu'
+    返回形如 'cu128' / 'cu126' / 'rocm7.2' / 'cpu'，用于判断已装 torch 是否匹配。
     """
+    family = classify_gpu(gpu)
     if gpu.vendor == "nvidia":
-        return "cu"
+        index_url, _, _ = _NVIDIA_TORCH_INDEX[family.family]
+        return index_url.rstrip("/").rsplit("/", 1)[-1]
     if gpu.vendor == "amd" and platform_info.os_name == "linux":
-        return "rocm"
+        index_url, _, _ = _AMD_TORCH_INDEX[family.family]
+        return index_url.rstrip("/").rsplit("/", 1)[-1]
     return "cpu"
+
+
+def _build_satisfies(installed: str, required: str) -> bool:
+    """判断已装 torch 构建是否满足要求。
+
+    - cu 系列：数字 ≥ 要求即可（如 RTX 50 要求 cu128，已装 cu130 也满足）；
+    - rocm 系列：主版本号 ≥ 要求即可（如要求 rocm6.2，已装 rocm7.2 也满足）；
+    - cpu：任何构建都能跑。
+    """
+    if not installed:
+        return False
+    if installed == required:
+        return True
+    if installed.startswith("cu") and required.startswith("cu"):
+        try:
+            return int(installed[2:]) >= int(required[2:])
+        except ValueError:
+            return False
+    if installed.startswith("rocm") and required.startswith("rocm"):
+        try:
+            def _ver(s: str) -> tuple[int, int]:
+                parts = s[4:].split(".")
+                return (int(parts[0]), int(parts[1]) if len(parts) > 1 else 0)
+            return _ver(installed) >= _ver(required)
+        except ValueError:
+            return False
+    return False
 
 
 def torch_needs_reinstall(
@@ -586,9 +842,9 @@ def torch_needs_reinstall(
 
     if installed is None:
         return True
-    if required in ("cu", "rocm"):
-        return not installed.startswith(required)
-    return False
+    if required == "cpu":
+        return False
+    return not _build_satisfies(installed, required)
 
 
 def _conda_envs_dir() -> Optional[Path]:
@@ -704,6 +960,95 @@ def _torch_build(python_executable: str) -> Optional[str]:
     return _query_torch_build(python_executable)
 
 
+def _package_version(python_executable: str, package: str) -> Optional[str]:
+    """查询目标解释器里指定包的版本；未安装返回 None。"""
+    try:
+        r = subprocess.run(
+            [
+                python_executable, "-c",
+                f"import importlib.metadata as m; print(m.version('{package}'))",
+            ],
+            capture_output=True, text=True, timeout=30,
+            encoding="utf-8", errors="replace",
+        )
+        if r.returncode == 0 and r.stdout.strip():
+            return r.stdout.strip()
+    except Exception:
+        pass
+    return None
+
+
+def _version_lt(installed: str, minimum: str) -> bool:
+    """比较版本号（x.y.z），installed < minimum 返回 True。"""
+    try:
+        def _parts(v: str):
+            return tuple(int(x) for x in re.split(r"[^\d]+", v)[:3] if x)
+        return _parts(installed) < _parts(minimum)
+    except Exception:
+        return False
+
+
+def build_cleanup_plan(
+    platform_info: PlatformInfo,
+    gpu: GPUInfo,
+    python_executable: str,
+) -> List[str]:
+    """找出与当前硬件不匹配、需要先卸载的旧依赖。
+
+    原则：只在明确不匹配时才动，平时不卸载任何包。
+    - torch 构建不满足当前显卡要求（如旧版本装了 cu126，RTX 50 需要 cu128，
+      或 AMD 机器上装了 CUDA 版 torch）→ 卸载 torch + bitsandbytes；
+    - RTX 50 系且 bitsandbytes 版本过旧（<0.45.5，无 Blackwell 内核）→ 卸载 bnb；
+    - 不动 torchvision/torchaudio/torchtext 等，避免破坏环境里其他项目。
+    可用 VULN_SCANNER_SKIP_CLEAN=1 完全关闭自动卸载。
+    """
+    if os.environ.get("VULN_SCANNER_SKIP_CLEAN", "").strip() == "1":
+        return []
+
+    plan: List[str] = []
+    required = _required_torch_family(platform_info, gpu)
+    installed = _torch_build(python_executable)
+
+    if required != "cpu" and installed is not None and not _build_satisfies(installed, required):
+        plan.append("torch")
+        # torch 构建变了，bitsandbytes 的内核与 torch 绑定，必须一起重装
+        if _package_version(python_executable, "bitsandbytes") is not None:
+            plan.append("bitsandbytes")
+
+    if gpu.vendor == "nvidia" and classify_gpu(gpu).family == "nvidia_50":
+        bnb_ver = _package_version(python_executable, "bitsandbytes")
+        if bnb_ver is not None and _version_lt(bnb_ver, "0.45.5"):
+            plan.append("bitsandbytes")
+
+    return sorted(set(plan))
+
+
+def _uninstall_packages(
+    python_executable: str,
+    packages: List[str],
+    callback: Optional[Callable[[str], None]] = None,
+) -> None:
+    """卸载指定包；失败不阻断后续安装（pip install 仍会覆盖）。"""
+    if not packages:
+        return
+    try:
+        r = subprocess.run(
+            [python_executable, "-m", "pip", "uninstall", "-y", *packages],
+            capture_output=True, text=True, timeout=300,
+            encoding="utf-8", errors="replace",
+        )
+        if r.returncode == 0:
+            _emit(f"[依赖安装] 已卸载: {', '.join(packages)}", callback)
+        else:
+            _emit(
+                f"[依赖安装] 卸载 {', '.join(packages)} 未完全成功"
+                f"（pip 退出码 {r.returncode}），继续安装会覆盖，一般不影响",
+                callback,
+            )
+    except Exception as e:  # noqa: BLE001
+        _emit(f"[依赖安装] 卸载 {', '.join(packages)} 异常: {e}（继续安装）", callback)
+
+
 def discover_best_python(
     platform_info: Optional[PlatformInfo] = None,
     gpu: Optional[GPUInfo] = None,
@@ -794,6 +1139,14 @@ def install_backend_dependencies(
             f"{_torch_build(python_executable) or '未安装'}），将重装为匹配本机硬件的版本",
             callback,
         )
+    # 旧版本留下的不兼容依赖：先卸载再装（只在明确不匹配时触发）
+    cleanup_plan = build_cleanup_plan(platform_info, gpu, python_executable) if torch_mismatch else []
+    if cleanup_plan:
+        _emit(
+            f"[依赖安装] 检测到需清理的旧依赖: {', '.join(cleanup_plan)}"
+            "（将先卸载再安装匹配版本）",
+            callback,
+        )
 
     # 先检查必须 spec 是否已全部就绪
     if not _force_reinstall():
@@ -814,6 +1167,12 @@ def install_backend_dependencies(
 
     if dry_run:
         _emit("[依赖安装] DRY-RUN 模式，仅展示命令：", callback)
+        if cleanup_plan:
+            _emit("  先卸载旧依赖：", callback)
+            _emit(
+                f"    {python_executable} -m pip uninstall -y {' '.join(cleanup_plan)}",
+                callback,
+            )
         for spec in specs:
             if spec.warning:
                 _emit(f"  ⚠️ {spec.warning}", callback)
@@ -829,6 +1188,8 @@ def install_backend_dependencies(
     if not _is_auto_install_enabled():
         _emit("[依赖安装] 已禁用自动安装（VULN_SCANNER_AUTO_INSTALL_DEPS=0）", callback)
         _emit("[依赖安装] 请手动执行以下命令：", callback)
+        if cleanup_plan:
+            _emit(f"  先卸载旧依赖: {python_executable} -m pip uninstall -y {' '.join(cleanup_plan)}", callback)
         for spec in specs:
             if not spec.packages:
                 continue
@@ -843,6 +1204,9 @@ def install_backend_dependencies(
         if answer and answer not in ("y", "yes"):
             _emit("[依赖安装] 用户取消安装", callback)
             return False
+
+    if cleanup_plan:
+        _uninstall_packages(python_executable, cleanup_plan, callback)
 
     overall_ok = True
     for spec in specs:
@@ -1205,7 +1569,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="推理后端 / 安全工具依赖自动安装器")
-    parser.add_argument("target", choices=["transformers", "llamacpp", "tools"], help="安装目标：推理后端或安全工具")
+    parser.add_argument("target", choices=["transformers", "llamacpp", "vllm", "tools"], help="安装目标：推理后端或安全工具")
     parser.add_argument("--dry-run", action="store_true", help="仅打印安装命令")
     parser.add_argument("--python", default=sys.executable, help="目标 Python 解释器")
     args = parser.parse_args()

@@ -23,6 +23,7 @@
         '.backend-badge-dot.ollama { background: #3b82f6; box-shadow: 0 0 6px rgba(59,130,246,.45); }',
         '.backend-badge-dot.transformers { background: #10b981; box-shadow: 0 0 6px rgba(16,185,129,.45); }',
         '.backend-badge-dot.llamacpp { background: #f59e0b; box-shadow: 0 0 6px rgba(245,158,11,.45); }',
+        '.backend-badge-dot.vllm { background: #8b5cf6; box-shadow: 0 0 6px rgba(139,92,246,.45); }',
         '.backend-badge-dot.unknown { background: #9ca3af; }',
         '.backend-tooltip { position: absolute; top: calc(100% + 10px); right: 0; width: 320px; max-width: calc(100vw - 24px); padding: 12px 14px; border-radius: 10px; border: 1px solid var(--vuln-line); background: var(--vuln-card); color: var(--vuln-ink); box-shadow: var(--vuln-shadow-3); font-size: 12px; line-height: 1.6; z-index: 60; opacity: 0; visibility: hidden; transform: translateY(-4px); transition: opacity .2s ease, transform .2s ease, visibility .2s; }',
         '.backend-badge-wrap:hover .backend-tooltip, .backend-badge-wrap.active .backend-tooltip { opacity: 1; visibility: visible; transform: translateY(0); }',
@@ -103,7 +104,8 @@
       var title = {
         ollama: 'Ollama 托管推理',
         transformers: 'Transformers 进程内推理',
-        llamacpp: 'llama.cpp 进程内推理'
+        llamacpp: 'llama.cpp 进程内推理',
+        vllm: 'vLLM 独立服务推理'
       }[b] || '推理后端';
 
       // 检测报告头部：模型下载状态
@@ -129,6 +131,7 @@
       if (info.num_gpu_layers != null) rows.push(row('GPU 层数', escapeHtml(String(info.num_gpu_layers))));
       if (info.adapter_path) rows.push(row('LoRA 路径', escapeHtml(info.adapter_path)));
       if (info.gguf_path) rows.push(row('GGUF 路径', escapeHtml(info.gguf_path)));
+      if (info.server_url) rows.push(row('服务地址', escapeHtml(info.server_url)));
 
       var noteClass = 'note';
       var note = info.precision_note || '';
