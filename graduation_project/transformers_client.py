@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import threading
 import time
 from pathlib import Path
@@ -157,6 +158,70 @@ def _local_dir_state(local_dir: Path) -> tuple[bool | None, str]:
     return False, "本地基座缺少权重文件"
 
 
+def _hf_cache_repo_dir(model_id: str) -> Path:
+    """HF 默认 cache 中对应仓库的目录（如 .../hub/models--Qwen--Qwen3-8B）。"""
+    try:
+        from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
+        root = Path(HUGGINGFACE_HUB_CACHE)
+    except Exception:  # noqa: BLE001
+        root = Path.home() / ".cache" / "huggingface" / "hub"
+    return root / f"models--{model_id.replace('/', '--')}"
+
+
+def _migrate_completed_hf_cache(model_id: str, local_dir: Path) -> bool:
+    """把 HF 默认 cache 里**已完整**的基座迁移到项目目录（剪切 + 清理缓存）。
+
+    适用场景：学妹等老用户之前把 16GB 基座下到了 C 盘 HF cache，
+    项目切换到本地目录后应直接搬过来，避免重新下载。
+
+    安全规则：
+    - 只在本地目录缺失/不完整、且 cache 快照**权重完整**时执行；
+    - 缓存不完整（下载中）或不存在时不动，继续走 snapshot_download；
+    - 先迁移/复制，校验本地完整后才删除缓存仓库，避免误删。
+    """
+    if (local_dir / "config.json").is_file() and _local_dir_state(local_dir)[0] is True:
+        return False  # 本地已完整，无需迁移
+    repo = _hf_cache_repo_dir(model_id)
+    snapshots = repo / "snapshots"
+    if not snapshots.is_dir():
+        return False
+    candidates = sorted(
+        (p for p in snapshots.iterdir() if p.is_dir()),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    for snap in candidates:
+        ok, _ = _local_dir_state(snap)
+        if ok is not True:
+            continue
+        local_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            for item in snap.iterdir():
+                dest = local_dir / item.name
+                if dest.exists():
+                    continue
+                if item.is_symlink():
+                    # Linux 缓存里是符号链接：复制内容，随后整体删除仓库
+                    shutil.copy2(item, dest)
+                else:
+                    shutil.move(str(item), str(dest))
+        except Exception as e:  # noqa: BLE001
+            print(f"[TransformersClient] HF cache 迁移失败: {e}")
+            return False
+        if _local_dir_state(local_dir)[0] is True:
+            try:
+                shutil.rmtree(repo, ignore_errors=True)
+                print(
+                    f"[TransformersClient] 已从 HF cache 迁移基座到 {local_dir}，"
+                    "并清理了 C 盘缓存"
+                )
+            except Exception as e:  # noqa: BLE001
+                print(f"[TransformersClient] 缓存清理失败（不影响使用）: {e}")
+            return True
+        return False
+    return False
+
+
 class TransformersClient:
     """transformers 进程内推理客户端（NF4 基座 + FP16 LoRA）。
 
@@ -271,12 +336,15 @@ class TransformersClient:
             local_dir = self._resolved_local_dir()
             if local_dir is not None and not Path(self.model_id).expanduser().is_dir():
                 if not (local_dir / "config.json").is_file():
-                    print(
-                        f"[TransformersClient] 首次下载基座到 {local_dir}"
-                        "（约 16GB，支持断点续传；可在设置页查看进度）..."
-                    )
-                    from huggingface_hub import snapshot_download
-                    snapshot_download(repo_id=self.model_id, local_dir=str(local_dir))
+                    # 老用户可能已把基座下到 HF 默认 cache（C 盘）：先尝试剪切迁移，
+                    # 迁移失败/缓存不完整才重新下载到项目目录。
+                    if not _migrate_completed_hf_cache(self.model_id, local_dir):
+                        print(
+                            f"[TransformersClient] 首次下载基座到 {local_dir}"
+                            "（约 16GB，支持断点续传；可在设置页查看进度）..."
+                        )
+                        from huggingface_hub import snapshot_download
+                        snapshot_download(repo_id=self.model_id, local_dir=str(local_dir))
                 if (local_dir / "config.json").is_file():
                     load_model_id = str(local_dir)
 
