@@ -20,6 +20,7 @@ from typing import Optional
 from graduation_project.llm_client import OllamaClient
 from graduation_project.prompts import SYSTEM_PROMPT, SYSTEM_PROMPT_LITE, BASE_PROMPT, build_user_prompt
 from graduation_project.schema import parse_verdict, normalize_has_vulnerability
+from graduation_project.cwe_normalizer import normalize_cwe_label
 from graduation_project.code_slicer import CodeSlicer, SliceResult
 from graduation_project.prefilter import Prefilter, PrefilterResult
 from app.backend.services.model_registry import get_default_model, get_prompt_for_model
@@ -61,16 +62,17 @@ DEFAULT_TRANSFORMERS_NUM_CTX = int(os.environ.get("VULN_SCANNER_NUM_CTX", "6144"
 KNOWLEDGE_COLLECTION = "vuln_knowledge"
 
 # 预筛规则名 → (CWE 标签, 风险等级)：预筛短路时给出与 LLM 一致的信息格式
+# 标签统一为 CWE 官方标准英文名（与 cwe_normalizer / LLM 输出风格一致）
 _PREFILTER_VULN_INFO = {
-    "sqli_string_concat": ("CWE-89 SQL注入", "High"),
-    "sqli_fstring": ("CWE-89 SQL注入", "High"),
-    "sqli_percent_format": ("CWE-89 SQL注入", "High"),
-    "cmd_os_system_concat": ("CWE-78 命令注入", "Critical"),
-    "cmd_subprocess_shell_concat": ("CWE-78 命令注入", "Critical"),
-    "rce_eval_request": ("CWE-95 代码注入", "Critical"),
-    "path_traversal_open_concat": ("CWE-22 路径穿越", "High"),
-    "deser_pickle_loads": ("CWE-502 不安全反序列化", "Critical"),
-    "deser_yaml_unsafe_load": ("CWE-502 不安全反序列化", "High"),
+    "sqli_string_concat": ("CWE-89 SQL Injection", "High"),
+    "sqli_fstring": ("CWE-89 SQL Injection", "High"),
+    "sqli_percent_format": ("CWE-89 SQL Injection", "High"),
+    "cmd_os_system_concat": ("CWE-78 Command Injection", "Critical"),
+    "cmd_subprocess_shell_concat": ("CWE-78 Command Injection", "Critical"),
+    "rce_eval_request": ("CWE-94 Code Injection", "Critical"),
+    "path_traversal_open_concat": ("CWE-22 Path Traversal", "High"),
+    "deser_pickle_loads": ("CWE-502 Deserialization of Untrusted Data", "Critical"),
+    "deser_yaml_unsafe_load": ("CWE-502 Deserialization of Untrusted Data", "High"),
 }
 
 
@@ -541,7 +543,7 @@ class Scanner:
             language=language,
             chunk_name=chunk_name,
             has_vulnerability=has_vuln,
-            vulnerability_type=verdict.get("vulnerability_type", "none"),
+            vulnerability_type=normalize_cwe_label(verdict.get("vulnerability_type", "none")),
             risk_level=verdict.get("risk_level", "None"),
             source=verdict.get("source", "N/A"),
             sink=verdict.get("sink", "N/A"),

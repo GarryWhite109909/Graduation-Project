@@ -51,6 +51,7 @@ from graduation_project.external_scanner import ExternalScanner
 from graduation_project.prefilter import Prefilter
 from graduation_project.prompts import build_triage_prompt, build_user_prompt
 from graduation_project.schema import normalize_has_vulnerability, parse_verdict
+from graduation_project.cwe_normalizer import normalize_cwe_label
 from graduation_project.code_slicer import CodeSlicer
 
 
@@ -106,6 +107,8 @@ class ToolFinding:
             "source": self.source,
             "sink": self.sink,
             "taint_type": self.taint_type,
+            # 统一显示逻辑：规范 CWE 标签由后端一次性计算，前端不再维护映射表
+            "cwe_label": normalize_cwe_label(self.taint_type),
             "source_line": self.source_line,
             "sink_line": self.sink_line,
             "path": self.path,
@@ -154,6 +157,10 @@ class TwoStageResult:
     reviewer_findings: list[dict] = field(default_factory=list)   # 低置信需人工复核
     vulnerability_type: str = ""      # 文件级漏洞类型（取已确认裁决中最高严重度 finding）
     risk_level: str = "None"          # 文件级风险等级（同样取最高严重度）
+    explanation: str = ""             # 文件级分析说明（取已确认裁决的 reason）
+    fix_suggestion: str = ""          # 文件级修复建议（取已确认裁决的 fix_suggestion）
+    source: str = ""                  # 文件级 source（取已确认裁决 finding 的 source）
+    sink: str = ""                    # 文件级 sink（取已确认裁决 finding 的 sink）
     total_duration: float = 0.0
     error: Optional[str] = None
 
@@ -168,6 +175,10 @@ class TwoStageResult:
             "reviewer_findings": self.reviewer_findings,
             "vulnerability_type": self.vulnerability_type,
             "risk_level": self.risk_level,
+            "explanation": self.explanation,
+            "fix_suggestion": self.fix_suggestion,
+            "source": self.source,
+            "sink": self.sink,
             "total_duration": round(self.total_duration, 2),
             "error": self.error,
         }
@@ -824,10 +835,23 @@ class TwoStageScanner:
                 ((a.finding or {}).get("severity") or "medium").lower(), 1))
             sev = ((top.finding or {}).get("severity") or "medium").lower()
             result.risk_level = sev.capitalize()
+            taint_type = top.finding.get("taint_type") or ""
+            # 统一走 CWE 纠正工具（cwe_normalizer）：Path Traversal → CWE-22 路径穿越，
+            # 无映射时回退到 taint_type / rule_id，保证与旧管道信息格式一致
             result.vulnerability_type = (
-                (top.finding.get("taint_type") or "")
+                normalize_cwe_label(taint_type)
                 or (top.finding.get("rule_id") or "")
             )
+            # 透出已确认裁决的 source/sink/分析/修复到文件级，供前端卡片收起态
+            # 直接展示（与旧管道 r.source/r.sink/explanation/fix_suggestion 对齐）
+            if not result.explanation:
+                result.explanation = top.reasoning or ""
+            if not result.fix_suggestion:
+                result.fix_suggestion = top.fix_suggestion or ""
+            if not result.source:
+                result.source = top.finding.get("source") or ""
+            if not result.sink:
+                result.sink = top.finding.get("sink") or ""
 
         if not result.adjudications:
             result.has_vulnerability = False

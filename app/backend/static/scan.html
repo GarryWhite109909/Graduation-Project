@@ -1389,7 +1389,8 @@
           }
 
           // 结果按扫描轮次分组展示，卡片逐轮堆叠，便于短时间多次检测时区分各轮结果
-          var html = renderGrouped(visible, 0);
+          // 顶部先展示全局工具召回监控（仅存在两阶段结果时出现）
+          var html = toolRecallMonitorHTML() + renderGrouped(visible, 0);
 
           if (hasMore) {
             html += '<div id="collapsed-results" class="hidden space-y-3">' +
@@ -1432,9 +1433,13 @@
             if (!a || !a.confirmed || !a.finding) return;
             var sev = (a.finding.severity || 'medium').toLowerCase();
             var rk = order[sev] || 1;
-            if (rk > best) { best = rk; risk = sev.charAt(0).toUpperCase() + sev.slice(1); type = a.finding.taint_type || a.finding.rule_id || ''; }
+            if (rk > best) { best = rk; risk = sev.charAt(0).toUpperCase() + sev.slice(1); type = twoStageTypeLabel(a.finding); }
           });
-          return { risk: r.risk_level || risk, type: r.vulnerability_type || type };
+          // 类型固定走裁决 finding 的 CWE 映射（twoStageTypeLabel），保证新/旧结果都带 CWE 编号；
+          // 顶层 vulnerability_type 仅在裁决为空时兜底
+          var topType = r.vulnerability_type || '';
+          if (topType && /CWE-/i.test(topType)) type = topType;
+          return { risk: r.risk_level || risk, type: type || topType };
         }
         /* 三态严重度：两阶段 review/null 归为需要复核（warning 色系） */
         function resultSeverity(r) {
@@ -1447,24 +1452,59 @@
           return RISK_TO_SEV[risk] || 'info';
         }
         /* 两阶段核心字段明细：裁决投票/置信度 + 需复核链 + 工具召回监控 */
+        // 统一显示逻辑：CWE/cwe_label 由后端 cwe_normalizer 一次性计算并随 finding 下发，
+        // 前端不再维护映射表；仅兼容无 cwe_label 的旧缓存时回退到 taint_type 原样。
+        function twoStageTypeLabel(f) {
+          if (!f) return 'detected';
+          if (f.cwe_label && f.cwe_label !== 'none') return f.cwe_label;
+          return f.taint_type || f.rule_id || 'detected';
+        }
+        /* 两阶段核心字段明细：裁决投票/置信度 + 证据链(source→sink, path) + 分析/修复 + 需复核链 + 工具召回监控 */
         function twoStageDetailHTML(r) {
           if (r._kind !== 'two-stage') return '';
           var html = '';
           var adjs = r.adjudications || [];
           if (adjs.length) {
-            html += '<p class="text-xs font-medium text-[var(--vuln-ink)] mb-1">LLM 裁决 · 自一致率置信度</p><div class="space-y-1 mb-3">';
+            html += '<p class="text-xs font-medium text-[var(--vuln-ink)] mb-1">LLM 裁决 · 自一致率置信度</p><div class="space-y-2 mb-3">';
             adjs.forEach(function (a) {
               var f = a.finding || {};
               var sev = (f.severity || 'medium').toLowerCase();
               var sc = sev === 'critical' || sev === 'high' ? 'var(--vuln-state-error)' : (sev === 'medium' ? 'var(--vuln-state-warning)' : 'var(--vuln-state-info)');
-              var type = f.taint_type || f.rule_id || 'detected';
               var pct = Math.round((a.confidence || 0) * 100);
-              html += '<div class="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">' +
-                '<span class="font-mono font-medium" style="color:' + sc + '">' + escapeHtml(type) + '</span>' +
+              html += '<div class="rounded-md border border-[var(--vuln-line)] bg-[var(--vuln-surface)]/40 px-2.5 py-2">' +
+                '<div class="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">' +
+                '<span class="font-mono font-medium" style="color:' + sc + '">' + escapeHtml(twoStageTypeLabel(f)) + '</span>' +
                 '<span class="text-[var(--vuln-ink-3)]">真 ' + (a.votes_true || 0) + ' / 假 ' + (a.votes_false || 0) + ' / 无效 ' + (a.votes_invalid || 0) + '</span>' +
                 '<span class="px-1.5 py-0.5 rounded-full bg-[var(--vuln-surface-2)] text-[var(--vuln-ink-2)]">' + escapeHtml(adjudDecisionLabel(a)) + ' · ' + pct + '%</span>' +
-                (a.fix_suggestion && a.fix_suggestion !== 'no fix needed' ? '<span class="text-[var(--vuln-ink-3)] truncate max-w-[300px]" title="' + escapeAttr(a.fix_suggestion) + '">' + escapeHtml(a.fix_suggestion) + '</span>' : '') +
                 '</div>';
+              // 证据链：source → sink（含行号）
+              var src = f.source && f.source !== 'N/A';
+              var snk = f.sink && f.sink !== 'N/A';
+              if (src || snk) {
+                html += '<div class="mt-1.5 text-xs flex items-center gap-1.5 flex-wrap">' +
+                  (src ? '<span class="px-1.5 py-0.5 rounded bg-[var(--vuln-state-error)]/10 text-[var(--vuln-state-error)] font-mono">' + escapeHtml(f.source) + (f.source_line ? ' <span class="text-[var(--vuln-ink-3)]">L' + f.source_line + '</span>' : '') + '</span>' : '') +
+                  (src && snk ? '<span class="text-[var(--vuln-ink-3)]">→</span>' : '') +
+                  (snk ? '<span class="px-1.5 py-0.5 rounded bg-[var(--vuln-state-warning)]/10 text-[var(--vuln-state-warning)] font-mono">' + escapeHtml(f.sink) + (f.sink_line ? ' <span class="text-[var(--vuln-ink-3)]">L' + f.sink_line + '</span>' : '') + '</span>' : '') +
+                  '</div>';
+              }
+              // 传播链
+              if (f.path && f.path.length) {
+                html += '<div class="mt-1 text-xs text-[var(--vuln-ink-3)]">传播链：<span class="font-mono">' + escapeHtml(f.path.join(' → ')) + '</span></div>';
+              }
+              // 分析说明（reasoning）+ 修复
+              if (a.reasoning) {
+                html += '<div class="mt-1.5"><span class="text-xs font-medium text-[var(--vuln-ink)]">分析说明</span><div class="text-xs text-[var(--vuln-ink-2)] whitespace-pre-wrap mt-0.5">' + escapeHtml(a.reasoning) + '</div></div>';
+              }
+              if (a.fix_suggestion && a.fix_suggestion !== 'no fix needed') {
+                html += '<div class="mt-1 text-xs text-[var(--vuln-state-success)]">修复建议：' + escapeHtml(a.fix_suggestion) + '</div>';
+              }
+              // LLM 原始输出（首个判真样本）
+              if (a.raw_outputs && a.raw_outputs.length) {
+                var rawShow = a.raw_outputs[0] || '';
+                if (rawShow.length > 600) rawShow = rawShow.slice(0, 600) + '…';
+                html += '<div class="mt-1.5"><span class="text-xs font-medium text-[var(--vuln-ink)]">LLM 原始输出</span><div class="text-xs text-[var(--vuln-ink-3)] whitespace-pre-wrap mt-0.5 font-mono">' + escapeHtml(rawShow) + '</div></div>';
+              }
+              html += '</div>';
             });
             html += '</div>';
           }
@@ -1473,24 +1513,34 @@
             html += '<p class="text-xs font-medium text-[var(--vuln-state-warning)] mb-1">⚠ 需人工复核算链（低置信/平票）</p><div class="space-y-1 mb-3">';
             reviewer.forEach(function (rv) {
               var f = rv.finding || {};
-              var type = f.taint_type || f.rule_id || 'detected';
               var pct = Math.round((rv.confidence || 0) * 100);
               html += '<div class="text-xs text-[var(--vuln-ink-2)]">' +
-                '<span class="font-mono">' + escapeHtml(type) + '</span> · ' +
+                '<span class="font-mono">' + escapeHtml(twoStageTypeLabel(f)) + '</span> · ' +
                 '真 ' + (rv.votes_true || 0) + '/' + (rv.votes_false || 0) + ' · 置信度 ' + pct + '% · ' +
                 escapeHtml(adjudDecisionLabel(rv)) +
+                (rv.reasoning ? ' · ' + escapeHtml(rv.reasoning) : '') +
                 '</div>';
             });
             html += '</div>';
           }
-          var mon = r.tool_recall_monitor;
-          if (mon && typeof mon === 'object') {
-            var miss = mon.estimated_miss_rate == null ? '—' : (mon.estimated_miss_rate * 100).toFixed(1) + '%';
-            html += '<div class="text-xs text-[var(--vuln-ink-3)] mb-3">工具召回监控：无候选 ' + (mon.no_candidate_total || 0) +
-              ' · 抽样复核 ' + (mon.recheck_sampled || 0) +
-              ' · 估漏报率 ' + miss + '</div>';
-          }
           return html;
+        }
+
+        /* 工具召回监控（全局，自服务启动累计）—— 在结果列表顶部展示一次，
+           从任一两阶段结果读取后端附带的全局快照；无两阶段结果时返回空串 */
+        function toolRecallMonitorHTML() {
+          var mon = null;
+          for (var i = 0; i < scanResults.length; i++) {
+            var rr = scanResults[i];
+            if (rr && rr._kind === 'two-stage' && rr.tool_recall_monitor && typeof rr.tool_recall_monitor === 'object') { mon = rr.tool_recall_monitor; break; }
+          }
+          if (!mon) return '';
+          var miss = mon.estimated_miss_rate == null ? '—' : (mon.estimated_miss_rate * 100).toFixed(1) + '%';
+          return '<div class="mb-3 rounded-md border border-[var(--vuln-line)] bg-[var(--vuln-surface)]/40 px-3 py-2 text-xs text-[var(--vuln-ink-2)]">' +
+            '<span class="font-medium text-[var(--vuln-ink)]">工具召回监控</span>（全局 · 自服务启动累计）：' +
+            '无候选 <strong class="text-[var(--vuln-ink)]">' + (mon.no_candidate_total || 0) + '</strong>' +
+            ' · 抽样复核 <strong class="text-[var(--vuln-ink)]">' + (mon.recheck_sampled || 0) + '</strong>' +
+            ' · 估漏报率 <strong class="text-[var(--vuln-ink)]">' + miss + '</strong></div>';
         }
 
         /* 将结果列表按扫描轮次分组；arr 需已按「新→旧」排序，分组结果保持该顺序 */
@@ -1607,7 +1657,8 @@
           if (r._kind === 'external') {
             meta = '<span class="text-xs font-mono text-[var(--vuln-ink-3)]">' + escapeHtml(r._tool) + ' · ' + escapeHtml(r._category) + (r._line ? ' · 第 ' + r._line + ' 行' : '') + '</span>';
           } else if (r.filename) {
-            meta = '<span class="text-xs font-mono text-[var(--vuln-ink-3)]">' + escapeHtml(r.filename) + (r.duration ? ' · ' + r.duration + 's' : '') + '</span>';
+            var dur = r.duration || (r._kind === 'two-stage' ? r.total_duration : null);
+            meta = '<span class="text-xs font-mono text-[var(--vuln-ink-3)]">' + escapeHtml(r.filename) + (dur ? ' · ' + dur + 's' : '') + '</span>';
           }
 
           // Multi-model vote info
@@ -1796,20 +1847,13 @@
             '**漏洞类型**：' + (r.vulnerability_type || '—'),
             '**风险等级**：' + (r.risk_level || 'None'),
             '**耗时**：' + (r.total_duration ? r.total_duration + 's' : '—'), ''];
-          var mon = r.tool_recall_monitor;
-          if (mon && typeof mon === 'object') {
-            var miss = mon.estimated_miss_rate == null ? '—' : (mon.estimated_miss_rate * 100).toFixed(1) + '%';
-            lines.push('## 工具召回监控', '', '- 无候选数：' + (mon.no_candidate_total || 0));
-            lines.push('- 抽样复核数：' + (mon.recheck_sampled || 0));
-            lines.push('- 估计漏报率：' + miss, '');
-          }
           var adjs = r.adjudications || [];
           if (adjs.length) {
             lines.push('## LLM 裁决（自一致率置信度）', '');
             lines.push('| 类型 | 裁决 | 置信度 | 真/假/无效 | 修复建议 |', '|---|---|---|---|---|');
             adjs.forEach(function (a) {
               var f = a.finding || {};
-              var type = f.taint_type || f.rule_id || 'detected';
+              var type = twoStageTypeLabel(f);
               var pct = Math.round((a.confidence || 0) * 100);
               var label = a.confirmed ? '确认漏洞' : '排除安全';
               var sugg = (a.fix_suggestion && a.fix_suggestion !== 'no fix needed') ? a.fix_suggestion.replace(/\|/g, '/') : '—';
@@ -1822,10 +1866,22 @@
             lines.push('## 需人工复习核链', '', '| 类型 | 真/假 | 置信度 |', '|---|---|---|');
             reviewer.forEach(function (rv) {
               var f = rv.finding || {};
-              var type = f.taint_type || f.rule_id || 'detected';
+              var type = twoStageTypeLabel(f);
               lines.push('| ' + type + ' | ' + (rv.votes_true || 0) + '/' + (rv.votes_false || 0) + ' | ' + Math.round((rv.confidence || 0) * 100) + '% |');
             });
             lines.push('');
+          }
+          // LLM 原始输出
+          if (adjs.length) {
+            lines.push('## LLM 原始输出', '');
+            adjs.forEach(function (a, i) {
+              var f = a.finding || {};
+              lines.push('### ' + (i + 1) + '. ' + twoStageTypeLabel(f) + (a.confirmed ? '（确认）' : '（排除）'));
+              if (a.reasoning) lines.push('', '- **分析**：' + a.reasoning);
+              if (a.fix_suggestion && a.fix_suggestion !== 'no fix needed') lines.push('- **修复**：' + a.fix_suggestion);
+              if (a.raw_outputs && a.raw_outputs.length) lines.push('', '```json', (a.raw_outputs[0] || '').trim(), '```');
+              lines.push('');
+            });
           }
           lines.push('## 说明', '', (r.explanation || '由两阶段架构（工具召回 + LLM 自一致率裁决）生成。'));
           return lines.join('\n');
@@ -2033,6 +2089,18 @@
         }
 
         /* ---------- 报告历史持久化（完整报告，刷新/重启不丢） ---------- */
+        /* 统一的漏洞类型标签：两阶段优先用已规范化的顶层 vulnerability_type，
+           否则从裁决 finding 推导并映射 CWE（与卡片/详情一致），保证报告与汇总
+           也显示规范 CWE 标号 */
+        function resultTypeLabel(r) {
+          if (!r) return '';
+          if (r.vulnerability_type && /CWE-/i.test(r.vulnerability_type)) return r.vulnerability_type;
+          if (r._kind === 'two-stage') {
+            // twoStageTop().type 已由后端 cwe_label / 文件级 vulnerability_type 提供规范 CWE 标签
+            return twoStageTop(r).type || r.vulnerability_type || '';
+          }
+          return r.vulnerability_type || '';
+        }
         function buildReportMarkdown(list) {
           var ts = new Date().toLocaleString('zh-CN');
           var lines = ['# 扫描报告', '', '**生成时间**：' + ts, '**文件数**：' + list.length, ''];
@@ -2043,7 +2111,7 @@
             lines.push('| 文件 | 漏洞类型 | 风险等级 |');
             lines.push('|---|---|---|');
             vulns.forEach(function (r) {
-              lines.push('| ' + (r.filename || '—') + ' | ' + (r.vulnerability_type || '') + ' | ' + (r.risk_level || '') + ' |');
+              lines.push('| ' + (r.filename || '—') + ' | ' + resultTypeLabel(r) + ' | ' + (r.risk_level || '') + ' |');
             });
             lines.push('');
           }
@@ -2052,7 +2120,7 @@
           list.forEach(function (r) {
             lines.push('### ' + (r.filename || '代码'));
             if (r.has_vulnerability === true) {
-              lines.push('- **漏洞类型**：' + (r.vulnerability_type || ''));
+              lines.push('- **漏洞类型**：' + resultTypeLabel(r));
               lines.push('- **风险等级**：' + (r.risk_level || ''));
               if (r.source && r.source !== 'N/A') lines.push('- **污染来源**：' + r.source);
               if (r.sink && r.sink !== 'N/A') lines.push('- **触发点**：' + r.sink);
@@ -2090,7 +2158,7 @@
             files: Array.from(new Set(list.map(function (r) { return (r && r.filename) ? r.filename : ''; }).filter(Boolean))),
             markdown: buildReportMarkdown(list),
             summary: findings.slice(0, 10).map(function (r) {
-              return { filename: r.filename || '—', vulnerability_type: r.vulnerability_type || '', risk_level: r.risk_level || '' };
+              return { filename: r.filename || '—', vulnerability_type: resultTypeLabel(r), risk_level: r.risk_level || '' };
             })
           };
           try {
