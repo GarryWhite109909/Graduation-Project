@@ -20,6 +20,13 @@
         覆盖 pip 镜像源，例如 https://pypi.tuna.tsinghua.edu.cn/simple
     VULN_SCANNER_TORCH_INDEX
         覆盖 PyTorch 专用 index-url（高级用户）
+    VULN_SCANNER_PIP_TIMEOUT
+        整条 pip install 的墙钟上限（秒），0=不限制；默认 7200（2 小时）。
+        网络慢、torch 这类大 wheel 下载慢时建议调大或设 0。
+    VULN_SCANNER_PIP_SOCKET_TIMEOUT
+        pip 单次网络请求超时（秒），默认 60；网络差时 pip 会重试而不是直接失败。
+    VULN_SCANNER_PIP_RETRIES
+        pip 请求重试次数，默认 5。
 """
 
 from __future__ import annotations
@@ -30,6 +37,7 @@ import platform
 import shutil
 import subprocess
 import sys
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, List, Optional
@@ -41,6 +49,11 @@ if sys.platform == "win32":
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")
     except Exception:
         pass
+
+# pip 安装的网络韧性参数（详见模块 docstring）
+PIP_TOTAL_TIMEOUT = int(os.environ.get("VULN_SCANNER_PIP_TIMEOUT", "7200"))
+PIP_SOCKET_TIMEOUT = int(os.environ.get("VULN_SCANNER_PIP_SOCKET_TIMEOUT", "60"))
+PIP_RETRIES = int(os.environ.get("VULN_SCANNER_PIP_RETRIES", "5"))
 
 
 # ---------------------------------------------------------------------------
@@ -754,7 +767,55 @@ def _build_pip_cmd(spec: InstallSpec, python_executable: str) -> List[str]:
     cmd.extend(_pip_index_args(spec))
     cmd.extend(spec.pip_extra_args)
     cmd.extend(spec.packages)
+    _add_pip_network_flags(cmd)
     return cmd
+
+
+def _add_pip_network_flags(cmd: List[str]) -> None:
+    """给 pip install 追加网络韧性参数：慢网请求超时放宽 + 失败自动重试。"""
+    if PIP_SOCKET_TIMEOUT > 0:
+        cmd.extend(["--timeout", str(PIP_SOCKET_TIMEOUT)])
+    if PIP_RETRIES > 0:
+        cmd.extend(["--retries", str(PIP_RETRIES)])
+
+
+def _run_pip_install(
+    cmd: List[str],
+    env: dict,
+    description: str,
+    callback: Optional[Callable[[str], None]] = None,
+) -> tuple[int, str]:
+    """流式执行 pip install：实时转发输出，只有超过墙钟上限才终止进程。
+
+    网络慢时用户能实时看到下载进度；pip 自身有 socket 超时 + 重试（见
+    _add_pip_network_flags），不会因为单个请求慢就被掐断。
+
+    Returns:
+        (returncode, 完整输出文本)
+    """
+    lines: list[str] = []
+    proc = subprocess.Popen(
+        cmd, env=env,
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        text=True, encoding="utf-8", errors="replace", bufsize=1,
+    )
+    assert proc.stdout is not None
+    deadline = time.time() + PIP_TOTAL_TIMEOUT if PIP_TOTAL_TIMEOUT > 0 else None
+    for line in proc.stdout:
+        lines.append(line)
+        stripped = line.strip()
+        if stripped:
+            _emit(f"  {stripped}", callback)
+        if deadline is not None and time.time() > deadline:
+            _emit(
+                f"[依赖安装] {description} 总时长超过 {PIP_TOTAL_TIMEOUT // 60} 分钟，"
+                "已终止下载进程；网络慢可设 VULN_SCANNER_PIP_TIMEOUT 调大（0=不限制）",
+                callback,
+            )
+            proc.kill()
+            break
+    proc.wait(timeout=10)
+    return proc.returncode, "".join(lines)
 
 
 def _query_torch_build(python_executable: str) -> Optional[str]:
@@ -1234,21 +1295,12 @@ def install_backend_dependencies(
         _emit(f"[依赖安装] 命令: {' '.join(cmd)}", callback)
 
         try:
-            # 长超时：大型 wheel（torch ~2GB）下载+安装可能很慢
-            result = subprocess.run(
-                cmd,
-                env=env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=3600,  # 60 分钟
-            )
-            if result.returncode != 0:
-                _emit(f"[依赖安装] ❌ {spec.description} 安装失败（退出码 {result.returncode}）", callback)
+            # 流式执行：实时显示下载进度；总时长上限可配（默认 2 小时，0=不限）
+            returncode, output = _run_pip_install(cmd, env, spec.description, callback)
+            if returncode != 0:
+                _emit(f"[依赖安装] ❌ {spec.description} 安装失败（退出码 {returncode}）", callback)
                 # 打印最后 800 字符帮助诊断
-                tail = result.stdout.strip()[-800:] if result.stdout else ""
+                tail = output.strip()[-800:] if output else ""
                 if tail:
                     _emit(f"[依赖安装] 日志尾部:\n{tail}", callback)
                 overall_ok = False
@@ -1256,11 +1308,6 @@ def install_backend_dependencies(
                     break
             else:
                 _emit(f"[依赖安装] ✅ {spec.description} 安装完成", callback)
-        except subprocess.TimeoutExpired:
-            _emit(f"[依赖安装] ❌ {spec.description} 安装超时（60 分钟）", callback)
-            overall_ok = False
-            if spec.required:
-                break
         except Exception as e:
             _emit(f"[依赖安装] ❌ {spec.description} 安装异常: {e}", callback)
             overall_ok = False
@@ -1498,23 +1545,18 @@ def install_security_tools(
             global_index = os.environ.get("VULN_SCANNER_PIP_INDEX", "").strip()
             if global_index:
                 cmd.extend(["--index-url", global_index])
+            _add_pip_network_flags(cmd)
             _emit(f"[安全工具] 正在安装: {' '.join(cmd)}", callback)
-            try:
-                r = subprocess.run(
-                    cmd, env=os.environ.copy(),
-                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                    text=True, encoding="utf-8", errors="replace",
-                    timeout=1200,  # 20 分钟
-                )
-                if r.returncode == 0:
-                    _emit("[安全工具] ✅ pip 工具安装完成", callback)
-                else:
-                    _emit(f"[安全工具] ❌ pip 工具安装失败（退出码 {r.returncode}）", callback)
-                    tail = r.stdout.strip()[-800:] if r.stdout else ""
-                    if tail:
-                        _emit(f"[安全工具] 日志尾部:\n{tail}", callback)
-            except subprocess.TimeoutExpired:
-                _emit("[安全工具] ❌ pip 工具安装超时（20 分钟）", callback)
+            returncode, output = _run_pip_install(
+                cmd, os.environ.copy(), "安全工具", callback,
+            )
+            if returncode == 0:
+                _emit("[安全工具] ✅ pip 工具安装完成", callback)
+            else:
+                _emit(f"[安全工具] ❌ pip 工具安装失败（退出码 {returncode}）", callback)
+                tail = output.strip()[-800:] if output else ""
+                if tail:
+                    _emit(f"[安全工具] 日志尾部:\n{tail}", callback)
         else:
             _emit("[安全工具] 自动安装已禁用，请手动: "
                   f"pip install {' '.join(missing_pip_spec)}", callback)
