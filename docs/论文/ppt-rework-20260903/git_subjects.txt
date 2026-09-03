@@ -1,0 +1,246 @@
+﻿chore: 2026-09-01 全规则审计与实验迭代收尾
+fix(dataset): 官方口径测试集答案修正落地 + web_review 删除修复与 g25/g26 蒸馏产出
+feat(exp06): g21-g24 蒸馏多批次产出落盘 + 进度总账脚本 + batchB4 补跑 kit
+docs(web_review): update audit result with new batch analysis data
+feat(exp06): g21-g24 辨析组 kit 与入库/机检脚本(蒸馏进行中)
+chore: 清理过期的实验审计文件与结果
+fix(audit): web_review_v3 去重——补全局已产出 id 去重与断点续跑,消除跨批重复渲染
+feat(exp06): g21-g24 辨析组 kit 构造与教师锚扩充(54 条待蒸馏)
+feat(audit): v2_15 网页审查包体系(v3 两段式)+ wave2 g20 辨析组 + 裁决落地
+chore: 收录alpha06-v2_15 wave1数据修复交付包与弱点定量溯源
+chore: 完成2026-09-01全项目审计与修复
+feat: 第八波盲区层收口，补全规则与优化配置
+feat: 实现仓库扫描风险预算调度与工具层多维度优化
+feat(backend): 实现扫描统计持久化，修复后端重启清零问题
+chore(exp): 收录v2_15审计脚本与repair_wave语料、stage1候选dump、审查记录（agent_audit_v2_14/out数据留本地不入库）
+wip: 扫描器与工具链本地修改（signal_registry/two_stage_scanner/scan页面/蒸馏脚本），同步远程前暂存
+feat: 2026-08-30 批量功能更新与文档完善
+fix: 补全PHP超全局变量的输入检测正则
+feat(exp_07_two_stage_eval): 补全前端卡片渲染所需全量字段，新增评估报告与核对脚本
+docs: 更新v2.14冻结报告与评估结果
+test(tooling): 新增工具冒烟自测 + 全量评估断点快照
+chore(skills): 新增 vuln-scan-sample-triage 协作 skill
+docs(training): alpha06 v2_14 优化建议 + 工具层优化指导 + 标签治理与审计产出
+fix(tooling): Stage 1 提示质量修复 + 行号纠偏 + CWE 归因链路修正
+feat(training): v2.12 盲区族+跨文件safe对照 + 教师流式总时长上限 + 数据集全量体检
+fix(teacher): 流式调用 + 32k token 预算——治'输出没跑完'两类截断
+fix(distill): 教师调用容量与超时放宽 + 截断自动翻倍重试
+fix(training): 二轮错标裁定 10 毒全清 + v2.11 剔残留 7 毒 + 盲区族生成器
+feat(training): v2.10 行号吸附二段升级 + 盲区族登记 + 教师超时修复
+fix(training): v2.8 外科清洗（外部审计 P0/P1 修复）+ 跨文件 safe 对照管线
+feat(training): variants/checklist 批次收尾 + alpha06-v2.7（8778 条）
+docs(exp_06): 考卷簇与滚动窗口制度落档 + v2.6 构建报告入 results/
+feat(training): BigModel 教师迁移 + crossfile/checklist 扩量 + 考卷簇防泄漏制度 + v2.6
+exp_06: 补齐长文件(464/464)与框架安全对(79/79)语料，构建并审计 alpha06-v2.4/v2.5 训练集
+feat(training): alpha06-v2.2 分布/质量审计闭环 + v2.3 修复版 + framework/长文件生成管道
+feat(training): alpha05 弱点挖掘闭环 + 工具/裁决双端修复 + alpha06-v2 冻结
+feat(exp_06_finetune): 新增 rolling_dev_safe 安全语料集与分析脚本
+feat(training): 工具层修复 + alpha06-v3 数据管线、语料库与训练集冻结
+docs(素材库图): 修复 8 张图的可读性/美观问题
+fix(frontend): 引擎检测按后端类型分派——transformers 用 model_available 而非 ollama_connected
+fix(launcher): Windows 双击启动不再静默失败——逐步错误检查 + 明确提示
+chore: 删除训练.md和上下文.md两个文档文件
+docs(素材库): 全量可读性审计 + n_samples 类默认对齐 + 修订记录独立成档
+docs(素材库): 移除两阶段架构图顶部红色免责声明
+docs(素材库): 四张核心图重绘为正式比赛风格
+docs(素材库): 按 fixed5 代码重绘两阶段架构图
+docs(素材库): 图片资产盘点与直观化优化
+docs(实验): 修复后 CVE-fix strict 纠正口径写回(0.882)
+docs(素材库): 修正两阶段 CVE-fix 归因(解析器契约错位) + 补实现细节11
+fix(triage_parser): 补齐双格式裁决解析逻辑，修复aligned schema不兼容问题
+docs(素材库): 补跑 α0.5 CVE-fix 纯 LLM（v9max 同配置）
+docs(素材库): 素材本体一致性修订(转义清理/百分比统一/血缘图更新)
+docs(素材库): 站内链接改为纯文本章节定位，兼容 Typora/Trae
+docs(实验): stage1 vs stage2 adapter 对比记录(invalid 真因) + 87 段结果
+docs(素材库): 可读性改造(速查表/HTML锚点/12.6%口径) + α0.5 stage1 训练曲线图
+chore: 闭环全部未决事项，更新文档与模型注册表
+docs(PPT): 优化答辩框架——补提示质量审计/strict统一口径/信任层四层/效率收益等缺失重点，数据统一到 fixed5 纠正口径
+docs(PPT): 重构为'方法论发现链 + 系统成果 + 工程实现 + α1 规划'四幕框架
+docs: 蒸馏口径纠正为双模型（Kimi K3 脚本已写未启用）
+feat(app): 全端组态对齐论文 fixed5（n_samples=3 + full_recheck + triage_aligned）
+docs(素材库): PPT 专用素材按展示仅用最新重对齐
+docs(素材库): 补代码层面核查的工程素材 + 未决闭环
+fix+results: CWE 归一修复 + strict 口径重算结果/复算脚本落档
+feat(app): app 默认组态对齐 fixed5（α0.5 + ALPHA05 + 训练对齐裁决）
+models: 迁移 α0.5 两阶段 LoRA adapter 到干净路径 adapter_alpha05_stage{1,2} + 共形校准文件入库（旧 models/adapter/ 废弃删除）
+results: 补充 exp_06 α0.5 消融与 exp_07 两阶段评估结果 JSON（含原始输出，fixed3/fixed4 保留作演进对比）
+docs: 主线文档更新至 2026-08-18 fixed5 达标（README/规划/进展摘要/过程/两个素材库）
+docs(exp_07): fixed5 全量验证达标 + 提示质量审计指标固化
+fix(toolchain): 修复抑制池跨跑污染/复核门形态校验/工具规则严谨性 + 新增提示质量审计
+feat(exp_06): α0.5 训练集质量治理 + 两阶段回收dev训练 + 架构修复落档
+test(exp_06): α0 纯 LLM 补跑结果（transformers 全变体回归 + ollama 后端）
+docs: 第2.5代架构决策落档（四维矩阵/后端互补性/工程修复）+ 素材库闭环
+test(exp_07): 两阶段全量评估脚本 + 完整结果（四维矩阵）
+feat: 第2.5代工具-模型自适应闭环架构
+docs: 更新未决事项并闭环A1评估，新增prompt变体与批量评估工具
+fix(frontend): 修正两阶段勾选框语义——两阶段为唯一扫描路径，勾选仅控制采样数可调
+assets: 收录 Semgrep 规则包随仓库分发，收录前沿技术研究报告进素材库
+refactor: 两阶段扫描统一为系统唯一路径，外部工具分档接入 Stage 1
+docs: 补充后端平台支持矩阵（Windows 端 LlamaCPP 暂不支持 RTX 50/AMD），并收录进素材库与 PPT 素材
+fix(launcher): RTX 50 系 Windows 默认强制源码编译 llama-cpp-python，避免 cu130 预编译 wheel 的 0xc000001d 非法指令
+feat: 优化行号纠正工具（第N行/重复行幂等/描述稀释兜底）并收录素材库
+feat: 行号纠正工具（内容锚定匹配），纠正模型输出 source/sink/fix_suggestion 的幻觉行号
+fix(launcher): Ollama 4G 低显存卡按 llamacpp 逻辑做 GPU+CPU 混合卸载，避免 GPU 闲置
+docs: README 补充 RTX 50 系列显卡需安装 CUDA Toolkit 的使用说明
+docs: 整理文档目录（归档孤儿文档、方法论移入 docs、素材库待办更名）
+fix: 修复多模型投票/base_url/默认模型删除等逻辑问题并扩充论文素材库
+feat(download): 为 GGUF/wheel/安全工具等大文件下载加 HTTP Range 断点续传
+feat(transformers): 启动时追加 LoRA 合并/不合并子选择，并同步调整后端实验性标注
+fix(launcher): 移除 chcp 65001 与中文注释，避免含中文路径下 cmd 解析截断报错
+feat(deps): RTX 50 源码编译默认指定 sm_120 (Blackwell)
+fix(deps): RTX50+cu130 明确提示需手动安装 CUDA 13.0 Toolkit
+feat: 增强两阶段扫描与外部工具管道，前端展示 CWE Normalizer 纠正过程
+修复 llamacpp 引擎就绪与 LoRA 推理 hang
+fix(llamacpp): 修复 AMD ROCm 编译依赖补齐与 GGUF 镜像直连下载
+feat(llamacpp): GGUF 下载改为代理优先+直连回退，完善后端适配与论文素材
+fix(deps): 模型/依赖下载全部落项目 D 盘，避免大文件占用 C 盘 - wheel 缓存改为项目 cache/wheels；HF_HOME 锁到 models/transformers/.hf_home；基座下载落 models/ 分类目录；.gitignore 忽略 cache/
+fix: 修复后端/前端/插件多处逻辑 bug，论文素材库拆分为主库与待办清单
+refactor(deps): 用 pip 元数据查询 torch 构建，统一清理 torch 生态旧构建避免 DLL 入口点错误
+feat: 按名义容量下图标存分档上下文，修复8G/12G/16G卡错档
+feat: 所有推理入口统一使用 v3 训练数据的 combined CoT+few-shot prompt\n\n- graduation_project/prompts.py: 导出 V3_PROMPT（SYSTEM_PROMPT + CoT + few-shot，4448 字符）\n- app/backend/services/model_registry.py: alpha0/v9max/v5 统一 prompt_variant=v3\n- graduation_project/vllm_client.py: analyze_vulnerability 默认使用 V3_PROMPT\n- graduation_project/transformers_client.py: analyze_vulnerability 默认 fallback 到 V3_PROMPT\n- graduation_project/llamacpp_client.py: analyze_vulnerability 默认 fallback 到 V3_PROMPT\n- graduation_project/two_stage_scanner.py: 更新注释说明统一使用 V3_PROMPT
+fix: torch构建变化时同步清理 torchvision/torchaudio 旧构建，避免 RTX 50 等升级后 DLL 入口点错误
+统一四后端依赖适配与模型管理
+fix(models): Ollama 模型统一到项目目录并统一名称规范化
+docs: 新增论文参考.md 与 Nivis-α0 训练曲线图，更新模型 adapter
+fix(models): 基座模型下载/迁移统一到调用路径扁平目录 models/transformers/<名>
+feat: 交互式分析时在结果列表顶部显示正在分析占位卡，替代底部独立转圈元素
+fix: normalize_cwe_label 调用点移除多余参数，修复 /api/analyze 503
+fix: 前端不再静默丢弃失败请求，503等错误在结果区显示具体原因
+fix(models): 设置页下载与迁移统一到项目 HF 缓存（.hf_home/hub），扁平目录仅作离线兼容
+fix(models): HF 下载/检测统一到项目缓存（.hf_home/hub 可续传），Ollama 迁移支持自动退出后执行
+fix(launcher): Ollama 模型迁移改为任何后端启动都执行（含 transformers 用户）
+chore(scripts): 移除硬编码用户名 /home/zane，改用 Path.home() 动态解析
+fix(models): 启动即触发 C 盘 HF 缓存迁移（完整/未下完），文件被占用时如实报错
+fix(models): C 盘不允许残留任何模型文件（含未下完部分），启动脚本写死模型目录
+fix(models): 启动即锁定 OLLAMA_MODELS/HF_HOME 到项目目录，模型文件不落 C 盘
+feat(models): 目录分类标准 adapter/transformers/ollama，Ollama 模型自动剪切迁移到项目目录
+feat(transformers): 自动迁移 HF cache 中已完整的基座到项目目录并清理缓存
+feat(transformers): 基座自动下载与就绪检测统一到 models/hf_models/<repo>，不再落 HF cache
+fix(health): 基座就绪改为权重完整性判断，预热不触发16GB下载，引擎标签与下载路径统一
+fix(launcher): 低显存强制 transformers 保留 CPU torch（不误卸不重下），pip 流式进度条
+fix(launcher): pip 依赖安装流式输出 + 慢网韧性（总时长/单请求超时/重试可配）
+feat: 打通 llama.cpp 与 vLLM 后端，统一四后端推理链路
+feat: 两阶段结果展示对齐旧管道，统一CWE英文标签显示逻辑
+fix: 转义 Windows 启动脚本 tools 块 echo 括号，修复依赖已装时闪退
+chore: 补全 IntelliJ 插件 gradle wrapper(8.9) 脚本与配置
+fix: 修复 Windows 启动脚本闪退(括号块解析+解释器路径加引号)
+feat: transformers 后端后台预热加载基座并合并 LoRA，首次分析立即可用
+fix: 前端增加CWE编号幻觉提示，并修正日志注入训练样本误标
+fix: 修复 scan.html roundTs 未定义导致结果不渲染
+fix: 启动器硬件检测排除 ROCm 误判为 NVIDIA
+feat: 基座模型迁移至本地并打通 transformers 后端就绪检测
+chore: 删除实验目录下无用的adapter配置文件
+feat: 启动器自动安装依赖与安全工具并指向最新稳定版
+feat: 完成两阶段扫描全流程优化与前端适配
+feat: 新增欢迎页，默认主题改为浅色，修复 posture 卡片渲染与主题按钮
+feat: 分层架构对齐 + 安全工具依赖自检 + 多后端日志一致性
+feat: auto-resolve LoRA adapter from project models/ directory
+fix(frontend/backend): 修正 bitsandbytes 支持矩阵、CPU 推理、前端显式展示模型精度
+feat(launcher): 跨平台推理后端依赖自动安装 + 启动器后端选择
+fix(audit): P0~P2 审计问题修复 —— 编码/后端一致性/fix_usable 证伪/semgrep 实证/文档漂移/数据卫生/态势页
+feat(scanner): 两阶段扫描器 + transformers/llamacpp 进程内后端 + SARIF/semgrep
+feat(ui): 扫描页与后端扫描器增强
+docs(exp): G0 方法学修复重跑结论 + v9max prompt 对照 + 量化缺口诊断
+插件: 修复保存后自动扫描与正则解析, 更新 releases 产物
+feat(train): 新增 Nivis-α1 训练协议脚本（DPO/GRPO/数据飞轮/冻结集）
+docs: 新增方法论文档 + 决策主线考古重建
+fix(backend): 修复后端确定性 bug + 架构重构
+fix(experiments): 修复实验方法学问题 + 文件名泄漏 + 严格口径指标
+fix(dashboard): 趋势图按天聚合 x 点，评分圆环改用显式 SVG path 规避 Chrome 位移
+feat(models): 前端模型管理 UI + 后端拉取/删除/切换路由
+fix(frontend): 评分圆环动画/趋势图吸附/结果卡片删除与数据规范化
+docs+exp05: 更新论文/README 至 v9max 里程碑并加入 Prompt 消融结果
+docs(过程.md): 续写 v9max 云端训练与格式对齐实验经历
+fix(release): Modelfile SYSTEM prompt 动态对齐 BASE_PROMPT
+docs(v9max): 实验记录与评估结论
+feat(v9max): 云端训练产物 + 评估结果 + 数据构建脚本
+feat(v9max): schema 格式对齐 + 评估脚本适配
+feat(uninstall): 新增跨平台一键卸载器 + README 卸载文档
+fix(plugin): 修复 analyzeDocument 中 config 未定义导致的 ReferenceError，发布 v1.2.1 并重新打包 vsix
+build(plugin): 重新打包 vuln-scanner-1.2.0.vsix（浅色主题 + 浅色 logo 资源），补充 repository 元数据
+feat(plugin): 分析面板改用前端浅色主题配色，插件图标与面板头部使用浅色 logo
+fix(security): URL/GitHub 扫描 SSRF 加固与输入大小限制，修复调度器取消占位、启动器强杀端口改为确认
+chore: 移除蒸馏训练数据与无用备份（数据已由训练机持有），chroma 数据库移出版本控制
+feat: Nivis 品牌前端重构与主题系统，修复 GitHub 扫描临时目录泄漏和扫描器 chunk 合并逻辑
+feat: 新增全套品牌logo资源，优化主题切换与交互体验
+refactor(prefilter): 硬编码凭证规则降级为安全抑制标记
+refactor(exp_06_finetune): 教师/学生system分离 + 蒸馏数据质量评审
+feat(exp_06_finetune): 新增蒸馏v2流水线与优化训练配置
+feat(exp_06): add v9 augmented data, CVE-fix test expansion, and GLM distillation scripts
+chore: ignore intellij bin/ build artifacts and add gradle wrapper properties
+chore(releases): add prebuilt vsix and zip installers for direct download
+docs: update plugin usage docs and gitignore for build artifacts
+fix(intellij): fix notify name conflict, add scheduler headers, support IDEA 2025.2
+feat(vscode): add scheduler headers and fix command/menu registration
+feat(backend): add scan request scheduler with priority queue and interactive launcher mode
+fix(frontend): 优化健康检查逻辑，避免页面切换卡顿
+fix(ui): unify navbar and content width across all pages
+fix(backend): make /api/health sync to avoid blocking event loop
+fix(ui): localize CDN deps, unify backend health check, fix nav jitter
+perf(lively): 移除全局 MutationObserver 与定时轮询，降低页面切换卡顿
+perf(dashboard): 仪表盘数据加载提速 —— 移除 /api/stats 的 health 阻塞
+fix(ui): 清除仪表盘与安全态势页的硬编码假数据占位
+feat(scan): 报告持久化历史 + 去除过度 hover 动效
+fix(bat): 中文 REM 注释在 GBK 环境下乱码导致 cd 命令失效
+release: v1.2.0
+fix(hardware): 4GB 显存无法装下 q4_k_m 8B 模型，降级 CPU 推理
+fix(bootstrap): 健康检查改用轻量级 /api/health/live 避免启动超时
+fix(launcher): 修复后端启动超时问题
+feat(launcher): pip 走清华 TUNA 镜像 + download_model.py 加 ghproxy 加速
+docs(readme): v1.1.1 —— 补全部署/依赖/Web/CLI/插件使用指南与故障排查
+feat(ui): v1.1.0 —— 灵动交互层、毛玻璃主题、仪表盘圆环交互与版本对齐
+fix(launcher): 修正 Windows 启动脚本工作目录
+feat: v1.0 发布 —— 补齐扩展能力、前端动态化与硬件自适应
+fix(app): 修复致命 Bug 并重写扫描前端，软件可开箱即用
+feat(release): 模型发布与下载工具，适配 8GB 显存
+feat(app): 模型版本通过环境变量可配置
+feat(train): v7 训练数据与脚本准备
+feat: integrate vuln-scanner-ui frontend into backend static
+feat: add CLI tool, extend VS Code plugin, integrate posture dashboard
+feat(app): 前端新增扫描历史记录功能（localStorage 持久化）
+feat(app): 新增 AI 漏洞扫描器软件应用层（Web + 插件 + 启动器）
+chore(qa): 术语检查工具与规划文档修复
+chore(archive): 整理 exp_01 与 exp_06 数据产物，归档泄漏数据
+refactor(results): 按模型版本重排 exp_06 评估结果并校准 CVE-fix 测试集
+feat(viz): 生成 SFT v2~v6 训练趋势图
+docs: 优化实验报告与索引文档
+feat(cpt): 重构语料生成流程，新增审计脚本、CPT 文档与论文章节
+docs: 更新README文档，补充项目进展与阶段调整
+docs and refactor: 重构 README 研究主线与技术架构，整理历史文档并补充 Phase 3-4 训练分析
+feat(outputs): Phase 1-3 训练产物元数据 + TunableOp 配置
+feat(results): Phase 1-3 评估结果和对比报告
+feat(data): 新增 CPT 语料和 DPO 合并数据
+feat(scripts): Phase 2-4 训练评估脚本 + RDNA4 优化
+docs: 更新方法文档 - RDNA4 优化 + Phase 3 KnItLM 实测结果
+chore: 清理过期实验产物并更新项目配置
+chore: 批量更新项目配置与实验产物
+docs,refactor,prompts,qlora: 补全漏洞分类并优化微调配置
+chore: 清理过期实验产物并更新gitignore与提示词
+feat(exp_05/exp_06): 完成 Prompt 消融实验与 LoRA 微调 P0/P1 优化
+feat(exp_04): v3 严谨性修复后重跑 + 6 模型横向对比 + 结果审查修复
+docs: 同步规划.md v2 样本扩容与 v2 实验完成状态
+feat(exp_04): 报告生成器适配 v2 命名与动态样本数，同步 v2 报告
+feat(exp_04): 新增多模型对照实验结果（v2 87 段 repeat=1）
+feat(exp_04): v2 87 段样本上 qwen2.5-coder:7b 重跑 P1-4/P1-5/P2-8
+chore(exp_04): 新增 v2 实验运行脚本
+feat(exp_04): 样本集 v2 扩容 42→87 段，覆盖 34 类 CWE 多语言样本
+feat(rag): 知识库扩容 39→72 条覆盖 39 类 CWE，区分安全/危险模式标签
+feat(prompts): 移除 Few-shot 示例防答案泄露，RAG 引导语中性化
+docs: 新增 ROCm 7.2.4 安装与回退脚本
+docs: 修正 exp_04 报告误报样本归属，补充根因分析与优化方向
+feat: 完成阶段四-2难样本实验，主模型最终切换为 qwen2.5-coder:7b
+feat: 主模型切换为 qwen2.5-coder:14b，重跑 exp_01/exp_03 并同步三实验报告
+docs: 同步 P0-2 完成状态并归档早期建议文件；feat: 新增 exp_04 难样本集
+fix: 删除样本答案泄露注释，切换主模型为 gemma4:12b，修复 Ollama/Semgrep 兼容性问题
+refactor: 补齐阶段二/三实验并优化代码质量
+docs: 更新 kimi 建议为答辩导向的核心论点版本
+docs: README 路线图补充答辩核心论点（整合 kimi 建议）
+refactor: 抽取统一 schema/prompts/utils，消除跨实验代码重复
+docs: add 临时提示词_下一步计划.md 毕业设计指导文档
+docs: 新增项目待优化问题清单
+chore: 修复结构问题并补充缺失文件
+refactor: 重构项目结构并同步实际进度
+docs: 添加 Kimi 智能体分工建议文档
+优化项目结构：新增 README，融合选题与规划信息
+修正 毕业设计选题.md 文件权限为普通文件
+首次提交：第一阶段模型能力摸底实验
